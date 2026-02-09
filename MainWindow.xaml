@@ -1,0 +1,730 @@
+<Window x:Class="VNotch.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:tb="http://www.hardcodet.net/taskbar"
+        Title="V-Notch"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual">
+    
+    <Window.Resources>
+        <!-- Pure OLED Black for notch -->
+        <SolidColorBrush x:Key="NotchGradient" Color="#000000"/>
+        
+        <!-- Card background - subtle dark -->
+        <SolidColorBrush x:Key="CardGradient" Color="#1a1a1a"/>
+        
+        <!-- Spotify green -->
+        <SolidColorBrush x:Key="SpotifyGreen" Color="#1DB954"/>
+        
+        <!-- YouTube red -->
+        <SolidColorBrush x:Key="YouTubeRed" Color="#FF0000"/>
+        
+        <!-- SoundCloud orange -->
+        <SolidColorBrush x:Key="SoundCloudOrange" Color="#FF5500"/>
+        
+        <!-- TikTok pink -->
+        <SolidColorBrush x:Key="TikTokPink" Color="#EE1D52"/>
+        
+        <!-- Facebook blue -->
+        <SolidColorBrush x:Key="FacebookBlue" Color="#1877F2"/>
+        
+        <!-- Instagram gradient (solid for simplicity) -->
+        <SolidColorBrush x:Key="InstagramPink" Color="#E1306C"/>
+        
+        <!-- Twitter/X blue -->
+        <SolidColorBrush x:Key="TwitterBlue" Color="#1DA1F2"/>
+        
+        <!-- Battery green -->
+        <SolidColorBrush x:Key="BatteryGreen" Color="#30D158"/>
+        
+        <!-- Battery red for low battery -->
+        <SolidColorBrush x:Key="BatteryRed" Color="#FF3B30"/>
+        
+        <!-- Apple blue -->
+        <SolidColorBrush x:Key="AppleBlue" Color="#007AFF"/>
+        
+        <!-- Text styles -->
+        <Style x:Key="TitleText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontFamily" Value="SF Pro Display, SF Pro Text, Segoe UI Variable, Segoe UI"/>
+        </Style>
+        
+        <Style x:Key="SubtitleText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontFamily" Value="SF Pro Display, SF Pro Text, Segoe UI Variable, Segoe UI"/>
+        </Style>
+        
+        <Style x:Key="SmallText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#666666"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontFamily" Value="SF Pro Display, SF Pro Text, Segoe UI Variable, Segoe UI"/>
+        </Style>
+        
+        <!-- Control button style -->
+        <Style x:Key="MediaButton" TargetType="Border">
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="CornerRadius" Value="15"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#444444"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <!-- Outer shadow -->
+        <DropShadowEffect x:Key="NotchShadow" 
+                          Color="#000000" 
+                          ShadowDepth="4" 
+                          BlurRadius="20" 
+                          Opacity="0.6"
+                          Direction="270"/>
+
+        <!-- Logo Geometries -->
+        <Geometry x:Key="SpotifyLogo">M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M16.5,17c-0.2,0-0.4-0.1-0.5-0.2 c-1.8-1.1-4-1.3-6.6-0.7c-0.6,0.1-1.1-0.2-1.3-0.8c-0.1-0.6,0.2-1.1,0.8-1.3c3-0.6,5.6-0.3,7.9,1.1c0.5,0.3,0.6,0.9,0.3,1.4 C17,16.9,16.7,17,16.5,17z M17.8,13.7c-0.2,0.4-0.7,0.5-1.1,0.3c-2-1.2-5.2-1.6-7.6-0.9c-0.4,0.1-0.9-0.1-1-0.6 c-0.1-0.4,0.1-0.9,0.6-1c2.8-0.9,6.4-0.4,8.8,1.1C17.9,12.9,18,13.4,17.8,13.7z M17.9,10.6c-2.4-1.4-6.4-1.6-8.7-0.9 C8.6,9.8,8,9.5,7.9,8.9C7.7,8.3,8.1,7.7,8.7,7.5c2.8-0.8,7.3-0.6,10.1,1.1c0.5,0.3,0.7,1,0.4,1.5C18.9,10.7,18.4,10.8,17.9,10.6z</Geometry>
+        <Geometry x:Key="YouTubeLogo">M19.6,3.2C19.4,2.3,18.7,1.6,17.8,1.4C16.2,1,10,1,10,1s-6.2,0-7.8,0.4C1.3,1.6,0.6,2.3,0.4,3.2C0,4.8,0,10,0,10 s0,5.2,0.4,6.8c0.2,0.9,0.9,1.6,1.8,1.8C3.8,19,10,19,10,19s6.2,0,7.8-0.4c0.9-0.2,1.6-0.9,1.8-1.8C20,15.2,20,10,20,10 S20,4.8,19.6,3.2z M8,13V7l5.2,3L8,13z</Geometry>
+        <Geometry x:Key="SoundCloudLogo">M1.2,10.6c-0.6,0-1.2,0.5-1.2,1.1c0,0.6,0.5,1.1,1.2,1.1c0.6,0,1.2-0.5,1.2-1.1C2.3,11.1,1.8,10.6,1.2,10.6z M3.9,10.3 c-0.7,0-1.2,0.5-1.2,1.2s0.5,1.2,1.2,1.2c0.7,0,1.2-0.5,1.2-1.2S4.6,10.3,3.9,10.3z M6.6,9.5C6,9.5,5.4,10,5.4,10.7 c0,0.7,0.5,1.2,1.2,1.2S7.8,11.3,7.8,10.7C7.8,10,7.3,9.5,6.6,9.5z M9.3,8.4c-0.7,0-1.2,0.5-1.2,1.2c0,0.7,0.5,1.2,1.2,1.2 s1.2-0.5,1.2-1.2C10.5,9,10,8.4,9.3,8.4z M17,8.6c-0.1,0-0.3,0-0.4,0c-0.4-2.1-2.2-3.6-4.4-3.6c-1.6,0-3,0.8-3.9,2 c-0.1-0.5-0.6-0.9-1.1-0.9c-0.7,0-1.2,0.5-1.2,1.2c0,0.4,0.2,0.7,0.5,0.9l-0.1,0.5c0,1,0.8,1.8,1.8,1.8h8.8c1.6,0,2.9-1.3,2.9-2.9 S18.6,8.6,17,8.6z</Geometry>
+        <Geometry x:Key="FacebookLogo">M12,2.2c-5.4,0-9.8,4.4-9.8,9.8c0,4.9,3.6,8.9,8.3,9.6v-6.8H8v-2.8h2.5V9.8c0-2.5,1.5-3.9,3.8-3.9 c1.1,0,2.2,0.2,2.2,0.2v2.5h-1.3c-1.2,0-1.6,0.8-1.6,1.6v1.9h2.8l-0.4,2.8h-2.3v6.8c4.7-0.7,8.3-4.8,8.3-9.6 C21.8,6.6,17.4,2.2,12,2.2z</Geometry>
+        <Geometry x:Key="TikTokLogo">M16.6,5.8c-1.7,0-3.2-0.5-4.5-1.4v8.1c0,3.1-2.5,5.6-5.6,5.6c-0.3,0-0.7,0-1-0.1C5,17.8,5,17.4,5,17c0-2.2,1.8-4,4-4 c0.4,0,0.8,0.1,1.2,0.2V9.8C10,9.7,9.8,9.7,9.6,9.7C5.4,9.7,2,13.1,2,17.3c0,4.2,3.4,7.6,7.6,7.6c4.2,0,7.6-3.4,7.6-7.6V8.6 c1.1,0.8,2.4,1.3,3.8,1.3V6.2C19.7,6.2,18.1,6.2,16.6,5.8z</Geometry>
+        <Geometry x:Key="InstagramLogo">M12,4.6c2.4,0,2.7,0,3.6,0.1c0.9,0,1.4,0.2,1.7,0.3c0.4,0.2,0.7,0.4,1,0.7s0.5,0.6,0.7,1c0.1,0.3,0.3,0.8,0.3,1.7 c0,0.9,0.1,1.2,0.1,3.6s0,2.7-0.1,3.6c0,0.9-0.2,1.4-0.3,1.7c-0.2,0.4-0.4,0.7-0.7,1s-0.6,0.5-1,0.7c-0.3,0.1-0.8,0.3-1.7,0.3 c-0.9,0-1.2,0.1-3.6,0.1s-2.7,0-3.6-0.1c-0.9,0-1.4-0.2-1.7-0.3c-0.4-0.2-0.7-0.4-1-0.7s-0.5-0.6-0.7-1c-0.1-0.3-0.3-0.8-0.3-1.7 c0-0.9-0.1-1.2-0.1-3.6s0-2.7,0.1-3.6c0-0.9,0.2-1.4,0.3-1.7c0.2-0.4,0.4-0.7,0.7-1s0.6-0.5,1-0.7c0.3-0.1,0.8-0.3,1.7-0.3 C9.3,4.6,9.6,4.6,12,4.6 M12,2.8C9.5,2.8,9.2,2.8,8.2,2.9c-1,0.1-1.6,0.2-2.2,0.4c-0.6,0.2-1.1,0.6-1.6,1.1S3.5,5.4,3.3,6 s-0.4,1.2-0.4,2.2C2.8,9.2,2.8,9.5,2.8,12s0,2.8,0.1,3.8c0.1,1,0.2,1.6,0.4,2.2c0.2,0.6,0.6,1.1,1.1,1.6s1,0.9,1.6,1.1 c0.6,0.2,1.2,0.4,2.2,0.4c1,0.1,1.3,0.1,3.8,0.1s2.8,0,3.8-0.1c1-0.1,1.6-0.2,2.2-0.4c0.6-0.2,1.1-0.6,1.6-1.1s0.9-1,1.1-1.6 c0.2-0.6,0.4-1.2,0.4-2.2c0.1-1,0.1-1.3,0.1-3.8s0-2.8-0.1-3.8c-0.1-1-0.2-1.6-0.4-2.2c-0.2-0.6-0.6-1.1-1.1-1.6s-1-0.9-1.6-1.1 c-0.6-0.2-1.2-0.4-2.2-0.4C14.8,2.8,14.5,2.8,12,2.8L12,2.8z M12,7.3c-2.6,0-4.7,2.1-4.7,4.7S9.4,16.7,12,16.7s4.7-2.1,4.7-4.7 S14.6,7.3,12,7.3z M12,14.9c-1.6,0-2.9-1.3-2.9-2.9S10.4,9.1,12,9.1s2.9,1.3,2.9,2.9S13.6,14.9,12,14.9z M17,5.8 c-0.6,0-1.2,0.5-1.2,1.2s0.5,1.2,1.2,1.2S18.3,7.6,18.3,7S17.7,5.8,17,5.8z</Geometry>
+        <Geometry x:Key="TwitterLogo">M17.6,3h2.4l-5.3,6.1L21,19.2h-4.9l-3.8-5L8.9,19.2H6.5l5.7-6.5L6,3h5l3.5,4.6L17.6,3z M16.7,17.7h1.3L10.5,4.6H9.1 L16.7,17.7z</Geometry>
+        <Geometry x:Key="BrowserLogo">M12,2C6.5,2,2,6.5,2,12s4.5,10,10,10s10-4.5,10-10S17.5,2,12,2z M17.9,7.1c0.4,0.8,0.7,1.7,0.9,2.7h-4.2 C14.5,8.8,14.3,7.9,14,7h2.8C17.2,7,17.6,7,17.9,7.1z M12,4.1c0.9,1.2,1.6,2.7,2.1,4.3H9.9C10.4,6.7,11.1,5.3,12,4.1z M6.9,7 H9c-0.3,0.9-0.5,1.8-0.6,2.8H4.1C4.3,8.8,4.7,7.9,5.1,7.1C5.4,7,5.8,7,6.9,7z M4.1,12c0-0.7,0.1-1.4,0.3-2h3.9 c-0.1,0.6-0.1,1.3-0.1,2s0.1,1.4,0.1,2H4.4C4.1,13.4,4,12.7,4,12H4.1z M5.1,16.9c-0.4-0.8-0.7-1.7-0.9-2.7h4.2c0.1,1,0.3,1.9,0.6,2.8 H6.9C6.5,17,6.1,17,5.8,16.9H5.1z M12,19.9c-0.9-1.2-1.6-2.7-2.1-4.3h4.2C13.6,17.3,12.9,18.7,12,19.9z M17.1,17h-2.1 c0.3-0.9,0.5-1.8,0.6-2.8h4.2c-0.2,0.9-0.6,1.9-1,2.7C18.4,17,18,17,17.1,17z M19.6,14h-3.9c0.1-0.6,0.1-1.3,0.1-2s-0.1-1.4-0.1-2 h3.9C19.9,10.6,20,11.3,20,12S19.9,13.4,19.6,14z</Geometry>
+    </Window.Resources>
+    
+    <Grid>
+        <!-- System Tray Icon -->
+        <tb:TaskbarIcon x:Name="TrayIcon"
+                        ToolTipText="V-Notch"
+                        MenuActivation="RightClick">
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem x:Name="MenuToggle" Header="Ẩn Notch" Click="ToggleNotch_Click"/>
+                    <MenuItem Header="Reset vị trí" Click="ResetPosition_Click"/>
+                    <Separator/>
+                    <MenuItem Header="Cài đặt" Click="Settings_Click"/>
+                    <Separator/>
+                    <MenuItem Header="Thoát" Click="Exit_Click"/>
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
+        
+        <!-- Notch Container -->
+        <Grid x:Name="NotchContainer">
+            <!-- Main Notch Border -->
+            <Border x:Name="NotchBorder"
+                    Background="{StaticResource NotchGradient}"
+                    CornerRadius="0,0,20,20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Effect="{StaticResource NotchShadow}"
+                    Cursor="Hand"
+                    MouseLeftButtonDown="NotchBorder_MouseLeftButtonDown">
+                
+                <Grid x:Name="NotchContent" Margin="0">
+                    
+                    <!-- COLLAPSED STATE: Camera indicator only -->
+                    <StackPanel x:Name="CollapsedContent" 
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <Ellipse x:Name="CameraIndicator"
+                                 Width="8" Height="8"
+                                 Fill="#2a2a2a"
+                                 Margin="0,6,0,0">
+                            <Ellipse.Effect>
+                                <DropShadowEffect Color="#000000" ShadowDepth="0" BlurRadius="2" Opacity="0.5"/>
+                            </Ellipse.Effect>
+                        </Ellipse>
+                    </StackPanel>
+                    
+                    <!-- EXPANDED STATE: Full Dynamic Island content -->
+                    <Grid x:Name="ExpandedContent" 
+                          Opacity="0" 
+                          Visibility="Collapsed"
+                          Margin="16,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <!-- LEFT SIDE: Media Player Widget - Click anywhere to expand -->
+                        <Border x:Name="MediaWidget"
+                                Grid.Column="0" 
+                                Background="{StaticResource CardGradient}"
+                                CornerRadius="16"
+                                Padding="12"
+                                Margin="0,0,8,0"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="MediaWidget_Click">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                
+                                <!-- App indicator (Spotify/YouTube/etc) -->
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Grid Margin="0,0,6,0">
+                                        <!-- Spotify (Exact SVG Path) -->
+                                        <Border x:Name="SpotifyIcon" 
+                                                Width="20" Height="20" 
+                                                Background="Transparent"
+                                                Visibility="Collapsed">
+                                            <Viewbox>
+                                                <Path Data="M19.0983701,10.6382791 C15.230178,8.34118115 8.85003755,8.12986439 5.15729493,9.25058527 C4.56433588,9.43062856 3.93727638,9.09580812 3.75758647,8.50284907 C3.57789655,7.90953664 3.91236362,7.28283051 4.50585273,7.10261054 C8.74455585,5.81598127 15.7909802,6.06440214 20.2440037,8.70780512 C20.7774195,9.02442687 20.9525156,9.71332656 20.6362472,10.2456822 C20.3198021,10.779098 19.6305491,10.9549008 19.0983701,10.6382791 M18.971686,14.0407262 C18.7004726,14.4810283 18.1246521,14.6190203 17.6848801,14.3486903 C14.4600027,12.3664473 9.54264764,11.792217 5.72728477,12.9503953 C5.23256328,13.0998719 4.70992535,12.8208843 4.55974204,12.3270462 C4.41061884,11.8323247 4.68978312,11.3107469 5.18362118,11.1602103 C9.5419409,9.83771368 14.9600247,10.4782013 18.6638986,12.7544503 C19.1036707,13.0253103 19.242016,13.6013075 18.971686,14.0407262 M17.5034233,17.308185 C17.2876894,17.6617342 16.827245,17.7725165 16.4749326,17.5571359 C13.6571403,15.8347984 10.1101639,15.4459119 5.93312425,16.4000177 C5.53063298,16.4922479 5.12937851,16.2399399 5.03767834,15.8376253 C4.94544812,15.4351341 5.19669597,15.0338796 5.60024736,14.9420027 C10.1712973,13.8970803 14.0923186,14.3467468 17.2551791,16.2796943 C17.6078449,16.4948982 17.7189805,16.9556959 17.5034233,17.308185 M12,0 C5.37267547,0 0,5.37249879 0,11.9998233 C0,18.6278546 5.37267547,24 12,24 C18.6275012,24 24,18.6278546 24,11.9998233 C24,5.37249879 18.6275012,0 12,0" Fill="#1ED760"/>
+                                            </Viewbox>
+                                        </Border>
+                                        
+                                        <!-- YouTube (Exact SVG Path + Transform) -->
+                                        <Border x:Name="YouTubeIcon" 
+                                                Width="20" Height="20" 
+                                                Background="Transparent"
+                                                Visibility="Collapsed">
+                                            <Viewbox Stretch="Uniform">
+                                                <Canvas Width="48" Height="48">
+                                                    <Path Data="M219.044,391.269916 L219.0425,377.687742 L232.0115,384.502244 L219.044,391.269916 Z M247.52,375.334163 C247.52,375.334163 247.0505,372.003199 245.612,370.536366 C243.7865,368.610299 241.7405,368.601235 240.803,368.489448 C234.086,368 224.0105,368 224.0105,368 L223.9895,368 C223.9895,368 213.914,368 207.197,368.489448 C206.258,368.601235 204.2135,368.610299 202.3865,370.536366 C200.948,372.003199 200.48,375.334163 200.48,375.334163 C200.48,375.334163 200,379.246723 200,383.157773 L200,386.82561 C200,390.73817 200.48,394.64922 200.48,394.64922 C200.48,394.64922 200.948,397.980184 202.3865,399.447016 C204.2135,401.373084 206.612,401.312658 207.68,401.513574 C211.52,401.885191 224,402 224,402 C224,402 234.086,401.984894 240.803,401.495446 C241.7405,401.382148 243.7865,401.373084 245.612,399.447016 C247.0505,397.980184 247.52,394.64922 247.52,394.64922 C247.52,394.64922 248,390.73817 248,386.82561 L248,383.157773 C248,379.246723 247.52,375.334163 247.52,375.334163 L247.52,375.334163 Z" Fill="#CE1312">
+                                                        <Path.RenderTransform>
+                                                            <TranslateTransform X="-200" Y="-368"/>
+                                                        </Path.RenderTransform>
+                                                    </Path>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+
+                                        <!-- SoundCloud (Exact SVG Path) -->
+                                        <Border x:Name="SoundCloudIcon" 
+                                                Width="20" Height="20" 
+                                                Background="Transparent"
+                                                Visibility="Collapsed">
+                                            <Viewbox>
+                                                <Path Data="M20.727,11.676925 C22.4007273,11.676925 23.7572727,13.04505 23.7572727,14.73245 C23.7572727,16.4204 22.4007273,17.788525 20.727,17.788525 C20.673,17.788525 12.3349091,17.7844 12.327,17.783575 C12.1461818,17.765425 12.0021818,17.6095 12,17.4225 L12,7.72435 C12.0021818,7.54615 12.0627273,7.454575 12.2915455,7.3652 C12.8803636,7.135575 13.5463636,7 14.2300909,7 C17.0236364,7 19.3137273,9.1604 19.5550909,11.913975 C19.9156364,11.761625 20.3119091,11.676925 20.727,11.676925 Z M10.2361478,18 L9.26385224,18 C9.11873351,18 9,17.8782028 9,17.7293396 L9,7.77066041 C9,7.62152652 9.11873351,7.5 9.26385224,7.5 L10.2361478,7.5 C10.3812665,7.5 10.5,7.62152652 10.5,7.77066041 L10.5,17.7293396 C10.5,17.8782028 10.3812665,18 10.2361478,18 Z M1.23614776,16.4971721 L0.263852243,16.4971721 C0.118733509,16.4971721 0,16.3760415 0,16.2279931 L0,13.7663511 C0,13.6183026 0.118733509,13.4971721 0.263852243,13.4971721 L1.23614776,13.4971721 C1.38126649,13.4971721 1.5,13.6183026 1.5,13.7663511 L1.5,16.2279931 C1.5,16.3760415 1.38126649,16.4971721 1.23614776,16.4971721 Z M7.23614776,18 L6.26385224,18 C6.11873351,18 6,17.8844164 6,17.7431475 L6,11.2568525 C6,11.1155836 6.11873351,11 6.26385224,11 L7.23614776,11 C7.38126649,11 7.5,11.1155836 7.5,11.2568525 L7.5,17.7431475 C7.5,17.8844164 7.38126649,18 7.23614776,18 Z M4.23614776,18 L3.26385224,18 C3.11873351,18 3,17.8871563 3,17.7492363 L3,12.7507637 C3,12.6128437 3.11873351,12.5 3.26385224,12.5 L4.23614776,12.5 C4.38126649,12.5 4.5,12.6128437 4.5,12.7507637 L4.5,17.7492363 C4.5,17.8871563 4.38126649,18 4.23614776,18 Z" Fill="#F66E10"/>
+                                            </Viewbox>
+                                        </Border>
+
+                                        <!-- TikTok (Multi-colored SVG Paths) -->
+                                        <Border x:Name="TikTokIcon" 
+                                                Width="20" Height="20" 
+                                                Background="Transparent"
+                                                Visibility="Collapsed">
+                                            <Viewbox>
+                                                <Grid Width="32" Height="32">
+                                                    <!-- Main Path (White for Dark Mode) -->
+                                                    <Path Data="M8.45095 19.7926C8.60723 18.4987 9.1379 17.7743 10.1379 17.0317C11.5688 16.0259 13.3561 16.5948 13.3561 16.5948V13.2197C13.7907 13.2085 14.2254 13.2343 14.6551 13.2966V17.6401C14.6551 17.6401 12.8683 17.0712 11.4375 18.0775C10.438 18.8196 9.90623 19.5446 9.7505 20.8385C9.74562 21.5411 9.87747 22.4595 10.4847 23.2536C10.3345 23.1766 10.1815 23.0889 10.0256 22.9905C8.68807 22.0923 8.44444 20.7449 8.45095 19.7926ZM22.0352 6.97898C21.0509 5.90039 20.6786 4.81139 20.5441 4.04639H21.7823C21.7823 4.04639 21.5354 6.05224 23.3347 8.02482L23.3597 8.05134C22.8747 7.7463 22.43 7.38624 22.0352 6.97898ZM28 10.0369V14.293C28 14.293 26.42 14.2312 25.2507 13.9337C23.6179 13.5176 22.5685 12.8795 22.5685 12.8795C22.5685 12.8795 21.8436 12.4245 21.785 12.3928V21.1817C21.785 21.6711 21.651 22.8932 21.2424 23.9125C20.709 25.246 19.8859 26.1212 19.7345 26.3001C19.7345 26.3001 18.7334 27.4832 16.9672 28.28C15.3752 28.9987 13.9774 28.9805 13.5596 28.9987C13.5596 28.9987 11.1434 29.0944 8.96915 27.6814C8.49898 27.3699 8.06011 27.0172 7.6582 26.6277L7.66906 26.6355C9.84383 28.0485 12.2595 27.9528 12.2595 27.9528C12.6779 27.9346 14.0756 27.9528 15.6671 27.2341C17.4317 26.4374 18.4344 25.2543 18.4344 25.2543C18.5842 25.0754 19.4111 24.2001 19.9423 22.8662C20.3498 21.8474 20.4849 20.6247 20.4849 20.1354V11.3475C20.5435 11.3797 21.2679 11.8347 21.2679 11.8347C21.2679 11.8347 22.3179 12.4734 23.9506 12.8889C25.1204 13.1864 26.7 13.2483 26.7 13.2483V9.91314C27.2404 10.0343 27.7011 10.0671 28 10.0369Z" Fill="White"/>
+                                                    <!-- Cyan Accents -->
+                                                    <Path Data="M4.48926 22.7568V22.7594L4.57004 22.9784C4.56076 22.9529 4.53074 22.8754 4.48926 22.7568Z" Fill="#69C9D0"/>
+                                                    <Path Data="M10.5128 13.7916C9.67919 14.1002 8.90498 14.5396 8.22192 15.0918C7.44763 15.7332 6.79548 16.4987 6.29458 17.354C6.10521 17.6661 5.38897 18.9168 5.30161 20.9528C5.25223 22.1068 5.61361 23.2983 5.78561 23.7944C5.78543 23.7956 5.78543 23.7968 5.78561 23.798C5.89413 24.081 6.31791 25.0815 7.01191 25.9303C7.2135 26.1763 7.42963 26.4111 7.65924 26.6334C6.92357 26.1457 6.26746 25.5562 5.71236 24.8839C5.02433 24.0451 4.60001 23.0549 4.48932 22.7626C4.48919 22.7605 4.48919 22.7584 4.48932 22.7564V22.7527C4.31677 22.2571 3.95431 21.0651 4.00477 19.9096C4.09213 17.8736 4.80838 16.6239 4.99775 16.3108C5.4985 15.4553 6.15067 14.6898 6.92509 14.0486C7.608 13.4961 8.38225 13.0567 9.21598 12.7484C9.73602 12.5416 10.2778 12.3891 10.8319 12.2934C11.6669 12.1537 12.5198 12.1415 13.3588 12.2575V13.2196C12.3808 13.2349 11.4148 13.4291 10.5128 13.7916Z" Fill="#69C9D0"/>
+                                                    <Path Data="M20.5438 4.04635H17.2881V20.6159C17.2881 21.1983 17.2881 21.76 17.0863 22.3211C16.7575 23.2167 16.058 24.0253 15.1258 24.3842C13.7265 24.923 12.6326 24.8632 11.3276 24.0368C11.0036 23.823 10.7187 23.5594 10.4844 23.2567C11.5962 23.8251 12.5913 23.8152 13.8241 23.341C14.7558 22.9821 15.4563 22.1734 15.784 21.2774C15.9891 20.7178 15.9864 20.1546 15.9864 19.5726V3H20.4819C20.4819 3 20.4315 3.41188 20.5438 4.04635ZM26.7002 8.99104V9.9131C26.1725 9.79263 25.6609 9.61447 25.1755 9.38213C24.2352 8.93228 23.5026 8.19952 23.3594 8.0513C23.5256 8.1559 23.6981 8.25106 23.8759 8.33629C25.0192 8.88339 26.1451 9.04669 26.7002 8.99104Z" Fill="#69C9D0"/>
+                                                </Grid>
+                                            </Viewbox>
+                                        </Border>
+
+                                        <!-- Facebook (Keep existing) -->
+                                        <Border x:Name="FacebookIcon" 
+                                                Width="20" Height="20" 
+                                                Background="Transparent"
+                                                Visibility="Collapsed">
+                                            <Path Data="{StaticResource FacebookLogo}" Fill="{StaticResource FacebookBlue}" Stretch="Uniform" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Instagram (Keep existing) -->
+                                        <Border x:Name="InstagramIcon" 
+                                                Width="20" Height="20" 
+                                                Background="Transparent"
+                                                Visibility="Collapsed">
+                                            <Path Data="{StaticResource InstagramLogo}" Fill="{StaticResource InstagramPink}" Stretch="Uniform" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        
+                                        <!-- Twitter (Exact/New) -->
+                                        <Border x:Name="TwitterIcon" 
+                                                Width="20" Height="20" 
+                                                Background="Transparent"
+                                                Visibility="Collapsed">
+                                            <Viewbox>
+                                                <Path Data="M11.7887 28C8.55374 28 5.53817 27.0591 3 25.4356C5.15499 25.5751 8.95807 25.2411 11.3236 22.9848C7.76508 22.8215 6.16026 20.0923 5.95094 18.926C6.25329 19.0426 7.6953 19.1826 8.50934 18.856C4.4159 17.8296 3.78793 14.2373 3.92748 13.141C4.695 13.6775 5.99745 13.8641 6.50913 13.8174C2.69479 11.0882 4.06703 6.98276 4.74151 6.09635C7.47882 9.88867 11.5812 12.0186 16.6564 12.137C16.5607 11.7174 16.5102 11.2804 16.5102 10.8316C16.5102 7.61092 19.1134 5 22.3247 5C24.0025 5 25.5144 5.71275 26.5757 6.85284C27.6969 6.59011 29.3843 5.97507 30.2092 5.4432C29.7934 6.93611 28.4989 8.18149 27.7159 8.64308C27.7224 8.65878 27.7095 8.62731 27.7159 8.64308C28.4037 8.53904 30.2648 8.18137 31 7.68256C30.6364 8.52125 29.264 9.91573 28.1377 10.6964C28.3473 19.9381 21.2765 28 11.7887 28Z" Fill="#47ACDF"/>
+                                            </Viewbox>
+                                        </Border>
+
+                                        <!-- Browser/Generic -->
+                                        <Border x:Name="BrowserIcon" 
+                                                Width="20" Height="20" 
+                                                Background="Transparent"
+                                                Visibility="Collapsed">
+                                            <Path Data="{StaticResource BrowserLogo}" Fill="#4CC2FF" Stretch="Uniform" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock x:Name="MediaAppName" 
+                                               Text="Now Playing" 
+                                               Style="{StaticResource SmallText}"/>
+                                </StackPanel>
+                                
+                                <!-- Album art + Track info + Inline Controls -->
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                <!-- Album art / Thumbnail - Clickable to expand -->
+                                    <Border x:Name="ThumbnailBorder"
+                                            Grid.Column="0" 
+                                            Width="50" Height="50"
+                                            CornerRadius="8"
+                                            Background="#1a1a1a"
+                                            Margin="0,0,10,0"
+                                            ClipToBounds="True"
+                                            Cursor="Hand"
+                                            MouseLeftButtonDown="ThumbnailBorder_Click">
+                                        <Grid Width="50" Height="50">
+                                            <!-- Thumbnail Image - UniformToFill will scale and center -->
+                                            <Image x:Name="ThumbnailImage" 
+                                                   Stretch="UniformToFill"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="Collapsed"/>
+                                            <!-- Fallback icon -->
+                                            <TextBlock x:Name="ThumbnailFallback"
+                                                       Text="🎵" 
+                                                       FontSize="20"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                    
+                                    <!-- Track info with marquee for long titles -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Width="250">
+                                        <!-- Title with marquee scroll -->
+                                        <Canvas x:Name="TitleScrollContainer" Height="18" Width="250" ClipToBounds="True">
+                                            <TextBlock x:Name="TrackTitle" 
+                                                       Text="No media playing"
+                                                       Style="{StaticResource TitleText}"
+                                                       Canvas.Left="0"
+                                                       Canvas.Top="0">
+                                                <TextBlock.RenderTransform>
+                                                    <TranslateTransform x:Name="TitleTranslate" X="0"/>
+                                                </TextBlock.RenderTransform>
+                                            </TextBlock>
+                                        </Canvas>
+                                        <!-- Artist/Subtitle -->
+                                        <Canvas x:Name="ArtistScrollContainer" Height="16" Width="250" ClipToBounds="True" Margin="0,2,0,0">
+                                            <TextBlock x:Name="TrackArtist" 
+                                                       Text="Open Spotify or YouTube"
+                                                       Style="{StaticResource SubtitleText}"
+                                                       Canvas.Left="0"
+                                                       Canvas.Top="0">
+                                                <TextBlock.RenderTransform>
+                                                    <TranslateTransform x:Name="ArtistTranslate" X="0"/>
+                                                </TextBlock.RenderTransform>
+                                            </TextBlock>
+                                        </Canvas>
+                                    </StackPanel>
+                                    
+                                    <!-- Inline Controls (visible when expanded) - Same as MediaControls -->
+                                    <StackPanel x:Name="InlineControls"
+                                                Grid.Column="2"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Right"
+                                                Visibility="Collapsed"
+                                                Opacity="0"
+                                                Margin="10,0,0,0"
+                                                RenderTransformOrigin="0.5,0.5">
+                                        <StackPanel.RenderTransform>
+                                            <ScaleTransform x:Name="InlineControlsScale" ScaleX="0.8" ScaleY="0.8"/>
+                                        </StackPanel.RenderTransform>
+                                        
+                                        <!-- Previous Button - Skip to previous (with arrow animation) -->
+                                        <Border x:Name="InlinePrevButton"
+                                                Background="Transparent"
+                                                Cursor="Hand"
+                                                MouseLeftButtonDown="InlinePrevButton_Click"
+                                                Width="32" Height="28"
+                                                Margin="0,0,6,0"
+                                                RenderTransformOrigin="0.5,0.5">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform x:Name="InlinePrevScale" ScaleX="1" ScaleY="1"/>
+                                            </Border.RenderTransform>
+                                            <Canvas Width="20" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
+                                                <!-- Arrow 0 (hidden on right, will fade in sliding left) -->
+                                                <Path x:Name="InlinePrevArrow0" Fill="White" Data="M10,0 L2,8 L10,16 Z"
+                                                      Canvas.Left="20" Canvas.Top="0" Opacity="0">
+                                                    <Path.RenderTransform>
+                                                        <TranslateTransform X="0" Y="0"/>
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                                <!-- Arrow 2 (outer left - visible) -->
+                                                <Path x:Name="InlinePrevArrow2" Fill="White" Data="M10,0 L2,8 L10,16 Z"
+                                                      Canvas.Left="0" Canvas.Top="0">
+                                                    <Path.RenderTransform>
+                                                        <TranslateTransform X="0" Y="0"/>
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                                <!-- Arrow 1 (inner right - visible) -->
+                                                <Path x:Name="InlinePrevArrow1" Fill="White" Data="M10,0 L2,8 L10,16 Z"
+                                                      Canvas.Left="10" Canvas.Top="0">
+                                                    <Path.RenderTransform>
+                                                        <TranslateTransform X="0" Y="0"/>
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                            </Canvas>
+                                        </Border>
+                                        
+                                        <!-- Play/Pause Button - Dynamic icon -->
+                                        <Border x:Name="InlinePlayPauseButton"
+                                                Background="Transparent"
+                                                Cursor="Hand"
+                                                MouseLeftButtonDown="InlinePlayPauseButton_Click"
+                                                Width="32" Height="28"
+                                                Margin="0"
+                                                RenderTransformOrigin="0.5,0.5">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform x:Name="InlinePlayPauseScale" ScaleX="1" ScaleY="1"/>
+                                            </Border.RenderTransform>
+                                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <!-- Pause Icon (2 vertical bars) - shown when playing -->
+                                                <Canvas x:Name="InlinePauseIcon" Width="14" Height="16" Visibility="Visible"
+                                                        RenderTransformOrigin="0.5,0.5">
+                                                    <Canvas.RenderTransform>
+                                                        <ScaleTransform x:Name="InlinePauseIconScale" ScaleX="1" ScaleY="1"/>
+                                                    </Canvas.RenderTransform>
+                                                    <Rectangle x:Name="InlinePauseBar1" Fill="White" Width="4" Height="16" 
+                                                               Canvas.Left="0" Canvas.Top="0" RadiusX="1" RadiusY="1"/>
+                                                    <Rectangle x:Name="InlinePauseBar2" Fill="White" Width="4" Height="16" 
+                                                               Canvas.Left="10" Canvas.Top="0" RadiusX="1" RadiusY="1"/>
+                                                </Canvas>
+                                                <!-- Play Icon (triangle) - shown when paused -->
+                                                <Canvas x:Name="InlinePlayIcon" Width="14" Height="16" Visibility="Collapsed"
+                                                        RenderTransformOrigin="0.5,0.5">
+                                                    <Canvas.RenderTransform>
+                                                        <ScaleTransform x:Name="InlinePlayIconScale" ScaleX="1" ScaleY="1"/>
+                                                    </Canvas.RenderTransform>
+                                                    <Path Fill="White" Data="M0,0 L14,8 L0,16 Z"/>
+                                                </Canvas>
+                                            </Grid>
+                                        </Border>
+                                        
+                                        <!-- Next Button - Skip to next (with arrow animation) -->
+                                        <Border x:Name="InlineNextButton"
+                                                Background="Transparent"
+                                                Cursor="Hand"
+                                                MouseLeftButtonDown="InlineNextButton_Click"
+                                                Width="32" Height="28"
+                                                Margin="6,0,0,0"
+                                                RenderTransformOrigin="0.5,0.5">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform x:Name="InlineNextScale" ScaleX="1" ScaleY="1"/>
+                                            </Border.RenderTransform>
+                                            <Canvas Width="20" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
+                                                <!-- Arrow 0 (hidden on left, will fade in sliding right) -->
+                                                <Path x:Name="InlineNextArrow0" Fill="White" Data="M0,0 L8,8 L0,16 Z"
+                                                      Canvas.Left="-10" Canvas.Top="0" Opacity="0">
+                                                    <Path.RenderTransform>
+                                                        <TranslateTransform X="0" Y="0"/>
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                                <!-- Arrow 1 (inner left - visible) -->
+                                                <Path x:Name="InlineNextArrow1" Fill="White" Data="M0,0 L8,8 L0,16 Z"
+                                                      Canvas.Left="2" Canvas.Top="0">
+                                                    <Path.RenderTransform>
+                                                        <TranslateTransform X="0" Y="0"/>
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                                <!-- Arrow 2 (outer right - visible) -->
+                                                <Path x:Name="InlineNextArrow2" Fill="White" Data="M0,0 L8,8 L0,16 Z"
+                                                      Canvas.Left="12" Canvas.Top="0">
+                                                    <Path.RenderTransform>
+                                                        <TranslateTransform X="0" Y="0"/>
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                            </Canvas>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Progress bar with seek support - hidden when timeline unavailable -->
+                                <Grid x:Name="ProgressSection" Grid.Row="2" Margin="0,10,0,0" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Current time -->
+                                    <TextBlock x:Name="CurrentTimeText" 
+                                               Grid.Column="0"
+                                               Text="0:00" 
+                                               Foreground="#888888"
+                                               FontSize="9"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,6,0"/>
+                                    
+                                    <!-- Seekable progress bar -->
+                                    <Grid x:Name="ProgressBarContainer" 
+                                          Grid.Column="1" 
+                                          Height="16"
+                                          Cursor="Hand"
+                                          MouseLeftButtonDown="ProgressBar_MouseDown"
+                                          MouseMove="ProgressBar_MouseMove"
+                                          MouseLeftButtonUp="ProgressBar_MouseUp">
+                                        <Border Background="#333333" Height="4" CornerRadius="2" VerticalAlignment="Center"/>
+                                        <Border x:Name="ProgressBar" 
+                                                Background="White" 
+                                                Height="4" 
+                                                CornerRadius="2"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                Width="0"/>
+                                    </Grid>
+                                    
+                                    <!-- Remaining time -->
+                                    <TextBlock x:Name="RemainingTimeText" 
+                                               Grid.Column="2"
+                                               Text="-0:00" 
+                                               Foreground="#888888"
+                                               FontSize="9"
+                                               VerticalAlignment="Center"
+                                               Margin="6,0,0,0"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- CENTER: Media Controls - Clean & Transparent Design -->
+                        <StackPanel x:Name="MediaControls"
+                                    Grid.Column="1" 
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Margin="12,0">
+                            
+                            <!-- Previous Button - Skip to previous -->
+                            <Border x:Name="PrevButton"
+                                    Background="Transparent"
+                                    Cursor="Hand"
+                                    MouseLeftButtonDown="PrevButton_Click"
+                                    Width="32" Height="28"
+                                    Margin="0,0,6,0"
+                                    RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                </Border.RenderTransform>
+                                <Canvas Width="20" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
+                                    <!-- Arrow 0 (hidden on right, will fade in sliding left) -->
+                                    <Path x:Name="PrevArrow0" Fill="White" Data="M10,0 L2,8 L10,16 Z"
+                                          Canvas.Left="20" Canvas.Top="0" Opacity="0">
+                                        <Path.RenderTransform>
+                                            <TranslateTransform X="0" Y="0"/>
+                                        </Path.RenderTransform>
+                                    </Path>
+                                    <!-- Arrow 2 (outer left - visible) -->
+                                    <Path x:Name="PrevArrow2" Fill="White" Data="M10,0 L2,8 L10,16 Z"
+                                          Canvas.Left="0" Canvas.Top="0">
+                                        <Path.RenderTransform>
+                                            <TranslateTransform X="0" Y="0"/>
+                                        </Path.RenderTransform>
+                                    </Path>
+                                    <!-- Arrow 1 (inner right - visible) -->
+                                    <Path x:Name="PrevArrow1" Fill="White" Data="M10,0 L2,8 L10,16 Z"
+                                          Canvas.Left="10" Canvas.Top="0">
+                                        <Path.RenderTransform>
+                                            <TranslateTransform X="0" Y="0"/>
+                                        </Path.RenderTransform>
+                                    </Path>
+                                </Canvas>
+                            </Border>
+                            
+                            <!-- Play/Pause Button - Dynamic icon -->
+                            <Border x:Name="PlayPauseButton"
+                                    Background="Transparent"
+                                    Cursor="Hand"
+                                    MouseLeftButtonDown="PlayPauseButton_Click"
+                                    Width="32" Height="28"
+                                    Margin="0"
+                                    RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                </Border.RenderTransform>
+                                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <!-- Pause Icon (2 vertical bars) - shown when playing -->
+                                    <Canvas x:Name="PauseIcon" Width="14" Height="16" Visibility="Visible"
+                                            RenderTransformOrigin="0.5,0.5">
+                                        <Canvas.RenderTransform>
+                                            <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                        </Canvas.RenderTransform>
+                                        <Rectangle x:Name="PauseBar1" Fill="White" Width="4" Height="16" 
+                                                   Canvas.Left="0" Canvas.Top="0" RadiusX="1" RadiusY="1"/>
+                                        <Rectangle x:Name="PauseBar2" Fill="White" Width="4" Height="16" 
+                                                   Canvas.Left="10" Canvas.Top="0" RadiusX="1" RadiusY="1"/>
+                                    </Canvas>
+                                    <!-- Play Icon (triangle) - shown when paused -->
+                                    <Canvas x:Name="PlayIcon" Width="14" Height="16" Visibility="Collapsed"
+                                            RenderTransformOrigin="0.5,0.5">
+                                        <Canvas.RenderTransform>
+                                            <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                        </Canvas.RenderTransform>
+                                        <Path Fill="White" Data="M0,0 L14,8 L0,16 Z"/>
+                                    </Canvas>
+                                </Grid>
+                            </Border>
+                            
+                            <!-- Next Button - Skip to next -->
+                            <Border x:Name="NextButton"
+                                    Background="Transparent"
+                                    Cursor="Hand"
+                                    MouseLeftButtonDown="NextButton_Click"
+                                    Width="32" Height="28"
+                                    Margin="6,0,0,0"
+                                    RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                </Border.RenderTransform>
+                                <Canvas Width="20" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
+                                    <!-- Arrow 0 (hidden on left, will fade in sliding right) -->
+                                    <Path x:Name="NextArrow0" Fill="White" Data="M0,0 L8,8 L0,16 Z"
+                                          Canvas.Left="-10" Canvas.Top="0" Opacity="0">
+                                        <Path.RenderTransform>
+                                            <TranslateTransform X="0" Y="0"/>
+                                        </Path.RenderTransform>
+                                    </Path>
+                                    <!-- Arrow 1 (inner left - visible) -->
+                                    <Path x:Name="NextArrow1" Fill="White" Data="M0,0 L8,8 L0,16 Z"
+                                          Canvas.Left="2" Canvas.Top="0">
+                                        <Path.RenderTransform>
+                                            <TranslateTransform X="0" Y="0"/>
+                                        </Path.RenderTransform>
+                                    </Path>
+                                    <!-- Arrow 2 (outer right - visible) -->
+                                    <Path x:Name="NextArrow2" Fill="White" Data="M0,0 L8,8 L0,16 Z"
+                                          Canvas.Left="12" Canvas.Top="0">
+                                        <Path.RenderTransform>
+                                            <TranslateTransform X="0" Y="0"/>
+                                        </Path.RenderTransform>
+                                    </Path>
+                                </Canvas>
+                            </Border>
+                        </StackPanel>
+                        
+                        <!-- RIGHT SIDE: Calendar + Battery Widget -->
+                        <Border x:Name="CalendarWidget"
+                                Grid.Column="2" 
+                                Background="{StaticResource CardGradient}"
+                                CornerRadius="16"
+                                Padding="12"
+                                Margin="8,0,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Battery indicator -->
+                                <StackPanel Grid.Row="0" 
+                                            Orientation="Horizontal" 
+                                            HorizontalAlignment="Right"
+                                            Margin="0,0,0,8">
+                                    <TextBlock x:Name="BatteryPercent" 
+                                               Text="100%" 
+                                               Foreground="White"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                    <Border x:Name="BatteryIcon"
+                                            Width="34" Height="16"
+                                            BorderBrush="#666666"
+                                            BorderThickness="1.5"
+                                            CornerRadius="4"
+                                            Margin="6,0,0,0">
+                                        <Grid>
+                                            <Border x:Name="BatteryFill"
+                                                    Background="{StaticResource BatteryGreen}"
+                                                    CornerRadius="2"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="2"
+                                                    Width="26"/>
+                                        </Grid>
+                                    </Border>
+                                    <!-- Battery cap -->
+                                    <Border Width="3" Height="7" 
+                                            Background="#666666" 
+                                            CornerRadius="0,2,2,0"
+                                            Margin="0,0,0,0"/>
+                                </StackPanel>
+                                
+                                <!-- Calendar widget -->
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Month display -->
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock x:Name="MonthText"
+                                                   Text="Dec"
+                                                   Foreground="White"
+                                                   FontSize="16"
+                                                   FontWeight="Bold"/>
+                                        <Border Background="{StaticResource AppleBlue}"
+                                                CornerRadius="8"
+                                                Padding="8,4"
+                                                Margin="0,4,0,0">
+                                            <TextBlock x:Name="DayText"
+                                                       Text="14"
+                                                       Foreground="White"
+                                                       FontSize="20"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+                                    
+                                    <!-- Week days -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock x:Name="WeekDays" 
+                                                       Text="Thu  Fri  Sat  Sun  Mon"
+                                                       Style="{StaticResource SmallText}"
+                                                       FontSize="9"/>
+                                        </StackPanel>
+                                        <StackPanel x:Name="WeekNumbers" 
+                                                    Orientation="Horizontal">
+                                            <!-- Will be populated dynamically -->
+                                        </StackPanel>
+                                        <TextBlock x:Name="EventText"
+                                                   Text="No events today"
+                                                   Style="{StaticResource SubtitleText}"
+                                                   Margin="0,6,0,0"
+                                                   FontSize="10"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    
+                    <!-- Hover glow effect -->
+                    <Border x:Name="HoverGlow"
+                            CornerRadius="0,0,20,20"
+                            Opacity="0"
+                            IsHitTestVisible="False">
+                        <Border.Background>
+                            <RadialGradientBrush GradientOrigin="0.5,0" Center="0.5,0" RadiusX="0.8" RadiusY="1">
+                                <GradientStop Color="#15FFFFFF" Offset="0"/>
+                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                            </RadialGradientBrush>
+                        </Border.Background>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
