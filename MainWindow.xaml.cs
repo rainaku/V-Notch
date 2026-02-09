@@ -1004,7 +1004,15 @@ public partial class MainWindow : Window
             {
                 MediaAppName.Text = info.MediaSource;
                 titleText = string.IsNullOrEmpty(info.CurrentTrack) ? "Playing..." : info.CurrentTrack;
-                artistText = string.IsNullOrEmpty(info.CurrentArtist) ? info.MediaSource : info.CurrentArtist;
+                // Nếu là Browser và không có artist cụ thể, hiển thị "Playing in browser"
+                if (info.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentArtist))
+                {
+                    artistText = "Playing in browser";
+                }
+                else
+                {
+                    artistText = string.IsNullOrEmpty(info.CurrentArtist) ? info.MediaSource : info.CurrentArtist;
+                }
             }
             else if (info.IsSpotifyPlaying)
             {
@@ -1035,6 +1043,13 @@ public partial class MainWindow : Window
                 MediaAppName.Text = "Facebook";
                 titleText = info.CurrentTrack;
                 artistText = "Video";
+            }
+            else if (info.MediaSource == "Browser")
+            {
+                // Browser media mà không có thông tin cụ thể
+                MediaAppName.Text = "Browser";
+                titleText = !string.IsNullOrEmpty(info.CurrentTrack) ? info.CurrentTrack : "Playing...";
+                artistText = !string.IsNullOrEmpty(info.CurrentArtist) ? info.CurrentArtist : "Playing in browser";
             }
             else
             {

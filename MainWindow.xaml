@@ -48,24 +48,29 @@
         <!-- Apple blue -->
         <SolidColorBrush x:Key="AppleBlue" Color="#007AFF"/>
         
+        <!-- San Francisco Pro Font Family (embedded) -->
+        <FontFamily x:Key="SFProDisplay">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
+        
         <!-- Text styles -->
         <Style x:Key="TitleText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontFamily" Value="SF Pro Display, SF Pro Text, Segoe UI Variable, Segoe UI"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="{StaticResource SFProDisplay}"/>
         </Style>
         
         <Style x:Key="SubtitleText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#888888"/>
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontFamily" Value="SF Pro Display, SF Pro Text, Segoe UI Variable, Segoe UI"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontFamily" Value="{StaticResource SFProDisplay}"/>
         </Style>
         
         <Style x:Key="SmallText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#666666"/>
             <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontFamily" Value="SF Pro Display, SF Pro Text, Segoe UI Variable, Segoe UI"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontFamily" Value="{StaticResource SFProDisplay}"/>
         </Style>
         
         <!-- Control button style -->
@@ -193,12 +198,15 @@
                                                 Background="Transparent"
                                                 Visibility="Collapsed">
                                             <Viewbox Stretch="Uniform">
-                                                <Canvas Width="48" Height="48">
-                                                    <Path Data="M219.044,391.269916 L219.0425,377.687742 L232.0115,384.502244 L219.044,391.269916 Z M247.52,375.334163 C247.52,375.334163 247.0505,372.003199 245.612,370.536366 C243.7865,368.610299 241.7405,368.601235 240.803,368.489448 C234.086,368 224.0105,368 224.0105,368 L223.9895,368 C223.9895,368 213.914,368 207.197,368.489448 C206.258,368.601235 204.2135,368.610299 202.3865,370.536366 C200.948,372.003199 200.48,375.334163 200.48,375.334163 C200.48,375.334163 200,379.246723 200,383.157773 L200,386.82561 C200,390.73817 200.48,394.64922 200.48,394.64922 C200.48,394.64922 200.948,397.980184 202.3865,399.447016 C204.2135,401.373084 206.612,401.312658 207.68,401.513574 C211.52,401.885191 224,402 224,402 C224,402 234.086,401.984894 240.803,401.495446 C241.7405,401.382148 243.7865,401.373084 245.612,399.447016 C247.0505,397.980184 247.52,394.64922 247.52,394.64922 C247.52,394.64922 248,390.73817 248,386.82561 L248,383.157773 C248,379.246723 247.52,375.334163 247.52,375.334163 L247.52,375.334163 Z" Fill="#CE1312">
+                                                <Canvas Width="48" Height="34">
+                                                    <!-- Red rounded rectangle background -->
+                                                    <Path Data="M19.6,3.2C19.4,2.3,18.7,1.6,17.8,1.4C16.2,1,10,1,10,1s-6.2,0-7.8,0.4C1.3,1.6,0.6,2.3,0.4,3.2C0,4.8,0,10,0,10 s0,5.2,0.4,6.8c0.2,0.9,0.9,1.6,1.8,1.8C3.8,19,10,19,10,19s6.2,0,7.8-0.4c0.9-0.2,1.6-0.9,1.8-1.8C20,15.2,20,10,20,10 S20,4.8,19.6,3.2z" Fill="#FF0000">
                                                         <Path.RenderTransform>
-                                                            <TranslateTransform X="-200" Y="-368"/>
+                                                            <ScaleTransform ScaleX="2.4" ScaleY="1.7"/>
                                                         </Path.RenderTransform>
                                                     </Path>
+                                                    <!-- White play triangle in center -->
+                                                    <Path Data="M0,0 L10,6 L0,12 Z" Fill="White" Canvas.Left="18" Canvas.Top="11"/>
                                                 </Canvas>
                                             </Viewbox>
                                         </Border>
@@ -266,7 +274,8 @@
                                     </Grid>
                                     <TextBlock x:Name="MediaAppName" 
                                                Text="Now Playing" 
-                                               Style="{StaticResource SmallText}"/>
+                                               Style="{StaticResource SmallText}"
+                                               VerticalAlignment="Center"/>
                                 </StackPanel>
                                 
                                 <!-- Album art + Track info + Inline Controls -->
@@ -637,7 +646,8 @@
                                                Text="100%" 
                                                Foreground="White"
                                                FontSize="13"
-                                               FontWeight="SemiBold"
+                                               FontWeight="Bold"
+                                               FontFamily="{StaticResource SFProDisplay}"
                                                VerticalAlignment="Center"/>
                                     <Border x:Name="BatteryIcon"
                                             Width="34" Height="16"
@@ -674,7 +684,8 @@
                                                    Text="Dec"
                                                    Foreground="White"
                                                    FontSize="16"
-                                                   FontWeight="Bold"/>
+                                                   FontWeight="Bold"
+                                                   FontFamily="{StaticResource SFProDisplay}"/>
                                         <Border Background="{StaticResource AppleBlue}"
                                                 CornerRadius="8"
                                                 Padding="8,4"
@@ -684,6 +695,7 @@
                                                        Foreground="White"
                                                        FontSize="20"
                                                        FontWeight="Bold"
+                                                       FontFamily="{StaticResource SFProDisplay}"
                                                        HorizontalAlignment="Center"/>
                                         </Border>
                                     </StackPanel>

@@ -30,4 +30,11 @@
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Fonts\SF-Pro-Display-Bold.otf" />
+    <Resource Include="Fonts\SF-Pro-Display-Semibold.otf" />
+    <Resource Include="Fonts\SF-Pro-Display-Medium.otf" />
+    <Resource Include="Fonts\SF-Pro-Display-Regular.otf" />
+  </ItemGroup>
+
 </Project>
