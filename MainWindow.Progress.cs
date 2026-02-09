@@ -15,6 +15,9 @@ namespace VNotch;
 public partial class MainWindow
 {
     private string _lastTrackName = "";
+    private bool _isProgressAnimating = false; // Flag to prevent RenderProgressBar from overriding animation
+    private bool _isDraggingProgress = false; // Flag for drag-to-seek
+    private TimeSpan _dragSeekPosition = TimeSpan.Zero; // Store seek position during drag
     private string _lastArtistName = "";
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
@@ -32,6 +35,13 @@ public partial class MainWindow
             {
                 RenderProgressBar();
             }
+        }
+
+        // 1.5 Update Volume UI (if not dragging) - sync from system volume
+        if (_isExpanded && _isMusicExpanded && _volumeService != null && _volumeService.IsAvailable && !_isDraggingVolume)
+        {
+            _currentVolume = _volumeService.GetVolume();
+            VolumeBarFront.Width = 100.0 * _currentVolume;
         }
 
         // 2. Auto-collapse logic (Essential for WS_EX_NOACTIVATE windows)
@@ -108,17 +118,22 @@ public partial class MainWindow
                 }
                 else
                 {
-                    // Same track -> STRICT FORWARD ONLY
-                    // Calculate "simulated" position
+                    // Same track - detect seeks (both forward and backward)
+                    // Calculate "simulated" position based on last known + elapsed time
                     var elapsed = DateTime.Now - _lastMediaUpdate;
                     var extrapolatedPos = _lastKnownPosition + (_isMediaPlaying ? elapsed : TimeSpan.Zero);
                     
-                    // We only update if the API reports a time that is AHEAD of our simulation.
-                    // If API is behind (lag/glitch), we IGNORE it and keep simulating forward.
-                    // This prevents "jerk back" but means backward seeks via external UI won't sync immediately.
+                    // Calculate difference between API position and our extrapolated position
+                    var difference = Math.Abs((apiPos - extrapolatedPos).TotalSeconds);
+                    
+                    // If difference > 2 seconds, this is likely a user seek (forward or backward)
+                    // Accept the new position immediately
+                    bool isSeek = difference > 2.0;
+                    
+                    // Also accept if API is ahead of our simulation (normal playback or forward seek)
                     bool isAhead = (apiPos - extrapolatedPos).TotalSeconds > -0.5;
                     
-                    if (isAhead)
+                    if (isSeek || isAhead)
                     {
                         _lastKnownPosition = apiPos;
                         _lastMediaUpdate = DateTime.Now;
@@ -154,11 +169,14 @@ public partial class MainWindow
     {
         ProgressBar.Width = 0;
         CurrentTimeText.Text = "0:00";
-        RemainingTimeText.Text = "-0:00";
+        RemainingTimeText.Text = "0:00";
     }
     
     private void RenderProgressBar()
     {
+        // Skip if animation is in progress or user is dragging
+        if (_isProgressAnimating || _isDraggingProgress) return;
+        
         var duration = _lastKnownDuration;
         if (duration.TotalSeconds <= 0) return;
         
@@ -192,59 +210,90 @@ public partial class MainWindow
         ProgressBar.Width = ProgressBarContainer.ActualWidth * ratio;
         
         // Update time text
-        CurrentTimeText.Text = displayPosition.ToString(@"m\:ss");
-        
-        var remaining = duration - displayPosition;
-        if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
-        RemainingTimeText.Text = "-" + remaining.ToString(@"m\:ss");
+        CurrentTimeText.Text = FormatTime(displayPosition);
+        RemainingTimeText.Text = FormatTime(duration);
+    }
+
+    private string FormatTime(TimeSpan time)
+    {
+        if (time.TotalHours >= 1)
+            return time.ToString(@"h\:mm\:ss");
+        return time.ToString(@"m\:ss");
     }
     
-    #region Progress Bar Click-to-Seek
+    #region Progress Bar Click and Drag to Seek
     
-    private async void ProgressBar_MouseDown(object sender, MouseButtonEventArgs e)
+    private void ProgressBar_MouseDown(object sender, MouseButtonEventArgs e)
     {
         // Prevent event from bubbling up to parent (which would collapse notch)
         e.Handled = true;
         
-        // Click to seek - immediate action
-        await SeekToMousePosition(e);
+        // Start dragging
+        _isDraggingProgress = true;
+        ProgressBarContainer.CaptureMouse();
+        
+        // Update UI immediately to show where user clicked
+        UpdateProgressFromMouse(e);
     }
 
     private void ProgressBar_MouseMove(object sender, MouseEventArgs e)
     {
         // Prevent bubbling
         e.Handled = true;
+        
+        // Update progress while dragging
+        if (_isDraggingProgress && e.LeftButton == MouseButtonState.Pressed)
+        {
+            UpdateProgressFromMouse(e);
+        }
     }
 
-    private void ProgressBar_MouseUp(object sender, MouseButtonEventArgs e)
+    private async void ProgressBar_MouseUp(object sender, MouseButtonEventArgs e)
     {
         // Prevent bubbling
         e.Handled = true;
+        
+        if (_isDraggingProgress)
+        {
+            _isDraggingProgress = false;
+            ProgressBarContainer.ReleaseMouseCapture();
+            
+            // Seek to final position
+            await SeekToPosition(_dragSeekPosition);
+        }
     }
     
-    private async Task SeekToMousePosition(MouseEventArgs e)
+    /// <summary>
+    /// Update progress bar UI from mouse position (during drag)
+    /// </summary>
+    private void UpdateProgressFromMouse(MouseEventArgs e)
     {
         if (_lastKnownDuration.TotalSeconds <= 0) return;
         
         var position = e.GetPosition(ProgressBarContainer);
         double ratio = position.X / ProgressBarContainer.ActualWidth;
-        ratio = Math.Max(0, Math.Min(1, ratio));
+        ratio = Math.Clamp(ratio, 0, 1);
         
         // Update UI immediately
         ProgressBar.Width = ProgressBarContainer.ActualWidth * ratio;
         
-        // Calculate new time position
-        var newPos = TimeSpan.FromSeconds(_lastKnownDuration.TotalSeconds * ratio);
+        // Calculate and store seek position
+        _dragSeekPosition = TimeSpan.FromSeconds(_lastKnownDuration.TotalSeconds * ratio);
         
         // Update displayed time
-        CurrentTimeText.Text = newPos.ToString(@"m\:ss");
-        var remaining = _lastKnownDuration - newPos;
-        RemainingTimeText.Text = "-" + remaining.ToString(@"m\:ss");
+        CurrentTimeText.Text = FormatTime(_dragSeekPosition);
+    }
+    
+    /// <summary>
+    /// Seek to specified position
+    /// </summary>
+    private async Task SeekToPosition(TimeSpan newPos)
+    {
+        if (_lastKnownDuration.TotalSeconds <= 0) return;
         
-        // Send seek command
         try 
         {
-            // Fallback to Windows Media Session API
+            // Send seek command via Windows Media Session API
             await _mediaService.SeekAsync(newPos);
             
             // Update local state
@@ -254,9 +303,127 @@ public partial class MainWindow
             // Set debounce - ignore API position updates for 2 seconds
             // This prevents the "jump back" effect when API returns stale data
             _seekDebounceUntil = DateTime.Now.AddSeconds(2);
-            System.Diagnostics.Debug.WriteLine($"[Progress] Seek to {newPos}, debouncing until {_seekDebounceUntil}");
         } 
         catch { }
+    }
+    
+    #endregion
+    
+    #region Progress Bar Animation on Expand
+    
+    /// <summary>
+    /// Animate progress bar from 0 to current position when notch expands
+    /// </summary>
+    private void AnimateProgressBarOnExpand()
+    {
+        // Only animate if we have valid media info with timeline
+        if (_currentMediaInfo == null || !_currentMediaInfo.HasTimeline || _lastKnownDuration.TotalSeconds <= 0)
+            return;
+        
+        // Set flag to prevent RenderProgressBar from overriding
+        _isProgressAnimating = true;
+        
+        // Delay slightly to ensure layout is complete and ActualWidth is valid
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            // Calculate target position
+            TimeSpan displayPosition;
+            if (_isMediaPlaying)
+            {
+                var elapsed = DateTime.Now - _lastMediaUpdate;
+                displayPosition = _lastKnownPosition + elapsed;
+                if (displayPosition > _lastKnownDuration) 
+                    displayPosition = _lastKnownDuration;
+            }
+            else
+            {
+                displayPosition = _lastKnownPosition;
+            }
+            
+            if (displayPosition < TimeSpan.Zero)
+                displayPosition = TimeSpan.Zero;
+            
+            // Ensure we have valid container width
+            double containerWidth = ProgressBarContainer.ActualWidth;
+            if (containerWidth <= 0) containerWidth = 200; // Fallback
+                
+            // Calculate target width
+            double ratio = displayPosition.TotalSeconds / _lastKnownDuration.TotalSeconds;
+            ratio = Math.Clamp(ratio, 0, 1);
+            double targetWidth = containerWidth * ratio;
+            
+            // Clear any existing animation first
+            ProgressBar.BeginAnimation(WidthProperty, null);
+            
+            // Start from 0
+            ProgressBar.Width = 0;
+            CurrentTimeText.Text = "0:00";
+            
+            // Animate to target with smooth easing
+            var animDuration = TimeSpan.FromMilliseconds(600);
+            var easing = new ExponentialEase 
+            { 
+                EasingMode = EasingMode.EaseOut, 
+                Exponent = 5 
+            };
+            
+            var widthAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = targetWidth,
+                Duration = animDuration,
+                EasingFunction = easing
+            };
+            Timeline.SetDesiredFrameRate(widthAnim, 60);
+            
+            // When animation completes, clear flag and set final width explicitly
+            widthAnim.Completed += (s, e) =>
+            {
+                ProgressBar.BeginAnimation(WidthProperty, null); // Clear animation
+                ProgressBar.Width = targetWidth; // Set final value
+                _isProgressAnimating = false; // Allow RenderProgressBar to take over
+            };
+            
+            // Also animate time text (using timer for smooth counting)
+            AnimateTimeText(displayPosition, animDuration);
+            
+            ProgressBar.BeginAnimation(WidthProperty, widthAnim);
+        }), DispatcherPriority.Loaded);
+    }
+    
+    /// <summary>
+    /// Animate the current time text from 0:00 to target time
+    /// </summary>
+    private void AnimateTimeText(TimeSpan targetTime, TimeSpan duration)
+    {
+        var startTime = DateTime.Now;
+        var endTime = startTime.Add(duration);
+        
+        var animTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(30) // ~33fps for text
+        };
+        
+        animTimer.Tick += (s, e) =>
+        {
+            var now = DateTime.Now;
+            if (now >= endTime)
+            {
+                CurrentTimeText.Text = FormatTime(targetTime);
+                animTimer.Stop();
+                return;
+            }
+            
+            // Calculate progress with easing (exponential ease out)
+            double t = (now - startTime).TotalMilliseconds / duration.TotalMilliseconds;
+            t = Math.Clamp(t, 0, 1);
+            double easedT = 1 - Math.Pow(1 - t, 5); // Exponential ease out
+            
+            var currentTime = TimeSpan.FromSeconds(targetTime.TotalSeconds * easedT);
+            CurrentTimeText.Text = FormatTime(currentTime);
+        };
+        
+        animTimer.Start();
     }
     
     #endregion

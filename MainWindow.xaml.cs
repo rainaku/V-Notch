@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -10,7 +11,6 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using VNotch.Services;
 using VNotch.Models;
-
 namespace VNotch;
 
 public partial class MainWindow : Window
@@ -20,6 +20,9 @@ public partial class MainWindow : Window
     private readonly MediaDetectionService _mediaService;
     private readonly DispatcherTimer _updateTimer;
     private readonly DispatcherTimer _zOrderTimer; // Dedicated timer to fight for Z-order
+    private readonly VolumeService _volumeService;
+    private readonly DispatcherTimer _hoverCollapseTimer;
+    private bool _isDraggingVolume = false;
     private NotchSettings _settings;
     private bool _isNotchVisible = true;
     private IntPtr _hwnd;
@@ -65,6 +68,7 @@ public partial class MainWindow : Window
     private string _lastTitleText = "";
     private string _lastArtistText = "";
     private DateTime _lastMediaActionTime = DateTime.MinValue;
+    private bool _isMusicCompactMode = false; // New: tracking compact pill state
 
     #region Win32 APIs
 
@@ -148,6 +152,7 @@ public partial class MainWindow : Window
         _settings = _settingsService.Load();
         _notchManager = new NotchManager(this, _settings);
         _mediaService = new MediaDetectionService();
+        _volumeService = new VolumeService();
 
         // Store dimensions
         _collapsedWidth = _settings.Width;
@@ -175,6 +180,19 @@ public partial class MainWindow : Window
             Interval = TimeSpan.FromMilliseconds(16)
         };
         _progressTimer.Tick += ProgressTimer_Tick;
+
+        // Setup hover collapse timer (1.0 second delay)
+        _hoverCollapseTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(1000)
+        };
+        _hoverCollapseTimer.Tick += (s, e) => {
+            _hoverCollapseTimer.Stop();
+            if (_isExpanded && !NotchWrapper.IsMouseOver)
+            {
+                CollapseNotch();
+            }
+        };
 
         Loaded += MainWindow_Loaded;
         Deactivated += MainWindow_Deactivated;
@@ -354,7 +372,10 @@ public partial class MainWindow : Window
     {
         NotchBorder.Width = _settings.Width;
         NotchBorder.Height = _settings.Height;
-        NotchBorder.CornerRadius = new CornerRadius(0, 0, _settings.CornerRadius, _settings.CornerRadius);
+        var cr = new CornerRadius(0, 0, _settings.CornerRadius, _settings.CornerRadius);
+        NotchBorder.CornerRadius = cr;
+        UpdateNotchClip();
+        MediaBackground.CornerRadius = cr;
         this.Opacity = _settings.Opacity;
 
         _collapsedWidth = _settings.Width;
@@ -380,6 +401,26 @@ public partial class MainWindow : Window
         }
         
         e.Handled = true;
+    }
+
+    private void NotchWrapper_MouseEnter(object sender, MouseEventArgs e)
+    {
+        // Stop any pending collapse
+        _hoverCollapseTimer.Stop();
+
+        if (!_isExpanded && !_isAnimating)
+        {
+            ExpandNotch();
+        }
+    }
+
+    private void NotchWrapper_MouseLeave(object sender, MouseEventArgs e)
+    {
+        // Start counting to collapse
+        if (_isExpanded && !_isAnimating)
+        {
+            _hoverCollapseTimer.Start();
+        }
     }
 
     private void ExpandNotch()
@@ -415,7 +456,7 @@ public partial class MainWindow : Window
         };
         Timeline.SetDesiredFrameRate(heightAnim, 60);
 
-        // Collapsed content fade out
+        // Content fade out (whichever is visible)
         var fadeOutAnim = new DoubleAnimation
         {
             To = 0,
@@ -423,13 +464,12 @@ public partial class MainWindow : Window
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
 
-        // Expanded content fade in (delayed)
+        // Content fade in (Immediate)
         var fadeInAnim = new DoubleAnimation
         {
             From = 0,
             To = 1,
-            BeginTime = TimeSpan.FromMilliseconds(120),
-            Duration = TimeSpan.FromMilliseconds(230),
+            Duration = TimeSpan.FromMilliseconds(200),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
 
@@ -446,11 +486,18 @@ public partial class MainWindow : Window
             _isExpanded = true;
             UpdateBatteryInfo();
             UpdateCalendarInfo();
+            
+            // Animate progress bar from 0 to current position
+            AnimateProgressBarOnExpand();
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+        
+        // Hide whichever collapsed state is active
         CollapsedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
+        MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutAnim);
+        
         ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
 
@@ -500,12 +547,18 @@ public partial class MainWindow : Window
             ExpandedContent.Visibility = Visibility.Collapsed;
         };
 
-        // Collapsed content fade in
+        // Which content to show when collapsing?
+        FrameworkElement contentToShow = _isMusicCompactMode ? MusicCompactContent : CollapsedContent;
+        FrameworkElement contentToHide = _isMusicCompactMode ? CollapsedContent : MusicCompactContent;
+        
+        contentToHide.Visibility = Visibility.Collapsed;
+        contentToHide.Opacity = 0;
+
+        // Content fade in (Immediate)
         var fadeInAnim = new DoubleAnimation
         {
             To = 1,
-            BeginTime = TimeSpan.FromMilliseconds(150),
-            Duration = TimeSpan.FromMilliseconds(150),
+            Duration = TimeSpan.FromMilliseconds(200),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
 
@@ -525,7 +578,9 @@ public partial class MainWindow : Window
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
-        CollapsedContent.BeginAnimation(OpacityProperty, fadeInAnim);
+        
+        contentToShow.Visibility = Visibility.Visible;
+        contentToShow.BeginAnimation(OpacityProperty, fadeInAnim);
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
 
         AnimateCornerRadius(_cornerRadiusCollapsed, duration);
@@ -1077,11 +1132,17 @@ public partial class MainWindow : Window
                 ThumbnailImage.Source = info.Thumbnail;
                 ThumbnailImage.Visibility = Visibility.Visible;
                 ThumbnailFallback.Visibility = Visibility.Collapsed;
+                
+                // Update blurred background color (Live glow effect)
+                UpdateMediaBackground(info);
             }
             else
             {
                 ThumbnailImage.Visibility = Visibility.Collapsed;
                 ThumbnailFallback.Visibility = Visibility.Visible;
+                
+                // Hide background if no media image
+                HideMediaBackground();
                 
                 // Set appropriate fallback icon based on source
                 ThumbnailFallback.Text = info.MediaSource switch
@@ -1173,7 +1234,107 @@ public partial class MainWindow : Window
             
             // Update progress bar tracking info and start realtime timer
             UpdateProgressTracking(info);
+
+            // NEW: Switch to Music Compact Pill if not expanded
+            UpdateMusicCompactMode(info);
         });
+    }
+
+    private void UpdateMusicCompactMode(MediaInfo info)
+    {
+        // TRACKING: The state whether we SHOULD be in music compact mode (is playing?)
+        // We track this regardless of whether we are currently expanded or not.
+        bool shouldBeCompact = info != null && info.IsPlaying;
+        
+        // CRITICAL: Always update the target collapsed width so the notch knows where to return to.
+        _collapsedWidth = shouldBeCompact ? 180 : _settings.Width;
+        
+        if (shouldBeCompact == _isMusicCompactMode) 
+        {
+            if (shouldBeCompact) CompactThumbnail.Source = info.Thumbnail;
+            return;
+        }
+
+        _isMusicCompactMode = shouldBeCompact;
+
+        if (!_isExpanded)
+        {
+            // Animate Notch width to new compact size
+            var widthAnim = new DoubleAnimation(_collapsedWidth, TimeSpan.FromMilliseconds(450))
+            {
+                EasingFunction = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 }
+            };
+            NotchBorder.BeginAnimation(WidthProperty, widthAnim);
+            
+            if (_isMusicCompactMode)
+            {
+                // Transition from Camera -> Music Pill
+                CompactThumbnail.Source = info.Thumbnail;
+                FadeSwitch(CollapsedContent, MusicCompactContent);
+                StartVisualizerAnimation();
+            }
+            else
+            {
+                // Transition back to Camera
+                FadeSwitch(MusicCompactContent, CollapsedContent);
+                StopVisualizerAnimation();
+            }
+        }
+        else
+        {
+            // If expanded, just prepare the content for when it collapses
+            if (_isMusicCompactMode)
+            {
+                CompactThumbnail.Source = info.Thumbnail;
+                StartVisualizerAnimation();
+                // Ensure visibility is ready for collapse
+                MusicCompactContent.Opacity = 0; 
+                CollapsedContent.Opacity = 0;
+            }
+            else
+            {
+                StopVisualizerAnimation();
+            }
+        }
+    }
+
+    private void FadeSwitch(FrameworkElement from, FrameworkElement to)
+    {
+        var fadeOut = new DoubleAnimation(0, TimeSpan.FromMilliseconds(100));
+        fadeOut.Completed += (s, e) => from.Visibility = Visibility.Collapsed;
+        from.BeginAnimation(OpacityProperty, fadeOut);
+        
+        to.Visibility = Visibility.Visible;
+        // Immediate fade in synchronized with width expansion
+        var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200));
+        to.BeginAnimation(OpacityProperty, fadeIn);
+    }
+
+    private void StartVisualizerAnimation()
+    {
+        AnimateVizBar(VizBar1, 0.4, 1.3, 0.45);
+        AnimateVizBar(VizBar2, 0.3, 1.6, 0.55);
+        AnimateVizBar(VizBar3, 0.5, 1.2, 0.35);
+        AnimateVizBar(VizBar4, 0.2, 1.5, 0.65);
+    }
+
+    private void AnimateVizBar(ScaleTransform bar, double from, double to, double durationSec)
+    {
+        var anim = new DoubleAnimation(from, to, TimeSpan.FromSeconds(durationSec))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        bar.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+    }
+
+    private void StopVisualizerAnimation()
+    {
+        VizBar1.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        VizBar2.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        VizBar3.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        VizBar4.BeginAnimation(ScaleTransform.ScaleYProperty, null);
     }
     
 
@@ -1193,21 +1354,42 @@ public partial class MainWindow : Window
     }
     
     private void MediaWidget_Click(object sender, MouseButtonEventArgs e)
-{
-    e.Handled = true;
-    
-    // Allow expand/collapse even when no media is playing
-    if (_isMusicAnimating) return;
-    
-    if (_isMusicExpanded)
     {
-        CollapseMusicWidget();
+        // Skip if click originated from inline controls (volume bar, buttons, etc.)
+        if (_isMusicExpanded)
+        {
+            // Check if click source is within InlineControls
+            var source = e.OriginalSource as DependencyObject;
+            while (source != null)
+            {
+                if (source == InlineControls)
+                {
+                    // Click was inside inline controls, don't collapse
+                    return;
+                }
+                if (source == MediaWidget)
+                {
+                    // Reached MediaWidget without hitting InlineControls, proceed
+                    break;
+                }
+                source = VisualTreeHelper.GetParent(source);
+            }
+        }
+        
+        e.Handled = true;
+        
+        // Allow expand/collapse even when no media is playing
+        if (_isMusicAnimating) return;
+        
+        if (_isMusicExpanded)
+        {
+            CollapseMusicWidget();
+        }
+        else
+        {
+            ExpandMusicWidget();
+        }
     }
-    else
-    {
-        ExpandMusicWidget();
-    }
-}
     
     private void ExpandMusicWidget()
     {
@@ -1216,7 +1398,7 @@ public partial class MainWindow : Window
         _isMusicExpanded = true;
         
         // Capture original width for later collapsing
-        _musicWidgetSmallWidth = MediaWidget.ActualWidth;
+        _musicWidgetSmallWidth = MediaWidgetContainer.ActualWidth;
         
         // Duration optimized for visible acceleration/deceleration
         var expandDuration = TimeSpan.FromMilliseconds(500);
@@ -1257,15 +1439,15 @@ public partial class MainWindow : Window
         // Step 2: Animate Width & Margin for perfect centering
         
         // Current state
-        double startWidth = MediaWidget.ActualWidth;
+        double startWidth = MediaWidgetContainer.ActualWidth;
         // Target width: Full container width minus some padding
         double finalWidth = ExpandedContent.ActualWidth;
         
         // Lock properties for animation
-        MediaWidget.Width = startWidth;
-        MediaWidget.HorizontalAlignment = HorizontalAlignment.Left;
-        Panel.SetZIndex(MediaWidget, 10);
-        Grid.SetColumnSpan(MediaWidget, 3);
+        MediaWidgetContainer.Width = startWidth;
+        MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Left;
+        Panel.SetZIndex(MediaWidgetContainer, 10);
+        Grid.SetColumnSpan(MediaWidgetContainer, 3);
         
         // Animate Width
         var widthAnim = new DoubleAnimation(startWidth, finalWidth, expandDuration)
@@ -1283,13 +1465,13 @@ public partial class MainWindow : Window
         widthAnim.Completed += (s, e) =>
         {
             // Set to final values BEFORE clearing animation to prevent flicker
-            MediaWidget.Width = double.NaN; // Auto
-            MediaWidget.Margin = new Thickness(0);
-            MediaWidget.HorizontalAlignment = HorizontalAlignment.Stretch;
+            MediaWidgetContainer.Width = double.NaN; // Auto
+            MediaWidgetContainer.Margin = new Thickness(0);
+            MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
             
             // Clear animations
-            MediaWidget.BeginAnimation(WidthProperty, null);
-            MediaWidget.BeginAnimation(MarginProperty, null);
+            MediaWidgetContainer.BeginAnimation(WidthProperty, null);
+            MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             
             // Update MaxWidth here to avoid layout jumps during animation
 
@@ -1297,8 +1479,8 @@ public partial class MainWindow : Window
             _isMusicAnimating = false;
         };
         
-        MediaWidget.BeginAnimation(WidthProperty, widthAnim);
-        MediaWidget.BeginAnimation(MarginProperty, marginAnim);
+        MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
+        MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
         
         // Step 3: Show inline controls
         InlineControls.Visibility = Visibility.Visible;
@@ -1328,6 +1510,9 @@ public partial class MainWindow : Window
         // Sync play/pause icon state
         InlinePauseIcon.Visibility = _isPlaying ? Visibility.Visible : Visibility.Collapsed;
         InlinePlayIcon.Visibility = _isPlaying ? Visibility.Collapsed : Visibility.Visible;
+        
+        // Sync volume bar with current system volume
+        SyncVolumeFromSystem();
     }
     
     private void CollapseMusicWidget()
@@ -1380,13 +1565,13 @@ public partial class MainWindow : Window
         
         // Step 2: Animate Width Shrinking & Margin Restore
         
-        double currentWidth = MediaWidget.ActualWidth;
+        double currentWidth = MediaWidgetContainer.ActualWidth;
         // Use captured small width if available, otherwise estimate
         double targetSmallWidth = _musicWidgetSmallWidth > 0 ? _musicWidgetSmallWidth : (ExpandedContent.ActualWidth / 3.0) - 8;
         
         // Lock width for animation
-        MediaWidget.Width = currentWidth;
-        MediaWidget.HorizontalAlignment = HorizontalAlignment.Left;
+        MediaWidgetContainer.Width = currentWidth;
+        MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Left;
         
         var widthAnim = new DoubleAnimation(currentWidth, targetSmallWidth, collapseDuration)
         {
@@ -1403,15 +1588,15 @@ public partial class MainWindow : Window
         widthAnim.Completed += (s, e) =>
         {
             // Set final values BEFORE clearing animation to prevent flicker
-            MediaWidget.Width = double.NaN;
-            MediaWidget.Margin = new Thickness(0, 0, 8, 0); 
-            MediaWidget.HorizontalAlignment = HorizontalAlignment.Stretch;
-            Grid.SetColumnSpan(MediaWidget, 1);
-            Panel.SetZIndex(MediaWidget, 0);
+            MediaWidgetContainer.Width = double.NaN;
+            MediaWidgetContainer.Margin = new Thickness(0, 0, 8, 0); 
+            MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
+            Grid.SetColumnSpan(MediaWidgetContainer, 1);
+            Panel.SetZIndex(MediaWidgetContainer, 0);
             
             // Clear animations
-            MediaWidget.BeginAnimation(WidthProperty, null);
-            MediaWidget.BeginAnimation(MarginProperty, null);
+            MediaWidgetContainer.BeginAnimation(WidthProperty, null);
+            MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             
             // Reset track info max width here to avoid layout jumps during animation
 
@@ -1419,8 +1604,8 @@ public partial class MainWindow : Window
             _isMusicAnimating = false;
         };
         
-        MediaWidget.BeginAnimation(WidthProperty, widthAnim);
-        MediaWidget.BeginAnimation(MarginProperty, marginAnim);
+        MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
+        MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
         
         // Step 3: Fade in controls
         MediaControls.Visibility = Visibility.Visible;
@@ -1463,6 +1648,8 @@ public partial class MainWindow : Window
     {
         UpdateBatteryInfo();
         UpdateCalendarInfo();
+        
+        if (_isMusicExpanded) SyncVolumeFromSystem();
         
         // Periodically re-assert topmost status to handle apps like MyDockfinder 
         // that might have climbed over us in the Z-order
@@ -1512,25 +1699,33 @@ public partial class MainWindow : Window
         MonthText.Text = now.ToString("MMM");
         DayText.Text = now.Day.ToString();
 
-        // Update week days header
-        var dayNames = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-        var today = (int)now.DayOfWeek;
-        if (today == 0) today = 7; // Sunday = 7
-
-        // Show 5 days around today
-        var weekDaysText = "";
-        for (int i = -2; i <= 2; i++)
-        {
-            var dayIndex = ((today - 1 + i) % 7 + 7) % 7;
-            weekDaysText += dayNames[dayIndex] + "  ";
-        }
-        WeekDays.Text = weekDaysText.Trim();
-
-        // Update week numbers
+        // Update week days header (show 3 days: yesterday, today, tomorrow)
+        var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+        
+        // Clear and rebuild WeekDaysPanel and WeekNumbers
+        WeekDaysPanel.Children.Clear();
         WeekNumbers.Children.Clear();
-        for (int i = -2; i <= 2; i++)
+        
+        // Show 3 days: yesterday (-1), today (0), tomorrow (+1) - today in the middle
+        for (int i = -1; i <= 1; i++)
         {
             var date = now.AddDays(i);
+            var dayOfWeek = (int)date.DayOfWeek; // 0 = Sunday, 6 = Saturday
+            
+            // Create day name TextBlock (same width as number border for alignment)
+            var dayNameText = new TextBlock
+            {
+                Text = dayNames[dayOfWeek],
+                Foreground = new SolidColorBrush(Color.FromRgb(102, 102, 102)), // #666666
+                FontSize = 9,
+                Width = 26, // Match border width (22) + margins (4)
+                TextAlignment = TextAlignment.Center,
+                FontWeight = FontWeights.Bold,
+                FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display")
+            };
+            WeekDaysPanel.Children.Add(dayNameText);
+            
+            // Create number border
             var border = new Border
             {
                 Width = 22,
@@ -1538,16 +1733,19 @@ public partial class MainWindow : Window
                 CornerRadius = new CornerRadius(11),
                 Margin = new Thickness(2, 0, 2, 0),
                 Background = i == 0 ? 
-                    (Brush)FindResource("AppleBlue") : 
+                    new SolidColorBrush(Colors.White) : 
                     new SolidColorBrush(Colors.Transparent)
             };
 
             var text = new TextBlock
             {
                 Text = date.Day.ToString(),
-                Foreground = new SolidColorBrush(Colors.White),
+                Foreground = i == 0 ? 
+                    new SolidColorBrush(Colors.Black) : 
+                    new SolidColorBrush(Colors.White),
                 FontSize = 11,
-                FontWeight = i == 0 ? FontWeights.Bold : FontWeights.Normal,
+                FontWeight = FontWeights.Bold,
+                FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -1557,6 +1755,10 @@ public partial class MainWindow : Window
         }
 
         EventText.Text = "Enjoy your day!";
+        EventText.Foreground = new SolidColorBrush(Colors.White);
+        EventText.FontWeight = FontWeights.Bold;
+        EventText.Margin = new Thickness(3, 6, 0, 0); // Align with the left edge of 'Sun' (which has 2px margin + centering)
+        EventText.FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display");
     }
 
     #endregion
@@ -1601,16 +1803,58 @@ public partial class MainWindow : Window
             double easedProgress = 1 - Math.Pow(1 - Math.Min(progress, 1), 5);
             double currentRadius = startRadius + delta * easedProgress;
             
-            NotchBorder.CornerRadius = new CornerRadius(0, 0, currentRadius, currentRadius);
+            var cr = new CornerRadius(0, 0, currentRadius, currentRadius);
+            NotchBorder.CornerRadius = cr;
+            UpdateNotchClip();
 
             if (currentStep >= totalSteps)
             {
                 timer.Stop();
-                NotchBorder.CornerRadius = new CornerRadius(0, 0, targetRadius, targetRadius);
+                var finalCr = new CornerRadius(0, 0, targetRadius, targetRadius);
+                NotchBorder.CornerRadius = finalCr;
+                UpdateNotchClip();
             }
         };
 
         timer.Start();
+    }
+
+    private void NotchContent_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateNotchClip();
+    }
+
+    private void UpdateNotchClip()
+    {
+        if (NotchContent == null || NotchBorder == null) return;
+        
+        double w = NotchContent.ActualWidth;
+        double h = NotchContent.ActualHeight;
+        
+        if (w <= 0 || h <= 0) return;
+
+        double r = NotchBorder.CornerRadius.BottomRight;
+        
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(new Point(0, 0), true, true);
+            ctx.LineTo(new Point(w, 0), true, false);
+            ctx.LineTo(new Point(w, h - r), true, false);
+            if (r > 0)
+                ctx.ArcTo(new Point(w - r, h), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
+            else
+                ctx.LineTo(new Point(w, h), true, false);
+                
+            ctx.LineTo(new Point(r, h), true, false);
+            
+            if (r > 0)
+                ctx.ArcTo(new Point(0, h - r), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
+            else
+                ctx.LineTo(new Point(0, h), true, false);
+        }
+        
+        NotchContent.Clip = geometry;
     }
 
     #endregion
@@ -1672,4 +1916,289 @@ public partial class MainWindow : Window
         _zOrderTimer?.Stop();
         base.OnClosed(e);
     }
+    
+    #region Volume Control
+
+    private float _currentVolume = 0.5f; // Store current volume locally
+
+    private void VolumeIcon_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_volumeService.IsAvailable)
+        {
+            _volumeService.ToggleMute();
+            SyncVolumeFromSystem();
+        }
+    }
+
+    private void VolumeBar_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        _isDraggingVolume = true;
+        VolumeBarContainer.CaptureMouse();
+        SetVolumeFromMousePosition(e);
+    }
+
+    private void VolumeBar_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_isDraggingVolume && e.LeftButton == MouseButtonState.Pressed)
+        {
+            SetVolumeFromMousePosition(e);
+        }
+    }
+
+    private void VolumeBar_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_isDraggingVolume)
+        {
+            _isDraggingVolume = false;
+            VolumeBarContainer.ReleaseMouseCapture();
+            e.Handled = true;
+        }
+    }
+
+    private void SetVolumeFromMousePosition(MouseEventArgs e)
+    {
+        // Use fixed width (100px as defined in XAML)
+        const double volumeBarWidth = 100.0;
+        
+        var pos = e.GetPosition(VolumeBarContainer);
+        float newVolume = (float)Math.Clamp(pos.X / volumeBarWidth, 0.0, 1.0);
+        
+        // Update local state
+        _currentVolume = newVolume;
+        
+        // Update UI immediately
+        VolumeBarFront.Width = volumeBarWidth * newVolume;
+        
+        // Update icon
+        UpdateVolumeIcon(newVolume, false); // Not muted if sliding
+        
+        // Set system volume
+        if (_volumeService.IsAvailable)
+        {
+            _volumeService.SetVolume(newVolume);
+        }
+    }
+
+    private void SyncVolumeFromSystem()
+    {
+        if (_isDraggingVolume) return;
+        
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_isDraggingVolume) return;
+            
+            if (_volumeService.IsAvailable)
+            {
+                _currentVolume = _volumeService.GetVolume();
+                bool isMuted = _volumeService.GetMute();
+                
+                VolumeBarFront.Width = 100.0 * _currentVolume;
+                UpdateVolumeIcon(_currentVolume, isMuted);
+            }
+        }), System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    private void UpdateVolumeIcon(float volume, bool isMuted)
+    {
+        if (isMuted || volume <= 0.01f)
+        {
+            VolumeIcon.Text = "\uE74F"; // Mute
+            VolumeIcon.Foreground = new SolidColorBrush(Color.FromRgb(255, 59, 48)); // Red for mute
+        }
+        else if (volume < 0.33f)
+        {
+            VolumeIcon.Text = "\uE993"; // Volume 1
+            VolumeIcon.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136));
+        }
+        else if (volume < 0.66f)
+        {
+            VolumeIcon.Text = "\uE994"; // Volume 2
+            VolumeIcon.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136));
+        }
+        else
+        {
+            VolumeIcon.Text = "\uE995"; // Volume 3
+            VolumeIcon.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136));
+        }
+    }
+
+    #endregion
+
+    #region Media Background & Color Extraction
+
+    private Color _lastDominantColor = Colors.Transparent;
+
+    private void UpdateMediaBackground(MediaInfo? info)
+    {
+        if (info == null || info.Thumbnail == null || !info.IsPlaying)
+        {
+            HideMediaBackground();
+            return;
+        }
+
+        var dominantColor = GetDominantColor(info.Thumbnail);
+        if (dominantColor == _lastDominantColor && MediaBackground.Opacity > 0) return;
+        
+        _lastDominantColor = dominantColor;
+        
+        // Define target colors
+        var targetColor = Color.FromRgb(dominantColor.R, dominantColor.G, dominantColor.B);
+        var vibrantTargetColor = GetVibrantColor(targetColor);
+        
+        var colorAnim = new ColorAnimation
+        {
+            To = targetColor,
+            Duration = TimeSpan.FromMilliseconds(500), 
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        var uiColorAnim = new ColorAnimation
+        {
+            To = vibrantTargetColor,
+            Duration = TimeSpan.FromMilliseconds(500),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        
+        var opacityAnim = new DoubleAnimation
+        {
+            To = 0.5, // Subtle organic glow
+            Duration = TimeSpan.FromMilliseconds(500),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        MediaBackgroundBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
+        MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
+        
+        // Glow 2 (Top-Left)
+        MediaBackgroundBrush2.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
+        MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
+
+        // Update Progress Bar and Time labels color
+        // Update Progress Bar and Time labels color (Ensure they are not frozen for animation)
+        var currentBg = ProgressBar.Background as SolidColorBrush;
+        if (currentBg == null || currentBg.IsFrozen)
+            ProgressBar.Background = new SolidColorBrush(currentBg?.Color ?? Colors.White);
+            
+        var currentSt = CurrentTimeText.Foreground as SolidColorBrush;
+        if (currentSt == null || currentSt.IsFrozen)
+            CurrentTimeText.Foreground = new SolidColorBrush(currentSt?.Color ?? Color.FromRgb(136, 136, 136));
+            
+        var currentRt = RemainingTimeText.Foreground as SolidColorBrush;
+        if (currentRt == null || currentRt.IsFrozen)
+            RemainingTimeText.Foreground = new SolidColorBrush(currentRt?.Color ?? Color.FromRgb(136, 136, 136));
+
+        ((SolidColorBrush)ProgressBar.Background).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        ((SolidColorBrush)CurrentTimeText.Foreground).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        ((SolidColorBrush)RemainingTimeText.Foreground).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+
+        // Update Music Visualizer bars color
+        if (Resources["MusicVisualizerBrush"] is SolidColorBrush visualizerBrush && !visualizerBrush.IsFrozen)
+        {
+            visualizerBrush.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        }
+    }
+
+    private Color GetVibrantColor(Color c)
+    {
+        // Convert to HSL or similar logic to boost saturation and brightness
+        // Simple version: scale up the most dominant components
+        double maxComp = Math.Max(c.R, Math.Max(c.G, c.B));
+        if (maxComp == 0) return Color.FromRgb(200, 200, 200); // Default if black
+
+        // Scale factor to make the brightest component around 240-255
+        double scale = 240.0 / maxComp;
+        
+        // Don't scale down if it's already bright
+        if (scale < 1.0) scale = 1.0;
+
+        byte r = (byte)Math.Min(255, c.R * scale);
+        byte g = (byte)Math.Min(255, c.G * scale);
+        byte b = (byte)Math.Min(255, c.B * scale);
+
+        // Additional saturation boost for dark/muddy colors
+        double luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+        if (luminance < 0.6)
+        {
+            // Move away from gray (Saturation boost)
+            byte avg = (byte)((r + g + b) / 3);
+            r = (byte)Math.Min(255, r + (r - avg) * 0.5);
+            g = (byte)Math.Min(255, g + (g - avg) * 0.5);
+            b = (byte)Math.Min(255, b + (b - avg) * 0.5);
+        }
+
+        return Color.FromRgb(r, g, b);
+    }
+
+    private Color EnsureBrightColor(Color c)
+    {
+        // Keep as fallback or for subtle elements if needed
+        double luminance = (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255.0;
+        if (luminance < 0.5)
+        {
+            double factor = 0.7;
+            byte r = (byte)(c.R + (255 - c.R) * factor);
+            byte g = (byte)(c.G + (255 - c.G) * factor);
+            byte b = (byte)(c.B + (255 - c.B) * factor);
+            return Color.FromRgb(r, g, b);
+        }
+        return c;
+    }
+
+    private void HideMediaBackground()
+    {
+        if (MediaBackground.Opacity == 0) return;
+        
+        _lastDominantColor = Colors.Transparent;
+        var opacityAnim = new DoubleAnimation(0, TimeSpan.FromMilliseconds(400))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+        };
+        MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
+        MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
+
+        // Reset Progress/Time colors
+        var defaultColorAnim = new ColorAnimation
+        {
+            To = Colors.White,
+            Duration = TimeSpan.FromMilliseconds(400)
+        };
+        var defaultTextAnim = new ColorAnimation
+        {
+            To = Color.FromRgb(136, 136, 136),
+            Duration = TimeSpan.FromMilliseconds(400)
+        };
+
+        if (ProgressBar.Background is SolidColorBrush sb && !sb.IsFrozen) sb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+        if (CurrentTimeText.Foreground is SolidColorBrush st && !st.IsFrozen) st.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
+        if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
+    }
+
+    private Color GetDominantColor(BitmapSource bitmap)
+    {
+        try
+        {
+            // Fast sampling by scaling down to 10x10
+            var small = new TransformedBitmap(bitmap, new ScaleTransform(10.0 / bitmap.PixelWidth, 10.0 / bitmap.PixelHeight));
+            var pixels = new byte[100 * 4];
+            small.CopyPixels(pixels, 40, 0);
+
+            long r = 0, g = 0, b = 0;
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                b += pixels[i];
+                g += pixels[i + 1];
+                r += pixels[i + 2];
+            }
+
+            return Color.FromRgb((byte)(r / 100), (byte)(g / 100), (byte)(b / 100));
+        }
+        catch
+        {
+            return Color.FromRgb(30, 30, 30);
+        }
+    }
+
+    #endregion
 }

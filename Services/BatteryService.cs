@@ -4,7 +4,6 @@ using System.Windows.Forms;
 namespace VNotch.Services;
 
 /// <summary>
-/// Service to get system battery information
 /// </summary>
 public static class BatteryService
 {

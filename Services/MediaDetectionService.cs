@@ -97,7 +97,10 @@ public class MediaDetectionService : IDisposable
         }
         
         _pollTimer.Start();
-        await UpdateMediaInfoAsync();
+        
+        // Initial detection with a slight delay to ensure SMTC is ready
+        await Task.Delay(1000);
+        await UpdateMediaInfoAsync(forceRefresh: true);
     }
 
     public void Stop()
@@ -471,12 +474,23 @@ public class MediaDetectionService : IDisposable
                 else if (sessionSourceApp.Contains("Chrome", StringComparison.OrdinalIgnoreCase) ||
                          sessionSourceApp.Contains("Edge", StringComparison.OrdinalIgnoreCase) ||
                          sessionSourceApp.Contains("Firefox", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("msedge", StringComparison.OrdinalIgnoreCase))
+                         sessionSourceApp.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("Opera", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("Brave", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("Vivaldi", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("Coccoc", StringComparison.OrdinalIgnoreCase))
                 {
                     // Browser - could be YouTube, etc.
                     if (string.IsNullOrEmpty(info.MediaSource))
                     {
                         info.MediaSource = "Browser";
+                    }
+                    
+                    // Quick check on title/artist for YouTube hints in SMTC metadata itself
+                    if (mediaProperties.Title?.Contains("YouTube", StringComparison.OrdinalIgnoreCase) == true || 
+                        mediaProperties.Artist?.Contains("YouTube", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        info.MediaSource = "YouTube";
                     }
                 }
             }
@@ -489,25 +503,18 @@ public class MediaDetectionService : IDisposable
                 {
                     var lowerTitle = title.ToLower();
                     
-                    // Specific Platform Checks for Browser Sessions
+                    // Specific Platform Checks for Browser Sessions (Loosened matching)
                     if (lowerTitle.Contains("youtube") && !lowerTitle.StartsWith("youtube -") && lowerTitle != "youtube")
                     {
-                         // If the title matches roughly, it's likely this tab
-                         if (string.IsNullOrEmpty(info.CurrentTrack) || lowerTitle.Contains(info.CurrentTrack.ToLower()))
-                         {
-                             info.MediaSource = "YouTube";
-                             info.IsYouTubeRunning = true;
-                             break;
-                         }
+                         info.MediaSource = "YouTube";
+                         info.IsYouTubeRunning = true;
+                         break;
                     }
                     else if (lowerTitle.Contains("soundcloud") && lowerTitle.Contains(" - "))
                     {
-                         if (string.IsNullOrEmpty(info.CurrentTrack) || lowerTitle.Contains(info.CurrentTrack.ToLower()))
-                         {
-                             info.MediaSource = "SoundCloud";
-                             info.IsSoundCloudRunning = true;
-                             break;
-                         }
+                         info.MediaSource = "SoundCloud";
+                         info.IsSoundCloudRunning = true;
+                         break;
                     }
                     else if (lowerTitle.Contains("facebook") && (lowerTitle.Contains("watch") || lowerTitle.Contains("video")))
                     {
