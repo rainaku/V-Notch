@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Runtime.InteropServices;
 using VNotch.Models;
 using VNotch.Services;
 
@@ -18,7 +19,13 @@ public partial class MainWindow
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
-        // Always update progress tracking, but only render when expanded
+        // 0. Aggressively stay on top when expanded (prevents MyDockfinder masking)
+        if (_isExpanded || _isMusicExpanded)
+        {
+            EnsureTopmost();
+        }
+
+        // 1. Update progress tracking for the UI
         if (_currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying)
         {
             if (_isExpanded)
@@ -26,7 +33,40 @@ public partial class MainWindow
                 RenderProgressBar();
             }
         }
+
+        // 2. Auto-collapse logic (Essential for WS_EX_NOACTIVATE windows)
+        if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
+        {
+            // Check if left mouse button is pressed anywhere on screen
+            if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
+            {
+                if (GetCursorPos(out POINT pt))
+                {
+                    IntPtr hWndAtPoint = WindowFromPoint(pt);
+                    
+                    // Collapse if click is NOT on this window or any of its child controls
+                    if (hWndAtPoint != _hwnd && !IsChildWindow(_hwnd, hWndAtPoint))
+                    {
+                        CollapseAll();
+                    }
+                }
+            }
+        }
     }
+
+    private bool IsChildWindow(IntPtr parent, IntPtr child)
+    {
+        IntPtr current = child;
+        while (current != IntPtr.Zero)
+        {
+            if (current == parent) return true;
+            current = GetParent(current);
+        }
+        return false;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetParent(IntPtr hWnd);
     
     /// <summary>
     /// Called when MediaDetectionService fires MediaChanged event

@@ -806,4 +806,36 @@ public class MediaDetectionService : IDisposable
         }
         catch { }
     }
+
+    /// <summary>
+    /// Tua tương đối (cộng/trừ giây) mà không cần focus vào ứng dụng
+    /// </summary>
+    public async Task SeekRelativeAsync(double seconds)
+    {
+        if (_sessionManager == null) return;
+
+        try
+        {
+            var session = _activeDisplaySession ?? _sessionManager.GetCurrentSession();
+            if (session != null)
+            {
+                var timeline = session.GetTimelineProperties();
+                if (timeline != null)
+                {
+                    var currentPos = timeline.Position;
+                    var newPosTicks = currentPos.Ticks + TimeSpan.FromSeconds(seconds).Ticks;
+                    
+                    // Giới hạn trong khoảng [0, Duration]
+                    var duration = timeline.EndTime - timeline.StartTime;
+                    if (duration <= TimeSpan.Zero) duration = timeline.MaxSeekTime;
+                    
+                    if (newPosTicks < 0) newPosTicks = 0;
+                    if (duration.Ticks > 0 && newPosTicks > duration.Ticks) newPosTicks = duration.Ticks;
+
+                    await session.TryChangePlaybackPositionAsync(newPosTicks);
+                }
+            }
+        }
+        catch { }
+    }
 }

@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private readonly NotchManager _notchManager;
     private readonly MediaDetectionService _mediaService;
     private readonly DispatcherTimer _updateTimer;
+    private readonly DispatcherTimer _zOrderTimer; // Dedicated timer to fight for Z-order
     private NotchSettings _settings;
     private bool _isNotchVisible = true;
     private IntPtr _hwnd;
@@ -69,11 +70,13 @@ public partial class MainWindow : Window
 
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     private const int WS_EX_TOPMOST = 0x00000008;
+    private const int WS_EX_NOACTIVATE = 0x08000000;
     private const int GWL_EXSTYLE = -20;
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOSIZE = 0x0001;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_SHOWWINDOW = 0x0040;
 
     private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
 
@@ -81,6 +84,7 @@ public partial class MainWindow : Window
     private const int WM_WINDOWPOSCHANGING = 0x0046;
     private const int WM_WINDOWPOSCHANGED = 0x0047;
     private const int WM_ACTIVATE = 0x0006;
+    private const int WM_ACTIVATEAPP = 0x001C;
     private const int WM_DISPLAYCHANGE = 0x007E;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -93,6 +97,13 @@ public partial class MainWindow : Window
         public int cx;
         public int cy;
         public uint flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
     }
 
     [DllImport("user32.dll")]
@@ -116,6 +127,17 @@ public partial class MainWindow : Window
     private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     private const uint KEYEVENTF_KEYUP = 0x0002;
 
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(POINT point);
+    
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    private const int VK_LBUTTON = 0x01;
+
     #endregion
 
     public MainWindow()
@@ -138,6 +160,14 @@ public partial class MainWindow : Window
             Interval = TimeSpan.FromSeconds(30)
         };
         _updateTimer.Tick += UpdateTimer_Tick;
+        
+        // Setup Z-order timer - fights for top spot every 500ms
+        _zOrderTimer = new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TimeSpan.FromMilliseconds(500)
+        };
+        _zOrderTimer.Tick += (s, e) => EnsureTopmost();
+        _zOrderTimer.Start();
         
         // Setup progress timer for realtime progress bar (60fps for maximum smoothness)
         _progressTimer = new DispatcherTimer(DispatcherPriority.Render)
@@ -217,6 +247,19 @@ public partial class MainWindow : Window
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 break;
 
+            case WM_ACTIVATEAPP:
+                // If the application is being deactivated (wParam == 0)
+                if (wParam == IntPtr.Zero)
+                {
+                    Dispatcher.BeginInvoke(new Action(() => {
+                        if (_isExpanded && !_isAnimating)
+                        {
+                            CollapseNotch();
+                        }
+                    }));
+                }
+                break;
+
             case WM_DISPLAYCHANGE:
                 // Screen resolution changed, recalculate position
                 Dispatcher.BeginInvoke(() => PositionAtTop());
@@ -231,10 +274,17 @@ public partial class MainWindow : Window
     /// </summary>
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
-        if (_isExpanded && !_isAnimating)
+        // This may not trigger reliably with WS_EX_NOACTIVATE
+        if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
         {
-            CollapseNotch();
+            CollapseAll();
         }
+    }
+
+    private void CollapseAll()
+    {
+        if (_isMusicExpanded) CollapseMusicWidget();
+        if (_isExpanded) CollapseNotch();
     }
 
     /// <summary>
@@ -244,9 +294,25 @@ public partial class MainWindow : Window
     {
         // Set extended window styles
         var exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
-        exStyle |= WS_EX_TOOLWINDOW; // Hide from taskbar/alt-tab
-        exStyle |= WS_EX_TOPMOST;    // Always on top
+        exStyle |= WS_EX_TOOLWINDOW; 
+        exStyle |= WS_EX_TOPMOST;    
+        exStyle |= WS_EX_NOACTIVATE; 
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
+        
+        // Initial force to top
+        EnsureTopmost();
+    }
+
+    /// <summary>
+    /// Aggressively re-assert topmost status to stay above other "topmost" apps like MyDockfinder
+    /// </summary>
+    private void EnsureTopmost()
+    {
+        if (_hwnd != IntPtr.Zero)
+        {
+            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
     }
 
     /// <summary>
@@ -321,11 +387,15 @@ public partial class MainWindow : Window
         if (_isAnimating || _isExpanded) return;
         _isAnimating = true;
 
+        // Re-assert topmost before expanding
+        EnsureTopmost();
+
         // Show expanded content
         ExpandedContent.Visibility = Visibility.Visible;
 
         var duration = TimeSpan.FromMilliseconds(350);
-        var easing = new QuinticEase { EasingMode = EasingMode.EaseOut };
+        // Velocity clearly faster at start, slower at end
+        var easing = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 7 };
 
         // Width animation
         var widthAnim = new DoubleAnimation
@@ -349,7 +419,7 @@ public partial class MainWindow : Window
         var fadeOutAnim = new DoubleAnimation
         {
             To = 0,
-            Duration = TimeSpan.FromMilliseconds(150),
+            Duration = TimeSpan.FromMilliseconds(100),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
 
@@ -358,8 +428,8 @@ public partial class MainWindow : Window
         {
             From = 0,
             To = 1,
-            BeginTime = TimeSpan.FromMilliseconds(150),
-            Duration = TimeSpan.FromMilliseconds(200),
+            BeginTime = TimeSpan.FromMilliseconds(120),
+            Duration = TimeSpan.FromMilliseconds(230),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
 
@@ -391,9 +461,13 @@ public partial class MainWindow : Window
     {
         if (_isAnimating || !_isExpanded) return;
         _isAnimating = true;
+        
+        // Re-assert topmost when collapsing
+        EnsureTopmost();
 
-        var duration = TimeSpan.FromMilliseconds(300);
-        var easing = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
+        var duration = TimeSpan.FromMilliseconds(350);
+        // Distinct snappy collapse
+        var easing = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 7 };
 
         // Width animation
         var widthAnim = new DoubleAnimation
@@ -417,7 +491,7 @@ public partial class MainWindow : Window
         var fadeOutAnim = new DoubleAnimation
         {
             To = 0,
-            Duration = TimeSpan.FromMilliseconds(100),
+            Duration = TimeSpan.FromMilliseconds(80),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
 
@@ -493,9 +567,20 @@ public partial class MainWindow : Window
         // Play skip forward animation
         PlayNextSkipAnimation();
         
-        // Skip to next track/video - works with YouTube, Spotify, etc.
-        await _mediaService.NextTrackAsync();
-        SendMediaKey(VK_MEDIA_NEXT_TRACK);
+        if (_currentMediaInfo?.IsVideoSource == true)
+        {
+            // Tua nhanh 15 giây bằng API SMTC (hoạt động kể cả khi trình duyệt ở background)
+            await _mediaService.SeekRelativeAsync(15);
+            
+            // Fallback: Nếu API không phản hồi, phím tắt vẫn hoạt động nếu browser đang được focus
+            // Không gửi phím nữa để tránh bị nhảy 2 lần nếu API hoạt động
+        }
+        else
+        {
+            // For music sources (Spotify, Apple Music, etc.), skip to next track
+            await _mediaService.NextTrackAsync();
+            SendMediaKey(VK_MEDIA_NEXT_TRACK);
+        }
     }
 
     private async void PrevButton_Click(object sender, MouseButtonEventArgs e)
@@ -508,9 +593,17 @@ public partial class MainWindow : Window
         // Play skip backward animation
         PlayPrevSkipAnimation();
         
-        // Skip to previous track/video - works with YouTube, Spotify, etc.
-        await _mediaService.PreviousTrackAsync();
-        SendMediaKey(VK_MEDIA_PREV_TRACK);
+        if (_currentMediaInfo?.IsVideoSource == true)
+        {
+            // Tua ngược 15 giây bằng API
+            await _mediaService.SeekRelativeAsync(-15);
+        }
+        else
+        {
+            // For music sources (Spotify, etc.), skip to previous track
+            await _mediaService.PreviousTrackAsync();
+            SendMediaKey(VK_MEDIA_PREV_TRACK);
+        }
     }
     
     private void UpdatePlayPauseIcon()
@@ -641,8 +734,16 @@ public partial class MainWindow : Window
         
         PlayNextSkipAnimation(InlineNextArrow0, InlineNextArrow1, InlineNextArrow2);
         
-        await _mediaService.NextTrackAsync();
-        SendMediaKey(VK_MEDIA_NEXT_TRACK);
+        if (_currentMediaInfo?.IsVideoSource == true)
+        {
+            // Skip 15s for video via API
+            await _mediaService.SeekRelativeAsync(15);
+        }
+        else
+        {
+            await _mediaService.NextTrackAsync();
+            SendMediaKey(VK_MEDIA_NEXT_TRACK);
+        }
     }
 
     private async void InlinePrevButton_Click(object sender, MouseButtonEventArgs e)
@@ -654,8 +755,16 @@ public partial class MainWindow : Window
         
         PlayPrevSkipAnimation(InlinePrevArrow0, InlinePrevArrow1, InlinePrevArrow2);
         
-        await _mediaService.PreviousTrackAsync();
-        SendMediaKey(VK_MEDIA_PREV_TRACK);
+        if (_currentMediaInfo?.IsVideoSource == true)
+        {
+            // Skip 15s for video via API
+            await _mediaService.SeekRelativeAsync(-15);
+        }
+        else
+        {
+            await _mediaService.PreviousTrackAsync();
+            SendMediaKey(VK_MEDIA_PREV_TRACK);
+        }
     }
 
     private void PlayNextSkipAnimation()
@@ -1113,10 +1222,11 @@ public partial class MainWindow : Window
         var expandDuration = TimeSpan.FromMilliseconds(500);
         var contentDelay = TimeSpan.FromMilliseconds(150);
         
-        // Velocity: Fast start -> Slow end (EaseOut) for responsiveness
-        var velocityEase = new QuinticEase 
+        // Velocity: Fast start -> Super Slow end (Exponential) for clear contrast
+        var velocityEase = new ExponentialEase 
         { 
-            EasingMode = EasingMode.EaseOut 
+            EasingMode = EasingMode.EaseOut,
+            Exponent = 7
         };
         
         // Spring for scale content
@@ -1229,9 +1339,10 @@ public partial class MainWindow : Window
         var collapseDuration = TimeSpan.FromMilliseconds(400);
         var contentDelay = TimeSpan.FromMilliseconds(80);
         
-        var velocityEase = new QuinticEase 
+        var velocityEase = new ExponentialEase 
         { 
-            EasingMode = EasingMode.EaseOut 
+            EasingMode = EasingMode.EaseOut,
+            Exponent = 7
         };
         
         var smoothEase = new PowerEase 
@@ -1352,6 +1463,10 @@ public partial class MainWindow : Window
     {
         UpdateBatteryInfo();
         UpdateCalendarInfo();
+        
+        // Periodically re-assert topmost status to handle apps like MyDockfinder 
+        // that might have climbed over us in the Z-order
+        EnsureTopmost();
     }
 
     private void UpdateBatteryInfo()
@@ -1482,7 +1597,8 @@ public partial class MainWindow : Window
         {
             currentStep++;
             double progress = (double)currentStep / totalSteps;
-            double easedProgress = 1 - Math.Pow(1 - Math.Min(progress, 1), 3);
+            // Updated to match Exponential/Quintic feel (Power of 5)
+            double easedProgress = 1 - Math.Pow(1 - Math.Min(progress, 1), 5);
             double currentRadius = startRadius + delta * easedProgress;
             
             NotchBorder.CornerRadius = new CornerRadius(0, 0, currentRadius, currentRadius);
@@ -1540,6 +1656,7 @@ public partial class MainWindow : Window
         _notchManager.Dispose();
         TrayIcon.Dispose();
         _updateTimer.Stop();
+        _zOrderTimer.Stop();
         System.Windows.Application.Current.Shutdown();
     }
 
@@ -1552,6 +1669,7 @@ public partial class MainWindow : Window
         _notchManager?.Dispose();
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
+        _zOrderTimer?.Stop();
         base.OnClosed(e);
     }
 }
