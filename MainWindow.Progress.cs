@@ -35,7 +35,7 @@ public partial class MainWindow
         if (_isExpanded && _isMusicExpanded && _volumeService != null && _volumeService.IsAvailable && !_isDraggingVolume)
         {
             _currentVolume = _volumeService.GetVolume();
-            VolumeBarFront.Width = 100.0 * _currentVolume;
+            VolumeBarScale.ScaleX = _currentVolume;
         }
 
         // 2. Auto-collapse logic (Essential for WS_EX_NOACTIVATE windows)
@@ -159,7 +159,7 @@ public partial class MainWindow
     
     private void ResetProgressUI()
     {
-        ProgressBar.Width = 0;
+        ProgressBarScale.ScaleX = 0;
         CurrentTimeText.Text = "0:00";
         RemainingTimeText.Text = "0:00";
     }
@@ -199,7 +199,7 @@ public partial class MainWindow
         double ratio = displayPosition.TotalSeconds / duration.TotalSeconds;
         ratio = Math.Clamp(ratio, 0, 1);
         
-        ProgressBar.Width = ProgressBarContainer.ActualWidth * ratio;
+        ProgressBarScale.ScaleX = ratio;
         
         // Update time text
         CurrentTimeText.Text = FormatTime(displayPosition);
@@ -267,7 +267,7 @@ public partial class MainWindow
         ratio = Math.Clamp(ratio, 0, 1);
         
         // Update UI immediately
-        ProgressBar.Width = ProgressBarContainer.ActualWidth * ratio;
+        ProgressBarScale.ScaleX = ratio;
         
         // Calculate and store seek position
         _dragSeekPosition = TimeSpan.FromSeconds(_lastKnownDuration.TotalSeconds * ratio);
@@ -335,20 +335,16 @@ public partial class MainWindow
             if (displayPosition < TimeSpan.Zero)
                 displayPosition = TimeSpan.Zero;
             
-            // Ensure we have valid container width
-            double containerWidth = ProgressBarContainer.ActualWidth;
-            if (containerWidth <= 0) containerWidth = 200; // Fallback
-                
-            // Calculate target width
-            double ratio = displayPosition.TotalSeconds / _lastKnownDuration.TotalSeconds;
-            ratio = Math.Clamp(ratio, 0, 1);
-            double targetWidth = containerWidth * ratio;
+            // Calculate target ratio
+            double targetRatio = displayPosition.TotalSeconds / _lastKnownDuration.TotalSeconds;
+            targetRatio = Math.Clamp(targetRatio, 0, 1);
+            double targetWidth = targetRatio; // We use scale now
             
             // Clear any existing animation first
-            ProgressBar.BeginAnimation(WidthProperty, null);
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             
             // Start from 0
-            ProgressBar.Width = 0;
+            ProgressBarScale.ScaleX = 0;
             CurrentTimeText.Text = "0:00";
             
             // Animate to target with smooth easing
@@ -359,27 +355,27 @@ public partial class MainWindow
                 Exponent = 5 
             };
             
-            var widthAnim = new DoubleAnimation
+            var scaleAnim = new DoubleAnimation
             {
                 From = 0,
                 To = targetWidth,
                 Duration = animDuration,
                 EasingFunction = easing
             };
-            Timeline.SetDesiredFrameRate(widthAnim, 60);
+            Timeline.SetDesiredFrameRate(scaleAnim, 60);
             
             // When animation completes, clear flag and set final width explicitly
-            widthAnim.Completed += (s, e) =>
+            scaleAnim.Completed += (s, e) =>
             {
-                ProgressBar.BeginAnimation(WidthProperty, null); // Clear animation
-                ProgressBar.Width = targetWidth; // Set final value
+                ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null); // Clear animation
+                ProgressBarScale.ScaleX = targetWidth; // Set final value
                 _isProgressAnimating = false; // Allow RenderProgressBar to take over
             };
             
             // Also animate time text (using timer for smooth counting)
             AnimateTimeText(displayPosition, animDuration);
             
-            ProgressBar.BeginAnimation(WidthProperty, widthAnim);
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
         }), DispatcherPriority.Loaded);
     }
     

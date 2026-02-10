@@ -228,7 +228,7 @@ public partial class MainWindow
         float newVolume = (float)Math.Clamp(pos.X / volumeBarWidth, 0.0, 1.0);
         
         _currentVolume = newVolume;
-        VolumeBarFront.Width = volumeBarWidth * newVolume;
+        VolumeBarScale.ScaleX = newVolume;
         UpdateVolumeIcon(newVolume, false);
         
         if (_volumeService.IsAvailable)
@@ -250,7 +250,7 @@ public partial class MainWindow
                 _currentVolume = _volumeService.GetVolume();
                 bool isMuted = _volumeService.GetMute();
                 
-                VolumeBarFront.Width = 100.0 * _currentVolume;
+                VolumeBarScale.ScaleX = _currentVolume;
                 UpdateVolumeIcon(_currentVolume, isMuted);
             }
         }), System.Windows.Threading.DispatcherPriority.Background);

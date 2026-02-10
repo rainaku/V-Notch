@@ -502,7 +502,17 @@
                                                           MouseMove="VolumeBar_MouseMove"
                                                           MouseLeftButtonUp="VolumeBar_MouseUp">
                                                         <Border Background="#333333" Height="4" CornerRadius="2" VerticalAlignment="Center"/>
-                                                        <Border x:Name="VolumeBarFront" Background="White" Height="4" CornerRadius="2" VerticalAlignment="Center" HorizontalAlignment="Left" Width="50"/>
+                                                        <Border x:Name="VolumeBarFront" 
+                                                                Background="White" 
+                                                                Height="4" 
+                                                                CornerRadius="2" 
+                                                                VerticalAlignment="Center" 
+                                                                HorizontalAlignment="Stretch" 
+                                                                RenderTransformOrigin="0,0.5">
+                                                            <Border.RenderTransform>
+                                                                <ScaleTransform x:Name="VolumeBarScale" ScaleX="0.5"/>
+                                                            </Border.RenderTransform>
+                                                        </Border>
                                                     </Grid>
                                             </StackPanel>
                                         </Grid>
@@ -652,9 +662,13 @@
                                                 Background="White" 
                                                 Height="4" 
                                                 CornerRadius="2"
-                                                HorizontalAlignment="Left"
+                                                HorizontalAlignment="Stretch"
                                                 VerticalAlignment="Center"
-                                                Width="0"/>
+                                                RenderTransformOrigin="0,0.5">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform x:Name="ProgressBarScale" ScaleX="0"/>
+                                            </Border.RenderTransform>
+                                        </Border>
                                     </Grid>
                                     
                                     <!-- Remaining time -->
