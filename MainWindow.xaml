@@ -156,9 +156,7 @@
                         Grid.Column="1"
                         Background="{StaticResource NotchGradient}"
                         CornerRadius="0,0,20,20">
-                    <Border.CacheMode>
-                        <BitmapCache EnableClearType="False" RenderAtScale="1" SnapsToDevicePixels="True"/>
-                    </Border.CacheMode>
+                    <!-- BitmapCache removed: was preventing content from rendering during expand animation -->
                 
                 <!-- Inner clip border to properly clip content to rounded corners -->
                 <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True">

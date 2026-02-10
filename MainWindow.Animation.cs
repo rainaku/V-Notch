@@ -75,9 +75,13 @@ public partial class MainWindow
             From = from,
             To = to,
             Duration = duration,
-            EasingFunction = easing,
-            BeginTime = beginTime
+            EasingFunction = easing
         };
+        // Only set BeginTime when explicitly specified (non-null).
+        // In WPF, BeginTime = null means the timeline NEVER starts.
+        // Default is TimeSpan.Zero (start immediately).
+        if (beginTime.HasValue)
+            anim.BeginTime = beginTime.Value;
         Timeline.SetDesiredFrameRate(anim, 60);
         return anim;
     }
@@ -92,6 +96,13 @@ public partial class MainWindow
         _isAnimating = true;
 
         EnsureTopmost();
+
+        // Clear any stale animations from prior collapse to prevent stuck animated values
+        ExpandedContent.BeginAnimation(OpacityProperty, null);
+        CollapsedContent.BeginAnimation(OpacityProperty, null);
+        MusicCompactContent.BeginAnimation(OpacityProperty, null);
+
+        ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
 
         // All use cached easing + durations
@@ -127,18 +138,24 @@ public partial class MainWindow
 
         EnsureTopmost();
 
+        // Clear prior animations to prevent stale values
+        ExpandedContent.BeginAnimation(OpacityProperty, null);
+
         var widthAnim = MakeAnim(_collapsedWidth, _dur350, _easeExpOut7);
         var heightAnim = MakeAnim(_collapsedHeight, _dur350, _easeExpOut7);
 
         var fadeOutAnim = MakeAnim(0, _dur80, _easeQuadOut);
         fadeOutAnim.Completed += (s, e) =>
         {
+            ExpandedContent.BeginAnimation(OpacityProperty, null);
+            ExpandedContent.Opacity = 0;
             ExpandedContent.Visibility = Visibility.Collapsed;
         };
 
         FrameworkElement contentToShow = _isMusicCompactMode ? MusicCompactContent : CollapsedContent;
         FrameworkElement contentToHide = _isMusicCompactMode ? CollapsedContent : MusicCompactContent;
 
+        contentToHide.BeginAnimation(OpacityProperty, null);
         contentToHide.Visibility = Visibility.Collapsed;
         contentToHide.Opacity = 0;
 
