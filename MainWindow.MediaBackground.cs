@@ -14,6 +14,8 @@ public partial class MainWindow
     #region Media Background & Color Extraction
 
     private Color _lastDominantColor = Colors.Transparent;
+    private string _lastColorSignature = "";
+    private readonly byte[] _pixelBuffer = new byte[400];
 
     private void UpdateMediaBackground(MediaInfo? info)
     {
@@ -23,9 +25,17 @@ public partial class MainWindow
             return;
         }
 
-        var dominantColor = GetDominantColor(info.Thumbnail);
-        if (dominantColor == _lastDominantColor && MediaBackground.Opacity > 0) return;
+        string currentSignature = $"{info.CurrentTrack}|{info.CurrentArtist}";
+        if (currentSignature == _lastColorSignature && MediaBackground.Opacity > 0 && _lastDominantColor != Colors.Transparent) return;
         
+        var dominantColor = GetDominantColor(info.Thumbnail);
+        if (dominantColor == _lastDominantColor && MediaBackground.Opacity > 0) 
+        {
+            _lastColorSignature = currentSignature;
+            return;
+        }
+        
+        _lastColorSignature = currentSignature;
         _lastDominantColor = dominantColor;
         
         var targetColor = Color.FromRgb(dominantColor.R, dominantColor.G, dominantColor.B);
@@ -152,15 +162,14 @@ public partial class MainWindow
         try
         {
             var small = new TransformedBitmap(bitmap, new ScaleTransform(10.0 / bitmap.PixelWidth, 10.0 / bitmap.PixelHeight));
-            var pixels = new byte[100 * 4];
-            small.CopyPixels(pixels, 40, 0);
+            small.CopyPixels(_pixelBuffer, 40, 0);
 
             long r = 0, g = 0, b = 0;
-            for (int i = 0; i < pixels.Length; i += 4)
+            for (int i = 0; i < _pixelBuffer.Length; i += 4)
             {
-                b += pixels[i];
-                g += pixels[i + 1];
-                r += pixels[i + 2];
+                b += _pixelBuffer[i];
+                g += _pixelBuffer[i + 1];
+                r += _pixelBuffer[i + 2];
             }
 
             return Color.FromRgb((byte)(r / 100), (byte)(g / 100), (byte)(b / 100));

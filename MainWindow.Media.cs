@@ -19,7 +19,7 @@ public partial class MainWindow
     {
         _currentMediaInfo = info;
         
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             // Update Platform Icons
             SpotifyIcon.Visibility = Visibility.Collapsed;
@@ -145,7 +145,7 @@ public partial class MainWindow
         
         if (shouldBeCompact == _isMusicCompactMode) 
         {
-            if (shouldBeCompact) CompactThumbnail.Source = info.Thumbnail;
+            if (shouldBeCompact && info?.Thumbnail != null) CompactThumbnail.Source = info.Thumbnail;
             return;
         }
 
@@ -161,7 +161,7 @@ public partial class MainWindow
             
             if (_isMusicCompactMode)
             {
-                CompactThumbnail.Source = info.Thumbnail;
+                if (info?.Thumbnail != null) CompactThumbnail.Source = info.Thumbnail;
                 FadeSwitch(CollapsedContent, MusicCompactContent);
                 StartVisualizerAnimation();
             }
@@ -175,7 +175,7 @@ public partial class MainWindow
         {
             if (_isMusicCompactMode)
             {
-                CompactThumbnail.Source = info.Thumbnail;
+                if (info?.Thumbnail != null) CompactThumbnail.Source = info.Thumbnail;
                 StartVisualizerAnimation();
                 MusicCompactContent.Opacity = 0; 
                 CollapsedContent.Opacity = 0;

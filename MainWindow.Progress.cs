@@ -22,12 +22,6 @@ public partial class MainWindow
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
-        // 0. Aggressively stay on top when expanded (prevents MyDockfinder masking)
-        if (_isExpanded || _isMusicExpanded)
-        {
-            EnsureTopmost();
-        }
-
         // 1. Update progress tracking for the UI
         if (_currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying)
         {
@@ -92,9 +86,8 @@ public partial class MainWindow
             ProgressSection.Visibility = Visibility.Visible;
             ProgressSection.Opacity = 1;
 
-            // Start timer for smooth UI updates
-            if (_progressTimer != null && !_progressTimer.IsEnabled) 
-                _progressTimer.Start();
+            // Manage timer for smooth UI updates
+            UpdateProgressTimerState();
             
             // Update playing state
             _isMediaPlaying = info.IsPlaying;
@@ -425,6 +418,25 @@ public partial class MainWindow
         animTimer.Start();
     }
     
+    private void UpdateProgressTimerState()
+    {
+        if (_progressTimer == null) return;
+
+        bool shouldRun = (_isExpanded || _isMusicExpanded) && 
+                         _currentMediaInfo != null && 
+                         _currentMediaInfo.IsAnyMediaPlaying && 
+                         _currentMediaInfo.HasTimeline;
+
+        if (shouldRun)
+        {
+            if (!_progressTimer.IsEnabled) _progressTimer.Start();
+        }
+        else
+        {
+            if (_progressTimer.IsEnabled) _progressTimer.Stop();
+        }
+    }
+
     #endregion
 }
 

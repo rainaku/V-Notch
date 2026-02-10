@@ -70,7 +70,13 @@ public class MediaDetectionService : IDisposable
     // Caching to prevent reprocessing the same media repeatedly
     private string _lastTrackSignature = "";
     private BitmapImage? _cachedThumbnail;
-    private MediaInfo? _lastMediaInfo;
+
+    // Window title caching
+    private List<string> _cachedWindowTitles = new();
+    private DateTime _lastWindowEnumTime = DateTime.MinValue;
+    private static readonly string[] _platformKeywords = { 
+        "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x"
+    };
 
     public MediaDetectionService()
     {
@@ -96,7 +102,9 @@ public class MediaDetectionService : IDisposable
         }
         catch (Exception ex)
         {
+#if DEBUG
             System.Diagnostics.Debug.WriteLine($"[MediaService] Failed to init SMTC: {ex.Message}");
+#endif
         }
         
         _pollTimer.Start();
@@ -125,13 +133,16 @@ public class MediaDetectionService : IDisposable
             {
                 _currentSession.TimelinePropertiesChanged += OnTimelineChanged;
                 _currentSession.PlaybackInfoChanged += OnPlaybackChanged;
-                _currentSession.MediaPropertiesChanged += OnMediaPropertiesChanged;
+#if DEBUG
                 System.Diagnostics.Debug.WriteLine($"[MediaService] Subscribed to session: {_currentSession.SourceAppUserModelId}");
+#endif
             }
         }
         catch (Exception ex)
         {
+#if DEBUG
             System.Diagnostics.Debug.WriteLine($"[MediaService] Failed to subscribe: {ex.Message}");
+#endif
         }
     }
     
@@ -152,7 +163,6 @@ public class MediaDetectionService : IDisposable
     
     private void OnTimelineChanged(GlobalSystemMediaTransportControlsSession sender, TimelinePropertiesChangedEventArgs args)
     {
-        System.Diagnostics.Debug.WriteLine("[MediaService] Timeline changed event!");
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(async () =>
         {
             await UpdateMediaInfoAsync();
@@ -161,7 +171,6 @@ public class MediaDetectionService : IDisposable
     
     private void OnPlaybackChanged(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args)
     {
-        System.Diagnostics.Debug.WriteLine("[MediaService] Playback changed event!");
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(async () =>
         {
             await UpdateMediaInfoAsync();
@@ -170,7 +179,6 @@ public class MediaDetectionService : IDisposable
 
     private void OnMediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
     {
-        System.Diagnostics.Debug.WriteLine($"[MediaService] Media properties changed event from: {sender.SourceAppUserModelId}");
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(async () =>
         {
             // Clear cache to force fresh metadata fetch
@@ -182,7 +190,6 @@ public class MediaDetectionService : IDisposable
 
     private async void OnSessionChanged(GlobalSystemMediaTransportControlsSessionManager sender, CurrentSessionChangedEventArgs args)
     {
-        System.Diagnostics.Debug.WriteLine("[MediaService] Session changed!");
         await System.Windows.Application.Current?.Dispatcher.InvokeAsync(async () =>
         {
             await SubscribeToCurrentSession();
@@ -198,17 +205,22 @@ public class MediaDetectionService : IDisposable
     private async Task UpdateMediaInfoAsync(bool forceRefresh = false)
     {
         var info = new MediaInfo();
+        List<string>? windowTitles = null;
         
         // First try to get info from Windows Media Session (includes thumbnail!)
-        await TryGetMediaSessionInfoAsync(info, forceRefresh);
+        // Pass a factory to fetch titles only if needed
+        await TryGetMediaSessionInfoAsync(info, forceRefresh, () => {
+            windowTitles ??= GetAllWindowTitles();
+            return windowTitles;
+        });
 
         // OPTIMIZATION: If we already found valid media from SMTC (Modern API), 
         // skip the expensive EnumWindows call (Win32 API).
         // Only fallback to window titles if SMTC returned nothing or generic info.
-        if (!info.IsAnyMediaPlaying || string.IsNullOrEmpty(info.CurrentTrack))
+        if (!info.IsAnyMediaPlaying || string.IsNullOrEmpty(info.CurrentTrack) || info.MediaSource == "Browser")
         {
             // Also check window titles for additional context
-            var windowTitles = GetAllWindowTitles();
+            windowTitles ??= GetAllWindowTitles();
 
         foreach (var title in windowTitles)
         {
@@ -337,7 +349,7 @@ public class MediaDetectionService : IDisposable
         MediaChanged?.Invoke(this, info);
     }
 
-    private async Task TryGetMediaSessionInfoAsync(MediaInfo info, bool forceRefresh)
+    private async Task TryGetMediaSessionInfoAsync(MediaInfo info, bool forceRefresh, Func<List<string>> windowTitleFactory)
     {
         if (_sessionManager == null) return;
 
@@ -356,7 +368,9 @@ public class MediaDetectionService : IDisposable
             try 
             {
                 var sessions = _sessionManager.GetSessions();
+#if DEBUG
                 System.Diagnostics.Debug.WriteLine($"[MediaService] Found {sessions.Count} sessions");
+#endif
                 
                 foreach (var s in sessions)
                 {
@@ -366,7 +380,9 @@ public class MediaDetectionService : IDisposable
                         var playbackInfo = s.GetPlaybackInfo();
                         var isPlaying = playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
                         
+#if DEBUG
                         System.Diagnostics.Debug.WriteLine($"[MediaService] Session: {sourceApp}, Playing: {isPlaying}");
+#endif
                         
                         if (isPlaying)
                         {
@@ -386,7 +402,9 @@ public class MediaDetectionService : IDisposable
                                 if (!string.IsNullOrEmpty(props.Artist)) score += 5;
                                 if (props.Thumbnail != null) score += 2;
                                 
+#if DEBUG
                                 System.Diagnostics.Debug.WriteLine($"[MediaService] Session {sourceApp}: Title='{props.Title}', Artist='{props.Artist}', Score={score}");
+#endif
                             }
                             
                             if (score > bestScore)
@@ -418,7 +436,9 @@ public class MediaDetectionService : IDisposable
             // Chỉ update nếu session thay đổi
             if (_activeDisplaySession != session)
             {
+#if DEBUG
                 System.Diagnostics.Debug.WriteLine($"[MediaService] Active display session changed: {session.SourceAppUserModelId}");
+#endif
                 
                 // Unsubscribe from old active session
                 if (_activeDisplaySession != null)
@@ -501,7 +521,7 @@ public class MediaDetectionService : IDisposable
             // REFINEMENT: If source is "Browser", try to be more specific by checking window titles
             if (info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource))
             {
-                var windowTitles = GetAllWindowTitles();
+                var windowTitles = windowTitleFactory();
                 foreach (var title in windowTitles)
                 {
                     var lowerTitle = title.ToLower();
@@ -618,7 +638,9 @@ public class MediaDetectionService : IDisposable
             }
             catch (Exception ex)
             {
+#if DEBUG
                 System.Diagnostics.Debug.WriteLine($"[MediaService] Timeline error: {ex.Message}");
+#endif
             }
 
             
@@ -629,13 +651,16 @@ public class MediaDetectionService : IDisposable
                 var playbackInfo = session.GetPlaybackInfo();
                 if (playbackInfo != null)
                 {
-                    info.IsPlaying = playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+#if DEBUG
                     System.Diagnostics.Debug.WriteLine($"[MediaService] PlaybackStatus: {playbackInfo.PlaybackStatus}, IsPlaying: {info.IsPlaying}");
+#endif
                 }
             }
             catch (Exception ex) 
             { 
+#if DEBUG
                 System.Diagnostics.Debug.WriteLine($"[MediaService] Playback error: {ex.Message}");
+#endif
             }
         }
         catch
@@ -725,6 +750,12 @@ public class MediaDetectionService : IDisposable
 
     private List<string> GetAllWindowTitles()
     {
+        // Cache results for 5 seconds to reduce Win32 calls
+        if ((DateTime.Now - _lastWindowEnumTime).TotalSeconds < 5)
+        {
+            return _cachedWindowTitles;
+        }
+
         var titles = new List<string>();
 
         EnumWindows((hWnd, lParam) =>
@@ -736,18 +767,36 @@ public class MediaDetectionService : IDisposable
             if (length == 0)
                 return true;
 
+            // Pre-allocate buffer
             var sb = new StringBuilder(length + 1);
             GetWindowText(hWnd, sb, sb.Capacity);
             var title = sb.ToString();
             
             if (!string.IsNullOrWhiteSpace(title))
             {
-                titles.Add(title);
+                // Optimization: Only keep titles that might be relevant to our platforms
+                string lowerTitle = title.ToLower();
+                bool isRelevant = false;
+                foreach (var kw in _platformKeywords)
+                {
+                    if (lowerTitle.Contains(kw))
+                    {
+                        isRelevant = true;
+                        break;
+                    }
+                }
+
+                if (isRelevant)
+                {
+                    titles.Add(title);
+                }
             }
 
             return true;
         }, IntPtr.Zero);
 
+        _cachedWindowTitles = titles;
+        _lastWindowEnumTime = DateTime.Now;
         return titles;
     }
 

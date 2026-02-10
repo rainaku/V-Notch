@@ -19,7 +19,6 @@ public class CursorBypassService : IDisposable
     private bool _isEnabled = true;
 
     // Settings
-    private readonly double _bypassSpeed = 2.0; // Speed multiplier for bypass
     private readonly double _bypassMargin = 5.0; // Margin around notch for bypass detection
 
     [DllImport("user32.dll")]

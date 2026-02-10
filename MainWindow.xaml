@@ -185,6 +185,9 @@
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Center"
                           Margin="8,4">
+                        <Grid.CacheMode>
+                            <BitmapCache EnableClearType="False" RenderAtScale="1"/>
+                        </Grid.CacheMode>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -284,6 +287,9 @@
                                     Padding="12"
                                     Cursor="Hand"
                                     MouseLeftButtonDown="MediaWidget_Click">
+                                <Border.CacheMode>
+                                    <BitmapCache EnableClearType="False" RenderAtScale="1"/>
+                                </Border.CacheMode>
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>

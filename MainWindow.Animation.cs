@@ -117,6 +117,7 @@ public partial class MainWindow
         {
             _isAnimating = false;
             _isExpanded = true;
+            UpdateProgressTimerState();
             UpdateBatteryInfo();
             UpdateCalendarInfo();
             AnimateProgressBarOnExpand();
@@ -136,6 +137,7 @@ public partial class MainWindow
     {
         if (_isAnimating || !_isExpanded) return;
         _isAnimating = true;
+        _progressTimer?.Stop();
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
@@ -168,6 +170,7 @@ public partial class MainWindow
         {
             _isAnimating = false;
             _isExpanded = false;
+            UpdateProgressTimerState();
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
@@ -236,6 +239,7 @@ public partial class MainWindow
             MediaWidgetContainer.Width = double.NaN;
             MediaWidgetContainer.Margin = new Thickness(0);
             MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
+            UpdateProgressTimerState();
             MediaWidgetContainer.BeginAnimation(WidthProperty, null);
             MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             _isMusicAnimating = false;
@@ -268,6 +272,7 @@ public partial class MainWindow
         _isMusicAnimating = true;
         _isMusicExpanded = false;
 
+        _progressTimer?.Stop();
         UpdateZOrderTimerInterval();
 
         var collapseDuration = new Duration(TimeSpan.FromMilliseconds(400));
@@ -313,6 +318,7 @@ public partial class MainWindow
             MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
             Grid.SetColumnSpan(MediaWidgetContainer, 1);
             Panel.SetZIndex(MediaWidgetContainer, 0);
+            UpdateProgressTimerState();
             MediaWidgetContainer.BeginAnimation(WidthProperty, null);
             MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             _isMusicAnimating = false;
