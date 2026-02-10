@@ -156,6 +156,9 @@
                         Grid.Column="1"
                         Background="{StaticResource NotchGradient}"
                         CornerRadius="0,0,20,20">
+                    <Border.CacheMode>
+                        <BitmapCache EnableClearType="False" RenderAtScale="1" SnapsToDevicePixels="True"/>
+                    </Border.CacheMode>
                 
                 <!-- Inner clip border to properly clip content to rounded corners -->
                 <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True">
@@ -243,7 +246,11 @@
                                     CornerRadius="30"
                                     Opacity="0"
                                     Margin="-20,0,0,-20"
-                                    IsHitTestVisible="False">
+                                    IsHitTestVisible="False"
+                                    RenderOptions.CachingHint="Cache">
+                                <Border.CacheMode>
+                                    <BitmapCache EnableClearType="False" RenderAtScale="1"/>
+                                </Border.CacheMode>
                                 <Border.Background>
                                     <SolidColorBrush x:Name="MediaBackgroundBrush" Color="Transparent"/>
                                 </Border.Background>
@@ -260,7 +267,11 @@
                                     CornerRadius="30"
                                     Opacity="0"
                                     Margin="20,5,0,0"
-                                    IsHitTestVisible="False">
+                                    IsHitTestVisible="False"
+                                    RenderOptions.CachingHint="Cache">
+                                <Border.CacheMode>
+                                    <BitmapCache EnableClearType="False" RenderAtScale="1"/>
+                                </Border.CacheMode>
                                 <Border.Background>
                                     <SolidColorBrush x:Name="MediaBackgroundBrush2" Color="Transparent"/>
                                 </Border.Background>

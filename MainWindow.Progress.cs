@@ -118,26 +118,25 @@ public partial class MainWindow
                 }
                 else
                 {
-                    // Same track - detect seeks (both forward and backward)
-                    // Calculate "simulated" position based on last known + elapsed time
+                    // Same track - only sync with API in specific cases to avoid lag-induced jumps
                     var elapsed = DateTime.Now - _lastMediaUpdate;
                     var extrapolatedPos = _lastKnownPosition + (_isMediaPlaying ? elapsed : TimeSpan.Zero);
                     
                     // Calculate difference between API position and our extrapolated position
-                    var difference = Math.Abs((apiPos - extrapolatedPos).TotalSeconds);
+                    var apiDelta = (apiPos - extrapolatedPos).TotalSeconds;
                     
-                    // If difference > 2 seconds, this is likely a user seek (forward or backward)
-                    // Accept the new position immediately
-                    bool isSeek = difference > 2.0;
+                    // Only sync with API when:
+                    // 1. User seek detected (large jump forward or backward, > 5 seconds)
+                    // 2. Pause/resume state change (API ahead while we're paused, or vice versa)
+                    bool isUserSeek = Math.Abs(apiDelta) > 5.0;
+                    bool isPauseResumeChange = !_isMediaPlaying && apiDelta > 1.0; // User resumed and API moved ahead
                     
-                    // Also accept if API is ahead of our simulation (normal playback or forward seek)
-                    bool isAhead = (apiPos - extrapolatedPos).TotalSeconds > -0.5;
-                    
-                    if (isSeek || isAhead)
+                    if (isUserSeek || isPauseResumeChange)
                     {
                         _lastKnownPosition = apiPos;
                         _lastMediaUpdate = DateTime.Now;
                     }
+                    // Otherwise: trust extrapolation, don't sync with potentially lagging API
                 }
             }
             
