@@ -6,6 +6,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Windows.Media.Control;
 using Windows.Storage.Streams;
+using System.Net.Http;
+using System.Text.RegularExpressions;
 
 namespace VNotch.Services;
 
@@ -46,6 +48,7 @@ public class MediaDetectionService : IDisposable
     private readonly DispatcherTimer _pollTimer;
     private GlobalSystemMediaTransportControlsSessionManager? _sessionManager;
     private bool _disposed;
+    private static readonly HttpClient _httpClient = new();
 
     // Win32 APIs for enumerating windows
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
@@ -571,13 +574,31 @@ public class MediaDetectionService : IDisposable
                             }
                         }
                     }
-                    catch
+                    catch { }
+                }
+
+                // REFINEMENT: If it's YouTube, try to get the actual middle frame (2.jpg) instead of poster
+                if (info.MediaSource == "YouTube" && !string.IsNullOrEmpty(info.CurrentTrack))
+                {
+                    try
                     {
-                        // Thumbnail fetch failed
+                        string? videoId = await TryGetYouTubeVideoIdAsync(info.CurrentTrack);
+                        if (!string.IsNullOrEmpty(videoId))
+                        {
+                            string middleFrameUrl = $"https://i.ytimg.com/vi/{videoId}/mq2.jpg";
+                            var frameBitmap = await DownloadImageAsync(middleFrameUrl);
+                            if (frameBitmap != null)
+                            {
+                                info.Thumbnail = frameBitmap;
+                                _cachedThumbnail = frameBitmap; // Cache the better one
+                                _lastTrackSignature = currentSignature;
+                            }
+                        }
                     }
+                    catch { }
                 }
             }
-            
+
             // Get timeline properties for progress bar
             try
             {
@@ -593,9 +614,6 @@ public class MediaDetectionService : IDisposable
                         duration = timeline.MaxSeekTime;
                     }
                     info.Duration = duration;
-                    
-                    // Debug output
-                    System.Diagnostics.Debug.WriteLine($"[MediaService] Position: {info.Position}, Duration: {info.Duration}");
                 }
             }
             catch (Exception ex)
@@ -624,6 +642,48 @@ public class MediaDetectionService : IDisposable
         {
             // Session not available
         }
+    }
+
+    private async Task<string?> TryGetYouTubeVideoIdAsync(string title)
+    {
+        try
+        {
+            // Search YouTube for the title to find the video ID
+            string searchUrl = $"https://www.youtube.com/results?search_query={Uri.EscapeDataString(title)}";
+            string html = await _httpClient.GetStringAsync(searchUrl);
+            
+            // Regex to find videoId in YouTube's initial data JSON blob
+            var match = Regex.Match(html, @"/watch\?v=([a-zA-Z0-9_-]{11})");
+            if (match.Success)
+            {
+                return match.Groups[1].Value;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private async Task<BitmapImage?> DownloadImageAsync(string url)
+    {
+        try
+        {
+            var bytes = await _httpClient.GetByteArrayAsync(url);
+            using var ms = new MemoryStream(bytes);
+            
+            BitmapImage? bitmap = null;
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.StreamSource = new MemoryStream(bytes); // Need a fresh stream
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                bitmap.Freeze();
+            });
+            return bitmap;
+        }
+        catch { }
+        return null;
     }
 
     private async Task<BitmapImage?> ConvertToWpfBitmapAsync(IRandomAccessStreamWithContentType stream)

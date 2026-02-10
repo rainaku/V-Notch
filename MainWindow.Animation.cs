@@ -95,6 +95,7 @@ public partial class MainWindow
         if (_isAnimating || _isExpanded) return;
         _isAnimating = true;
 
+        UpdateZOrderTimerInterval();
         EnsureTopmost();
 
         // Clear any stale animations from prior collapse to prevent stuck animated values
@@ -136,6 +137,7 @@ public partial class MainWindow
         if (_isAnimating || !_isExpanded) return;
         _isAnimating = true;
 
+        UpdateZOrderTimerInterval();
         EnsureTopmost();
 
         // Clear prior animations to prevent stale values
@@ -192,6 +194,8 @@ public partial class MainWindow
         if (_isMusicAnimating) return;
         _isMusicAnimating = true;
         _isMusicExpanded = true;
+
+        UpdateZOrderTimerInterval();
 
         _musicWidgetSmallWidth = MediaWidgetContainer.ActualWidth;
 
@@ -263,6 +267,8 @@ public partial class MainWindow
         if (_isMusicAnimating) return;
         _isMusicAnimating = true;
         _isMusicExpanded = false;
+
+        UpdateZOrderTimerInterval();
 
         var collapseDuration = new Duration(TimeSpan.FromMilliseconds(400));
         var contentDelay = TimeSpan.FromMilliseconds(80);

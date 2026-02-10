@@ -42,6 +42,11 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")]
     private static extern IntPtr WindowFromPoint(POINT point);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+    private const uint GW_HWNDPREV = 3;
+
     private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOSIZE = 0x0001;
@@ -151,10 +156,10 @@ public partial class MainWindow : Window
         };
         _updateTimer.Tick += UpdateTimer_Tick;
         
-        // Setup Z-order timer - fights for top spot every 500ms
+        // Setup Z-order timer - safety check to stay on top
         _zOrderTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
-            Interval = TimeSpan.FromMilliseconds(500)
+            Interval = TimeSpan.FromSeconds(3)
         };
         _zOrderTimer.Tick += (s, e) => EnsureTopmost();
         _zOrderTimer.Start();
@@ -291,8 +296,26 @@ public partial class MainWindow : Window
     {
         if (_hwnd != IntPtr.Zero)
         {
-            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            // Only call SetWindowPos if we are not already at the top of the Z-order
+            // This avoids redundant Win32 calls every 500ms
+            if (GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero)
+            {
+                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            }
+        }
+    }
+
+    private void UpdateZOrderTimerInterval()
+    {
+        if (_zOrderTimer == null) return;
+        
+        bool isCritical = _isExpanded || _isMusicExpanded;
+        var newInterval = isCritical ? TimeSpan.FromMilliseconds(500) : TimeSpan.FromSeconds(3);
+        
+        if (_zOrderTimer.Interval != newInterval)
+        {
+            _zOrderTimer.Interval = newInterval;
         }
     }
 
