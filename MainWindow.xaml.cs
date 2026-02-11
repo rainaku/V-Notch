@@ -43,6 +43,9 @@ public partial class MainWindow : Window
     private static extern IntPtr WindowFromPoint(POINT point);
 
     [DllImport("user32.dll")]
+    private static extern uint GetDoubleClickTime();
+
+    [DllImport("user32.dll")]
     private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
     private const uint GW_HWNDPREV = 3;
@@ -194,10 +197,10 @@ public partial class MainWindow : Window
         };
         _progressTimer.Tick += ProgressTimer_Tick;
 
-        // Setup auto-collapse timer (check click outside notch - 5fps is enough)
+        // Setup auto-collapse timer (check click outside notch - 10fps for double click detect)
         _autoCollapseTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(200)
+            Interval = TimeSpan.FromMilliseconds(100)
         };
         _autoCollapseTimer.Tick += AutoCollapseTimer_Tick;
         
@@ -285,7 +288,9 @@ public partial class MainWindow : Window
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
-        if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
+        // Don't auto-collapse on focus loss if in secondary view (Shelf/Camera)
+        // This allows user to click files in Explorer to start a drag operation.
+        if ((_isExpanded || _isMusicExpanded) && !_isAnimating && !_isSecondaryView)
         {
             CollapseAll();
         }
@@ -305,6 +310,7 @@ public partial class MainWindow : Window
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
         _zOrderTimer?.Stop();
+        DisposeAllShelfWatchers();
         base.OnClosed(e);
     }
 
@@ -320,6 +326,31 @@ public partial class MainWindow : Window
         exStyle |= WS_EX_NOACTIVATE; 
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
         EnsureTopmost();
+    }
+
+    /// <summary>
+    /// Temporarily removes WS_EX_NOACTIVATE so window can receive keyboard input.
+    /// Call when shelf/secondary view is shown and keyboard shortcuts are needed.
+    /// </summary>
+    private void EnableKeyboardInput()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        var exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
+        exStyle &= ~WS_EX_NOACTIVATE;
+        SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
+        Activate();
+    }
+
+    /// <summary>
+    /// Re-adds WS_EX_NOACTIVATE so window doesn't steal focus from other apps.
+    /// Call when returning to normal notch mode.
+    /// </summary>
+    private void DisableKeyboardInput()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        var exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
+        exStyle |= WS_EX_NOACTIVATE;
+        SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
     }
 
     private void EnsureTopmost()
@@ -396,9 +427,22 @@ public partial class MainWindow : Window
         if (_isAnimating) return;
 
         if (_isExpanded)
-            CollapseNotch();
+        {
+            if (_isSecondaryView)
+            {
+                // In menu 2, require double click to prevent accidents
+                if (e.ClickCount == 2) CollapseNotch();
+            }
+            else
+            {
+                // In menu 1, single click is enough
+                CollapseNotch();
+            }
+        }
         else
+        {
             ExpandNotch();
+        }
         
         e.Handled = true;
     }
@@ -414,7 +458,9 @@ public partial class MainWindow : Window
 
     private void NotchWrapper_MouseLeave(object sender, MouseEventArgs e)
     {
-        if (_isExpanded && !_isAnimating)
+        // Don't auto-collapse on hover out if in secondary view (Shelf/Camera)
+        // User must click outside to close in that mode.
+        if (_isExpanded && !_isAnimating && !_isSecondaryView)
         {
             _hoverCollapseTimer.Start();
         }
@@ -641,6 +687,7 @@ public partial class MainWindow : Window
         TrayIcon.Dispose();
         _updateTimer.Stop();
         _zOrderTimer.Stop();
+        DisposeAllShelfWatchers();
         System.Windows.Application.Current.Shutdown();
     }
 

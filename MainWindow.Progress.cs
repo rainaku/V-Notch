@@ -38,25 +38,55 @@ public partial class MainWindow
         }
     }
 
+    private DateTime _lastOutsideClickTime = DateTime.MinValue;
+    private bool _wasLButtonDown = false;
+
     private void AutoCollapseTimer_Tick(object? sender, EventArgs e)
     {
         // 2. Auto-collapse logic (Essential for WS_EX_NOACTIVATE windows)
         if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
         {
-            // Check if left mouse button is pressed anywhere on screen
-            if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
+            // Detect mouse down using state tracking
+            bool isDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+            
+            if (isDown && !_wasLButtonDown) // Transition: up -> down
             {
                 if (GetCursorPos(out POINT pt))
                 {
                     IntPtr hWndAtPoint = WindowFromPoint(pt);
                     
-                    // Collapse if click is NOT on this window or any of its child controls
+                    // Check if click is NOT on this window or any of its child controls
                     if (hWndAtPoint != _hwnd && !IsChildWindow(_hwnd, hWndAtPoint))
                     {
-                        CollapseAll();
+                        if (_isSecondaryView)
+                        {
+                            // In menu 2, enforce double click to avoid closing while dragging files
+                            var now = DateTime.Now;
+                            double doubleClickTime = GetDoubleClickTime();
+                            
+                            if ((now - _lastOutsideClickTime).TotalMilliseconds < doubleClickTime)
+                            {
+                                CollapseAll();
+                                _lastOutsideClickTime = DateTime.MinValue;
+                            }
+                            else
+                            {
+                                _lastOutsideClickTime = now;
+                            }
+                        }
+                        else
+                        {
+                            // In menu 1, single click outside is enough
+                            CollapseAll();
+                        }
                     }
                 }
             }
+            _wasLButtonDown = isDown;
+        }
+        else
+        {
+            _wasLButtonDown = false;
         }
     }
 
@@ -123,12 +153,12 @@ public partial class MainWindow
                     // Calculate difference: positive = API ahead, negative = API behind
                     var apiDelta = (apiPos - extrapolatedPos).TotalSeconds;
                     
-                    // Only snap to API for genuine user seeks:
-                    // - Forward seek: API jumps ahead by > 3s
-                    // - Backward seek: API jumps behind by > 5s
-                    // For anything in between, trust our smooth extrapolation entirely.
-                    // The API always lags 1-2s behind reality, so correcting for it causes jitter.
-                    if (apiDelta > 3.0 || apiDelta < -5.0)
+                    // Only snap to API for genuine user seeks or large drifts:
+                    // - Forward seek: API jumps ahead by > 5s
+                    // - Backward seek: API jumps behind by > 10s
+                    // For anything in between, trust our smooth extrapolation.
+                    // The API (especially Spotify) often lags or sends stale data.
+                    if (apiDelta > 5.0 || apiDelta < -10.0)
                     {
                         _lastKnownPosition = apiPos;
                         _lastMediaUpdate = DateTime.Now;

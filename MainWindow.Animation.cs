@@ -24,6 +24,7 @@ public partial class MainWindow
     private static readonly PowerEase _easePowerIn2 = new PowerEase { EasingMode = EasingMode.EaseIn, Power = 2 };
     private static readonly PowerEase _easePowerOut3 = new PowerEase { EasingMode = EasingMode.EaseOut, Power = 3 };
     private static readonly ElasticEase _easeSpring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 8 };
+    private static readonly ElasticEase _easeMenuSpring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 4 };
     private static readonly SineEase _easeSineInOut = new SineEase { EasingMode = EasingMode.EaseInOut };
 
     static MainWindow()
@@ -36,6 +37,7 @@ public partial class MainWindow
         _easePowerIn2.Freeze();
         _easePowerOut3.Freeze();
         _easeSpring.Freeze();
+        _easeMenuSpring.Freeze();
         _easeSineInOut.Freeze();
     }
 
@@ -171,6 +173,7 @@ public partial class MainWindow
             AnimationThumbnailBorder.Visibility = Visibility.Visible;
             AnimationThumbnailBorder.Width = 22;
             AnimationThumbnailBorder.Height = 22;
+            AnimationThumbnailClip.Rect = new Rect(0, 0, 22, 22);
             AnimationThumbnailTranslate.X = 0;
             AnimationThumbnailTranslate.Y = 0;
 
@@ -188,6 +191,10 @@ public partial class MainWindow
             AnimationThumbnailBorder.BeginAnimation(HeightProperty, thumbHeightAnim);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+
+            // Animate the clip rect to keep corners rounded during transition
+            var thumbRectAnim = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), _dur350) { EasingFunction = _easeExpOut7 };
+            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, thumbRectAnim);
 
             // Don't hide CompactThumbnailBorder - let it fade out naturally with MusicCompactContent
             // AnimationThumbnailBorder covers it via Panel.ZIndex="100"
@@ -245,6 +252,7 @@ public partial class MainWindow
 
         // Clear prior animations
         ExpandedContent.BeginAnimation(OpacityProperty, null);
+        SecondaryContent.BeginAnimation(OpacityProperty, null);
         AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
         AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
@@ -262,6 +270,14 @@ public partial class MainWindow
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.Opacity = 0;
             ExpandedContent.Visibility = Visibility.Collapsed;
+            ExpandedContent.RenderTransform = null;
+            
+            SecondaryContent.BeginAnimation(OpacityProperty, null);
+            SecondaryContent.Opacity = 0;
+            SecondaryContent.Visibility = Visibility.Collapsed;
+            SecondaryContent.RenderTransform = null;
+
+            _isSecondaryView = false;
         };
 
         FrameworkElement contentToShow = _isMusicCompactMode ? MusicCompactContent : CollapsedContent;
@@ -287,6 +303,7 @@ public partial class MainWindow
             AnimationThumbnailBorder.Visibility = Visibility.Visible;
             AnimationThumbnailBorder.Width = 50;
             AnimationThumbnailBorder.Height = 50;
+            AnimationThumbnailClip.Rect = new Rect(0, 0, 50, 50);
             AnimationThumbnailTranslate.X = startX;
             AnimationThumbnailTranslate.Y = startY;
 
@@ -300,6 +317,10 @@ public partial class MainWindow
             AnimationThumbnailBorder.BeginAnimation(HeightProperty, thumbHeightAnim);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+
+            // Animate the clip rect back to compact size
+            var thumbRectAnim = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), _dur350) { EasingFunction = _easeExpOut7 };
+            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, thumbRectAnim);
             
             // Don't hide CompactThumbnailBorder - it will be covered by AnimationThumbnailBorder (ZIndex=100)
             // and will fade in naturally with contentToShow
@@ -334,6 +355,10 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
+        if (SecondaryContent.Visibility == Visibility.Visible)
+        {
+            SecondaryContent.BeginAnimation(OpacityProperty, fadeOutAnim);
+        }
 
         contentToShow.Visibility = Visibility.Visible;
         contentToShow.BeginAnimation(OpacityProperty, fadeInAnim);

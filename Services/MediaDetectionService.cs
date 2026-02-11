@@ -633,7 +633,22 @@ public class MediaDetectionService : IDisposable
                 var timeline = session.GetTimelineProperties();
                 if (timeline != null)
                 {
-                    info.Position = timeline.Position;
+                    // SMTC Position is a snapshot at LastUpdatedTime. 
+                    // To get the actual current position, we must add the elapsed time.
+                    var timeSinceUpdate = DateTimeOffset.Now - timeline.LastUpdatedTime;
+                    
+                    // Only add elapsed time if the media is actually playing
+                    var playbackInfo = session.GetPlaybackInfo();
+                    bool isActuallyPlaying = playbackInfo != null && playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+                    
+                    if (isActuallyPlaying && timeSinceUpdate > TimeSpan.Zero && timeSinceUpdate < TimeSpan.FromMinutes(5)) // Sanity check
+                    {
+                        info.Position = timeline.Position + timeSinceUpdate;
+                    }
+                    else
+                    {
+                        info.Position = timeline.Position;
+                    }
                     
                     // Try EndTime - StartTime first, fallback to MaxSeekTime
                     var duration = timeline.EndTime - timeline.StartTime;

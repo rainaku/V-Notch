@@ -9,7 +9,8 @@
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
-        WindowStartupLocation="Manual">
+        WindowStartupLocation="Manual"
+        PreviewKeyDown="Window_PreviewKeyDown">
     
     <Window.Resources>
         <!-- Pure OLED Black for notch -->
@@ -136,7 +137,8 @@
                   Effect="{StaticResource NotchShadow}"
                   MouseLeftButtonDown="NotchBorder_MouseLeftButtonDown"
                   MouseEnter="NotchWrapper_MouseEnter"
-                  MouseLeave="NotchWrapper_MouseLeave">
+                  MouseLeave="NotchWrapper_MouseLeave"
+                  MouseWheel="NotchWrapper_MouseWheel">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -177,7 +179,11 @@
                             <Border.RenderTransform>
                                 <TranslateTransform x:Name="AnimationThumbnailTranslate" X="0" Y="0"/>
                             </Border.RenderTransform>
-                            <Image x:Name="AnimationThumbnailImage" Stretch="UniformToFill"/>
+                            <Image x:Name="AnimationThumbnailImage" Stretch="UniformToFill">
+                                <Image.Clip>
+                                    <RectangleGeometry x:Name="AnimationThumbnailClip" RadiusX="6" RadiusY="6" Rect="0,0,22,22"/>
+                                </Image.Clip>
+                            </Image>
                         </Border>
 
                         <Grid x:Name="NotchContent" Margin="0" SizeChanged="NotchContent_SizeChanged">
@@ -223,7 +229,11 @@
                                 BorderBrush="#333333"
                                 BorderThickness="0.5"
                                 ClipToBounds="True">
-                            <Image x:Name="CompactThumbnail" Stretch="UniformToFill"/>
+                            <Image x:Name="CompactThumbnail" Stretch="UniformToFill">
+                                <Image.Clip>
+                                    <RectangleGeometry RadiusX="6" RadiusY="6" Rect="0,0,22,22"/>
+                                </Image.Clip>
+                            </Image>
                         </Border>
 
                         <!-- Right side: Visualizer Bars (White) -->
@@ -252,6 +262,8 @@
                           Opacity="0" 
                           Visibility="Collapsed"
                           Margin="16,12">
+
+
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -931,6 +943,162 @@
                                                    FontFamily="{StaticResource SFProDisplay}"/>
                                     </StackPanel>
                                 </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- SECONDARY STATE: Camera Preview & File Shelf -->
+                    <Grid x:Name="SecondaryContent" 
+                          Opacity="0" 
+                          Visibility="Collapsed"
+                          Margin="16,12"
+                          MouseLeftButtonDown="SecondaryContent_Click">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1*"/>
+                            <ColumnDefinition Width="3*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Camera Section (1/4) -->
+                        <Border Grid.Column="0" 
+                                Background="#1A1A1A" 
+                                CornerRadius="16" 
+                                Margin="0,0,8,0" 
+                                ClipToBounds="True"
+                                Cursor="Hand"
+                                SizeChanged="CameraSection_SizeChanged"
+                                MouseLeftButtonDown="CameraSection_Click">
+                            <Grid>
+                                <!-- Camera Preview Placeholder/Mask -->
+                                <Image x:Name="CameraPreviewImage" Stretch="UniformToFill" Opacity="0.8"/>
+                                
+                                <Border x:Name="CameraOverlay" Background="#40000000">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <Path Data="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" 
+                                              Fill="White" Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Camera" FontSize="9" FontWeight="Bold" Foreground="White" Margin="0,4,0,0" FontFamily="{StaticResource SFProDisplay}"/>
+                                    </StackPanel>
+                                </Border>
+                                
+                                <Border x:Name="CameraLiveIndicator" 
+                                        Background="#FF3B30" 
+                                        HorizontalAlignment="Left" 
+                                        VerticalAlignment="Top" 
+                                        Margin="8" 
+                                        Padding="4,2" 
+                                        CornerRadius="4"
+                                        Visibility="Collapsed">
+                                    <TextBlock Text="LIVE" Foreground="White" FontSize="8" FontWeight="Bold" FontFamily="{StaticResource SFProDisplay}"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- File Shelf Section (3/4) -->
+                        <Border x:Name="FileShelf"
+                                Grid.Column="1" 
+                                Background="#1A1A1A" 
+                                CornerRadius="16" 
+                                AllowDrop="True"
+                                BorderThickness="0"
+                                DragEnter="FileShelf_DragEnter" 
+                                DragOver="FileShelf_DragOver"
+                                DragLeave="FileShelf_DragLeave"
+                                Drop="FileShelf_Drop">
+                            <Grid x:Name="FileShelfGrid" 
+                                  Background="Transparent"
+                                  MouseLeftButtonDown="FileShelf_MouseDown"
+                                  MouseMove="FileShelf_MouseMove"
+                                  MouseLeftButtonUp="FileShelf_MouseUp">
+                                <!-- Dashed Border Support -->
+                                <Rectangle x:Name="FileShelfDashedBorder"
+                                           Stroke="#333333" 
+                                           StrokeThickness="1.5" 
+                                           StrokeDashArray="4 3" 
+                                           RadiusX="16" RadiusY="16"/>
+                                           
+                                <TextBlock x:Name="ShelfPlaceholder"
+                                           Text="Kéo thả file vào đây để lưu tạm" 
+                                           HorizontalAlignment="Center" 
+                                           VerticalAlignment="Center"
+                                           Foreground="#666666"
+                                           FontSize="11"
+                                           FontWeight="Medium"
+                                           FontFamily="{StaticResource SFProDisplay}"/>
+                                
+                                <ScrollViewer x:Name="ShelfScrollViewer" 
+                                             Background="Transparent" 
+                                             HorizontalScrollBarVisibility="Auto" 
+                                             VerticalScrollBarVisibility="Disabled" 
+                                             Padding="0"
+                                             PreviewMouseWheel="ShelfScrollViewer_PreviewMouseWheel">
+                                    <ScrollViewer.Resources>
+                                        <!-- macOS-style minimal scrollbar -->
+                                        <Style TargetType="ScrollBar">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Width" Value="6"/>
+                                            <Setter Property="Height" Value="4"/>
+                                            <Setter Property="MinHeight" Value="4"/>
+                                            <Setter Property="MinWidth" Value="4"/>
+                                            <Setter Property="Opacity" Value="0"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ScrollBar">
+                                                        <Grid Background="Transparent">
+                                                            <Track x:Name="PART_Track" IsDirectionReversed="False">
+                                                                <Track.Thumb>
+                                                                    <Thumb>
+                                                                        <Thumb.Template>
+                                                                            <ControlTemplate TargetType="Thumb">
+                                                                                <Border Background="#60FFFFFF" 
+                                                                                        CornerRadius="2" 
+                                                                                        Margin="0,1"
+                                                                                        MinWidth="20"/>
+                                                                            </ControlTemplate>
+                                                                        </Thumb.Template>
+                                                                    </Thumb>
+                                                                </Track.Thumb>
+                                                            </Track>
+                                                        </Grid>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.15"/>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                    <Trigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.4" BeginTime="0:0:0.8"/>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.ExitActions>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ScrollViewer.Resources>
+                                    <WrapPanel x:Name="ShelfItemsContainer" 
+                                               Background="Transparent"
+                                               Orientation="Vertical" 
+                                               Height="120"
+                                               Margin="8,4"
+                                               VerticalAlignment="Center"/>
+                                </ScrollViewer>
+
+                                <!-- Multi-selection Rectangle -->
+                                <Canvas x:Name="SelectionCanvas" 
+                                        Visibility="Collapsed" 
+                                        IsHitTestVisible="False" 
+                                        Panel.ZIndex="1000"
+                                        HorizontalAlignment="Stretch" 
+                                        VerticalAlignment="Stretch"
+                                        Background="Transparent">
+                                    <Border x:Name="SelectionRect" Background="#40007AFF" BorderBrush="#007AFF" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                </Canvas>
                             </Grid>
                         </Border>
                     </Grid>
