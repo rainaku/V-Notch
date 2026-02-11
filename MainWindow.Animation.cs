@@ -142,18 +142,27 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // Clear any stale animations from prior collapse
+        // Clear any stale animations from prior transitions
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
+        SecondaryContent.BeginAnimation(OpacityProperty, null);
         AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
         AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        MediaBackground.BeginAnimation(OpacityProperty, null);
+        MediaBackground2.BeginAnimation(OpacityProperty, null);
 
-        // Reset translate to base
+        // Reset translate and background to base
         AnimationThumbnailTranslate.X = 0;
         AnimationThumbnailTranslate.Y = 0;
+        MediaBackground.Opacity = 0;
+        MediaBackground2.Opacity = 0;
+        
+        // Ensure other states are collapsed immediately or fading out
+        SecondaryContent.Visibility = Visibility.Collapsed;
+        // CollapsedContent and MusicCompactContent will fade out below
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
@@ -209,26 +218,30 @@ public partial class MainWindow
             UpdateBatteryInfo();
             UpdateCalendarInfo();
             RenderProgressBar();
+            ShowMediaBackground();
             
-            // Cleanup Thumbnail Animation - crossfade to avoid snap
+            // Cleanup Thumbnail Animation
+            AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+            AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
+            AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
+            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+            AnimationThumbnailTranslate.X = 0;
+            AnimationThumbnailTranslate.Y = 0;
+
             if (_isMusicCompactMode)
             {
                 // Cache the accurate target position now that layout is at expanded size
                 _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
-
                 // Restore the real expanded thumbnail
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-
-                // Then hide the animation thumbnail
-                AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
-                // Clear stale animation values so next time starts clean
-                AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
-                AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
-                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
-                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-                AnimationThumbnailTranslate.X = 0;
-                AnimationThumbnailTranslate.Y = 0;
+                // Ensure compact thumb is visible for next collapse
+                CompactThumbnail.Opacity = 1;
             }
+            
+            // Explicitly collapse others at the end
+            CollapsedContent.Visibility = Visibility.Collapsed;
+            MusicCompactContent.Visibility = Visibility.Collapsed;
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
@@ -253,11 +266,15 @@ public partial class MainWindow
         // Clear prior animations
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         SecondaryContent.BeginAnimation(OpacityProperty, null);
+        MusicCompactContent.BeginAnimation(OpacityProperty, null);
+        CollapsedContent.BeginAnimation(OpacityProperty, null);
         AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
         AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-        // Reset translate to prevent stale values from prior animations
+        
+        // Reset state
+        AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
         AnimationThumbnailTranslate.X = 0;
         AnimationThumbnailTranslate.Y = 0;
 
@@ -410,7 +427,7 @@ public partial class MainWindow
         {
             EasingFunction = _easeExpOut7
         };
-        Timeline.SetDesiredFrameRate(widthAnim, 60);
+        // Timeline.SetDesiredFrameRate(widthAnim, 60);
 
         var marginAnim = new ThicknessAnimation(new Thickness(0, 0, 8, 0), new Thickness(0), expandDuration)
         {
@@ -487,7 +504,7 @@ public partial class MainWindow
         {
             EasingFunction = _easeExpOut7
         };
-        Timeline.SetDesiredFrameRate(widthAnim, 60);
+        // Timeline.SetDesiredFrameRate(widthAnim, 60);
 
         var marginAnim = new ThicknessAnimation(new Thickness(0), new Thickness(0, 0, 8, 0), collapseDuration)
         {

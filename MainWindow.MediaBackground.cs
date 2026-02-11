@@ -15,11 +15,10 @@ public partial class MainWindow
 
     private Color _lastDominantColor = Colors.Transparent;
     private string _lastColorSignature = "";
-    private readonly byte[] _pixelBuffer = new byte[400];
 
     private void UpdateMediaBackground(MediaInfo? info)
     {
-        if (info == null || info.Thumbnail == null || !info.IsPlaying)
+        if (info == null || info.Thumbnail == null || !info.IsAnyMediaPlaying)
         {
             HideMediaBackground();
             return;
@@ -55,9 +54,11 @@ public partial class MainWindow
             EasingFunction = _easeQuadOut
         };
         
+        double targetOpacity = (_isExpanded && !_isAnimating) ? 0.5 : 0;
+        
         var opacityAnim = new DoubleAnimation
         {
-            To = 0.5,
+            To = targetOpacity,
             Duration = TimeSpan.FromMilliseconds(500),
             EasingFunction = _easeQuadOut
         };
@@ -119,8 +120,8 @@ public partial class MainWindow
         else if (max == g) h = ((b - r) / d + 2) / 6.0;
         else h = ((r - g) / d + 4) / 6.0;
 
-        // Boost saturation - keep at least 70% for vibrant look
-        s = Math.Max(s, 0.70);
+        // Boost saturation - keep at least 65% for vibrant look
+        s = Math.Max(s, 0.65);
         // Clamp saturation
         s = Math.Min(s, 0.95);
 
@@ -204,29 +205,54 @@ public partial class MainWindow
         if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
     }
 
+    private void ShowMediaBackground()
+    {
+        if (!_isExpanded || _isAnimating || _currentMediaInfo == null || !_currentMediaInfo.IsAnyMediaPlaying) return;
+
+        var opacityAnim = new DoubleAnimation
+        {
+            To = 0.5,
+            Duration = TimeSpan.FromMilliseconds(500),
+            EasingFunction = _easeQuadOut
+        };
+
+        MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
+        MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
+    }
+
     private Color GetDominantColor(BitmapSource bitmap)
     {
         try
         {
-            var small = new TransformedBitmap(bitmap, new ScaleTransform(10.0 / bitmap.PixelWidth, 10.0 / bitmap.PixelHeight));
-            small.CopyPixels(_pixelBuffer, 40, 0);
+            // Use 15x15 for better detail without sacrificing much speed
+            var small = new TransformedBitmap(bitmap, new ScaleTransform(15.0 / bitmap.PixelWidth, 15.0 / bitmap.PixelHeight));
+            byte[] pixelBuffer = new byte[15 * 15 * 4];
+            small.CopyPixels(pixelBuffer, 15 * 4, 0);
 
-            // Use saturation-weighted averaging to favor vibrant colors over grays
             double totalWeight = 0;
             double wr = 0, wg = 0, wb = 0;
             
-            for (int i = 0; i < _pixelBuffer.Length; i += 4)
+            for (int i = 0; i < pixelBuffer.Length; i += 4)
             {
-                double pb = _pixelBuffer[i] / 255.0;
-                double pg = _pixelBuffer[i + 1] / 255.0;
-                double pr = _pixelBuffer[i + 2] / 255.0;
+                double pb = pixelBuffer[i] / 255.0;
+                double pg = pixelBuffer[i + 1] / 255.0;
+                double pr = pixelBuffer[i + 2] / 255.0;
                 
                 double max = Math.Max(pr, Math.Max(pg, pb));
                 double min = Math.Min(pr, Math.Min(pg, pb));
+                double lum = (pr + pg + pb) / 3.0;
                 double sat = max == 0 ? 0 : (max - min) / max;
                 
-                // Weight: saturated pixels count more (min weight 0.1 so grays still contribute slightly)
-                double weight = 0.1 + sat * 0.9;
+                // IGNORE very dark pixels (black bars, shadows)
+                if (lum < 0.12) continue;
+                
+                // Weighting: 
+                // 1. Favor saturated colors heavily
+                // 2. Favor mid-brightness (avoid pure white/black)
+                double weight = Math.Pow(sat, 1.5) + 0.05; 
+                
+                // Brightness penalty (avoiding washed out colors)
+                if (lum > 0.85) weight *= 0.3;
                 
                 wr += pr * weight;
                 wg += pg * weight;
@@ -234,7 +260,20 @@ public partial class MainWindow
                 totalWeight += weight;
             }
 
-            if (totalWeight == 0) return Color.FromRgb(30, 30, 30);
+            // Fallback if no suitable vibrant pixels found
+            if (totalWeight < 0.1) 
+            {
+                // Try again with simpler average of everything
+                totalWeight = 0; wr = 0; wg = 0; wb = 0;
+                for (int i = 0; i < pixelBuffer.Length; i += 4)
+                {
+                    wr += pixelBuffer[i + 2];
+                    wg += pixelBuffer[i + 1];
+                    wb += pixelBuffer[i];
+                    totalWeight++;
+                }
+                return Color.FromRgb((byte)(wr / totalWeight), (byte)(wg / totalWeight), (byte)(wb / totalWeight));
+            }
 
             return Color.FromRgb(
                 (byte)Math.Clamp(wr / totalWeight * 255, 0, 255),

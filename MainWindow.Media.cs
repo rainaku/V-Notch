@@ -140,7 +140,7 @@ public partial class MainWindow
 
     private void UpdateMusicCompactMode(MediaInfo info)
     {
-        bool shouldBeCompact = info != null && info.IsPlaying;
+        bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
         _collapsedWidth = shouldBeCompact ? 180 : _settings.Width;
         
         if (shouldBeCompact == _isMusicCompactMode) 
@@ -177,13 +177,17 @@ public partial class MainWindow
             {
                 if (info?.Thumbnail != null) CompactThumbnail.Source = info.Thumbnail;
                 StartVisualizerAnimation();
-                MusicCompactContent.Opacity = 0; 
-                CollapsedContent.Opacity = 0;
             }
             else
             {
                 StopVisualizerAnimation();
             }
+            
+            // Always ensure compact layers are hidden when expanded
+            MusicCompactContent.Visibility = Visibility.Collapsed;
+            MusicCompactContent.Opacity = 0;
+            CollapsedContent.Visibility = Visibility.Collapsed;
+            CollapsedContent.Opacity = 0;
         }
     }
 

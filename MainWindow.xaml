@@ -10,7 +10,9 @@
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
-        PreviewKeyDown="Window_PreviewKeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
     
     <Window.Resources>
         <!-- Pure OLED Black for notch -->
@@ -153,16 +155,21 @@
                       Width="10" Height="10" 
                       VerticalAlignment="Top"/>
 
-                <!-- Main Notch Border -->
+                <!-- Main Notch Border - Transparent to avoid edge flicker -->
                 <Border x:Name="NotchBorder"
                         Grid.Column="1"
-                        Background="{StaticResource NotchGradient}"
+                        Background="Transparent"
                         CornerRadius="0,0,20,20">
-                    <!-- BitmapCache removed: was preventing content from rendering during expand animation -->
                 
                 <!-- Inner clip border to properly clip content to rounded corners -->
-                <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True">
-                    <Grid>
+                <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True" Background="Transparent" RenderOptions.EdgeMode="Aliased">
+                    <Grid SnapsToDevicePixels="True" UseLayoutRounding="True">
+                        <!-- Solid Black Background for the Notch -->
+                        <Border x:Name="NotchBackground" 
+                                Background="{StaticResource NotchGradient}" 
+                                IsHitTestVisible="False"
+                                CornerRadius="0,0,20,20"/>
+                        
                         <!-- Floating Thumbnail for Animation -->
                         <Border x:Name="AnimationThumbnailBorder"
                                 HorizontalAlignment="Left"
@@ -211,9 +218,6 @@
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Top"
                           Margin="8,4">
-                        <Grid.CacheMode>
-                            <BitmapCache EnableClearType="False" RenderAtScale="1"/>
-                        </Grid.CacheMode>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -261,7 +265,8 @@
                     <Grid x:Name="ExpandedContent" 
                           Opacity="0" 
                           Visibility="Collapsed"
-                          Margin="16,12">
+                          Margin="16,12"
+                          Background="{StaticResource NotchGradient}">
 
 
                         <Grid.ColumnDefinitions>
@@ -280,11 +285,7 @@
                                     CornerRadius="30"
                                     Opacity="0"
                                     Margin="-20,0,0,-20"
-                                    IsHitTestVisible="False"
-                                    RenderOptions.CachingHint="Cache">
-                                <Border.CacheMode>
-                                    <BitmapCache EnableClearType="False" RenderAtScale="1"/>
-                                </Border.CacheMode>
+                                    IsHitTestVisible="False">
                                 <Border.Background>
                                     <SolidColorBrush x:Name="MediaBackgroundBrush" Color="Transparent"/>
                                 </Border.Background>
@@ -301,11 +302,7 @@
                                     CornerRadius="30"
                                     Opacity="0"
                                     Margin="20,5,0,0"
-                                    IsHitTestVisible="False"
-                                    RenderOptions.CachingHint="Cache">
-                                <Border.CacheMode>
-                                    <BitmapCache EnableClearType="False" RenderAtScale="1"/>
-                                </Border.CacheMode>
+                                    IsHitTestVisible="False">
                                 <Border.Background>
                                     <SolidColorBrush x:Name="MediaBackgroundBrush2" Color="Transparent"/>
                                 </Border.Background>
@@ -320,9 +317,6 @@
                                     Padding="12"
                                     Cursor="Hand"
                                     MouseLeftButtonDown="MediaWidget_Click">
-                                <Border.CacheMode>
-                                    <BitmapCache EnableClearType="False" RenderAtScale="1"/>
-                                </Border.CacheMode>
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>

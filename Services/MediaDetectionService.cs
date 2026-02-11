@@ -82,7 +82,7 @@ public class MediaDetectionService : IDisposable
     {
         _pollTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(1) // Update every 1 second for smooth progress bar
+            Interval = TimeSpan.FromMilliseconds(500) // 2Hz polling for better responsiveness
         };
         _pollTimer.Tick += PollTimer_Tick;
     }
@@ -227,33 +227,36 @@ public class MediaDetectionService : IDisposable
             // Also check window titles for additional context
             windowTitles ??= GetAllWindowTitles();
 
-        // Check Spotify process for playing state - Cache this once to avoid expensive Win32 calls in the loop
-        var spotifyProcesses = Process.GetProcessesByName("Spotify");
-        
-        foreach (var proc in spotifyProcesses)
+        // OPTIMIZATION: Only check for Spotify process if SMTC didn't already give us active Spotify info.
+        // This avoids expensive process enumeration on every tick.
+        if (info.MediaSource != "Spotify")
         {
-            try
+            var spotifyProcesses = Process.GetProcessesByName("Spotify");
+            foreach (var proc in spotifyProcesses)
             {
-                if (!string.IsNullOrEmpty(proc.MainWindowTitle) && 
-                    proc.MainWindowTitle != "Spotify" &&
-                    proc.MainWindowTitle != "Spotify Premium" &&
-                    proc.MainWindowTitle != "Spotify Free" &&
-                    !proc.MainWindowTitle.ToLower().EndsWith("spotify"))
+                try
                 {
-                    info.IsSpotifyPlaying = true;
-                    info.IsSpotifyRunning = true;
-                    
-                    if (string.IsNullOrEmpty(info.MediaSource))
+                    if (!string.IsNullOrEmpty(proc.MainWindowTitle) && 
+                        proc.MainWindowTitle != "Spotify" &&
+                        proc.MainWindowTitle != "Spotify Premium" &&
+                        proc.MainWindowTitle != "Spotify Free" &&
+                        !proc.MainWindowTitle.ToLower().EndsWith("spotify"))
                     {
-                        info.IsAnyMediaPlaying = true;
-                        info.IsPlaying = true; 
-                        info.MediaSource = "Spotify";
-                        ParseSpotifyTitle(proc.MainWindowTitle, info);
+                        info.IsSpotifyPlaying = true;
+                        info.IsSpotifyRunning = true;
+                        
+                        if (string.IsNullOrEmpty(info.MediaSource))
+                        {
+                            info.IsAnyMediaPlaying = true;
+                            info.IsPlaying = true; 
+                            info.MediaSource = "Spotify";
+                            ParseSpotifyTitle(proc.MainWindowTitle, info);
+                        }
+                        break; 
                     }
-                    break; // Found playing session, no need to check other spotify procs
                 }
+                catch { }
             }
-            catch { }
         }
 
         foreach (var title in windowTitles)
@@ -603,27 +606,34 @@ public class MediaDetectionService : IDisposable
                     catch { }
                 }
 
-                // REFINEMENT: If it's YouTube, try to get the high-quality thumbnail
-                if (info.MediaSource == "YouTube" && !string.IsNullOrEmpty(info.CurrentTrack))
+                // REFINEMENT: If it's YouTube and we DON'T have a good thumbnail, 
+                // then try to get it from YouTube in the BACKGROUND.
+                if (info.MediaSource == "YouTube" && !string.IsNullOrEmpty(info.CurrentTrack) && (info.Thumbnail == null || info.Thumbnail.PixelWidth < 100))
                 {
-                    try
-                    {
-                        string? videoId = await TryGetYouTubeVideoIdAsync(info.CurrentTrack);
-                        if (!string.IsNullOrEmpty(videoId))
+                    _ = Task.Run(async () => {
+                        try
                         {
-                            string thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/mqdefault.jpg";
-                            var frameBitmap = await DownloadImageAsync(thumbnailUrl);
-                            if (frameBitmap != null)
+                            string? videoId = await TryGetYouTubeVideoIdAsync(info.CurrentTrack);
+                            if (!string.IsNullOrEmpty(videoId))
                             {
-                                // Crop to center square for YouTube thumbnails
-                                frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
-                                info.Thumbnail = frameBitmap;
-                                _cachedThumbnail = frameBitmap; // Cache the better one
-                                _lastTrackSignature = currentSignature;
+                                string thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/mqdefault.jpg";
+                                var frameBitmap = await DownloadImageAsync(thumbnailUrl);
+                                if (frameBitmap != null)
+                                {
+                                    frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
+                                    if (info.CurrentTrack == _lastTrackSignature.Split('|')[0])
+                                    {
+                                        info.Thumbnail = frameBitmap;
+                                        _cachedThumbnail = frameBitmap;
+                                        System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
+                                            MediaChanged?.Invoke(this, info);
+                                        });
+                                    }
+                                }
                             }
                         }
-                    }
-                    catch { }
+                        catch { }
+                    });
                 }
             }
 
