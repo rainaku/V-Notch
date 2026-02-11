@@ -17,11 +17,27 @@ public partial class MainWindow
     #region Cached Easing Functions (Frozen - Thread Safe)
 
     private static readonly ExponentialEase _easeExpOut7 = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 7 };
+    private static readonly ExponentialEase _easeExpOut6 = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 };
+    private static readonly ExponentialEase _easeExpOut5 = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
     private static readonly QuadraticEase _easeQuadOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
     private static readonly QuadraticEase _easeQuadInOut = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
     private static readonly PowerEase _easePowerIn2 = new PowerEase { EasingMode = EasingMode.EaseIn, Power = 2 };
     private static readonly PowerEase _easePowerOut3 = new PowerEase { EasingMode = EasingMode.EaseOut, Power = 3 };
     private static readonly ElasticEase _easeSpring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 8 };
+    private static readonly SineEase _easeSineInOut = new SineEase { EasingMode = EasingMode.EaseInOut };
+
+    static MainWindow()
+    {
+        _easeExpOut7.Freeze();
+        _easeExpOut6.Freeze();
+        _easeExpOut5.Freeze();
+        _easeQuadOut.Freeze();
+        _easeQuadInOut.Freeze();
+        _easePowerIn2.Freeze();
+        _easePowerOut3.Freeze();
+        _easeSpring.Freeze();
+        _easeSineInOut.Freeze();
+    }
 
     #endregion
 
@@ -89,6 +105,32 @@ public partial class MainWindow
     #endregion
 
     #region Notch Expand/Collapse
+    /// <summary>
+    /// Compute the target translate offset for the floating thumbnail animation.
+    /// Returns the offset from the AnimationThumbnailBorder base position (Margin 8,4)
+    /// to where ThumbnailBorder actually sits inside the expanded layout.
+    /// Must be called AFTER NotchBorder has expanded dimensions set.
+    /// </summary>
+    private (double X, double Y) ComputeThumbnailExpandTarget()
+    {
+        try
+        {
+            // Get the position of ThumbnailBorder relative to InnerClipBorder
+            var thumbPos = ThumbnailBorder.TransformToAncestor(InnerClipBorder).Transform(new Point(0, 0));
+            // AnimationThumbnailBorder base position is Margin(8,4)
+            double targetX = thumbPos.X - 8;
+            double targetY = thumbPos.Y - 4;
+            return (targetX, targetY);
+        }
+        catch
+        {
+            // Fallback to measured defaults
+            return (20, 48);
+        }
+    }
+
+    // Cached target for thumbnail expand animation (computed once after first expand)
+    private (double X, double Y)? _cachedThumbnailExpandTarget;
 
     private void ExpandNotch()
     {
@@ -98,20 +140,59 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // Clear any stale animations from prior collapse to prevent stuck animated values
+        // Clear any stale animations from prior collapse
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
+        AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
+        AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
+        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+
+        // Reset translate to base
+        AnimationThumbnailTranslate.X = 0;
+        AnimationThumbnailTranslate.Y = 0;
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
 
-        // All use cached easing + durations
+        // Base Notch Animations
         var widthAnim = MakeAnim(_expandedWidth, _dur350, _easeExpOut7);
         var heightAnim = MakeAnim(_expandedHeight, _dur350, _easeExpOut7);
         var fadeOutAnim = MakeAnim(0, _dur100, _easeQuadOut);
         var fadeInAnim = MakeAnim(0d, 1d, _dur200, _easeQuadOut, null);
         var glowAnim = MakeAnim(0.15, _dur200);
+
+        // --- Thumbnail Animation Logic ---
+        if (_isMusicCompactMode && CompactThumbnail.Source != null)
+        {
+            // Setup floating thumbnail at compact position (Margin is fixed at 8,4)
+            AnimationThumbnailImage.Source = CompactThumbnail.Source;
+            AnimationThumbnailBorder.Visibility = Visibility.Visible;
+            AnimationThumbnailBorder.Width = 22;
+            AnimationThumbnailBorder.Height = 22;
+            AnimationThumbnailTranslate.X = 0;
+            AnimationThumbnailTranslate.Y = 0;
+
+            // Use cached target or fallback defaults
+            // Target will be recalculated and cached in heightAnim.Completed
+            var (targetX, targetY) = _cachedThumbnailExpandTarget ?? (20, 48);
+
+            // Animate to the target position
+            var thumbWidthAnim = MakeAnim(22, 50, _dur350, _easeExpOut7);
+            var thumbHeightAnim = MakeAnim(22, 50, _dur350, _easeExpOut7);
+            var thumbTranslateXAnim = MakeAnim(0, targetX, _dur350, _easeExpOut7);
+            var thumbTranslateYAnim = MakeAnim(0, targetY, _dur350, _easeExpOut7);
+
+            AnimationThumbnailBorder.BeginAnimation(WidthProperty, thumbWidthAnim);
+            AnimationThumbnailBorder.BeginAnimation(HeightProperty, thumbHeightAnim);
+            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
+            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+
+            // Don't hide CompactThumbnailBorder - let it fade out naturally with MusicCompactContent
+            // AnimationThumbnailBorder covers it via Panel.ZIndex="100"
+            if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
+        }
 
         heightAnim.Completed += (s, e) =>
         {
@@ -120,7 +201,27 @@ public partial class MainWindow
             UpdateProgressTimerState();
             UpdateBatteryInfo();
             UpdateCalendarInfo();
-            AnimateProgressBarOnExpand();
+            RenderProgressBar();
+            
+            // Cleanup Thumbnail Animation - crossfade to avoid snap
+            if (_isMusicCompactMode)
+            {
+                // Cache the accurate target position now that layout is at expanded size
+                _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
+
+                // Restore the real expanded thumbnail
+                if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
+
+                // Then hide the animation thumbnail
+                AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+                // Clear stale animation values so next time starts clean
+                AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
+                AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
+                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                AnimationThumbnailTranslate.X = 0;
+                AnimationThumbnailTranslate.Y = 0;
+            }
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
@@ -142,8 +243,15 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // Clear prior animations to prevent stale values
+        // Clear prior animations
         ExpandedContent.BeginAnimation(OpacityProperty, null);
+        AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
+        AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
+        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        // Reset translate to prevent stale values from prior animations
+        AnimationThumbnailTranslate.X = 0;
+        AnimationThumbnailTranslate.Y = 0;
 
         var widthAnim = MakeAnim(_collapsedWidth, _dur350, _easeExpOut7);
         var heightAnim = MakeAnim(_collapsedHeight, _dur350, _easeExpOut7);
@@ -166,11 +274,61 @@ public partial class MainWindow
         var fadeInAnim = MakeAnim(1, _dur200, _easeQuadOut);
         var glowAnim = MakeAnim(0, _dur150);
 
+        // --- Thumbnail Animation Logic ---
+        if (_isMusicCompactMode && ThumbnailImage.Source != null)
+        {
+            // Use cached position or compute dynamically (layout is at expanded size here)
+            var (startX, startY) = _cachedThumbnailExpandTarget ?? ComputeThumbnailExpandTarget();
+            // Update cache
+            _cachedThumbnailExpandTarget = (startX, startY);
+
+            // Setup floating thumbnail from expanded state
+            AnimationThumbnailImage.Source = ThumbnailImage.Source;
+            AnimationThumbnailBorder.Visibility = Visibility.Visible;
+            AnimationThumbnailBorder.Width = 50;
+            AnimationThumbnailBorder.Height = 50;
+            AnimationThumbnailTranslate.X = startX;
+            AnimationThumbnailTranslate.Y = startY;
+
+            // Target: Compact position (back to translate 0,0 = base margin 8,4)
+            var thumbWidthAnim = MakeAnim(50, 22, _dur350, _easeExpOut7);
+            var thumbHeightAnim = MakeAnim(50, 22, _dur350, _easeExpOut7);
+            var thumbTranslateXAnim = MakeAnim(startX, 0, _dur350, _easeExpOut7);
+            var thumbTranslateYAnim = MakeAnim(startY, 0, _dur350, _easeExpOut7);
+
+            AnimationThumbnailBorder.BeginAnimation(WidthProperty, thumbWidthAnim);
+            AnimationThumbnailBorder.BeginAnimation(HeightProperty, thumbHeightAnim);
+            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
+            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+            
+            // Don't hide CompactThumbnailBorder - it will be covered by AnimationThumbnailBorder (ZIndex=100)
+            // and will fade in naturally with contentToShow
+            if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
+        }
+
         heightAnim.Completed += (s, e) =>
         {
             _isAnimating = false;
             _isExpanded = false;
             UpdateProgressTimerState();
+            
+            // Cleanup Thumbnail Animation
+            if (_isMusicCompactMode)
+            {
+                // Restore real thumbnails first
+                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
+                if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
+
+                // Then hide animation overlay
+                AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+                // Clear stale animation values
+                AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
+                AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
+                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                AnimationThumbnailTranslate.X = 0;
+                AnimationThumbnailTranslate.Y = 0;
+            }
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
@@ -543,8 +701,12 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(OpacityProperty, opacityAnim);
     }
 
+    private DispatcherTimer? _cornerRadiusTimer;
+
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
     {
+        _cornerRadiusTimer?.Stop();
+
         double startRadius = NotchBorder.CornerRadius.BottomLeft;
         double delta = targetRadius - startRadius;
 
@@ -553,12 +715,12 @@ public partial class MainWindow
         int totalSteps = (int)(duration.TotalMilliseconds / 16);
         int currentStep = 0;
 
-        var timer = new DispatcherTimer
+        _cornerRadiusTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(16)
         };
 
-        timer.Tick += (s, e) =>
+        _cornerRadiusTimer.Tick += (s, e) =>
         {
             currentStep++;
             double progress = (double)currentStep / totalSteps;
@@ -574,7 +736,7 @@ public partial class MainWindow
 
             if (currentStep >= totalSteps)
             {
-                timer.Stop();
+                _cornerRadiusTimer?.Stop();
                 var finalCr = new CornerRadius(0, 0, targetRadius, targetRadius);
                 NotchBorder.CornerRadius = finalCr;
                 InnerClipBorder.CornerRadius = finalCr;
@@ -584,7 +746,7 @@ public partial class MainWindow
             }
         };
 
-        timer.Start();
+        _cornerRadiusTimer.Start();
     }
 
     #endregion

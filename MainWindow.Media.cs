@@ -155,7 +155,7 @@ public partial class MainWindow
         {
             var widthAnim = new DoubleAnimation(_collapsedWidth, TimeSpan.FromMilliseconds(450))
             {
-                EasingFunction = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 }
+                EasingFunction = _easeExpOut6
             };
             NotchBorder.BeginAnimation(WidthProperty, widthAnim);
             
@@ -205,7 +205,7 @@ public partial class MainWindow
         {
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            EasingFunction = _easeSineInOut
         };
         bar.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }

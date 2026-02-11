@@ -179,7 +179,8 @@ public class MediaDetectionService : IDisposable
 
     private void OnMediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
     {
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(async () =>
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        dispatcher?.BeginInvoke(async () =>
         {
             // Clear cache to force fresh metadata fetch
             _lastTrackSignature = "";
@@ -190,11 +191,15 @@ public class MediaDetectionService : IDisposable
 
     private async void OnSessionChanged(GlobalSystemMediaTransportControlsSessionManager sender, CurrentSessionChangedEventArgs args)
     {
-        await System.Windows.Application.Current?.Dispatcher.InvokeAsync(async () =>
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher != null)
         {
-            await SubscribeToCurrentSession();
-            await UpdateMediaInfoAsync();
-        });
+            await dispatcher.InvokeAsync(async () =>
+            {
+                await SubscribeToCurrentSession();
+                await UpdateMediaInfoAsync();
+            });
+        }
     }
 
     private async void PollTimer_Tick(object? sender, EventArgs e)
@@ -222,47 +227,46 @@ public class MediaDetectionService : IDisposable
             // Also check window titles for additional context
             windowTitles ??= GetAllWindowTitles();
 
+        // Check Spotify process for playing state - Cache this once to avoid expensive Win32 calls in the loop
+        var spotifyProcesses = Process.GetProcessesByName("Spotify");
+        
+        foreach (var proc in spotifyProcesses)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(proc.MainWindowTitle) && 
+                    proc.MainWindowTitle != "Spotify" &&
+                    proc.MainWindowTitle != "Spotify Premium" &&
+                    proc.MainWindowTitle != "Spotify Free" &&
+                    !proc.MainWindowTitle.ToLower().EndsWith("spotify"))
+                {
+                    info.IsSpotifyPlaying = true;
+                    info.IsSpotifyRunning = true;
+                    
+                    if (string.IsNullOrEmpty(info.MediaSource))
+                    {
+                        info.IsAnyMediaPlaying = true;
+                        info.IsPlaying = true; 
+                        info.MediaSource = "Spotify";
+                        ParseSpotifyTitle(proc.MainWindowTitle, info);
+                    }
+                    break; // Found playing session, no need to check other spotify procs
+                }
+            }
+            catch { }
+        }
+
         foreach (var title in windowTitles)
         {
             var lowerTitle = title.ToLower();
 
-            // Spotify detection
+            // Spotify detection (keywords)
             if (lowerTitle.Contains("spotify"))
             {
                 info.IsSpotifyRunning = true;
             }
             
-            // Check Spotify process for playing state
-            var spotifyProcesses = Process.GetProcessesByName("Spotify");
-            foreach (var proc in spotifyProcesses)
-            {
-                try
-                {
-                    if (!string.IsNullOrEmpty(proc.MainWindowTitle) && 
-                        proc.MainWindowTitle != "Spotify" &&
-                        proc.MainWindowTitle != "Spotify Premium" &&
-                        proc.MainWindowTitle != "Spotify Free" &&
-                        !proc.MainWindowTitle.ToLower().EndsWith("spotify"))
-                    {
-                        info.IsSpotifyPlaying = true;
-                        info.IsSpotifyRunning = true;
-                        if (string.IsNullOrEmpty(info.MediaSource))
-                        {
-                    info.IsAnyMediaPlaying = true; // This tracks "Active Session"
-                    
-                    // Fallback approximation for window-based detection
-                    // We assume if title is present, it might be playing, but we can't be sure without SMTC
-                    info.IsPlaying = true; 
-                    
-                    info.MediaSource = "Spotify";
-                    ParseSpotifyTitle(proc.MainWindowTitle, info);
-                        }
-                    }
-                }
-                catch { }
-            }
-
-            // YouTube detection
+            // Check other platforms
             if (lowerTitle.Contains("youtube") && !lowerTitle.StartsWith("youtube -") && 
                 lowerTitle != "youtube")
             {
@@ -588,6 +592,8 @@ public class MediaDetectionService : IDisposable
                             var newBitmap = await ConvertToWpfBitmapAsync(stream);
                             if (newBitmap != null)
                             {
+                                // Crop to square, removing bars/branding
+                                newBitmap = CropToSquare(newBitmap, info.MediaSource) ?? newBitmap;
                                 _cachedThumbnail = newBitmap;
                                 _lastTrackSignature = currentSignature;
                                 info.Thumbnail = _cachedThumbnail;
@@ -597,7 +603,7 @@ public class MediaDetectionService : IDisposable
                     catch { }
                 }
 
-                // REFINEMENT: If it's YouTube, try to get the actual middle frame (2.jpg) instead of poster
+                // REFINEMENT: If it's YouTube, try to get the high-quality thumbnail
                 if (info.MediaSource == "YouTube" && !string.IsNullOrEmpty(info.CurrentTrack))
                 {
                     try
@@ -605,10 +611,12 @@ public class MediaDetectionService : IDisposable
                         string? videoId = await TryGetYouTubeVideoIdAsync(info.CurrentTrack);
                         if (!string.IsNullOrEmpty(videoId))
                         {
-                            string middleFrameUrl = $"https://i.ytimg.com/vi/{videoId}/mq2.jpg";
-                            var frameBitmap = await DownloadImageAsync(middleFrameUrl);
+                            string thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/mqdefault.jpg";
+                            var frameBitmap = await DownloadImageAsync(thumbnailUrl);
                             if (frameBitmap != null)
                             {
+                                // Crop to center square for YouTube thumbnails
+                                frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
                                 info.Thumbnail = frameBitmap;
                                 _cachedThumbnail = frameBitmap; // Cache the better one
                                 _lastTrackSignature = currentSignature;
@@ -644,20 +652,27 @@ public class MediaDetectionService : IDisposable
             }
 
             
-            // Get playback status - default to true if we have active media
-            info.IsPlaying = info.IsAnyMediaPlaying; // sensible default
+            // Get playback status from SMTC - this determines if media is truly playing vs paused
             try
             {
                 var playbackInfo = session.GetPlaybackInfo();
                 if (playbackInfo != null)
                 {
+                    info.IsPlaying = playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
 #if DEBUG
                     System.Diagnostics.Debug.WriteLine($"[MediaService] PlaybackStatus: {playbackInfo.PlaybackStatus}, IsPlaying: {info.IsPlaying}");
 #endif
                 }
+                else
+                {
+                    // Fallback: assume playing if we have active media
+                    info.IsPlaying = info.IsAnyMediaPlaying;
+                }
             }
             catch (Exception ex) 
             { 
+                // Fallback: assume playing if we have active media
+                info.IsPlaying = info.IsAnyMediaPlaying;
 #if DEBUG
                 System.Diagnostics.Debug.WriteLine($"[MediaService] Playback error: {ex.Message}");
 #endif
@@ -711,36 +726,108 @@ public class MediaDetectionService : IDisposable
         return null;
     }
 
+    /// <summary>
+    /// Crop a BitmapImage to a square region.
+    /// - Spotify: crop off bottom 20% (branding strip), then square from top
+    /// - Landscape (YouTube 16:9): crop center square
+    /// - Portrait: crop from TOP
+    /// </summary>
+    private BitmapImage? CropToSquare(BitmapImage source, string mediaSource)
+    {
+        try
+        {
+            int width = source.PixelWidth;
+            int height = source.PixelHeight;
+            
+            // For Spotify: always crop bottom branding (even if image is square)
+            bool isSpotify = mediaSource.Contains("Spotify", StringComparison.OrdinalIgnoreCase);
+            
+            if (!isSpotify && Math.Abs(width - height) < 2) return source;
+            
+            int squareSize;
+            int offsetX, offsetY;
+            
+            if (isSpotify)
+            {
+                // Spotify: crop off bottom 20% (branding strip with Spotify logo)
+                int contentHeight = (int)(height * 0.80);
+                squareSize = Math.Min(width, contentHeight);
+                offsetX = (width - squareSize) / 2;
+                offsetY = (contentHeight - squareSize) / 2; // Center within content area
+            }
+            else if (width > height)
+            {
+                // Landscape (e.g. YouTube) - crop center square
+                squareSize = height;
+                offsetX = (width - squareSize) / 2;
+                offsetY = 0;
+            }
+            else
+            {
+                // Portrait - crop from TOP
+                squareSize = width;
+                offsetX = 0;
+                offsetY = 0;
+            }
+            
+            var rect = new System.Windows.Int32Rect(offsetX, offsetY, squareSize, squareSize);
+            var cropped = new CroppedBitmap(source, rect);
+            
+            // Convert CroppedBitmap back to BitmapImage for consistency
+            BitmapImage? result = null;
+            using (var ms = new MemoryStream())
+            {
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(cropped));
+                encoder.Save(ms);
+                ms.Position = 0;
+                
+                result = new BitmapImage();
+                result.BeginInit();
+                result.StreamSource = ms;
+                result.CacheOption = BitmapCacheOption.OnLoad;
+                result.EndInit();
+                result.Freeze();
+            }
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private async Task<BitmapImage?> ConvertToWpfBitmapAsync(IRandomAccessStreamWithContentType stream)
     {
         try
         {
-            var memoryStream = new MemoryStream();
-            
-            using (var reader = new DataReader(stream))
+            using (var memoryStream = new MemoryStream())
             {
-                await reader.LoadAsync((uint)stream.Size);
-                var bytes = new byte[stream.Size];
-                reader.ReadBytes(bytes);
-                memoryStream.Write(bytes, 0, bytes.Length);
+                using (var reader = new DataReader(stream))
+                {
+                    await reader.LoadAsync((uint)stream.Size);
+                    var bytes = new byte[stream.Size];
+                    reader.ReadBytes(bytes);
+                    memoryStream.Write(bytes, 0, bytes.Length);
+                }
+
+                memoryStream.Position = 0;
+
+                BitmapImage? bitmap = null;
+                
+                // Must create BitmapImage on UI thread
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.StreamSource = memoryStream;
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad; // Copies data, safe to dispose stream
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                });
+
+                return bitmap;
             }
-
-            memoryStream.Position = 0;
-
-            BitmapImage? bitmap = null;
-            
-            // Must create BitmapImage on UI thread
-            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.StreamSource = memoryStream;
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                bitmap.Freeze();
-            });
-
-            return bitmap;
         }
         catch
         {

@@ -97,6 +97,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _zOrderTimer;
     private readonly VolumeService _volumeService;
     private readonly DispatcherTimer _hoverCollapseTimer;
+    private readonly DispatcherTimer _autoCollapseTimer;
     private bool _isDraggingVolume = false;
     private NotchSettings _settings;
     private bool _isNotchVisible = true;
@@ -131,6 +132,28 @@ public partial class MainWindow : Window
     private TimeSpan _lastKnownDuration = TimeSpan.Zero;
     private bool _isMediaPlaying = false;
     private DateTime _seekDebounceUntil = DateTime.MinValue;
+
+    // Cached Brushes & Fonts for Performance
+    private static readonly SolidColorBrush _brushCharging = CreateFrozenBrush(48, 209, 88);
+    private static readonly SolidColorBrush _brushLowBattery = CreateFrozenBrush(255, 59, 48);
+    private static readonly SolidColorBrush _brushWhite = CreateFrozenBrush(255, 255, 255);
+    private static readonly SolidColorBrush _brushBlack = CreateFrozenBrush(0, 0, 0);
+    private static readonly SolidColorBrush _brushTransparent = CreateFrozenBrush(0, 0, 0, 0);
+    private static readonly SolidColorBrush _brushGray = CreateFrozenBrush(102, 102, 102);
+    private static readonly FontFamily _sfProDisplay = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display");
+
+    private static SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b, byte a = 255)
+    {
+        var brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
+    // Calendar UI Cache
+    private bool _calendarInitialized = false;
+    private readonly TextBlock[] _calendarDayNames = new TextBlock[3];
+    private readonly Border[] _calendarDayBorders = new Border[3];
+    private readonly TextBlock[] _calendarDayNumbers = new TextBlock[3];
 
     #endregion
 
@@ -171,6 +194,13 @@ public partial class MainWindow : Window
         };
         _progressTimer.Tick += ProgressTimer_Tick;
 
+        // Setup auto-collapse timer (check click outside notch - 5fps is enough)
+        _autoCollapseTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
+        _autoCollapseTimer.Tick += AutoCollapseTimer_Tick;
+        
         // Setup hover collapse timer (1.0 second delay)
         _hoverCollapseTimer = new DispatcherTimer
         {
@@ -416,18 +446,18 @@ public partial class MainWindow : Window
 
             if (battery.IsCharging)
             {
-                BatteryFill.Background = new SolidColorBrush(Color.FromRgb(48, 209, 88));
-                BatteryPercent.Foreground = new SolidColorBrush(Colors.White);
+                BatteryFill.Background = _brushCharging;
+                BatteryPercent.Foreground = _brushWhite;
             }
             else if (battery.Percentage < 20)
             {
-                BatteryFill.Background = new SolidColorBrush(Color.FromRgb(255, 59, 48));
-                BatteryPercent.Foreground = new SolidColorBrush(Color.FromRgb(255, 59, 48));
+                BatteryFill.Background = _brushLowBattery;
+                BatteryPercent.Foreground = _brushLowBattery;
             }
             else
             {
-                BatteryFill.Background = new SolidColorBrush(Colors.White);
-                BatteryPercent.Foreground = new SolidColorBrush(Colors.White);
+                BatteryFill.Background = _brushWhite;
+                BatteryPercent.Foreground = _brushWhite;
             }
         }
         catch
@@ -436,67 +466,85 @@ public partial class MainWindow : Window
         }
     }
 
+    private void InitializeCalendar()
+    {
+        if (_calendarInitialized) return;
+
+        WeekDaysPanel.Children.Clear();
+        WeekNumbers.Children.Clear();
+
+        for (int i = 0; i < 3; i++)
+        {
+            _calendarDayNames[i] = new TextBlock
+            {
+                Foreground = _brushGray,
+                FontSize = 9,
+                Width = 26,
+                TextAlignment = TextAlignment.Center,
+                FontWeight = FontWeights.Bold,
+                FontFamily = _sfProDisplay
+            };
+            WeekDaysPanel.Children.Add(_calendarDayNames[i]);
+
+            _calendarDayNumbers[i] = new TextBlock
+            {
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                FontFamily = _sfProDisplay,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            _calendarDayBorders[i] = new Border
+            {
+                Width = 22,
+                Height = 22,
+                CornerRadius = new CornerRadius(11),
+                Margin = new Thickness(2, 0, 2, 0),
+                Child = _calendarDayNumbers[i]
+            };
+            WeekNumbers.Children.Add(_calendarDayBorders[i]);
+        }
+
+        EventText.Foreground = _brushWhite;
+        EventText.FontWeight = FontWeights.Bold;
+        EventText.Margin = new Thickness(3, 6, 0, 0);
+        EventText.FontFamily = _sfProDisplay;
+
+        _calendarInitialized = true;
+    }
+
     private void UpdateCalendarInfo()
     {
+        if (!_calendarInitialized) InitializeCalendar();
+
         var now = DateTime.Now;
         MonthText.Text = now.ToString("MMM");
         DayText.Text = now.Day.ToString();
 
         var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
         
-        WeekDaysPanel.Children.Clear();
-        WeekNumbers.Children.Clear();
-        
         for (int i = -1; i <= 1; i++)
         {
+            int idx = i + 1;
             var date = now.AddDays(i);
-            var dayOfWeek = (int)date.DayOfWeek;
             
-            var dayNameText = new TextBlock
-            {
-                Text = dayNames[dayOfWeek],
-                Foreground = new SolidColorBrush(Color.FromRgb(102, 102, 102)),
-                FontSize = 9,
-                Width = 26,
-                TextAlignment = TextAlignment.Center,
-                FontWeight = FontWeights.Bold,
-                FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display")
-            };
-            WeekDaysPanel.Children.Add(dayNameText);
-            
-            var border = new Border
-            {
-                Width = 22,
-                Height = 22,
-                CornerRadius = new CornerRadius(11),
-                Margin = new Thickness(2, 0, 2, 0),
-                Background = i == 0 ? 
-                    new SolidColorBrush(Colors.White) : 
-                    new SolidColorBrush(Colors.Transparent)
-            };
+            _calendarDayNames[idx].Text = dayNames[(int)date.DayOfWeek];
+            _calendarDayNumbers[idx].Text = date.Day.ToString();
 
-            var text = new TextBlock
+            if (i == 0) // Today
             {
-                Text = date.Day.ToString(),
-                Foreground = i == 0 ? 
-                    new SolidColorBrush(Colors.Black) : 
-                    new SolidColorBrush(Colors.White),
-                FontSize = 11,
-                FontWeight = FontWeights.Bold,
-                FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            border.Child = text;
-            WeekNumbers.Children.Add(border);
+                _calendarDayBorders[idx].Background = _brushWhite;
+                _calendarDayNumbers[idx].Foreground = _brushBlack;
+            }
+            else
+            {
+                _calendarDayBorders[idx].Background = _brushTransparent;
+                _calendarDayNumbers[idx].Foreground = _brushWhite;
+            }
         }
 
         EventText.Text = "Enjoy your day!";
-        EventText.Foreground = new SolidColorBrush(Colors.White);
-        EventText.FontWeight = FontWeights.Bold;
-        EventText.Margin = new Thickness(3, 6, 0, 0);
-        EventText.FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display");
     }
 
     #endregion

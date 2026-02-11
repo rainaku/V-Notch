@@ -160,8 +160,28 @@
                 
                 <!-- Inner clip border to properly clip content to rounded corners -->
                 <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True">
-                
-                <Grid x:Name="NotchContent" Margin="0" SizeChanged="NotchContent_SizeChanged">
+                    <Grid>
+                        <!-- Floating Thumbnail for Animation -->
+                        <Border x:Name="AnimationThumbnailBorder"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Width="22" Height="22"
+                                CornerRadius="6"
+                                Background="#1A1A1A"
+                                BorderBrush="#333333"
+                                BorderThickness="0.5"
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False"
+                                Margin="8,4,0,0"
+                                Panel.ZIndex="100">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="AnimationThumbnailTranslate" X="0" Y="0"/>
+                            </Border.RenderTransform>
+                            <Image x:Name="AnimationThumbnailImage" Stretch="UniformToFill"/>
+                        </Border>
+
+                        <Grid x:Name="NotchContent" Margin="0" SizeChanged="NotchContent_SizeChanged">
+
                     
                     <!-- COLLAPSED STATE: Camera indicator only -->
                     <StackPanel x:Name="CollapsedContent" 
@@ -183,7 +203,7 @@
                           Opacity="0"
                           Visibility="Collapsed"
                           HorizontalAlignment="Stretch"
-                          VerticalAlignment="Center"
+                          VerticalAlignment="Top"
                           Margin="8,4">
                         <Grid.CacheMode>
                             <BitmapCache EnableClearType="False" RenderAtScale="1"/>
@@ -195,7 +215,8 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Left side: Small Thumbnail -->
-                        <Border Grid.Column="0" 
+                        <Border x:Name="CompactThumbnailBorder"
+                                Grid.Column="0" 
                                 Width="22" Height="22" 
                                 CornerRadius="6" 
                                 Background="#1A1A1A"
@@ -910,8 +931,9 @@
                         </Border.Background>
                     </Border>
                     </Grid>
-                </Border>
+                </Grid>
             </Border>
+        </Border>
 
             <!-- Right Ear (Concave Transition) -->
             <Path x:Name="RightEar" 

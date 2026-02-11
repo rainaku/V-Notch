@@ -15,7 +15,6 @@ namespace VNotch;
 public partial class MainWindow
 {
     private string _lastTrackName = "";
-    private bool _isProgressAnimating = false; // Flag to prevent RenderProgressBar from overriding animation
     private bool _isDraggingProgress = false; // Flag for drag-to-seek
     private TimeSpan _dragSeekPosition = TimeSpan.Zero; // Store seek position during drag
     private string _lastArtistName = "";
@@ -37,7 +36,10 @@ public partial class MainWindow
             _currentVolume = _volumeService.GetVolume();
             VolumeBarScale.ScaleX = _currentVolume;
         }
+    }
 
+    private void AutoCollapseTimer_Tick(object? sender, EventArgs e)
+    {
         // 2. Auto-collapse logic (Essential for WS_EX_NOACTIVATE windows)
         if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
         {
@@ -89,8 +91,8 @@ public partial class MainWindow
             // Manage timer for smooth UI updates
             UpdateProgressTimerState();
             
-            // Update playing state
-            _isMediaPlaying = info.IsPlaying;
+            // Detect play/pause state change BEFORE updating _isMediaPlaying
+            bool playStateChanged = _isMediaPlaying != info.IsPlaying;
             _lastKnownDuration = info.Duration;
             
             // Check if we're in debounce period after a user seek
@@ -101,37 +103,42 @@ public partial class MainWindow
                 var apiPos = info.Position;
                 bool isNewTrack = info.CurrentTrack != _lastTrackName || info.CurrentArtist != _lastArtistName;
                 
-                if (isNewTrack)
+                if (isNewTrack || playStateChanged)
                 {
-                     // New track -> Always accept new position
+                     // New track or play/pause state changed -> Always accept API position
                      _lastKnownPosition = apiPos;
                      _lastMediaUpdate = DateTime.Now;
-                     _lastTrackName = info.CurrentTrack;
-                     _lastArtistName = info.CurrentArtist;
+                     if (isNewTrack)
+                     {
+                         _lastTrackName = info.CurrentTrack;
+                         _lastArtistName = info.CurrentArtist;
+                     }
                 }
                 else
                 {
-                    // Same track - only sync with API in specific cases to avoid lag-induced jumps
+                    // Same track, same state - only sync for genuine user seeks
                     var elapsed = DateTime.Now - _lastMediaUpdate;
                     var extrapolatedPos = _lastKnownPosition + (_isMediaPlaying ? elapsed : TimeSpan.Zero);
                     
-                    // Calculate difference between API position and our extrapolated position
+                    // Calculate difference: positive = API ahead, negative = API behind
                     var apiDelta = (apiPos - extrapolatedPos).TotalSeconds;
                     
-                    // Only sync with API when:
-                    // 1. User seek detected (large jump forward or backward, > 5 seconds)
-                    // 2. Pause/resume state change (API ahead while we're paused, or vice versa)
-                    bool isUserSeek = Math.Abs(apiDelta) > 5.0;
-                    bool isPauseResumeChange = !_isMediaPlaying && apiDelta > 1.0; // User resumed and API moved ahead
-                    
-                    if (isUserSeek || isPauseResumeChange)
+                    // Only snap to API for genuine user seeks:
+                    // - Forward seek: API jumps ahead by > 3s
+                    // - Backward seek: API jumps behind by > 5s
+                    // For anything in between, trust our smooth extrapolation entirely.
+                    // The API always lags 1-2s behind reality, so correcting for it causes jitter.
+                    if (apiDelta > 3.0 || apiDelta < -5.0)
                     {
                         _lastKnownPosition = apiPos;
                         _lastMediaUpdate = DateTime.Now;
                     }
-                    // Otherwise: trust extrapolation, don't sync with potentially lagging API
+                    // Natural resync: play/pause changes and new tracks always accept API position
                 }
             }
+            
+            // NOW update the playing state (after sync logic used the old state)
+            _isMediaPlaying = info.IsPlaying;
             
             // Render immediately
             if (_isExpanded)
@@ -143,14 +150,14 @@ public partial class MainWindow
         {
             // Has media but no timeline - hide progress bar
             ProgressSection.Visibility = Visibility.Collapsed;
-            _progressTimer?.Stop();
+            UpdateProgressTimerState(); // Ensure timer stops if no timeline
             _isMediaPlaying = false;
         }
         else
         {
             // No media - reset everything
             ProgressSection.Visibility = Visibility.Collapsed;
-            _progressTimer?.Stop();
+            UpdateProgressTimerState();
             _isMediaPlaying = false;
             _seekDebounceUntil = DateTime.MinValue;
             ResetProgressUI();
@@ -166,8 +173,8 @@ public partial class MainWindow
     
     private void RenderProgressBar()
     {
-        // Skip if animation is in progress or user is dragging
-        if (_isProgressAnimating || _isDraggingProgress) return;
+        // Skip if user is dragging
+        if (_isDraggingProgress) return;
         
         var duration = _lastKnownDuration;
         if (duration.TotalSeconds <= 0) return;
@@ -303,133 +310,39 @@ public partial class MainWindow
     
     #region Progress Bar Animation on Expand
     
-    /// <summary>
-    /// Animate progress bar from 0 to current position when notch expands
-    /// </summary>
-    private void AnimateProgressBarOnExpand()
-    {
-        // Only animate if we have valid media info with timeline
-        if (_currentMediaInfo == null || !_currentMediaInfo.HasTimeline || _lastKnownDuration.TotalSeconds <= 0)
-            return;
-        
-        // Set flag to prevent RenderProgressBar from overriding
-        _isProgressAnimating = true;
-        
-        // Delay slightly to ensure layout is complete and ActualWidth is valid
-        Dispatcher.BeginInvoke(new Action(() =>
-        {
-            // Calculate target position
-            TimeSpan displayPosition;
-            if (_isMediaPlaying)
-            {
-                var elapsed = DateTime.Now - _lastMediaUpdate;
-                displayPosition = _lastKnownPosition + elapsed;
-                if (displayPosition > _lastKnownDuration) 
-                    displayPosition = _lastKnownDuration;
-            }
-            else
-            {
-                displayPosition = _lastKnownPosition;
-            }
-            
-            if (displayPosition < TimeSpan.Zero)
-                displayPosition = TimeSpan.Zero;
-            
-            // Calculate target ratio
-            double targetRatio = displayPosition.TotalSeconds / _lastKnownDuration.TotalSeconds;
-            targetRatio = Math.Clamp(targetRatio, 0, 1);
-            double targetWidth = targetRatio; // We use scale now
-            
-            // Clear any existing animation first
-            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            
-            // Start from 0
-            ProgressBarScale.ScaleX = 0;
-            CurrentTimeText.Text = "0:00";
-            
-            // Animate to target with smooth easing
-            var animDuration = TimeSpan.FromMilliseconds(600);
-            var easing = new ExponentialEase 
-            { 
-                EasingMode = EasingMode.EaseOut, 
-                Exponent = 5 
-            };
-            
-            var scaleAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = targetWidth,
-                Duration = animDuration,
-                EasingFunction = easing
-            };
-            Timeline.SetDesiredFrameRate(scaleAnim, 60);
-            
-            // When animation completes, clear flag and set final width explicitly
-            scaleAnim.Completed += (s, e) =>
-            {
-                ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null); // Clear animation
-                ProgressBarScale.ScaleX = targetWidth; // Set final value
-                _isProgressAnimating = false; // Allow RenderProgressBar to take over
-            };
-            
-            // Also animate time text (using timer for smooth counting)
-            AnimateTimeText(displayPosition, animDuration);
-            
-            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
-        }), DispatcherPriority.Loaded);
-    }
-    
-    /// <summary>
-    /// Animate the current time text from 0:00 to target time
-    /// </summary>
-    private void AnimateTimeText(TimeSpan targetTime, TimeSpan duration)
-    {
-        var startTime = DateTime.Now;
-        var endTime = startTime.Add(duration);
-        
-        var animTimer = new DispatcherTimer(DispatcherPriority.Render)
-        {
-            Interval = TimeSpan.FromMilliseconds(30) // ~33fps for text
-        };
-        
-        animTimer.Tick += (s, e) =>
-        {
-            var now = DateTime.Now;
-            if (now >= endTime)
-            {
-                CurrentTimeText.Text = FormatTime(targetTime);
-                animTimer.Stop();
-                return;
-            }
-            
-            // Calculate progress with easing (exponential ease out)
-            double t = (now - startTime).TotalMilliseconds / duration.TotalMilliseconds;
-            t = Math.Clamp(t, 0, 1);
-            double easedT = 1 - Math.Pow(1 - t, 5); // Exponential ease out
-            
-            var currentTime = TimeSpan.FromSeconds(targetTime.TotalSeconds * easedT);
-            CurrentTimeText.Text = FormatTime(currentTime);
-        };
-        
-        animTimer.Start();
-    }
+    // Expand animation removed
     
     private void UpdateProgressTimerState()
     {
-        if (_progressTimer == null) return;
+        if (_progressTimer == null || _autoCollapseTimer == null) return;
 
-        bool shouldRun = (_isExpanded || _isMusicExpanded) && 
-                         _currentMediaInfo != null && 
-                         _currentMediaInfo.IsAnyMediaPlaying && 
-                         _currentMediaInfo.HasTimeline;
+        bool isExpanded = _isExpanded || _isMusicExpanded;
+        
+        // Progress bar timer: only if expanded AND media playing AND has timeline
+        bool shouldRunProgress = isExpanded && 
+                          _currentMediaInfo != null && 
+                          _currentMediaInfo.IsAnyMediaPlaying && 
+                          _currentMediaInfo.HasTimeline;
 
-        if (shouldRun)
+        // Auto-collapse timer: only if expanded
+        bool shouldRunAutoCollapse = isExpanded;
+
+        if (shouldRunProgress)
         {
             if (!_progressTimer.IsEnabled) _progressTimer.Start();
         }
         else
         {
             if (_progressTimer.IsEnabled) _progressTimer.Stop();
+        }
+
+        if (shouldRunAutoCollapse)
+        {
+            if (!_autoCollapseTimer.IsEnabled) _autoCollapseTimer.Start();
+        }
+        else
+        {
+            if (_autoCollapseTimer.IsEnabled) _autoCollapseTimer.Stop();
         }
     }
 
