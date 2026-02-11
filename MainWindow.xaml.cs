@@ -424,6 +424,16 @@ public partial class MainWindow : Window
 
     #region Battery & Calendar
 
+    private void Battery_Click(object sender, MouseButtonEventArgs e)
+    {
+        try
+        {
+            // Open Windows Battery Saver settings
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:batterysaver") { UseShellExecute = true });
+        }
+        catch { }
+    }
+
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {
         UpdateBatteryInfo();
