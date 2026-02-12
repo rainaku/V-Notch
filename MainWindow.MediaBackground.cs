@@ -100,9 +100,8 @@ public partial class MainWindow
         double min = Math.Min(r, Math.Min(g, b));
         double h = 0, s = 0, l = (max + min) / 2.0;
 
-        // If color is too dark (black/dark gray) or effectively grayscale, return White
-        // This handles cases where the album art is mostly black or dark
-        if (l < 0.2 || (max - min) < 0.05)
+        // If effectively grayscale (no distinct hue), return White
+        if ((max - min) < 0.03)
         {
             return Colors.White;
         }
@@ -110,23 +109,18 @@ public partial class MainWindow
         double d = max - min;
         s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
 
-        // If saturation is very low (grayish), also return White
-        if (s < 0.15)
-        {
-            return Colors.White;
-        }
-
         if (max == r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6.0;
         else if (max == g) h = ((b - r) / d + 2) / 6.0;
         else h = ((r - g) / d + 4) / 6.0;
 
-        // Boost saturation - keep at least 65% for vibrant look
-        s = Math.Max(s, 0.65);
-        // Clamp saturation
+        // Boost saturation - keep at least 70% for vibrant look on progress bars
+        s = Math.Max(s, 0.70);
         s = Math.Min(s, 0.95);
 
-        // Ensure luminance is bright enough for dark background but not washed out
-        l = Math.Clamp(l, 0.50, 0.75);
+        // Ensure luminance is bright enough for dark background/OLED black
+        // If it was dark, we boost it to at least 0.65 to ensure it "pops"
+        l = Math.Max(l, 0.65);
+        l = Math.Min(l, 0.85);
 
         // Convert HSL back to RGB
         return HslToColor(h, s, l);

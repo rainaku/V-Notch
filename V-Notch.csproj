@@ -20,6 +20,7 @@
     <Company>V-Notch</Company>
     <Product>V-Notch</Product>
     <Description>MacOS Notch for Windows</Description>
+    <ApplicationIcon>logo.ico</ApplicationIcon>
     
     <!-- DPI awareness manifest -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -35,6 +36,16 @@
     <Resource Include="Fonts\SF-Pro-Display-Semibold.otf" />
     <Resource Include="Fonts\SF-Pro-Display-Medium.otf" />
     <Resource Include="Fonts\SF-Pro-Display-Regular.otf" />
+    <Resource Include="Services\icons\browser.svg" />
+    <Resource Include="Services\icons\soundcloud.svg" />
+    <Resource Include="Services\icons\spotify.svg" />
+    <Resource Include="Services\icons\tiktok.svg" />
+    <Resource Include="Services\icons\twitter.svg" />
+    <Resource Include="Services\icons\youtube.svg" />
+    <None Include="logo.ico">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

@@ -232,7 +232,22 @@ public partial class MainWindow : Window
         _hwndSource = HwndSource.FromHwnd(_hwnd);
         _hwndSource?.AddHook(WndProc);
 
-        TrayIcon.Icon = IconGenerator.CreateNotchIcon(16);
+        try
+        {
+            var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logo.ico");
+            if (System.IO.File.Exists(iconPath))
+            {
+                TrayIcon.Icon = new System.Drawing.Icon(iconPath);
+            }
+            else
+            {
+                TrayIcon.Icon = IconGenerator.CreateNotchIcon(16);
+            }
+        }
+        catch 
+        {
+            TrayIcon.Icon = IconGenerator.CreateNotchIcon(16);
+        }
         
         ApplySettings();
         ConfigureOverlayWindow();
