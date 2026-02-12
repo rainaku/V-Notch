@@ -1099,6 +1099,34 @@
                         </Border>
                     </Grid>
                     
+                    <!-- Pagination Dots Indicator -->
+                    <StackPanel x:Name="PaginationDots" 
+                                Orientation="Vertical" 
+                                VerticalAlignment="Center" 
+                                HorizontalAlignment="Right" 
+                                Margin="0,0,4,0"
+                                Width="10"
+                                IsHitTestVisible="False"
+                                Opacity="0"
+                                Visibility="Collapsed">
+                        <Ellipse x:Name="Dot1" Width="4" Height="4" Fill="White" Margin="0,2" HorizontalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <ScaleTransform x:Name="Dot1Scale" ScaleX="1" ScaleY="1"/>
+                            </Ellipse.RenderTransform>
+                            <Ellipse.Effect>
+                                <DropShadowEffect Color="Black" BlurRadius="2" ShadowDepth="0" Opacity="0.5"/>
+                            </Ellipse.Effect>
+                        </Ellipse>
+                        <Ellipse x:Name="Dot2" Width="4" Height="4" Fill="#555555" Margin="0,2" HorizontalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <ScaleTransform x:Name="Dot2Scale" ScaleX="1" ScaleY="1"/>
+                            </Ellipse.RenderTransform>
+                            <Ellipse.Effect>
+                                <DropShadowEffect Color="Black" BlurRadius="2" ShadowDepth="0" Opacity="0.5"/>
+                            </Ellipse.Effect>
+                        </Ellipse>
+                    </StackPanel>
+
                     <!-- Hover glow effect -->
                     <Border x:Name="HoverGlow"
                             CornerRadius="0,0,20,20"

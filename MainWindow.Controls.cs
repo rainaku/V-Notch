@@ -42,7 +42,7 @@ public partial class MainWindow
         
         if (_currentMediaInfo?.IsVideoSource == true)
         {
-            await _mediaService.SeekRelativeAsync(15);
+            await SeekRelative(15);
         }
         else
         {
@@ -62,7 +62,7 @@ public partial class MainWindow
         
         if (_currentMediaInfo?.IsVideoSource == true)
         {
-            await _mediaService.SeekRelativeAsync(-15);
+            await SeekRelative(-15);
         }
         else
         {
@@ -113,7 +113,7 @@ public partial class MainWindow
         
         if (_currentMediaInfo?.IsVideoSource == true)
         {
-            await _mediaService.SeekRelativeAsync(15);
+            await SeekRelative(15);
         }
         else
         {
@@ -133,7 +133,7 @@ public partial class MainWindow
         
         if (_currentMediaInfo?.IsVideoSource == true)
         {
-            await _mediaService.SeekRelativeAsync(-15);
+            await SeekRelative(-15);
         }
         else
         {

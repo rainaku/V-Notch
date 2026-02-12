@@ -1050,7 +1050,18 @@ public class MediaDetectionService : IDisposable
                 var timeline = session.GetTimelineProperties();
                 if (timeline != null)
                 {
+                    var playbackInfo = session.GetPlaybackInfo();
+                    bool isPlaying = playbackInfo?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+                    
+                    var timeSinceUpdate = DateTimeOffset.Now - timeline.LastUpdatedTime;
                     var currentPos = timeline.Position;
+                    
+                    // Extrapolate if playing to get the REAL current position
+                    if (isPlaying && timeSinceUpdate > TimeSpan.Zero && timeSinceUpdate < TimeSpan.FromHours(1))
+                    {
+                        currentPos += timeSinceUpdate;
+                    }
+
                     var newPosTicks = currentPos.Ticks + TimeSpan.FromSeconds(seconds).Ticks;
                     
                     // Giới hạn trong khoảng [0, Duration]

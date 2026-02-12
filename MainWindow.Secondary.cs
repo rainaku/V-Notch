@@ -137,13 +137,20 @@ public partial class MainWindow
         // Tighter spring feel (Damped Spring simulation)
         var springScale = MakeAnim(1.08, 1, durTotal, _easeMenuSpring); 
         var springSlide = MakeAnim(15, 0, durTotal, _easeExpOut7);
+        
+        UpdatePaginationDots();
 
         fadeIn.Completed += (s, e) => {
             _isAnimating = false;
             NotchBorder.IsHitTestVisible = true;
-            SecondaryContent.BeginAnimation(OpacityProperty, null);
+            
+            // Set final values before clearing animations to prevent flickering/glitches
             SecondaryContent.Opacity = 1;
-            SecondaryContent.RenderTransform = null;
+            SecondaryContent.BeginAnimation(OpacityProperty, null);
+            
+            // Keep the transform group but clear animations from its children if needed,
+            // or just leave it since it's already at scale 1, translate 0.
+            // Removing it entirely can cause "snapping" glitches with LayoutRounding.
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeIn);
@@ -209,13 +216,19 @@ public partial class MainWindow
         var fadeIn = MakeAnim(0, 1, durTotal, _easePowerOut3);
         var springScale = MakeAnim(0.92, 1, durTotal, _easeMenuSpring);
         var springSlide = MakeAnim(-10, 0, durTotal, _easeExpOut7);
+        
+        UpdatePaginationDots();
 
         fadeIn.Completed += (s, e) => {
             _isAnimating = false;
             NotchBorder.IsHitTestVisible = true;
-            ExpandedContent.BeginAnimation(OpacityProperty, null);
+            
+            // Set final values before clearing animations to prevent flickering/glitches
             ExpandedContent.Opacity = 1;
-            ExpandedContent.RenderTransform = null;
+            ExpandedContent.BeginAnimation(OpacityProperty, null);
+            
+            // Keep the transform group at its final values (Identity) instead of setting to null
+            // to avoid sub-pixel snapping jumps at the end of animation.
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeIn);
@@ -788,6 +801,45 @@ public partial class MainWindow
             if (found != null) return found;
         }
         return null;
+    }
+
+    private void UpdatePaginationDots()
+    {
+        if (Dot1Scale == null || Dot2Scale == null) return;
+
+        var activeBrush = Brushes.White;
+        var inactiveBrush = new SolidColorBrush(Color.FromRgb(85, 85, 85)); // Brighter, more visible gray
+        inactiveBrush.Freeze();
+
+        var dur = new Duration(TimeSpan.FromMilliseconds(600)); // Slightly slower for more visible spring oscillation
+        var ease = _easeMenuSpring; // ElasticEase: easeOut + spring damping
+
+        if (_isSecondaryView)
+        {
+            Dot1.Fill = inactiveBrush;
+            Dot2.Fill = activeBrush;
+
+            // Dot 1 shrinks (inactive)
+            Dot1Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(0.7, dur, ease));
+            Dot1Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(0.7, dur, ease));
+            
+            // Dot 2 expands with spring (active)
+            Dot2Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(1.3, dur, ease));
+            Dot2Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(1.3, dur, ease));
+        }
+        else
+        {
+            Dot1.Fill = activeBrush;
+            Dot2.Fill = inactiveBrush;
+
+            // Dot 1 expands with spring (active)
+            Dot1Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(1.3, dur, ease));
+            Dot1Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(1.3, dur, ease));
+            
+            // Dot 2 shrinks (inactive)
+            Dot2Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(0.7, dur, ease));
+            Dot2Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(0.7, dur, ease));
+        }
     }
 
     private void RemoveFileFromShelf(string filePath, Border item)

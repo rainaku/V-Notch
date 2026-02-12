@@ -154,6 +154,7 @@ public partial class MainWindow
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
         MediaBackground.BeginAnimation(OpacityProperty, null);
         MediaBackground2.BeginAnimation(OpacityProperty, null);
+        PaginationDots.BeginAnimation(OpacityProperty, null);
 
         // Reset translate and background to base
         AnimationThumbnailTranslate.X = 0;
@@ -167,6 +168,10 @@ public partial class MainWindow
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
+        
+        PaginationDots.Visibility = Visibility.Visible;
+        PaginationDots.Opacity = 0;
+        UpdatePaginationDots();
 
         // --- Fix: Pre-compute accurate thumbnail target on first expand to avoid glitch ---
         if (!_cachedThumbnailExpandTarget.HasValue && _isMusicCompactMode)
@@ -264,7 +269,13 @@ public partial class MainWindow
             ShowMediaBackground();
             
             ExpandedContent.Effect = null;
-            ExpandedContent.RenderTransform = null;
+            
+            // Set final values before clearing animations
+            ExpandedContent.Opacity = 1;
+            ExpandedContent.BeginAnimation(OpacityProperty, null);
+            
+            // Keep the transform group to avoid sub-pixel snapping glitches at the end
+            // ExpandedContent.RenderTransform = null;
             
             // Cleanup Thumbnail Animation
             AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
@@ -292,6 +303,7 @@ public partial class MainWindow
         MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         
         ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
+        PaginationDots.BeginAnimation(OpacityProperty, fadeInAnim);
         expandedScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScale);
         expandedScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScale);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
@@ -314,6 +326,7 @@ public partial class MainWindow
         SecondaryContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.BeginAnimation(OpacityProperty, null);
+        PaginationDots.BeginAnimation(OpacityProperty, null);
         AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
         AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
@@ -427,6 +440,10 @@ public partial class MainWindow
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
+                // Set final values before clearing animations
+                contentToShow.Opacity = 1;
+                contentToShow.BeginAnimation(OpacityProperty, null);
+
                 AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
                 AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
@@ -435,12 +452,16 @@ public partial class MainWindow
                 AnimationThumbnailTranslate.X = 0;
                 AnimationThumbnailTranslate.Y = 0;
             }
+            
+            // Avoid nulling RenderTransform to prevent layout snapping
+            // contentToShow.RenderTransform = null;
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
         
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
+        PaginationDots.BeginAnimation(OpacityProperty, fadeOutAnim);
         expandedScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOutAnim);
         expandedScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOutAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, slideOutAnim);
@@ -682,13 +703,15 @@ public partial class MainWindow
 
         fadeOut.Completed += (s, e) =>
         {
+            // Set final values BEFORE clearing animations to prevent flickering
+            capturedFromTransform.ScaleX = 1;
+            capturedFromTransform.ScaleY = 1;
+            capturedFromIcon.Opacity = 1;
+
             capturedFromIcon.Visibility = Visibility.Collapsed;
             capturedFromTransform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             capturedFromTransform.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             capturedFromIcon.BeginAnimation(OpacityProperty, null);
-            capturedFromTransform.ScaleX = 1;
-            capturedFromTransform.ScaleY = 1;
-            capturedFromIcon.Opacity = 1;
         };
 
         fromTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);
@@ -751,17 +774,18 @@ public partial class MainWindow
 
         fadeOut2.Completed += (s, e) =>
         {
-            arrow2Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow2.BeginAnimation(OpacityProperty, null);
-            arrow1Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow0Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow0.BeginAnimation(OpacityProperty, null);
-
+            // Set final values BEFORE clearing animations to prevent flickering
             arrow2Transform.X = 0;
             arrow2.Opacity = 1;
             arrow1Transform.X = 0;
             arrow0Transform.X = 0;
             arrow0.Opacity = 0;
+
+            arrow2Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow2.BeginAnimation(OpacityProperty, null);
+            arrow1Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow0Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow0.BeginAnimation(OpacityProperty, null);
         };
     }
 
@@ -797,17 +821,18 @@ public partial class MainWindow
 
         fadeOut2.Completed += (s, e) =>
         {
-            arrow2Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow2.BeginAnimation(OpacityProperty, null);
-            arrow1Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow0Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow0.BeginAnimation(OpacityProperty, null);
-
+            // Set final values BEFORE clearing animations to prevent flickering
             arrow2Transform.X = 0;
             arrow2.Opacity = 1;
             arrow1Transform.X = 0;
             arrow0Transform.X = 0;
             arrow0.Opacity = 0;
+
+            arrow2Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow2.BeginAnimation(OpacityProperty, null);
+            arrow1Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow0Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow0.BeginAnimation(OpacityProperty, null);
         };
     }
 

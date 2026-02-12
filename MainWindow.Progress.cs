@@ -340,8 +340,38 @@ public partial class MainWindow
             
             // Set debounce - ignore API position updates for 2 seconds
             // This prevents the "jump back" effect when API returns stale data
-            _seekDebounceUntil = DateTime.Now.AddSeconds(2);
+            _seekDebounceUntil = DateTime.Now.AddSeconds(2.0);
         } 
+        catch { }
+    }
+
+    private async Task SeekRelative(double seconds)
+    {
+        if (_lastKnownDuration.TotalSeconds <= 0) return;
+
+        // Calculate current extrapolated position
+        var elapsed = DateTime.Now - _lastMediaUpdate;
+        var currentPos = _lastKnownPosition + (_isMediaPlaying ? elapsed : TimeSpan.Zero);
+        
+        var newPos = currentPos + TimeSpan.FromSeconds(seconds);
+        
+        // Clamp
+        if (newPos < TimeSpan.Zero) newPos = TimeSpan.Zero;
+        if (newPos > _lastKnownDuration) newPos = _lastKnownDuration;
+
+        try
+        {
+            // We use the service's relative seek for better accuracy with the actual session
+            // but we also update our local state to prevent UI flicker.
+            await _mediaService.SeekRelativeAsync(seconds);
+
+            // Update local state for immediate UI feedback
+            _lastKnownPosition = newPos;
+            _lastMediaUpdate = DateTime.Now;
+            _seekDebounceUntil = DateTime.Now.AddSeconds(2.0);
+            
+            if (_isExpanded) RenderProgressBar();
+        }
         catch { }
     }
     
