@@ -104,6 +104,8 @@ public partial class MainWindow
     [DllImport("user32.dll")]
     private static extern IntPtr GetParent(IntPtr hWnd);
     
+    private DateTime _lastTimelineAvailableTime = DateTime.MinValue;
+
     /// <summary>
     /// Called when MediaDetectionService fires MediaChanged event
     /// </summary>
@@ -111,24 +113,35 @@ public partial class MainWindow
     {
         _currentMediaInfo = info;
         
+        // Stickiness for YouTube: if we recently had a timeline, keep it visible for 5 seconds
+        // even if timeline is briefly missing (common during YouTube page loads/transitions)
+        bool isYouTubeTransition = info.IsAnyMediaPlaying && !info.HasTimeline && 
+                                   info.MediaSource == "YouTube" && 
+                                   (DateTime.Now - _lastTimelineAvailableTime).TotalSeconds < 5;
+
         // Show/hide progress section based on timeline availability
-        if (info.IsAnyMediaPlaying && info.HasTimeline)
+        if (info.IsAnyMediaPlaying && (info.HasTimeline || isYouTubeTransition))
         {
-            // Has timeline - show progress bar
+            // Has timeline (or in YouTube transition) - show progress bar
             ProgressSection.Visibility = Visibility.Visible;
             ProgressSection.Opacity = 1;
+
+            if (info.HasTimeline)
+            {
+                _lastTimelineAvailableTime = DateTime.Now;
+                _lastKnownDuration = info.Duration;
+            }
 
             // Manage timer for smooth UI updates
             UpdateProgressTimerState();
             
             // Detect play/pause state change BEFORE updating _isMediaPlaying
             bool playStateChanged = _isMediaPlaying != info.IsPlaying;
-            _lastKnownDuration = info.Duration;
             
             // Check if we're in debounce period after a user seek
             bool isDebouncing = DateTime.Now < _seekDebounceUntil;
             
-            if (!isDebouncing)
+            if (!isDebouncing && info.HasTimeline) // Only sync from API if it actually HAS timeline info
             {
                 var apiPos = info.Position;
                 bool isNewTrack = info.CurrentTrack != _lastTrackName || info.CurrentArtist != _lastArtistName;
@@ -153,21 +166,16 @@ public partial class MainWindow
                     // Calculate difference: positive = API ahead, negative = API behind
                     var apiDelta = (apiPos - extrapolatedPos).TotalSeconds;
                     
-                    // Only snap to API for genuine user seeks or large drifts:
-                    // - Forward seek: API jumps ahead by > 5s
-                    // - Backward seek: API jumps behind by > 10s
-                    // For anything in between, trust our smooth extrapolation.
-                    // The API (especially Spotify) often lags or sends stale data.
+                    // Only snap to API for genuine user seeks or large drifts
                     if (apiDelta > 5.0 || apiDelta < -10.0)
                     {
                         _lastKnownPosition = apiPos;
                         _lastMediaUpdate = DateTime.Now;
                     }
-                    // Natural resync: play/pause changes and new tracks always accept API position
                 }
             }
             
-            // NOW update the playing state (after sync logic used the old state)
+            // NOW update the playing state
             _isMediaPlaying = info.IsPlaying;
             
             // Render immediately
@@ -178,9 +186,9 @@ public partial class MainWindow
         }
         else if (info.IsAnyMediaPlaying)
         {
-            // Has media but no timeline - hide progress bar
+            // Has media but no timeline and not in transition - hide progress bar
             ProgressSection.Visibility = Visibility.Collapsed;
-            UpdateProgressTimerState(); // Ensure timer stops if no timeline
+            UpdateProgressTimerState(); 
             _isMediaPlaying = false;
         }
         else
@@ -190,6 +198,7 @@ public partial class MainWindow
             UpdateProgressTimerState();
             _isMediaPlaying = false;
             _seekDebounceUntil = DateTime.MinValue;
+            _lastTimelineAvailableTime = DateTime.MinValue;
             ResetProgressUI();
         }
     }
@@ -348,11 +357,15 @@ public partial class MainWindow
 
         bool isExpanded = _isExpanded || _isMusicExpanded;
         
-        // Progress bar timer: only if expanded AND media playing AND has timeline
+        // Progress bar timer: only if expanded AND media playing AND has timeline (or in grace period)
+        bool isYouTubeTransition = _currentMediaInfo != null && !_currentMediaInfo.HasTimeline && 
+                                   _currentMediaInfo.MediaSource == "YouTube" && 
+                                   (DateTime.Now - _lastTimelineAvailableTime).TotalSeconds < 5;
+
         bool shouldRunProgress = isExpanded && 
                           _currentMediaInfo != null && 
                           _currentMediaInfo.IsAnyMediaPlaying && 
-                          _currentMediaInfo.HasTimeline;
+                          (_currentMediaInfo.HasTimeline || isYouTubeTransition);
 
         // Auto-collapse timer: only if expanded
         bool shouldRunAutoCollapse = isExpanded;
