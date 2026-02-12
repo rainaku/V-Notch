@@ -17,6 +17,10 @@ public partial class MainWindow
 
     private void OnMediaChanged(object? sender, MediaInfo info)
     {
+        // BUG FIX: Skip updates if track info is obviously missing (Loading state)
+        // to prevent UI layout "jumping" or flickering between states.
+        if (info.IsAnyMediaPlaying && string.IsNullOrEmpty(info.CurrentTrack)) return;
+
         _currentMediaInfo = info;
         
         Dispatcher.BeginInvoke(() =>
@@ -141,6 +145,10 @@ public partial class MainWindow
     private void UpdateMusicCompactMode(MediaInfo info)
     {
         bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
+        
+        // Ensure we don't calculate layout if it's generic browser info with no real track
+        if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
+
         _collapsedWidth = shouldBeCompact ? 180 : _settings.Width;
         
         if (shouldBeCompact == _isMusicCompactMode) 
