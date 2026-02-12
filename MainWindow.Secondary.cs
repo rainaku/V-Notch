@@ -83,58 +83,73 @@ public partial class MainWindow
         _isSecondaryView = true;
         _isAnimating = true;
 
-        // Duration for a snappier feel
-        var durOut = new Duration(TimeSpan.FromMilliseconds(200));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(400));
+        // Protection: Disable clicks during transit
+        NotchBorder.IsHitTestVisible = false;
 
-        // Current UI (Primary) -> Out (Scaling down and fading)
-        var fadeOut = MakeAnim(1, 0, durOut, _easeQuadOut);
-        var scaleOut = MakeAnim(1, 0.9, durOut, _easeExpOut7);
-        
+        // Smooth durations for premium feel
+        var durTotal = new Duration(TimeSpan.FromMilliseconds(450));
+        var durFast = new Duration(TimeSpan.FromMilliseconds(200));
+
+        // PRIMARY (OUT) -> Scale down and fade
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
+        var primaryTranslate = new TranslateTransform(0, 0);
         primaryGroup.Children.Add(primaryScale);
+        primaryGroup.Children.Add(primaryTranslate);
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var fadeOut = MakeAnim(1, 0, durFast, _easeQuadOut);
+        var scaleOut = MakeAnim(1, 0.92, durTotal, _easeExpOut7);
+        var slideOut = MakeAnim(0, -10, durTotal, _easeExpOut7);
 
         fadeOut.Completed += (s, e) => {
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
+            ExpandedContent.Effect = null; // Cleanup depth effect
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOut);
         primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOut);
         primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOut);
+        primaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
 
-        // New UI (Secondary) -> In (Scaling up with velocity/spring)
+        // Add Depth: Blur outgoing content
+        var blur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian };
+        ExpandedContent.Effect = blur;
+        var blurAnim = MakeAnim(0, 15, durFast, _easeQuadOut);
+        blur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+
+        // SECONDARY (IN) -> Spring scale up and slide in
         SecondaryContent.Visibility = Visibility.Visible;
         SecondaryContent.Opacity = 0;
         EnableKeyboardInput();
 
         var secondaryGroup = new TransformGroup();
-        var secondaryScale = new ScaleTransform(0.85, 0.85);
+        var secondaryScale = new ScaleTransform(1.08, 1.08);
         var secondaryTranslate = new TranslateTransform(0, 15);
         secondaryGroup.Children.Add(secondaryScale);
         secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeIn = MakeAnim(0, 1, durIn, _easePowerOut3);
-        // Use _easeMenuSpring for "velocity" effect (soft rebound)
-        var scaleIn = MakeAnim(0.85, 1, durIn, _easeMenuSpring);
-        var slideIn = MakeAnim(15, 0, durIn, _easeExpOut7);
+        var fadeIn = MakeAnim(0, 1, durTotal, _easePowerOut3);
+        // Tighter spring feel (Damped Spring simulation)
+        var springScale = MakeAnim(1.08, 1, durTotal, _easeMenuSpring); 
+        var springSlide = MakeAnim(15, 0, durTotal, _easeExpOut7);
 
         fadeIn.Completed += (s, e) => {
             _isAnimating = false;
+            NotchBorder.IsHitTestVisible = true;
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             SecondaryContent.Opacity = 1;
             SecondaryContent.RenderTransform = null;
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeIn);
-        secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleIn);
-        secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleIn);
-        secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
+        secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScale);
+        secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScale);
+        secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
     }
 
     private void SwitchToPrimaryView()
@@ -143,57 +158,70 @@ public partial class MainWindow
         _isSecondaryView = false;
         _isAnimating = true;
 
-        var durOut = new Duration(TimeSpan.FromMilliseconds(200));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(400));
+        NotchBorder.IsHitTestVisible = false;
 
-        // Secondary UI -> Out
-        var fadeOut = MakeAnim(1, 0, durOut, _easePowerIn2);
-        var scaleOut = MakeAnim(1, 0.9, durOut, _easeExpOut7);
+        var durTotal = new Duration(TimeSpan.FromMilliseconds(450));
+        var durFast = new Duration(TimeSpan.FromMilliseconds(200));
 
+        // SECONDARY (OUT)
         var secondaryGroup = new TransformGroup();
         var secondaryScale = new ScaleTransform(1, 1);
+        var secondaryTranslate = new TranslateTransform(0, 0);
         secondaryGroup.Children.Add(secondaryScale);
+        secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var fadeOut = MakeAnim(1, 0, durFast, _easeQuadOut);
+        var scaleOut = MakeAnim(1, 0.92, durTotal, _easeExpOut7);
+        var slideOut = MakeAnim(0, 10, durTotal, _easeExpOut7);
 
         fadeOut.Completed += (s, e) => {
             SecondaryContent.Visibility = Visibility.Collapsed;
             SecondaryContent.RenderTransform = null;
+            SecondaryContent.Effect = null; // Cleanup depth effect
             DisableKeyboardInput();
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeOut);
         secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOut);
         secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOut);
+        secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
 
-        // Primary UI -> In
+        // Add Depth: Blur outgoing content
+        var blur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian };
+        SecondaryContent.Effect = blur;
+        var blurAnim = MakeAnim(0, 15, durFast, _easeQuadOut);
+        blur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+
+        // PRIMARY (IN)
         ExpandedContent.Visibility = Visibility.Visible;
         ExpandedContent.Opacity = 0;
 
         var primaryGroup = new TransformGroup();
-        var primaryScale = new ScaleTransform(0.85, 0.85);
-        var primaryTranslate = new TranslateTransform(0, 15);
+        var primaryScale = new ScaleTransform(0.92, 0.92);
+        var primaryTranslate = new TranslateTransform(0, -10);
         primaryGroup.Children.Add(primaryScale);
         primaryGroup.Children.Add(primaryTranslate);
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeIn = MakeAnim(0, 1, durIn, _easePowerOut3);
-        // Use _easeMenuSpring for "velocity" effect
-        var scaleIn = MakeAnim(0.85, 1, durIn, _easeMenuSpring);
-        var slideIn = MakeAnim(15, 0, durIn, _easeExpOut7);
+        var fadeIn = MakeAnim(0, 1, durTotal, _easePowerOut3);
+        var springScale = MakeAnim(0.92, 1, durTotal, _easeMenuSpring);
+        var springSlide = MakeAnim(-10, 0, durTotal, _easeExpOut7);
 
         fadeIn.Completed += (s, e) => {
             _isAnimating = false;
+            NotchBorder.IsHitTestVisible = true;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.Opacity = 1;
             ExpandedContent.RenderTransform = null;
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeIn);
-        primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleIn);
-        primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleIn);
-        primaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
+        primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScale);
+        primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScale);
+        primaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
     }
 
     #region File Shelf Logic

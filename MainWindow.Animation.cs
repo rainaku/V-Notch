@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using System.Windows.Media.Effects;
 
 namespace VNotch;
 
@@ -61,7 +62,7 @@ public partial class MainWindow
     /// Get a DoubleAnimation configured with cached easing. No event handlers.
     /// Safe to reuse since WPF clones internally when frozen, or uses directly otherwise.
     /// </summary>
-    private static DoubleAnimation MakeAnim(double? from, double to, Duration duration, IEasingFunction? easing = null, int fps = 60)
+    private static DoubleAnimation MakeAnim(double? from, double to, Duration duration, IEasingFunction? easing = null, int fps = 120)
     {
         var anim = new DoubleAnimation
         {
@@ -74,7 +75,7 @@ public partial class MainWindow
         return anim;
     }
 
-    private static DoubleAnimation MakeAnim(double to, Duration duration, IEasingFunction? easing = null, int fps = 60)
+    private static DoubleAnimation MakeAnim(double to, Duration duration, IEasingFunction? easing = null, int fps = 120)
     {
         var anim = new DoubleAnimation
         {
@@ -100,7 +101,7 @@ public partial class MainWindow
         // Default is TimeSpan.Zero (start immediately).
         if (beginTime.HasValue)
             anim.BeginTime = beginTime.Value;
-        Timeline.SetDesiredFrameRate(anim, 60);
+        Timeline.SetDesiredFrameRate(anim, 120);
         return anim;
     }
 
@@ -167,12 +168,55 @@ public partial class MainWindow
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
 
+        // --- Fix: Pre-compute accurate thumbnail target on first expand to avoid glitch ---
+        if (!_cachedThumbnailExpandTarget.HasValue && _isMusicCompactMode)
+        {
+            double oldW = NotchBorder.Width;
+            double oldH = NotchBorder.Height;
+            
+            // Temporarily set expanded dimensions
+            NotchBorder.Width = _expandedWidth;
+            NotchBorder.Height = _expandedHeight;
+            
+            // Force layout pass
+            this.UpdateLayout();
+            
+            // Compute and cache
+            _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
+            
+            // Revert to original size so animation starts from correct position
+            NotchBorder.Width = oldW;
+            NotchBorder.Height = oldH;
+        }
+
+        // Hit-test protection
+        NotchBorder.IsHitTestVisible = false;
+
         // Base Notch Animations
         var widthAnim = MakeAnim(_expandedWidth, _dur350, _easeExpOut7);
         var heightAnim = MakeAnim(_expandedHeight, _dur350, _easeExpOut7);
-        var fadeOutAnim = MakeAnim(0, _dur100, _easeQuadOut);
-        var fadeInAnim = MakeAnim(0d, 1d, _dur200, _easeQuadOut, null);
+        var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
+        
+        // Expanded Content: Slide up and spring scale
+        var expandedGroup = new TransformGroup();
+        var expandedScale = new ScaleTransform(0.95, 0.95);
+        var expandedTranslate = new TranslateTransform(0, 10);
+        expandedGroup.Children.Add(expandedScale);
+        expandedGroup.Children.Add(expandedTranslate);
+        ExpandedContent.RenderTransform = expandedGroup;
+        ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
+
+        var fadeInAnim = MakeAnim(0d, 1d, _dur350, _easePowerOut3);
+        var springScale = MakeAnim(0.95, 1, _dur350, _easeMenuSpring);
+        var springSlide = MakeAnim(10, 0, _dur350, _easeExpOut7);
+
         var glowAnim = MakeAnim(0.15, _dur200);
+
+        // Depth: Blur incoming content slightly then clear
+        var expandedBlur = new BlurEffect { Radius = 10, KernelType = KernelType.Gaussian };
+        ExpandedContent.Effect = expandedBlur;
+        var blurFadeIn = MakeAnim(10, 0, _dur350, _easeQuadOut);
+        expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurFadeIn);
 
         // --- Thumbnail Animation Logic ---
         if (_isMusicCompactMode && CompactThumbnail.Source != null)
@@ -205,8 +249,6 @@ public partial class MainWindow
             var thumbRectAnim = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), _dur350) { EasingFunction = _easeExpOut7 };
             AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, thumbRectAnim);
 
-            // Don't hide CompactThumbnailBorder - let it fade out naturally with MusicCompactContent
-            // AnimationThumbnailBorder covers it via Panel.ZIndex="100"
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
         }
 
@@ -214,11 +256,15 @@ public partial class MainWindow
         {
             _isAnimating = false;
             _isExpanded = true;
+            NotchBorder.IsHitTestVisible = true;
             UpdateProgressTimerState();
             UpdateBatteryInfo();
             UpdateCalendarInfo();
             RenderProgressBar();
             ShowMediaBackground();
+            
+            ExpandedContent.Effect = null;
+            ExpandedContent.RenderTransform = null;
             
             // Cleanup Thumbnail Animation
             AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
@@ -231,15 +277,11 @@ public partial class MainWindow
 
             if (_isMusicCompactMode)
             {
-                // Cache the accurate target position now that layout is at expanded size
                 _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
-                // Restore the real expanded thumbnail
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-                // Ensure compact thumb is visible for next collapse
                 CompactThumbnail.Opacity = 1;
             }
             
-            // Explicitly collapse others at the end
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
         };
@@ -248,9 +290,13 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
         CollapsedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutAnim);
+        
         ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
-        HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
+        expandedScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScale);
+        expandedScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScale);
+        expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
 
+        HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
         AnimateCornerRadius(_cornerRadiusExpanded, TimeSpan.FromMilliseconds(350));
     }
 
@@ -278,16 +324,37 @@ public partial class MainWindow
         AnimationThumbnailTranslate.X = 0;
         AnimationThumbnailTranslate.Y = 0;
 
+        // Hit-test protection
+        NotchBorder.IsHitTestVisible = false;
+
         var widthAnim = MakeAnim(_collapsedWidth, _dur350, _easeExpOut7);
         var heightAnim = MakeAnim(_collapsedHeight, _dur350, _easeExpOut7);
 
-        var fadeOutAnim = MakeAnim(0, _dur80, _easeQuadOut);
+        // Outgoing: Scale down and blur
+        var expandedGroup = new TransformGroup();
+        var expandedScale = new ScaleTransform(1, 1);
+        var expandedTranslate = new TranslateTransform(0, 0);
+        expandedGroup.Children.Add(expandedScale);
+        expandedGroup.Children.Add(expandedTranslate);
+        ExpandedContent.RenderTransform = expandedGroup;
+        ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
+
+        var expandedBlur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian };
+        ExpandedContent.Effect = expandedBlur;
+        var blurAnim = MakeAnim(0, 15, _dur200, _easeQuadOut);
+        expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+
+        var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
+        var scaleOutAnim = MakeAnim(1, 1.05, _dur350, _easeExpOut7);
+        var slideOutAnim = MakeAnim(0, -10, _dur350, _easeExpOut7);
+
         fadeOutAnim.Completed += (s, e) =>
         {
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.Opacity = 0;
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
+            ExpandedContent.Effect = null;
             
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             SecondaryContent.Opacity = 0;
@@ -304,18 +371,24 @@ public partial class MainWindow
         contentToHide.Visibility = Visibility.Collapsed;
         contentToHide.Opacity = 0;
 
-        var fadeInAnim = MakeAnim(1, _dur200, _easeQuadOut);
+        // Content To Show: Spring Scale Up
+        var showGroup = new TransformGroup();
+        var showScale = new ScaleTransform(0.8, 0.8);
+        showGroup.Children.Add(showScale);
+        contentToShow.RenderTransform = showGroup;
+        contentToShow.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var fadeInAnim = MakeAnim(1, _dur350, _easePowerOut3);
+        var springShow = MakeAnim(0.8, 1, _dur350, _easeMenuSpring);
+
         var glowAnim = MakeAnim(0, _dur150);
 
         // --- Thumbnail Animation Logic ---
         if (_isMusicCompactMode && ThumbnailImage.Source != null)
         {
-            // Use cached position or compute dynamically (layout is at expanded size here)
             var (startX, startY) = _cachedThumbnailExpandTarget ?? ComputeThumbnailExpandTarget();
-            // Update cache
             _cachedThumbnailExpandTarget = (startX, startY);
 
-            // Setup floating thumbnail from expanded state
             AnimationThumbnailImage.Source = ThumbnailImage.Source;
             AnimationThumbnailBorder.Visibility = Visibility.Visible;
             AnimationThumbnailBorder.Width = 50;
@@ -324,7 +397,6 @@ public partial class MainWindow
             AnimationThumbnailTranslate.X = startX;
             AnimationThumbnailTranslate.Y = startY;
 
-            // Target: Compact position (back to translate 0,0 = base margin 8,4)
             var thumbWidthAnim = MakeAnim(50, 22, _dur350, _easeExpOut7);
             var thumbHeightAnim = MakeAnim(50, 22, _dur350, _easeExpOut7);
             var thumbTranslateXAnim = MakeAnim(startX, 0, _dur350, _easeExpOut7);
@@ -335,12 +407,9 @@ public partial class MainWindow
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
 
-            // Animate the clip rect back to compact size
             var thumbRectAnim = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), _dur350) { EasingFunction = _easeExpOut7 };
             AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, thumbRectAnim);
             
-            // Don't hide CompactThumbnailBorder - it will be covered by AnimationThumbnailBorder (ZIndex=100)
-            // and will fade in naturally with contentToShow
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
         }
 
@@ -348,18 +417,17 @@ public partial class MainWindow
         {
             _isAnimating = false;
             _isExpanded = false;
+            NotchBorder.IsHitTestVisible = true;
             UpdateProgressTimerState();
             
-            // Cleanup Thumbnail Animation
+            contentToShow.RenderTransform = null;
+
             if (_isMusicCompactMode)
             {
-                // Restore real thumbnails first
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
-                // Then hide animation overlay
                 AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
-                // Clear stale animation values
                 AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
@@ -371,16 +439,25 @@ public partial class MainWindow
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+        
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
+        expandedScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOutAnim);
+        expandedScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOutAnim);
+        expandedTranslate.BeginAnimation(TranslateTransform.YProperty, slideOutAnim);
+
         if (SecondaryContent.Visibility == Visibility.Visible)
         {
             SecondaryContent.BeginAnimation(OpacityProperty, fadeOutAnim);
+            // Also blur secondary if active
+            SecondaryContent.Effect = new BlurEffect { Radius = 15 }; 
         }
 
         contentToShow.Visibility = Visibility.Visible;
         contentToShow.BeginAnimation(OpacityProperty, fadeInAnim);
-        HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
+        showScale.BeginAnimation(ScaleTransform.ScaleXProperty, springShow);
+        showScale.BeginAnimation(ScaleTransform.ScaleYProperty, springShow);
 
+        HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
         AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(350));
     }
 
