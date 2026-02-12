@@ -9,11 +9,14 @@
     <AssemblyName>V-Notch</AssemblyName>
     <RootNamespace>VNotch</RootNamespace>
     
-    <!-- Single file publish -->
+    <!-- Single file publish optimized for security (reducing false positives) -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <ReadyToRun>true</ReadyToRun>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
     
     <!-- App info -->
     <Version>1.0.0</Version>

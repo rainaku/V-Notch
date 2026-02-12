@@ -33,18 +33,19 @@
 
 ## Features
 
-- **Smart Media Controls** - Control Spotify, YouTube, SoundCloud, TikTok, and more directly from the notch
-- **Dynamic Island Animations** - Smooth, Apple-style expand/collapse animations with 60 FPS
-- **System Info at a Glance** - Battery status, calendar, and time in a beautiful compact view
-- **Volume Control** - Quick volume adjustment with visual feedback
-- **Live Media Thumbnails** - Album art and video thumbnails with color-adaptive glow effects
-- **Progress Bar** - Real-time media progress tracking with seek functionality
-- **Multi-Platform Support** - Works with Spotify, YouTube, SoundCloud, TikTok, Facebook, Instagram, Twitter/X
-- **Always on Top** - Stays above all windows including fullscreen apps
-- **Highly Customizable** - Adjust size, opacity, corner radius, and behavior
-- **Multi-Monitor Support** - Choose which monitor to display the notch
-- **Smart Collapse** - Auto-collapse when not in use, expand on hover
-- **Low Resource Usage** - Optimized for minimal CPU and RAM usage
+- **Smart Media Controls** - Control Spotify, Apple Music, YouTube, SoundCloud, TikTok, and more directly from the notch
+- **File Shelf** - Dynamic clipboard for files. Drag & drop files to store, multi-select with lasso, and drag them out to any application
+- **Dynamic Island Animations** - Ultra-smooth, Apple-style expand/collapse transitions with 60 FPS hardware acceleration
+- **Intelligent Media Detection** - Hybrid detection using Windows SMTC and process monitoring for 99% accuracy
+- **Color-Adaptive UI** - Dynamic background and glow effects that intelligently adapt to album art using HSL color analysis
+- **Live Media Thumbnails** - Automatic thumbnail fetching for YouTube and smart cropping (removes Spotify branding bars)
+- **Advanced Progress Tracking** - Real-time media progress with high-precision seeking and elapsed/remaining time display
+- **System Info Dashboard** - Integrated battery status (with charging animations), calendar, and time widgets
+- **Multi-Monitor Support** - Smart positioning and monitor selection with safe area management
+- **Hot Corners** - Quick access to notch features via configurable screen corners
+- **Cursor Bypass** - Intelligent click-through technology that doesn't interfere with your workflow
+- **Fullscreen Aware** - Automatically adjusts behavior or hides when playing games or watching movies
+- **Performance Optimized** - Low resource footprint (~20-30MB RAM) with lazy-loaded components
 
 ## Download & Installation
 
@@ -53,35 +54,41 @@
 - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
 
 ### Installation
-1. Download `V-Notch.zip` from [Releases](https://github.com/rainaku/V-Notch/releases)
-2. Extract to any folder
-3. Run `V-Notch.exe`
-4. (Optional) Enable "Start with Windows" in settings
+1. Download the latest `V-Notch-Setup.exe` from [Releases](https://github.com/rainaku/V-Notch/releases)
+2. Run the installer and follow the instructions
+3. Launch **V-Notch** from the Start Menu
+4. (Optional) Enable "Start with Windows" in settings for a seamless experience
 
 ## Usage
 
 ### Basic Controls
 | Action | Result |
 |--------|--------|
-| **Hover** | Expand notch to show full controls |
+| **Hover** | Expand notch to show media controls |
+| **Scroll Down** | Switch to **File Shelf** while expanded |
+| **Scroll Up** | Switch back to **Media Controls** |
 | **Click Notch** | Toggle between compact and expanded view |
-| **Click Media Widget** | Expand inline music player |
-| **Media Controls** | Play/Pause, Next/Previous track |
-| **Volume Bar** | Click and drag to adjust volume |
-| **Progress Bar** | Click to seek in media |
+| **Media Controls** | Play/Pause, Next/Previous track, Seek |
+| **Volume Bar** | Drag to adjust system volume |
 
-### Media Platform Support
+### File Shelf Controls
+| Action | Result |
+|--------|--------|
+| **Drag & Drop** | Add files to the shelf from Explorer |
+| **Lasso Select** | Click and drag on empty space to multi-select |
+| **Ctrl + Click** | Toggle individual file selection |
+| **Drag Out** | Move selected files to any folder or app (Email, Discord, etc.) |
+| **Delete Key** | Remove selected files from the shelf |
 
-| Platform | Features |
-|----------|----------|
-| **Spotify** | Full control, album art, track info |
-| **YouTube** | Play/pause, seek 15s, thumbnail, title |
-| **SoundCloud** | Basic controls, track info |
-| **TikTok** | Video controls, seek support |
-| **Facebook** | Video controls |
-| **Instagram** | Reel controls |
-| **Twitter/X** | Video controls |
-| **Browser** | Generic media session support |
+### Supported Platforms
+| Platform | Capability |
+|----------|------------|
+| **Spotify** | Full control, smart-cropped album art, lyrics focus |
+| **Apple Music** | Native Windows app support with high-res art |
+| **YouTube** | Thumbnail fetching, title parsing, 15s seek support |
+| **Tiktok/Reels** | Video title detection and basic playback control |
+| **SoundCloud** | Native browser session detection |
+| **Generic** | Works with any app implementing Windows Media Session |
 
 ## Settings
 
@@ -103,33 +110,19 @@
 
 ## Architecture
 
-### Core Components
-
-```
-V-Notch/
-├── MainWindow.xaml.cs          # Main UI and animations
-├── MainWindow.Progress.cs      # Media progress tracking
-├── Services/
-│   ├── NotchManager.cs         # Notch state & positioning
-│   ├── MediaDetectionService.cs # Media session detection
-│   ├── BatteryService.cs       # Battery info
-│   ├── VolumeService.cs        # Volume control
-│   ├── AnimationService.cs     # Animation helpers
-│   └── ...                     # Other services
-├── Models/
-│   ├── NotchSettings.cs        # Settings model
-│   └── NotchContent.cs         # Content model
-└── BrowserExtension/           # Browser companion extension
-```
+### Core Services
+- **NotchManager** - Central controller for state transitions and window lifecycle
+- **MediaDetectionService** - Multi-threaded engine for SMTC and Win32 process monitoring
+- **AnimationService** - Custom Easing functions for premium "fluid" motion
+- **FileShelfLogic** - High-performance file management with drag-and-drop integration
+- **CursorBypassService** - Low-level hooks to manage mouse interaction zones
 
 ### Technical Highlights
-
-- **WPF (.NET 8)** - Modern UI framework with hardware acceleration
-- **Windows Media Session API** - Native media control integration
-- **Low-level Win32 Hooks** - Always-on-top window management
-- **60 FPS Animations** - Smooth UI transitions
-- **Color Extraction** - Dynamic background from album art
-- **Memory Optimized** - ~20-30 MB RAM usage
+- **WPF (.NET 8)** - Leveraging hardware acceleration for blur/glow effects
+- **SMTC Integration** - Deep integration with Windows System Media Transport Controls
+- **Smart Cropping** - Algorithm to remove branding strips and center-crop non-square art
+- **Glow Engine** - Real-time HSL-based color extraction for vibrant UI accents
+- **Lazy Loading** - Secondary views (Shelf) are initialized only when needed to save RAM
 
 ## System Requirements
 
@@ -158,19 +151,19 @@ V-Notch includes a companion browser extension for enhanced media detection:
 
 ## Changelog
 
+### v1.1.0 (Latest)
+- **New Feature**: **File Shelf** - Store and manage files directly in the notch
+- **Improved**: Enhanced Spotify & Apple Music detection stability
+- **New**: Smart thumbnail cropping for better visual consistency
+- **Update**: Improved HSL-based dynamic color extraction
+- **Fixed**: UI flickering during rapid expand/collapse animations
+- **Added**: Fullscreen detection to prevent interference with games
+
 ### v1.0.0
-- Initial release
-- Dynamic Island-style notch with expand/collapse animations
-- Media control for Spotify, YouTube, and major platforms
-- Battery and calendar widgets
-- Volume control with visual feedback
-- Real-time progress bar with seeking
-- Color-adaptive background from album art
-- Multi-monitor support
-- Settings window with customization options
-- System tray integration
-- Start with Windows option
-- Browser extension for enhanced detection
+- Initial release with core Dynamic Island experience
+- Basic media controls and system widgets
+- Multi-monitor hardware support
+- Dynamic background effects
 
 ## Contributing
 

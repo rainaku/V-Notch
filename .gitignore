@@ -39,3 +39,7 @@ Thumbs.db
 *.log
 task.md
 *.md
+/installers
+/release_final
+/release_secure
+*.iss
