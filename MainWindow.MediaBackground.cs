@@ -14,9 +14,8 @@ public partial class MainWindow
     #region Media Background & Color Extraction
 
     private Color _lastDominantColor = Colors.Transparent;
-    private string _lastColorSignature = "";
 
-    private void UpdateMediaBackground(MediaInfo? info)
+    private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
         if (info == null || info.Thumbnail == null || !info.IsAnyMediaPlaying)
         {
@@ -24,17 +23,12 @@ public partial class MainWindow
             return;
         }
 
-        string currentSignature = $"{info.CurrentTrack}|{info.CurrentArtist}";
-        if (currentSignature == _lastColorSignature && MediaBackground.Opacity > 0 && _lastDominantColor != Colors.Transparent) return;
-        
         var dominantColor = GetDominantColor(info.Thumbnail);
-        if (dominantColor == _lastDominantColor && MediaBackground.Opacity > 0) 
+        if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49) 
         {
-            _lastColorSignature = currentSignature;
             return;
         }
         
-        _lastColorSignature = currentSignature;
         _lastDominantColor = dominantColor;
         
         var targetColor = Color.FromRgb(dominantColor.R, dominantColor.G, dominantColor.B);
@@ -54,7 +48,13 @@ public partial class MainWindow
             EasingFunction = _easeQuadOut
         };
         
-        double targetOpacity = (_isExpanded && !_isAnimating) ? 0.5 : 0;
+        // Always animate color even if not visible yet
+        MediaBackgroundBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
+        MediaBackgroundBrush2.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
+
+        // Opacity logic: Only show if expanded and NOT in the middle of a primary animation
+        // (unless we are updating because of a track change)
+        double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh)) ? 0.5 : 0;
         
         var opacityAnim = new DoubleAnimation
         {
@@ -63,10 +63,7 @@ public partial class MainWindow
             EasingFunction = _easeQuadOut
         };
 
-        MediaBackgroundBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
-        
-        MediaBackgroundBrush2.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
 
         // Update Progress Bar and Time labels color
@@ -82,9 +79,14 @@ public partial class MainWindow
         if (currentRt == null || currentRt.IsFrozen)
             RemainingTimeText.Foreground = new SolidColorBrush(currentRt?.Color ?? Color.FromRgb(136, 136, 136));
 
-        ((SolidColorBrush)ProgressBar.Background).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
-        ((SolidColorBrush)CurrentTimeText.Foreground).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
-        ((SolidColorBrush)RemainingTimeText.Foreground).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        if (ProgressBar.Background is SolidColorBrush pbb && !pbb.IsFrozen)
+            pbb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+            
+        if (CurrentTimeText.Foreground is SolidColorBrush ctf && !ctf.IsFrozen)
+            ctf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+            
+        if (RemainingTimeText.Foreground is SolidColorBrush rtf && !rtf.IsFrozen)
+            rtf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
         if (Resources["MusicVisualizerBrush"] is SolidColorBrush visualizerBrush && !visualizerBrush.IsFrozen)
         {
@@ -201,17 +203,8 @@ public partial class MainWindow
 
     private void ShowMediaBackground()
     {
-        if (!_isExpanded || _isAnimating || _currentMediaInfo == null || !_currentMediaInfo.IsAnyMediaPlaying) return;
-
-        var opacityAnim = new DoubleAnimation
-        {
-            To = 0.5,
-            Duration = TimeSpan.FromMilliseconds(500),
-            EasingFunction = _easeQuadOut
-        };
-
-        MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
-        MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
+        if (!_isExpanded || _isAnimating || _currentMediaInfo == null) return;
+        UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
     }
 
     private Color GetDominantColor(BitmapSource bitmap)

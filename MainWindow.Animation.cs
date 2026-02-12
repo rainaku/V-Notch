@@ -621,12 +621,18 @@ public partial class MainWindow
 
     private void FadeSwitch(FrameworkElement from, FrameworkElement to)
     {
+        // Cancel existing animations to prevent race conditions during rapid switching
+        from.BeginAnimation(OpacityProperty, null);
+        to.BeginAnimation(OpacityProperty, null);
+
         var fadeOut = MakeAnim(0, _dur100);
-        fadeOut.Completed += (s, e) => from.Visibility = Visibility.Collapsed;
+        fadeOut.Completed += (s, e) => {
+            if (from.Opacity < 0.05) from.Visibility = Visibility.Collapsed;
+        };
         from.BeginAnimation(OpacityProperty, fadeOut);
 
         to.Visibility = Visibility.Visible;
-        var fadeIn = MakeAnim(0d, 1d, _dur200, null, null);
+        var fadeIn = MakeAnim(1, _dur200);
         to.BeginAnimation(OpacityProperty, fadeIn);
     }
 

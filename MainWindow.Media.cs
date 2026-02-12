@@ -17,9 +17,14 @@ public partial class MainWindow
 
     private void OnMediaChanged(object? sender, MediaInfo info)
     {
-        // BUG FIX: Skip updates if track info is obviously missing (Loading state)
-        // to prevent UI layout "jumping" or flickering between states.
-        if (info.IsAnyMediaPlaying && string.IsNullOrEmpty(info.CurrentTrack)) return;
+        // If we are currently playing something, and the new info is empty/generic
+        // (often happens during buffering or track switch), keep the old info for a moment
+        // to avoid visual "jumping" of the layout.
+        if (_currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && 
+            info.IsAnyMediaPlaying && string.IsNullOrEmpty(info.CurrentTrack))
+        {
+            return; 
+        }
 
         _currentMediaInfo = info;
         
