@@ -237,7 +237,11 @@ public partial class MainWindow : Window
             var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logo.ico");
             if (System.IO.File.Exists(iconPath))
             {
-                TrayIcon.Icon = new System.Drawing.Icon(iconPath);
+                var icon = new System.Drawing.Icon(iconPath);
+                TrayIcon.Icon = icon;
+                
+                // Also set the window icon
+                this.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(iconPath));
             }
             else
             {

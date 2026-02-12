@@ -12,8 +12,7 @@
         WindowStartupLocation="Manual"
         PreviewKeyDown="Window_PreviewKeyDown"
         UseLayoutRounding="True"
-        SnapsToDevicePixels="True"
-        Icon="logo.ico">
+        SnapsToDevicePixels="True">
     
     <Window.Resources>
         <!-- Pure OLED Black for notch -->
@@ -421,7 +420,7 @@
                                                 Width="20" Height="20" 
                                                 Background="Transparent"
                                                 Visibility="Collapsed">
-                                            <Path Data="{StaticResource BrowserLogo}" Fill="#4CC2FF" Stretch="Uniform" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <Path Data="{StaticResource BrowserLogo}" Fill="White" Stretch="Uniform" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                     </Grid>
                                     <TextBlock x:Name="MediaAppName" 

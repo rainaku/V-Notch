@@ -42,10 +42,7 @@
     <Resource Include="Services\icons\tiktok.svg" />
     <Resource Include="Services\icons\twitter.svg" />
     <Resource Include="Services\icons\youtube.svg" />
-    <None Include="logo.ico">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
+    <Resource Include="logo.ico" />
   </ItemGroup>
 
 </Project>
