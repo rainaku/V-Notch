@@ -151,13 +151,16 @@ V-Notch includes a companion browser extension for enhanced media detection:
 
 ## Changelog
 
-### v1.1.0 (Latest)
-- **New Feature**: **File Shelf** - Store and manage files directly in the notch
-- **Improved**: Enhanced Spotify & Apple Music detection stability
-- **New**: Smart thumbnail cropping for better visual consistency
-- **Update**: Improved HSL-based dynamic color extraction
-- **Fixed**: UI flickering during rapid expand/collapse animations
-- **Added**: Fullscreen detection to prevent interference with games
+### v1.2.0 (Latest)
+- **Refined Media Detection**: Improved detection logic to eliminate title flickering during track transitions.
+- **Seamless SeekBar**: Optimized progress bar with instantaneous seeking and butter-smooth position tracking.
+- **Premium Typography**: Upgraded font system and layout to Apple-native standards for a cleaner, professional look.
+- **High-Fidelity Rendering**: Implemented ClearType and high-quality BitmapScaling to remove aliasing from text and icons.
+- **Enhanced Animations**: Fine-tuned fade effects, marquee transitions, and UI motion for a more responsive feel.
+- **Platform Compatibility**: Fixed progress tracking for SoundCloud and improved media source identification for YouTube.
+- **Audio Engine Integration**: Integrated NAudio for precise audio processing and waveform synchronization.
+- **Visual Optimization**: Adjusted contrast ratios and Glassmorphism effects for superior visual clarity.
+- **New Feature**: **File Shelf** - Drag, drop, and manage files directly in the notch with lasso selection.
 
 ### v1.0.0
 - Initial release with core Dynamic Island experience
