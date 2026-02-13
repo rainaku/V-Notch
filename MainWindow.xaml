@@ -12,7 +12,13 @@
         WindowStartupLocation="Manual"
         PreviewKeyDown="Window_PreviewKeyDown"
         UseLayoutRounding="True"
-        SnapsToDevicePixels="True">
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextHintingMode="Fixed"
+        RenderOptions.ClearTypeHint="Enabled"
+        RenderOptions.BitmapScalingMode="HighQuality"
+        RenderOptions.EdgeMode="Unspecified">
     
     <Window.Resources>
         <!-- Pure OLED Black for notch -->
@@ -51,29 +57,44 @@
         <!-- Apple blue -->
         <SolidColorBrush x:Key="AppleBlue" Color="#007AFF"/>
         
-        <!-- San Francisco Pro Font Family (embedded) -->
-        <FontFamily x:Key="SFProDisplay">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
+        <!-- Primary System Font (modern Windows 11 weight-balanced) -->
+        <FontFamily x:Key="MainSystemFont">Segoe UI Variable Text, Segoe UI, Inter, SF Pro Display, Roboto, Sans-serif</FontFamily>
         
-        <!-- Text styles -->
+        <!-- Text styles refined for Apple-native quality with grid-aligned rendering -->
         <Style x:Key="TitleText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontFamily" Value="{StaticResource SFProDisplay}"/>
+            <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
         
         <Style x:Key="SubtitleText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Foreground" Value="#B3FFFFFF"/> <!-- 70% Opacity White -->
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="FontFamily" Value="{StaticResource SFProDisplay}"/>
+            <Setter Property="FontWeight" Value="Regular"/>
+            <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
         
         <Style x:Key="SmallText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#666666"/>
+            <Setter Property="Foreground" Value="#A6FFFFFF"/> <!-- 65% Opacity White -->
             <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="FontFamily" Value="{StaticResource SFProDisplay}"/>
+            <Setter Property="FontWeight" Value="Regular"/>
+            <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
         
         <!-- Control button style -->
@@ -96,11 +117,12 @@
                           ShadowDepth="4" 
                           BlurRadius="20" 
                           Opacity="0.6"
-                          Direction="270"/>
+                          Direction="270"
+                          RenderingBias="Quality"/>
 
         <!-- Logo Geometries -->
         <Geometry x:Key="SpotifyLogo">M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M16.5,17c-0.2,0-0.4-0.1-0.5-0.2 c-1.8-1.1-4-1.3-6.6-0.7c-0.6,0.1-1.1-0.2-1.3-0.8c-0.1-0.6,0.2-1.1,0.8-1.3c3-0.6,5.6-0.3,7.9,1.1c0.5,0.3,0.6,0.9,0.3,1.4 C17,16.9,16.7,17,16.5,17z M17.8,13.7c-0.2,0.4-0.7,0.5-1.1,0.3c-2-1.2-5.2-1.6-7.6-0.9c-0.4,0.1-0.9-0.1-1-0.6 c-0.1-0.4,0.1-0.9,0.6-1c2.8-0.9,6.4-0.4,8.8,1.1C17.9,12.9,18,13.4,17.8,13.7z M17.9,10.6c-2.4-1.4-6.4-1.6-8.7-0.9 C8.6,9.8,8,9.5,7.9,8.9C7.7,8.3,8.1,7.7,8.7,7.5c2.8-0.8,7.3-0.6,10.1,1.1c0.5,0.3,0.7,1,0.4,1.5C18.9,10.7,18.4,10.8,17.9,10.6z</Geometry>
-        <Geometry x:Key="YouTubeLogo">M19.6,3.2C19.4,2.3,18.7,1.6,17.8,1.4C16.2,1,10,1,10,1s-6.2,0-7.8,0.4C1.3,1.6,0.6,2.3,0.4,3.2C0,4.8,0,10,0,10 s0,5.2,0.4,6.8c0.2,0.9,0.9,1.6,1.8,1.8C3.8,19,10,19,10,19s6.2,0,7.8-0.4c0.9-0.2,1.6-0.9,1.8-1.8C20,15.2,20,10,20,10 S20,4.8,19.6,3.2z M8,13V7l5.2,3L8,13z</Geometry>
+        <Geometry x:Key="YouTubeLogo">F1 M47.52,7.33 C47.52,7.33 47.05,4.00 45.61,2.54 C43.79,0.61 41.74,0.60 40.80,0.49 C34.09,0 24.01,0 24.01,0 L23.99,0 C23.99,0 13.91,0 7.20,0.49 C6.26,0.60 4.21,0.61 2.39,2.54 C0.95,4.00 0.48,7.33 0.48,7.33 C0.48,7.33 0,11.25 0,15.16 L0,18.83 C0,22.74 0.48,26.65 0.48,26.65 C0.48,26.65 0.95,29.98 2.39,31.45 C4.21,33.37 6.61,33.31 7.68,33.51 C11.52,33.89 24,34 24,34 C24,34 34.09,33.98 40.80,33.50 C41.74,33.38 43.79,33.37 45.61,31.45 C47.05,29.98 47.52,26.65 47.52,26.65 C47.52,26.65 48,22.74 48,18.83 L48,15.16 C48,11.25 47.52,7.33 47.52,7.33 Z M19.04,23.27 L32.01,16.5 L19.04,9.69 Z</Geometry>
         <Geometry x:Key="SoundCloudLogo">M1.2,10.6c-0.6,0-1.2,0.5-1.2,1.1c0,0.6,0.5,1.1,1.2,1.1c0.6,0,1.2-0.5,1.2-1.1C2.3,11.1,1.8,10.6,1.2,10.6z M3.9,10.3 c-0.7,0-1.2,0.5-1.2,1.2s0.5,1.2,1.2,1.2c0.7,0,1.2-0.5,1.2-1.2S4.6,10.3,3.9,10.3z M6.6,9.5C6,9.5,5.4,10,5.4,10.7 c0,0.7,0.5,1.2,1.2,1.2S7.8,11.3,7.8,10.7C7.8,10,7.3,9.5,6.6,9.5z M9.3,8.4c-0.7,0-1.2,0.5-1.2,1.2c0,0.7,0.5,1.2,1.2,1.2 s1.2-0.5,1.2-1.2C10.5,9,10,8.4,9.3,8.4z M17,8.6c-0.1,0-0.3,0-0.4,0c-0.4-2.1-2.2-3.6-4.4-3.6c-1.6,0-3,0.8-3.9,2 c-0.1-0.5-0.6-0.9-1.1-0.9c-0.7,0-1.2,0.5-1.2,1.2c0,0.4,0.2,0.7,0.5,0.9l-0.1,0.5c0,1,0.8,1.8,1.8,1.8h8.8c1.6,0,2.9-1.3,2.9-2.9 S18.6,8.6,17,8.6z</Geometry>
         <Geometry x:Key="FacebookLogo">M12,2.2c-5.4,0-9.8,4.4-9.8,9.8c0,4.9,3.6,8.9,8.3,9.6v-6.8H8v-2.8h2.5V9.8c0-2.5,1.5-3.9,3.8-3.9 c1.1,0,2.2,0.2,2.2,0.2v2.5h-1.3c-1.2,0-1.6,0.8-1.6,1.6v1.9h2.8l-0.4,2.8h-2.3v6.8c4.7-0.7,8.3-4.8,8.3-9.6 C21.8,6.6,17.4,2.2,12,2.2z</Geometry>
         <Geometry x:Key="TikTokLogo">M16.6,5.8c-1.7,0-3.2-0.5-4.5-1.4v8.1c0,3.1-2.5,5.6-5.6,5.6c-0.3,0-0.7,0-1-0.1C5,17.8,5,17.4,5,17c0-2.2,1.8-4,4-4 c0.4,0,0.8,0.1,1.2,0.2V9.8C10,9.7,9.8,9.7,9.6,9.7C5.4,9.7,2,13.1,2,17.3c0,4.2,3.4,7.6,7.6,7.6c4.2,0,7.6-3.4,7.6-7.6V8.6 c1.1,0.8,2.4,1.3,3.8,1.3V6.2C19.7,6.2,18.1,6.2,16.6,5.8z</Geometry>
@@ -152,8 +174,10 @@
                       Grid.Column="0" 
                       Data="M 0,0 L 10,0 L 10,10 Q 10,0 0,0 Z" 
                       Fill="{StaticResource NotchGradient}" 
-                      Width="10" Height="10" 
-                      VerticalAlignment="Top"/>
+                      Width="11" Height="10" 
+                      Margin="0,0,-1,0"
+                      VerticalAlignment="Top"
+                      RenderOptions.EdgeMode="Unspecified"/>
 
                 <!-- Main Notch Border - Transparent to avoid edge flicker -->
                 <Border x:Name="NotchBorder"
@@ -162,7 +186,7 @@
                         CornerRadius="0,0,20,20">
                 
                 <!-- Inner clip border to properly clip content to rounded corners -->
-                <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True" Background="Transparent" RenderOptions.EdgeMode="Aliased">
+                <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True" Background="Transparent">
                     <Grid SnapsToDevicePixels="True" UseLayoutRounding="True">
                         <!-- Solid Black Background for the Notch -->
                         <Border x:Name="NotchBackground" 
@@ -232,7 +256,14 @@
                                 Background="#1A1A1A"
                                 BorderBrush="#333333"
                                 BorderThickness="0.5"
-                                ClipToBounds="True">
+                                ClipToBounds="True"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="CompactThumbnailScale" ScaleX="1" ScaleY="1"/>
+                                    <ScaleTransform x:Name="CompactThumbnailFlip" ScaleX="1" ScaleY="1"/>
+                                </TransformGroup>
+                            </Border.RenderTransform>
                             <Image x:Name="CompactThumbnail" Stretch="UniformToFill">
                                 <Image.Clip>
                                     <RectangleGeometry RadiusX="6" RadiusY="6" Rect="0,0,22,22"/>
@@ -343,21 +374,15 @@
                                             </Viewbox>
                                         </Border>
                                         
-                                        <!-- YouTube (Exact SVG Path + Transform) -->
+                                        <!-- YouTube (SVG from services/icons) -->
                                         <Border x:Name="YouTubeIcon" 
                                                 Width="20" Height="20" 
                                                 Background="Transparent"
                                                 Visibility="Collapsed">
                                             <Viewbox Stretch="Uniform">
                                                 <Canvas Width="48" Height="34">
-                                                    <!-- Red rounded rectangle background -->
-                                                    <Path Data="M19.6,3.2C19.4,2.3,18.7,1.6,17.8,1.4C16.2,1,10,1,10,1s-6.2,0-7.8,0.4C1.3,1.6,0.6,2.3,0.4,3.2C0,4.8,0,10,0,10 s0,5.2,0.4,6.8c0.2,0.9,0.9,1.6,1.8,1.8C3.8,19,10,19,10,19s6.2,0,7.8-0.4c0.9-0.2,1.6-0.9,1.8-1.8C20,15.2,20,10,20,10 S20,4.8,19.6,3.2z" Fill="#FF0000">
-                                                        <Path.RenderTransform>
-                                                            <ScaleTransform ScaleX="2.4" ScaleY="1.7"/>
-                                                        </Path.RenderTransform>
-                                                    </Path>
-                                                    <!-- White play triangle in center -->
-                                                    <Path Data="M0,0 L10,6 L0,12 Z" Fill="White" Canvas.Left="18" Canvas.Top="11"/>
+                                                    <Path Fill="#FF0000" Data="M47.52,7.33 C47.52,7.33 47.05,4.00 45.61,2.54 C43.79,0.61 41.74,0.60 40.80,0.49 C34.09,0 24.01,0 24.01,0 L23.99,0 C23.99,0 13.91,0 7.20,0.49 C6.26,0.60 4.21,0.61 2.39,2.54 C0.95,4.00 0.48,7.33 0.48,7.33 C0.48,7.33 0,11.25 0,15.16 L0,18.83 C0,22.74 0.48,26.65 0.48,26.65 C0.48,26.65 0.95,29.98 2.39,31.45 C4.21,33.37 6.61,33.31 7.68,33.51 C11.52,33.89 24,34 24,34 C24,34 34.09,33.98 40.80,33.50 C41.74,33.38 43.79,33.37 45.61,31.45 C47.05,29.98 47.52,26.65 47.52,26.65 C47.52,26.65 48,22.74 48,18.83 L48,15.16 C48,11.25 47.52,7.33 47.52,7.33 Z"/>
+                                                    <Path Fill="White" Data="M19.04,23.27 L19.04,9.69 L32.01,16.5 Z"/>
                                                 </Canvas>
                                             </Viewbox>
                                         </Border>
@@ -425,15 +450,14 @@
                                     </Grid>
                                     <TextBlock x:Name="MediaAppName" 
                                                Text="Now Playing" 
-                                               Foreground="White"
+                                               Style="{StaticResource SubtitleText}"
                                                FontSize="10"
-                                               FontFamily="{StaticResource SFProDisplay}"
-                                               FontWeight="Bold"
+                                               FontWeight="SemiBold"
                                                VerticalAlignment="Center">
-                                        <TextBlock.Effect>
-                                            <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="4" Opacity="0.6" Direction="270"/>
-                                        </TextBlock.Effect>
-                                    </TextBlock>
+                                         <TextBlock.Effect>
+                                             <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="3" Opacity="0.3" Direction="270"/>
+                                         </TextBlock.Effect>
+                                     </TextBlock>
                                 </StackPanel>
                                 
                                 <!-- Album art + Track info + Inline Controls -->
@@ -452,7 +476,14 @@
                                              Background="#222222"
                                              Margin="0,0,10,0"
                                              Cursor="Hand"
-                                             MouseLeftButtonDown="ThumbnailBorder_Click">
+                                             MouseLeftButtonDown="ThumbnailBorder_Click"
+                                             RenderTransformOrigin="0.5,0.5">
+                                        <Border.RenderTransform>
+                                            <TransformGroup>
+                                                <ScaleTransform x:Name="ThumbnailScale" ScaleX="1" ScaleY="1"/>
+                                                <ScaleTransform x:Name="ThumbnailFlip" ScaleX="1" ScaleY="1"/>
+                                            </TransformGroup>
+                                        </Border.RenderTransform>
                                         <Grid Width="50" Height="50">
                                             <!-- Thumbnail Image with proper corner clipping -->
                                             <Image x:Name="ThumbnailImage" 
@@ -483,38 +514,79 @@
                                             </LinearGradientBrush>
                                         </Grid.OpacityMask>
                                         <StackPanel MaxWidth="250">
-                                            <!-- Title with marquee scroll -->
+                                            <!-- Title with premium morph and marquee -->
                                             <Canvas x:Name="TitleScrollContainer" Height="18" Width="250" ClipToBounds="True">
-                                                <TextBlock x:Name="TrackTitle" 
-                                                           Text="No media playing"
-                                                           Style="{StaticResource TitleText}"
-                                                           Canvas.Left="0"
-                                                           Canvas.Top="0">
-                                                    <TextBlock.Effect>
-                                                        <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="5" Opacity="0.7" Direction="270"/>
-                                                    </TextBlock.Effect>
-                                                    <TextBlock.RenderTransform>
-                                                        <TranslateTransform x:Name="TitleTranslate" X="0"/>
-                                                    </TextBlock.RenderTransform>
-                                                </TextBlock>
+                                                <Grid x:Name="TitleMorphContainer" Canvas.Left="0" Canvas.Top="0">
+                                                    <Grid.Effect>
+                                                        <BlurEffect x:Name="TitleBlur" Radius="0"/>
+                                                    </Grid.Effect>
+                                                    
+                                                    <TextBlock x:Name="TrackTitle" 
+                                                               Text="No media playing"
+                                                               Style="{StaticResource TitleText}">
+                                                        <TextBlock.Effect>
+                                                            <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="4" Opacity="0.5" Direction="270"/>
+                                                        </TextBlock.Effect>
+                                                        <TextBlock.RenderTransform>
+                                                            <TransformGroup>
+                                                                <TranslateTransform x:Name="TitleMarqueeTranslate" X="0"/>
+                                                                <TranslateTransform x:Name="TitleMorphTranslate" Y="0"/>
+                                                            </TransformGroup>
+                                                        </TextBlock.RenderTransform>
+                                                    </TextBlock>
+
+                                                    <TextBlock x:Name="TrackTitleNext" 
+                                                               Text=""
+                                                               Style="{StaticResource TitleText}"
+                                                               Opacity="0">
+                                                        <TextBlock.Effect>
+                                                            <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="5" Opacity="0.7" Direction="270"/>
+                                                        </TextBlock.Effect>
+                                                        <TextBlock.RenderTransform>
+                                                            <TransformGroup>
+                                                                <TranslateTransform x:Name="TitleMarqueeTranslateNext" X="0"/>
+                                                                <TranslateTransform x:Name="TitleMorphTranslateNext" Y="0"/>
+                                                            </TransformGroup>
+                                                        </TextBlock.RenderTransform>
+                                                    </TextBlock>
+                                                </Grid>
                                             </Canvas>
-                                            <!-- Artist/Subtitle -->
+                                            <!-- Artist with premium morph and marquee -->
                                             <Canvas x:Name="ArtistScrollContainer" Height="16" Width="250" ClipToBounds="True" Margin="0,2,0,0">
-                                                <TextBlock x:Name="TrackArtist" 
-                                                           Text="Open Spotify or YouTube"
-                                                           Foreground="White"
-                                                           FontSize="11"
-                                                           FontFamily="{StaticResource SFProDisplay}"
-                                                           FontWeight="Bold"
-                                                           Canvas.Left="0"
-                                                           Canvas.Top="0">
-                                                    <TextBlock.Effect>
-                                                        <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="4" Opacity="0.6" Direction="270"/>
-                                                    </TextBlock.Effect>
-                                                    <TextBlock.RenderTransform>
-                                                        <TranslateTransform x:Name="ArtistTranslate" X="0"/>
-                                                    </TextBlock.RenderTransform>
-                                                </TextBlock>
+                                                <Grid x:Name="ArtistMorphContainer" Canvas.Left="0" Canvas.Top="0">
+                                                    <Grid.Effect>
+                                                        <BlurEffect x:Name="ArtistBlur" Radius="0"/>
+                                                    </Grid.Effect>
+
+                                                    <TextBlock x:Name="TrackArtist" 
+                                                                Text="Open Spotify or YouTube"
+                                                                Style="{StaticResource SubtitleText}">
+                                                         <TextBlock.Effect>
+                                                             <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="3" Opacity="0.3" Direction="270"/>
+                                                         </TextBlock.Effect>
+                                                         <TextBlock.RenderTransform>
+                                                             <TransformGroup>
+                                                                 <TranslateTransform x:Name="ArtistMarqueeTranslate" X="0"/>
+                                                                 <TranslateTransform x:Name="ArtistMorphTranslate" Y="0"/>
+                                                             </TransformGroup>
+                                                         </TextBlock.RenderTransform>
+                                                     </TextBlock>
+
+                                                     <TextBlock x:Name="TrackArtistNext" 
+                                                                Text=""
+                                                                Style="{StaticResource SubtitleText}"
+                                                                Opacity="0">
+                                                         <TextBlock.Effect>
+                                                             <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="4" Opacity="0.4" Direction="270"/>
+                                                         </TextBlock.Effect>
+                                                         <TextBlock.RenderTransform>
+                                                             <TransformGroup>
+                                                                 <TranslateTransform x:Name="ArtistMarqueeTranslateNext" X="0"/>
+                                                                 <TranslateTransform x:Name="ArtistMorphTranslateNext" Y="0"/>
+                                                             </TransformGroup>
+                                                         </TextBlock.RenderTransform>
+                                                     </TextBlock>
+                                                </Grid>
                                             </Canvas>
                                         </StackPanel>
                                     </Grid>
@@ -530,7 +602,7 @@
                                                 Margin="10,0,0,0"
                                                 RenderTransformOrigin="0.5,0.5">
                                         <StackPanel.RenderTransform>
-                                            <ScaleTransform x:Name="InlineControlsScale" ScaleX="0.8" ScaleY="0.8"/>
+                                            <TranslateTransform x:Name="InlineControlsTranslate" X="0" Y="10"/>
                                         </StackPanel.RenderTransform>
 
                                         <!-- VOLUME BAR (Above buttons) -->
@@ -682,10 +754,7 @@
                                     <TextBlock x:Name="CurrentTimeText" 
                                                Grid.Column="0"
                                                Text="0:00" 
-                                               Foreground="#888888"
-                                               FontSize="10"
-                                               FontFamily="SF Pro, Segoe UI"
-                                               FontWeight="Bold"
+                                               Style="{StaticResource SmallText}"
                                                VerticalAlignment="Center"
                                                Margin="0,0,6,0"/>
                                     
@@ -699,6 +768,8 @@
                                           MouseMove="ProgressBar_MouseMove"
                                           MouseLeftButtonUp="ProgressBar_MouseUp">
                                         <Border Background="#333333" Height="4" CornerRadius="2" VerticalAlignment="Center"/>
+                                        
+                                        <!-- Real Progress Bar -->
                                         <Border x:Name="ProgressBar" 
                                                 Background="White" 
                                                 Height="4" 
@@ -710,16 +781,27 @@
                                                 <ScaleTransform x:Name="ProgressBarScale" ScaleX="0"/>
                                             </Border.RenderTransform>
                                         </Border>
+
+                                        <!-- Indeterminate State Visual (Pulsing Bar) -->
+                                        <Border x:Name="IndeterminateProgress" 
+                                                Background="White" 
+                                                Height="4" 
+                                                CornerRadius="2"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Center"
+                                                Opacity="0"
+                                                Visibility="Collapsed">
+                                            <Border.Effect>
+                                                <BlurEffect Radius="2"/>
+                                            </Border.Effect>
+                                        </Border>
                                     </Grid>
                                     
                                     <!-- Remaining time -->
                                     <TextBlock x:Name="RemainingTimeText" 
                                                Grid.Column="2"
                                                Text="0:00" 
-                                               Foreground="#888888"
-                                               FontSize="10"
-                                               FontFamily="SF Pro, Segoe UI"
-                                               FontWeight="Bold"
+                                               Style="{StaticResource SmallText}"
                                                VerticalAlignment="Center"
                                                Margin="6,0,0,0"/>
                                 </Grid>
@@ -866,10 +948,8 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock x:Name="BatteryPercent" 
                                                    Text="100%" 
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   FontWeight="Bold"
-                                                   FontFamily="{StaticResource SFProDisplay}"
+                                                   Style="{StaticResource TitleText}"
+                                                   FontSize="12"
                                                    VerticalAlignment="Center"/>
                                         <Border x:Name="BatteryIcon"
                                                 Width="34" Height="16"
@@ -905,16 +985,12 @@
                                     <StackPanel Grid.Column="0" Margin="0,0,12,0">
                                         <TextBlock x:Name="MonthText"
                                                    Text="Dec"
-                                                   Foreground="White"
-                                                   FontSize="16"
-                                                   FontWeight="Bold"
-                                                   FontFamily="{StaticResource SFProDisplay}"/>
+                                                   Style="{StaticResource TitleText}"
+                                                   FontSize="15"/>
                                         <TextBlock x:Name="DayText"
                                                    Text="14"
-                                                   Foreground="White"
-                                                   FontSize="20"
-                                                   FontWeight="Bold"
-                                                   FontFamily="{StaticResource SFProDisplay}"
+                                                   Style="{StaticResource TitleText}"
+                                                   FontSize="18"
                                                    Margin="0,2,0,0"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
@@ -932,11 +1008,10 @@
                                         </StackPanel>
                                         <TextBlock x:Name="EventText"
                                                    Text="Enjoy your day!"
-                                                   Foreground="White"
-                                                   FontWeight="Bold"
+                                                   Style="{StaticResource SubtitleText}"
                                                    Margin="0,6,0,0"
                                                    FontSize="10"
-                                                   FontFamily="{StaticResource SFProDisplay}"/>
+                                                   FontWeight="SemiBold"/>
                                     </StackPanel>
                                 </Grid>
                             </Grid>
@@ -971,7 +1046,7 @@
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                         <Path Data="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" 
                                               Fill="White" Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="Camera" FontSize="9" FontWeight="Bold" Foreground="White" Margin="0,4,0,0" FontFamily="{StaticResource SFProDisplay}"/>
+                                        <TextBlock Text="Camera" Style="{StaticResource SmallText}" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Border>
                                 
@@ -983,7 +1058,7 @@
                                         Padding="4,2" 
                                         CornerRadius="4"
                                         Visibility="Collapsed">
-                                    <TextBlock Text="LIVE" Foreground="White" FontSize="8" FontWeight="Bold" FontFamily="{StaticResource SFProDisplay}"/>
+                                    <TextBlock Text="LIVE" Style="{StaticResource SmallText}" FontSize="8" FontWeight="Bold" Foreground="White"/>
                                 </Border>
                             </Grid>
                         </Border>
@@ -1015,10 +1090,7 @@
                                            Text="Kéo thả file vào đây để lưu tạm" 
                                            HorizontalAlignment="Center" 
                                            VerticalAlignment="Center"
-                                           Foreground="#666666"
-                                           FontSize="11"
-                                           FontWeight="Medium"
-                                           FontFamily="{StaticResource SFProDisplay}"/>
+                                           Style="{StaticResource SubtitleText}"/>
                                 
                                 <ScrollViewer x:Name="ShelfScrollViewer" 
                                              Background="Transparent" 
@@ -1147,10 +1219,12 @@
             <!-- Right Ear (Concave Transition) -->
             <Path x:Name="RightEar" 
                   Grid.Column="2" 
-                  Data="M 0,0 L 10,0 Q 0,0 0,10 Z" 
+                  Data="M 0,0 L 11,0 Q 1,0 1,10 Z" 
                   Fill="{StaticResource NotchGradient}" 
-                  Width="10" Height="10" 
-                  VerticalAlignment="Top"/>
+                  Width="11" Height="10" 
+                  Margin="-1,0,0,0"
+                  VerticalAlignment="Top"
+                  RenderOptions.EdgeMode="Unspecified"/>
         </Grid>
     </Grid>
 </Grid>

@@ -143,7 +143,7 @@ public partial class MainWindow : Window
     private static readonly SolidColorBrush _brushBlack = CreateFrozenBrush(0, 0, 0);
     private static readonly SolidColorBrush _brushTransparent = CreateFrozenBrush(0, 0, 0, 0);
     private static readonly SolidColorBrush _brushGray = CreateFrozenBrush(102, 102, 102);
-    private static readonly FontFamily _sfProDisplay = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display");
+
 
     private static SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b, byte a = 255)
     {
@@ -552,20 +552,18 @@ public partial class MainWindow : Window
         {
             _calendarDayNames[i] = new TextBlock
             {
-                Foreground = _brushGray,
+                Style = (Style)FindResource("SmallText"),
                 FontSize = 9,
                 Width = 26,
                 TextAlignment = TextAlignment.Center,
-                FontWeight = FontWeights.Bold,
-                FontFamily = _sfProDisplay
+                FontWeight = FontWeights.Bold
             };
             WeekDaysPanel.Children.Add(_calendarDayNames[i]);
 
             _calendarDayNumbers[i] = new TextBlock
             {
+                Style = (Style)FindResource("TitleText"),
                 FontSize = 11,
-                FontWeight = FontWeights.Bold,
-                FontFamily = _sfProDisplay,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -581,10 +579,9 @@ public partial class MainWindow : Window
             WeekNumbers.Children.Add(_calendarDayBorders[i]);
         }
 
-        EventText.Foreground = _brushWhite;
-        EventText.FontWeight = FontWeights.Bold;
+        EventText.Style = (Style)FindResource("TitleText");
+        EventText.FontSize = 10;
         EventText.Margin = new Thickness(3, 6, 0, 0);
-        EventText.FontFamily = _sfProDisplay;
 
         _calendarInitialized = true;
     }

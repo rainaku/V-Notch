@@ -14,10 +14,8 @@ namespace VNotch;
 /// </summary>
 public partial class MainWindow
 {
-    private string _lastTrackName = "";
     private bool _isDraggingProgress = false; // Flag for drag-to-seek
     private TimeSpan _dragSeekPosition = TimeSpan.Zero; // Store seek position during drag
-    private string _lastArtistName = "";
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
@@ -105,149 +103,144 @@ public partial class MainWindow
     private static extern IntPtr GetParent(IntPtr hWnd);
     
     private DateTime _lastTimelineAvailableTime = DateTime.MinValue;
+    private string _lastSessionId = "";
 
     /// <summary>
     /// Called when MediaDetectionService fires MediaChanged event
     /// </summary>
     private void UpdateProgressTracking(MediaInfo info)
     {
+        // Detect session switch for smooth UI transitions
+        bool isSessionSwitch = !string.IsNullOrEmpty(info.SourceAppId) && info.SourceAppId != _lastSessionId;
+        if (isSessionSwitch)
+        {
+            _lastSessionId = info.SourceAppId;
+            HandleSessionTransition();
+        }
+
         _currentMediaInfo = info;
         
-        // Stickiness for YouTube: if we recently had a timeline, keep it visible for 5 seconds
-        // even if timeline is briefly missing (common during YouTube page loads/transitions)
-        bool isYouTubeTransition = info.IsAnyMediaPlaying && !info.HasTimeline && 
-                                   info.MediaSource == "YouTube" && 
-                                   (DateTime.Now - _lastTimelineAvailableTime).TotalSeconds < 5;
-
         // Show/hide progress section based on timeline availability
-        if (info.IsAnyMediaPlaying && (info.HasTimeline || isYouTubeTransition))
+        bool showProgress = info.IsAnyMediaPlaying && (info.HasTimeline || info.IsIndeterminate);
+        
+        if (showProgress)
         {
-            // Has timeline (or in YouTube transition) - show progress bar
             ProgressSection.Visibility = Visibility.Visible;
             ProgressSection.Opacity = 1;
 
             if (info.HasTimeline)
             {
-                _lastTimelineAvailableTime = DateTime.Now;
                 _lastKnownDuration = info.Duration;
+                
+                // Only accept position updates from the system if we aren't in a seek debounce period.
+                // This prevents the "rubber-band" effect where the UI jumps back to the old position
+                // because the system (SMTC) hasn't processed the seek command yet.
+                if (DateTime.Now >= _seekDebounceUntil)
+                {
+                    _lastKnownPosition = info.Position;
+                    _lastMediaUpdate = DateTime.Now;
+                }
+                
+                IndeterminateProgress.Visibility = Visibility.Collapsed;
+                ProgressBar.Visibility = Visibility.Visible;
+            }
+            else if (info.IsIndeterminate)
+            {
+                IndeterminateProgress.Visibility = Visibility.Visible;
+                ProgressBar.Visibility = Visibility.Collapsed;
+                StartIndeterminateAnimation();
             }
 
-            // Manage timer for smooth UI updates
+            // Sync seek capability
+            ProgressBarContainer.Cursor = info.IsSeekEnabled ? Cursors.Hand : Cursors.Arrow;
+            
             UpdateProgressTimerState();
-            
-            // Detect play/pause state change BEFORE updating _isMediaPlaying
-            bool playStateChanged = _isMediaPlaying != info.IsPlaying;
-            
-            // Check if we're in debounce period after a user seek
-            bool isDebouncing = DateTime.Now < _seekDebounceUntil;
-            
-            if (!isDebouncing && info.HasTimeline) // Only sync from API if it actually HAS timeline info
-            {
-                var apiPos = info.Position;
-                bool isNewTrack = info.CurrentTrack != _lastTrackName || info.CurrentArtist != _lastArtistName;
-                
-                if (isNewTrack || playStateChanged)
-                {
-                     // New track or play/pause state changed -> Always accept API position
-                     _lastKnownPosition = apiPos;
-                     _lastMediaUpdate = DateTime.Now;
-                     if (isNewTrack)
-                     {
-                         _lastTrackName = info.CurrentTrack;
-                         _lastArtistName = info.CurrentArtist;
-                     }
-                }
-                else
-                {
-                    // Same track, same state - only sync for genuine user seeks
-                    var elapsed = DateTime.Now - _lastMediaUpdate;
-                    var extrapolatedPos = _lastKnownPosition + (_isMediaPlaying ? elapsed : TimeSpan.Zero);
-                    
-                    // Calculate difference: positive = API ahead, negative = API behind
-                    var apiDelta = (apiPos - extrapolatedPos).TotalSeconds;
-                    
-                    // Only snap to API for genuine user seeks or large drifts
-                    if (apiDelta > 5.0 || apiDelta < -10.0)
-                    {
-                        _lastKnownPosition = apiPos;
-                        _lastMediaUpdate = DateTime.Now;
-                    }
-                }
-            }
-            
-            // NOW update the playing state
             _isMediaPlaying = info.IsPlaying;
-            
-            // Render immediately
-            if (_isExpanded)
-            {
-                RenderProgressBar();
-            }
-        }
-        else if (info.IsAnyMediaPlaying)
-        {
-            // Has media but no timeline and not in transition - hide progress bar
-            ProgressSection.Visibility = Visibility.Collapsed;
-            UpdateProgressTimerState(); 
-            _isMediaPlaying = false;
+
+            if (_isExpanded) RenderProgressBar();
         }
         else
         {
-            // No media - reset everything
             ProgressSection.Visibility = Visibility.Collapsed;
             UpdateProgressTimerState();
             _isMediaPlaying = false;
-            _seekDebounceUntil = DateTime.MinValue;
-            _lastTimelineAvailableTime = DateTime.MinValue;
+            _lastSessionId = "";
             ResetProgressUI();
         }
     }
-    
+
+    private void HandleSessionTransition()
+    {
+        // Smooth transition effect
+        var anim = new DoubleAnimation(0.2, 1.0, TimeSpan.FromMilliseconds(400))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        MediaWidget.BeginAnimation(OpacityProperty, anim);
+    }
+
+    private void StartIndeterminateAnimation()
+    {
+        if (IndeterminateProgress.Visibility != Visibility.Visible) return;
+        
+        var anim = new DoubleAnimation(0.3, 0.8, TimeSpan.FromSeconds(1))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        IndeterminateProgress.BeginAnimation(OpacityProperty, anim);
+    }
+
     private void ResetProgressUI()
     {
         ProgressBarScale.ScaleX = 0;
         CurrentTimeText.Text = "0:00";
         RemainingTimeText.Text = "0:00";
+        IndeterminateProgress.BeginAnimation(OpacityProperty, null);
+        IndeterminateProgress.Visibility = Visibility.Collapsed;
     }
     
     private void RenderProgressBar()
     {
-        // Skip if user is dragging
-        if (_isDraggingProgress) return;
+        if (_isDraggingProgress || _currentMediaInfo == null) return;
         
+        if (_currentMediaInfo.IsIndeterminate)
+        {
+            CurrentTimeText.Text = "Live";
+            RemainingTimeText.Text = "Live";
+            return;
+        }
+
         var duration = _lastKnownDuration;
         if (duration.TotalSeconds <= 0) return;
         
-        // Calculate current position with extrapolation
+        // HIGH PRECISION INTERPOLATION
+        // We use our local stabilized anchors (_lastKnownPosition and _lastMediaUpdate)
+        // instead of raw _currentMediaInfo.Position to prevent flickering when the system 
+        // reports stale data during track transitions or seeks.
         TimeSpan displayPosition;
         
         if (_isMediaPlaying)
         {
-            // Playing - extrapolate from last known position
-            var elapsed = DateTime.Now - _lastMediaUpdate;
-            displayPosition = _lastKnownPosition + elapsed;
+            var timeSinceUpdate = DateTime.Now - _lastMediaUpdate;
+            // Cap extrapolation to 5 seconds to prevent runaway progress during heavy system lag
+            if (timeSinceUpdate > TimeSpan.FromSeconds(5)) timeSinceUpdate = TimeSpan.FromSeconds(5);
             
-            // Cap at duration
-            if (displayPosition > duration) 
-                displayPosition = duration;
+            displayPosition = _lastKnownPosition + TimeSpan.FromTicks((long)(timeSinceUpdate.Ticks * _currentMediaInfo.PlaybackRate));
+            
+            if (displayPosition > duration) displayPosition = duration;
         }
         else
         {
-            // Paused - show exact position
             displayPosition = _lastKnownPosition;
         }
         
-        // Ensure non-negative
-        if (displayPosition < TimeSpan.Zero)
-            displayPosition = TimeSpan.Zero;
+        if (displayPosition < TimeSpan.Zero) displayPosition = TimeSpan.Zero;
         
-        // Calculate ratio and update bar
         double ratio = displayPosition.TotalSeconds / duration.TotalSeconds;
         ratio = Math.Clamp(ratio, 0, 1);
         
         ProgressBarScale.ScaleX = ratio;
-        
-        // Update time text
         CurrentTimeText.Text = FormatTime(displayPosition);
         RemainingTimeText.Text = FormatTime(duration);
     }
@@ -263,6 +256,8 @@ public partial class MainWindow
     
     private void ProgressBar_MouseDown(object sender, MouseButtonEventArgs e)
     {
+        if (_currentMediaInfo == null || !_currentMediaInfo.IsSeekEnabled) return;
+
         // Prevent event from bubbling up to parent (which would collapse notch)
         e.Handled = true;
         
@@ -386,18 +381,10 @@ public partial class MainWindow
         if (_progressTimer == null || _autoCollapseTimer == null) return;
 
         bool isExpanded = _isExpanded || _isMusicExpanded;
-        
-        // Progress bar timer: only if expanded AND media playing AND has timeline (or in grace period)
-        bool isYouTubeTransition = _currentMediaInfo != null && !_currentMediaInfo.HasTimeline && 
-                                   _currentMediaInfo.MediaSource == "YouTube" && 
-                                   (DateTime.Now - _lastTimelineAvailableTime).TotalSeconds < 5;
+        bool showProgress = _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && 
+                            (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
 
-        bool shouldRunProgress = isExpanded && 
-                          _currentMediaInfo != null && 
-                          _currentMediaInfo.IsAnyMediaPlaying && 
-                          (_currentMediaInfo.HasTimeline || isYouTubeTransition);
-
-        // Auto-collapse timer: only if expanded
+        bool shouldRunProgress = isExpanded && showProgress;
         bool shouldRunAutoCollapse = isExpanded;
 
         if (shouldRunProgress)

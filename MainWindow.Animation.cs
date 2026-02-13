@@ -21,6 +21,7 @@ public partial class MainWindow
     private static readonly ExponentialEase _easeExpOut6 = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 };
     private static readonly ExponentialEase _easeExpOut5 = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
     private static readonly QuadraticEase _easeQuadOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+    private static readonly QuadraticEase _easeQuadIn = new QuadraticEase { EasingMode = EasingMode.EaseIn };
     private static readonly QuadraticEase _easeQuadInOut = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
     private static readonly PowerEase _easePowerIn2 = new PowerEase { EasingMode = EasingMode.EaseIn, Power = 2 };
     private static readonly PowerEase _easePowerOut3 = new PowerEase { EasingMode = EasingMode.EaseOut, Power = 3 };
@@ -34,6 +35,7 @@ public partial class MainWindow
         _easeExpOut6.Freeze();
         _easeExpOut5.Freeze();
         _easeQuadOut.Freeze();
+        _easeQuadIn.Freeze();
         _easeQuadInOut.Freeze();
         _easePowerIn2.Freeze();
         _easePowerOut3.Freeze();
@@ -46,6 +48,9 @@ public partial class MainWindow
 
     #region Cached Durations
 
+    private static readonly Duration _dur600 = new(TimeSpan.FromMilliseconds(600));
+    private static readonly Duration _dur500 = new(TimeSpan.FromMilliseconds(500));
+    private static readonly Duration _dur400 = new(TimeSpan.FromMilliseconds(400));
     private static readonly Duration _dur350 = new(TimeSpan.FromMilliseconds(350));
     private static readonly Duration _dur250 = new(TimeSpan.FromMilliseconds(250));
     private static readonly Duration _dur200 = new(TimeSpan.FromMilliseconds(200));
@@ -135,6 +140,19 @@ public partial class MainWindow
     // Cached target for thumbnail expand animation (computed once after first expand)
     private (double X, double Y)? _cachedThumbnailExpandTarget;
 
+    // --- Optimization: Cached Animation Objects ---
+    private DoubleAnimation? _cachedThumbWidthExpand;
+    private DoubleAnimation? _cachedThumbHeightExpand;
+    private DoubleAnimation? _cachedThumbTranslateXExpand;
+    private DoubleAnimation? _cachedThumbTranslateYExpand;
+    private RectAnimation? _cachedThumbRectExpand;
+
+    private DoubleAnimation? _cachedThumbWidthCollapse;
+    private DoubleAnimation? _cachedThumbHeightCollapse;
+    private DoubleAnimation? _cachedThumbTranslateXCollapse;
+    private DoubleAnimation? _cachedThumbTranslateYCollapse;
+    private RectAnimation? _cachedThumbRectCollapse;
+
     private void ExpandNotch()
     {
         if (_isAnimating || _isExpanded) return;
@@ -197,30 +215,27 @@ public partial class MainWindow
         // Hit-test protection
         NotchBorder.IsHitTestVisible = false;
 
-        // Base Notch Animations
-        var widthAnim = MakeAnim(_expandedWidth, _dur350, _easeExpOut7);
-        var heightAnim = MakeAnim(_expandedHeight, _dur350, _easeExpOut7);
+        // Base Notch Animations - Use 400ms for snappy but smooth sync
+        var widthAnim = MakeAnim(_expandedWidth, _dur400, _easeExpOut6);
+        var heightAnim = MakeAnim(_expandedHeight, _dur400, _easeExpOut6);
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
         
-        // Expanded Content: Slide up and spring scale
+        // Expanded Content: Slide up
         var expandedGroup = new TransformGroup();
-        var expandedScale = new ScaleTransform(0.95, 0.95);
         var expandedTranslate = new TranslateTransform(0, 10);
-        expandedGroup.Children.Add(expandedScale);
         expandedGroup.Children.Add(expandedTranslate);
         ExpandedContent.RenderTransform = expandedGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
 
-        var fadeInAnim = MakeAnim(0d, 1d, _dur350, _easePowerOut3);
-        var springScale = MakeAnim(0.95, 1, _dur350, _easeMenuSpring);
-        var springSlide = MakeAnim(10, 0, _dur350, _easeExpOut7);
+        var fadeInAnim = MakeAnim(0d, 1d, _dur400, _easePowerOut3);
+        var springSlide = MakeAnim(10, 0, _dur400, _easeExpOut6);
 
         var glowAnim = MakeAnim(0.15, _dur200);
 
         // Depth: Blur incoming content slightly then clear
         var expandedBlur = new BlurEffect { Radius = 10, KernelType = KernelType.Gaussian };
         ExpandedContent.Effect = expandedBlur;
-        var blurFadeIn = MakeAnim(10, 0, _dur350, _easeQuadOut);
+        var blurFadeIn = MakeAnim(10, 0, _dur400, _easeQuadOut);
         expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurFadeIn);
 
         // --- Thumbnail Animation Logic ---
@@ -239,20 +254,38 @@ public partial class MainWindow
             // Target will be recalculated and cached in heightAnim.Completed
             var (targetX, targetY) = _cachedThumbnailExpandTarget ?? (20, 48);
 
-            // Animate to the target position
-            var thumbWidthAnim = MakeAnim(22, 50, _dur350, _easeExpOut7);
-            var thumbHeightAnim = MakeAnim(22, 50, _dur350, _easeExpOut7);
-            var thumbTranslateXAnim = MakeAnim(0, targetX, _dur350, _easeExpOut7);
-            var thumbTranslateYAnim = MakeAnim(0, targetY, _dur350, _easeExpOut7);
+            // Animate to the target position with a slight delay
+            var thumbDelay = TimeSpan.FromMilliseconds(50);
+            var thumbDur = _dur400;
+            var thumbEase = _easeExpOut6;
 
-            AnimationThumbnailBorder.BeginAnimation(WidthProperty, thumbWidthAnim);
-            AnimationThumbnailBorder.BeginAnimation(HeightProperty, thumbHeightAnim);
+            if (_cachedThumbWidthExpand == null || _cachedThumbWidthExpand.Duration != thumbDur)
+            {
+                _cachedThumbWidthExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
+                _cachedThumbHeightExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
+                _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), thumbDur) 
+                { 
+                    EasingFunction = thumbEase,
+                    BeginTime = thumbDelay
+                };
+                Timeline.SetDesiredFrameRate(_cachedThumbRectExpand, 120);
+                
+                _cachedThumbWidthExpand.Freeze();
+                _cachedThumbHeightExpand.Freeze();
+                _cachedThumbRectExpand.Freeze();
+            }
+
+            // Translate animations depend on target coordinates, so we recreate or update them
+            // Optimization: Only recreate if target changed
+            var thumbTranslateXAnim = MakeAnim(0, targetX, thumbDur, thumbEase, thumbDelay);
+            var thumbTranslateYAnim = MakeAnim(0, targetY, thumbDur, thumbEase, thumbDelay);
+
+            AnimationThumbnailBorder.BeginAnimation(WidthProperty, _cachedThumbWidthExpand);
+            AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightExpand);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
 
-            // Animate the clip rect to keep corners rounded during transition
-            var thumbRectAnim = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), _dur350) { EasingFunction = _easeExpOut7 };
-            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, thumbRectAnim);
+            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectExpand);
 
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
         }
@@ -304,12 +337,10 @@ public partial class MainWindow
         
         ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
         PaginationDots.BeginAnimation(OpacityProperty, fadeInAnim);
-        expandedScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScale);
-        expandedScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScale);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
 
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
-        AnimateCornerRadius(_cornerRadiusExpanded, TimeSpan.FromMilliseconds(350));
+        AnimateCornerRadius(_cornerRadiusExpanded, TimeSpan.FromMilliseconds(400));
     }
 
     private void CollapseNotch()
@@ -340,14 +371,13 @@ public partial class MainWindow
         // Hit-test protection
         NotchBorder.IsHitTestVisible = false;
 
-        var widthAnim = MakeAnim(_collapsedWidth, _dur350, _easeExpOut7);
-        var heightAnim = MakeAnim(_collapsedHeight, _dur350, _easeExpOut7);
+        // Match collapse duration to 400ms for perfect sync
+        var widthAnim = MakeAnim(_collapsedWidth, _dur400, _easeExpOut6);
+        var heightAnim = MakeAnim(_collapsedHeight, _dur400, _easeExpOut6);
 
-        // Outgoing: Scale down and blur
+        // Outgoing: Slide and blur
         var expandedGroup = new TransformGroup();
-        var expandedScale = new ScaleTransform(1, 1);
         var expandedTranslate = new TranslateTransform(0, 0);
-        expandedGroup.Children.Add(expandedScale);
         expandedGroup.Children.Add(expandedTranslate);
         ExpandedContent.RenderTransform = expandedGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
@@ -358,8 +388,7 @@ public partial class MainWindow
         expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
 
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
-        var scaleOutAnim = MakeAnim(1, 1.05, _dur350, _easeExpOut7);
-        var slideOutAnim = MakeAnim(0, -10, _dur350, _easeExpOut7);
+        var slideOutAnim = MakeAnim(0, -10, _dur400, _easeExpOut6);
 
         fadeOutAnim.Completed += (s, e) =>
         {
@@ -391,8 +420,8 @@ public partial class MainWindow
         contentToShow.RenderTransform = showGroup;
         contentToShow.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeInAnim = MakeAnim(1, _dur350, _easePowerOut3);
-        var springShow = MakeAnim(0.8, 1, _dur350, _easeMenuSpring);
+        var fadeInAnim = MakeAnim(1, _dur400, _easePowerOut3);
+        var springShow = MakeAnim(0.8, 1, _dur400, _easeMenuSpring);
 
         var glowAnim = MakeAnim(0, _dur150);
 
@@ -410,18 +439,36 @@ public partial class MainWindow
             AnimationThumbnailTranslate.X = startX;
             AnimationThumbnailTranslate.Y = startY;
 
-            var thumbWidthAnim = MakeAnim(50, 22, _dur350, _easeExpOut7);
-            var thumbHeightAnim = MakeAnim(50, 22, _dur350, _easeExpOut7);
-            var thumbTranslateXAnim = MakeAnim(startX, 0, _dur350, _easeExpOut7);
-            var thumbTranslateYAnim = MakeAnim(startY, 0, _dur350, _easeExpOut7);
+            // Collapse also gets a slight delay
+            var thumbDelay = TimeSpan.FromMilliseconds(40);
+            var thumbDur = _dur400;
+            var thumbEase = _easeExpOut6;
 
-            AnimationThumbnailBorder.BeginAnimation(WidthProperty, thumbWidthAnim);
-            AnimationThumbnailBorder.BeginAnimation(HeightProperty, thumbHeightAnim);
+            if (_cachedThumbWidthCollapse == null || _cachedThumbWidthCollapse.Duration != thumbDur)
+            {
+                _cachedThumbWidthCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
+                _cachedThumbHeightCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
+                _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), thumbDur) 
+                { 
+                    EasingFunction = thumbEase,
+                    BeginTime = thumbDelay
+                };
+                Timeline.SetDesiredFrameRate(_cachedThumbRectCollapse, 120);
+
+                _cachedThumbWidthCollapse.Freeze();
+                _cachedThumbHeightCollapse.Freeze();
+                _cachedThumbRectCollapse.Freeze();
+            }
+
+            var thumbTranslateXAnim = MakeAnim(startX, 0, thumbDur, thumbEase, thumbDelay);
+            var thumbTranslateYAnim = MakeAnim(startY, 0, thumbDur, thumbEase, thumbDelay);
+
+            AnimationThumbnailBorder.BeginAnimation(WidthProperty, _cachedThumbWidthCollapse);
+            AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightCollapse);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
 
-            var thumbRectAnim = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), _dur350) { EasingFunction = _easeExpOut7 };
-            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, thumbRectAnim);
+            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
             
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
         }
@@ -462,8 +509,6 @@ public partial class MainWindow
         
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         PaginationDots.BeginAnimation(OpacityProperty, fadeOutAnim);
-        expandedScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOutAnim);
-        expandedScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOutAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, slideOutAnim);
 
         if (SecondaryContent.Visibility == Visibility.Visible)
@@ -479,7 +524,7 @@ public partial class MainWindow
         showScale.BeginAnimation(ScaleTransform.ScaleYProperty, springShow);
 
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
-        AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(350));
+        AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(400));
     }
 
     #endregion
@@ -553,10 +598,10 @@ public partial class MainWindow
         InlineControls.BeginAnimation(OpacityProperty, fadeInInline);
 
         var dur450 = new Duration(TimeSpan.FromMilliseconds(450));
-        var scaleXAnim = MakeAnim(0.8d, 1.0d, dur450, _easeSpring, contentDelay);
-        var scaleYAnim = MakeAnim(0.8d, 1.0d, dur450, _easeSpring, contentDelay);
-        InlineControlsScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
-        InlineControlsScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim);
+        var slideUpAnim = MakeAnim(10, 0, dur450, _easeSpring, contentDelay);
+        var slideTransform = InlineControls.RenderTransform as TranslateTransform ?? new TranslateTransform(0, 10);
+        InlineControls.RenderTransform = slideTransform;
+        slideTransform.BeginAnimation(TranslateTransform.YProperty, slideUpAnim);
 
         InlinePauseIcon.Visibility = _isPlaying ? Visibility.Visible : Visibility.Collapsed;
         InlinePlayIcon.Visibility = _isPlaying ? Visibility.Collapsed : Visibility.Visible;
@@ -576,18 +621,10 @@ public partial class MainWindow
         var collapseDuration = new Duration(TimeSpan.FromMilliseconds(400));
         var contentDelay = TimeSpan.FromMilliseconds(80);
 
-        // Step 1: Scale down + fade out inline controls (cached easing)
-        var scaleDownX = MakeAnim(1.0d, 0.85d, _dur150, _easePowerIn2, null);
-        var scaleDownY = MakeAnim(1.0d, 0.85d, _dur150, _easePowerIn2, null);
-        InlineControlsScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDownX);
-        InlineControlsScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
-
         var fadeOutInline = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
         fadeOutInline.Completed += (s, e) =>
         {
             InlineControls.Visibility = Visibility.Collapsed;
-            InlineControlsScale.ScaleX = 0.8;
-            InlineControlsScale.ScaleY = 0.8;
         };
         InlineControls.BeginAnimation(OpacityProperty, fadeOutInline);
 

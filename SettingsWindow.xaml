@@ -8,16 +8,21 @@
         Background="#1a1a1a">
     
     <Window.Resources>
-        <!-- Modern TextBlock style -->
+        <!-- Modern TextBlock style refined for Apple-native quality with grid-aligned rendering -->
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, Inter, Arial"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
         
         <!-- Section Header style -->
         <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Foreground" Value="#A6FFFFFF"/> <!-- 65% Opacity White -->
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin" Value="0,16,0,8"/>

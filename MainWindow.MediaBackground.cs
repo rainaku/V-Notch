@@ -66,7 +66,7 @@ public partial class MainWindow
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
 
-        // Update Progress Bar and Time labels color
+        // Update Progress Bar, Time labels and Song Title color
         var currentBg = ProgressBar.Background as SolidColorBrush;
         if (currentBg == null || currentBg.IsFrozen)
             ProgressBar.Background = new SolidColorBrush(currentBg?.Color ?? Colors.White);
@@ -79,6 +79,15 @@ public partial class MainWindow
         if (currentRt == null || currentRt.IsFrozen)
             RemainingTimeText.Foreground = new SolidColorBrush(currentRt?.Color ?? Color.FromRgb(136, 136, 136));
 
+        // Track Title Colors
+        var currentTitle = TrackTitle.Foreground as SolidColorBrush;
+        if (currentTitle == null || currentTitle.IsFrozen)
+            TrackTitle.Foreground = new SolidColorBrush(currentTitle?.Color ?? Colors.White);
+
+        var currentTitleNext = TrackTitleNext.Foreground as SolidColorBrush;
+        if (currentTitleNext == null || currentTitleNext.IsFrozen)
+            TrackTitleNext.Foreground = new SolidColorBrush(currentTitleNext?.Color ?? Colors.White);
+
         if (ProgressBar.Background is SolidColorBrush pbb && !pbb.IsFrozen)
             pbb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
             
@@ -87,6 +96,12 @@ public partial class MainWindow
             
         if (RemainingTimeText.Foreground is SolidColorBrush rtf && !rtf.IsFrozen)
             rtf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+
+        if (TrackTitle.Foreground is SolidColorBrush ttf && !ttf.IsFrozen)
+            ttf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+
+        if (TrackTitleNext.Foreground is SolidColorBrush ttnf && !ttnf.IsFrozen)
+            ttnf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
         if (Resources["MusicVisualizerBrush"] is SolidColorBrush visualizerBrush && !visualizerBrush.IsFrozen)
         {
@@ -199,6 +214,8 @@ public partial class MainWindow
         if (ProgressBar.Background is SolidColorBrush sb && !sb.IsFrozen) sb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
         if (CurrentTimeText.Foreground is SolidColorBrush st && !st.IsFrozen) st.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
+        if (TrackTitle.Foreground is SolidColorBrush ttf && !ttf.IsFrozen) ttf.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+        if (TrackTitleNext.Foreground is SolidColorBrush ttnf && !ttnf.IsFrozen) ttnf.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
     }
 
     private void ShowMediaBackground()

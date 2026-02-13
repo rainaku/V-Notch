@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using VNotch.Models;
 using VNotch.Services;
 
@@ -13,20 +14,19 @@ namespace VNotch;
 /// </summary>
 public partial class MainWindow
 {
+    private ImageSource? _activeThumbnailSource;
+    // _thumbnailSwapTimer removed in favor of KeyFrame animations
+    private string _lastAnimatedTrackSignature = "";
+    private DateTime _lastAnimationStartTime = DateTime.MinValue;
+
+    private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
+
     #region Media Changed Handler
 
     private void OnMediaChanged(object? sender, MediaInfo info)
     {
-        // If we are currently playing something, and the new info is empty/generic
-        // (often happens during buffering or track switch), keep the old info for a moment
-        // to avoid visual "jumping" of the layout.
-        if (_currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && 
-            info.IsAnyMediaPlaying && string.IsNullOrEmpty(info.CurrentTrack))
-        {
-            return; 
-        }
-
         _currentMediaInfo = info;
+        _lastMediaUpdate = DateTime.Now;
         
         Dispatcher.BeginInvoke(() =>
         {
@@ -39,38 +39,84 @@ public partial class MainWindow
             InstagramIcon.Visibility = Visibility.Collapsed;
             TwitterIcon.Visibility = Visibility.Collapsed;
             BrowserIcon.Visibility = Visibility.Collapsed;
+            
+            bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
-            switch (info.MediaSource)
+            // Only show icon if we have a source
+            if (hasRealTrack && !string.IsNullOrEmpty(info.MediaSource))
             {
-                case "Spotify": SpotifyIcon.Visibility = Visibility.Visible; break;
-                case "YouTube": YouTubeIcon.Visibility = Visibility.Visible; break;
-                case "SoundCloud": SoundCloudIcon.Visibility = Visibility.Visible; break;
-                case "Facebook": FacebookIcon.Visibility = Visibility.Visible; break;
-                case "TikTok": TikTokIcon.Visibility = Visibility.Visible; break;
-                case "Instagram": InstagramIcon.Visibility = Visibility.Visible; break;
-                case "Twitter": case "X": TwitterIcon.Visibility = Visibility.Visible; break;
-                default: BrowserIcon.Visibility = Visibility.Visible; break;
+                switch (info.MediaSource)
+                {
+                    case "Spotify": SpotifyIcon.Visibility = Visibility.Visible; break;
+                    case "YouTube": YouTubeIcon.Visibility = Visibility.Visible; break;
+                    case "SoundCloud": SoundCloudIcon.Visibility = Visibility.Visible; break;
+                    case "Facebook": FacebookIcon.Visibility = Visibility.Visible; break;
+                    case "TikTok": TikTokIcon.Visibility = Visibility.Visible; break;
+                    case "Instagram": InstagramIcon.Visibility = Visibility.Visible; break;
+                    case "Twitter": case "X": TwitterIcon.Visibility = Visibility.Visible; break;
+                    default: BrowserIcon.Visibility = Visibility.Visible; break;
+                }
             }
 
-            // Update thumbnail
-            if (info.HasThumbnail && info.Thumbnail != null)
+            string currentSig = info.GetSignature();
+            bool isNewTrack = currentSig != _lastAnimatedTrackSignature;
+
+            // Prepare text
+            string titleText, artistText;
+            if (hasRealTrack)
             {
-                ThumbnailImage.Source = info.Thumbnail;
-                ThumbnailImage.Visibility = Visibility.Visible;
-                ThumbnailFallback.Visibility = Visibility.Collapsed;
-                UpdateMediaBackground(info);
+                MediaAppName.Text = info.MediaSource;
+                titleText = info.CurrentTrack;
+                artistText = string.IsNullOrEmpty(info.CurrentArtist) ? info.MediaSource : info.CurrentArtist;
             }
             else
             {
+                titleText = "No media playing";
+                artistText = "Open Spotify or YouTube";
+                MediaAppName.Text = "Now Playing";
+            }
+
+            // 1. Update text immediately for responsiveness
+            UpdateTitleText(titleText);
+            UpdateArtistText(artistText);
+
+            // 2. Update thumbnail logic with persistence (avoids black flicker during skip)
+            if (hasRealTrack)
+            {
+                if (info.HasThumbnail && info.Thumbnail != null)
+                {
+                    if (isNewTrack)
+                    {
+                        _lastAnimatedTrackSignature = currentSig;
+                        AnimateThumbnailSwitchOnly(info.Thumbnail);
+                    }
+                    else
+                    {
+                        // Direct update for resolution changes or same track re-sync
+                        ThumbnailImage.Source = info.Thumbnail;
+                        CompactThumbnail.Source = info.Thumbnail;
+                    }
+                    
+                    ThumbnailImage.Visibility = Visibility.Visible;
+                    ThumbnailFallback.Visibility = Visibility.Collapsed;
+                    UpdateMediaBackground(info);
+                }
+                // Optimization: If we have a track but no thumbnail yet, we DO NOT hide the image.
+                // We keep the old one (or the current state) until the new thumbnail arrives to flip to.
+                // This prevents the 'black box' issues when clicking 'Next' on platforms like Spotify.
+            }
+            else
+            {
+                // No media playing - reset state
+                _lastAnimatedTrackSignature = "";
                 ThumbnailImage.Visibility = Visibility.Collapsed;
                 ThumbnailFallback.Visibility = Visibility.Visible;
                 HideMediaBackground();
-                ThumbnailFallback.Text = info.MediaSource switch
-                {
-                    "Spotify" => "🎵", "YouTube" => "▶", "SoundCloud" => "☁",
-                    "TikTok" => "♪", "Facebook" => "📺", "Instagram" => "📷",
-                    "Twitter" => "🐦", "Browser" => "🌐", _ => "🎵"
-                };
+                ThumbnailFallback.Text = "🎵";
+                
+                // Clear sources to ensure clean state
+                ThumbnailImage.Source = null;
+                CompactThumbnail.Source = null;
             }
 
             // Sync Play/Pause state
@@ -79,68 +125,82 @@ public partial class MainWindow
                 _isPlaying = info.IsPlaying;
                 UpdatePlayPauseIcon();
             }
-
-            // Update text
-            string titleText;
-            string artistText;
             
-            if (info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack))
-            {
-                MediaAppName.Text = info.MediaSource;
-                titleText = string.IsNullOrEmpty(info.CurrentTrack) ? "Playing..." : info.CurrentTrack;
-                if (info.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentArtist))
-                    artistText = "Playing in browser";
-                else
-                    artistText = string.IsNullOrEmpty(info.CurrentArtist) ? info.MediaSource : info.CurrentArtist;
-            }
-            else if (info.IsSpotifyPlaying)
-            {
-                MediaAppName.Text = "Spotify";
-                titleText = info.CurrentTrack;
-                artistText = info.CurrentArtist;
-            }
-            else if (info.IsYouTubeRunning)
-            {
-                MediaAppName.Text = "YouTube";
-                titleText = info.YouTubeTitle;
-                artistText = "Playing in browser";
-            }
-            else if (info.IsSoundCloudRunning)
-            {
-                MediaAppName.Text = "SoundCloud";
-                titleText = info.CurrentTrack;
-                artistText = "Playing";
-            }
-            else if (info.IsTikTokRunning)
-            {
-                MediaAppName.Text = "TikTok";
-                titleText = info.CurrentTrack;
-                artistText = "Playing";
-            }
-            else if (info.IsFacebookRunning)
-            {
-                MediaAppName.Text = "Facebook";
-                titleText = info.CurrentTrack;
-                artistText = "Video";
-            }
-            else if (info.MediaSource == "Browser")
-            {
-                MediaAppName.Text = "Browser";
-                titleText = !string.IsNullOrEmpty(info.CurrentTrack) ? info.CurrentTrack : "Playing...";
-                artistText = !string.IsNullOrEmpty(info.CurrentArtist) ? info.CurrentArtist : "Playing in browser";
-            }
-            else
-            {
-                MediaAppName.Text = "Now Playing";
-                titleText = "No media playing";
-                artistText = "Open Spotify or YouTube";
-            }
-            
-            UpdateTitleText(titleText);
-            UpdateArtistText(artistText);
             UpdateProgressTracking(info);
             UpdateMusicCompactMode(info);
         });
+    }
+
+    private void AnimateThumbnailSwitchOnly(ImageSource newThumb)
+    {
+        // Snappy but smooth flip: 180ms per half (360ms total)
+        var halfDur = TimeSpan.FromMilliseconds(180);
+        var totalDur = TimeSpan.FromMilliseconds(360);
+
+        // 1. ScaleX Animation (1.0 -> 0.0 -> 1.0)
+        // This creates the 'flip' effect by shrinking to zero then expanding back.
+        var flipAnim = new DoubleAnimationUsingKeyFrames();
+        flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(halfDur), _easeQuadIn));
+        flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), _easeQuadOut));
+        Timeline.SetDesiredFrameRate(flipAnim, 120);
+
+        // 2. Pulse Animation (1.0 -> 1.08 -> 1.0)
+        // Adds a subtle 'pop' effect during the flip for better visual feedback.
+        var pulseAnim = new DoubleAnimationUsingKeyFrames();
+        pulseAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        pulseAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.08, KeyTime.FromTimeSpan(halfDur), _easeQuadOut));
+        pulseAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), _easeQuadIn));
+        Timeline.SetDesiredFrameRate(pulseAnim, 120);
+
+        // 3. Source Swap exactly at the 0-scale mark
+        // DiscreteObjectKeyFrame ensures the image changes perfectly when it's invisible (at width 0).
+        var sourceAnim = new ObjectAnimationUsingKeyFrames();
+        sourceAnim.KeyFrames.Add(new DiscreteObjectKeyFrame(newThumb, KeyTime.FromTimeSpan(halfDur)));
+        Timeline.SetDesiredFrameRate(sourceAnim, 120);
+
+        // Apply animations to all relevant transforms and images simultaneously for perfect sync
+        
+        // Expanded Mode Targets
+        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
+        ThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
+        ThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
+        ThumbnailImage.BeginAnimation(Image.SourceProperty, sourceAnim);
+
+        // Compact Mode Targets
+        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim); 
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
+        CompactThumbnail.BeginAnimation(Image.SourceProperty, sourceAnim);
+
+        // Setup completion to clear animations and set base values
+        flipAnim.Completed += (s, e) =>
+        {
+            ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ThumbnailFlip.ScaleX = 1.0;
+            CompactThumbnailFlip.ScaleX = 1.0;
+        };
+
+        pulseAnim.Completed += (s, e) =>
+        {
+            ThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            ThumbnailScale.ScaleX = 1.0;
+            ThumbnailScale.ScaleY = 1.0;
+            CompactThumbnailScale.ScaleX = 1.0;
+            CompactThumbnailScale.ScaleY = 1.0;
+        };
+
+        sourceAnim.Completed += (s, e) =>
+        {
+            ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
+            CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
+            ThumbnailImage.Source = newThumb;
+            CompactThumbnail.Source = newThumb;
+        };
     }
 
     #endregion
@@ -158,7 +218,15 @@ public partial class MainWindow
         
         if (shouldBeCompact == _isMusicCompactMode) 
         {
-            if (shouldBeCompact && info?.Thumbnail != null) CompactThumbnail.Source = info.Thumbnail;
+            if (shouldBeCompact && info?.Thumbnail != null)
+            {
+                string currentSig = info.GetSignature();
+                if (currentSig != _lastAnimatedTrackSignature)
+                {
+                    _lastAnimatedTrackSignature = currentSig;
+                    AnimateThumbnailSwitchOnly(info.Thumbnail);
+                }
+            }
             return;
         }
 
@@ -174,7 +242,10 @@ public partial class MainWindow
             
             if (_isMusicCompactMode)
             {
-                if (info?.Thumbnail != null) CompactThumbnail.Source = info.Thumbnail;
+                if (info?.Thumbnail != null) 
+                {
+                    AnimateThumbnailSwitchOnly(info.Thumbnail);
+                }
                 FadeSwitch(CollapsedContent, MusicCompactContent);
                 StartVisualizerAnimation();
             }
@@ -188,7 +259,10 @@ public partial class MainWindow
         {
             if (_isMusicCompactMode)
             {
-                if (info?.Thumbnail != null) CompactThumbnail.Source = info.Thumbnail;
+                if (info?.Thumbnail != null) 
+                {
+                    AnimateThumbnailSwitchOnly(info.Thumbnail);
+                }
                 StartVisualizerAnimation();
             }
             else
@@ -234,6 +308,11 @@ public partial class MainWindow
         VizBar3.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         VizBar4.BeginAnimation(ScaleTransform.ScaleYProperty, null);
     }
+
+    #endregion
+
+    #region Thumbnail Transition
+
 
     #endregion
 }

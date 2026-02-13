@@ -28,7 +28,6 @@ public partial class MainWindow
         PlayButtonPressAnimation(PlayPauseButton);
         
         await _mediaService.PlayPauseAsync();
-        SendMediaKey(VK_MEDIA_PLAY_PAUSE);
     }
 
     private async void NextButton_Click(object sender, MouseButtonEventArgs e)
@@ -47,7 +46,6 @@ public partial class MainWindow
         else
         {
             await _mediaService.NextTrackAsync();
-            SendMediaKey(VK_MEDIA_NEXT_TRACK);
         }
     }
 
@@ -67,7 +65,6 @@ public partial class MainWindow
         else
         {
             await _mediaService.PreviousTrackAsync();
-            SendMediaKey(VK_MEDIA_PREV_TRACK);
         }
     }
     
@@ -99,7 +96,6 @@ public partial class MainWindow
         PlayButtonPressAnimation(InlinePlayPauseButton);
         
         await _mediaService.PlayPauseAsync();
-        SendMediaKey(VK_MEDIA_PLAY_PAUSE);
     }
 
     private async void InlineNextButton_Click(object sender, MouseButtonEventArgs e)
@@ -118,7 +114,6 @@ public partial class MainWindow
         else
         {
             await _mediaService.NextTrackAsync();
-            SendMediaKey(VK_MEDIA_NEXT_TRACK);
         }
     }
 
@@ -138,7 +133,6 @@ public partial class MainWindow
         else
         {
             await _mediaService.PreviousTrackAsync();
-            SendMediaKey(VK_MEDIA_PREV_TRACK);
         }
     }
 

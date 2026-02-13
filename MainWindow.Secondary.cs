@@ -100,7 +100,6 @@ public partial class MainWindow
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
         var fadeOut = MakeAnim(1, 0, durFast, _easeQuadOut);
-        var scaleOut = MakeAnim(1, 0.92, durTotal, _easeExpOut7);
         var slideOut = MakeAnim(0, -10, durTotal, _easeExpOut7);
 
         fadeOut.Completed += (s, e) => {
@@ -110,8 +109,6 @@ public partial class MainWindow
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOut);
-        primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOut);
-        primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOut);
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
 
         // Add Depth: Blur outgoing content
@@ -126,9 +123,7 @@ public partial class MainWindow
         EnableKeyboardInput();
 
         var secondaryGroup = new TransformGroup();
-        var secondaryScale = new ScaleTransform(1.08, 1.08);
         var secondaryTranslate = new TranslateTransform(0, 15);
-        secondaryGroup.Children.Add(secondaryScale);
         secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -154,8 +149,6 @@ public partial class MainWindow
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeIn);
-        secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScale);
-        secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScale);
         secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
     }
 
@@ -180,7 +173,6 @@ public partial class MainWindow
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
         var fadeOut = MakeAnim(1, 0, durFast, _easeQuadOut);
-        var scaleOut = MakeAnim(1, 0.92, durTotal, _easeExpOut7);
         var slideOut = MakeAnim(0, 10, durTotal, _easeExpOut7);
 
         fadeOut.Completed += (s, e) => {
@@ -191,8 +183,6 @@ public partial class MainWindow
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeOut);
-        secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOut);
-        secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOut);
         secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
 
         // Add Depth: Blur outgoing content
@@ -206,9 +196,7 @@ public partial class MainWindow
         ExpandedContent.Opacity = 0;
 
         var primaryGroup = new TransformGroup();
-        var primaryScale = new ScaleTransform(0.92, 0.92);
         var primaryTranslate = new TranslateTransform(0, -10);
-        primaryGroup.Children.Add(primaryScale);
         primaryGroup.Children.Add(primaryTranslate);
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -232,8 +220,6 @@ public partial class MainWindow
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeIn);
-        primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScale);
-        primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScale);
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
     }
 
@@ -359,14 +345,12 @@ public partial class MainWindow
         var text = new TextBlock
         {
             Text = fileName,
-            FontSize = isSmall ? 8 : 9,
-            Foreground = (SolidColorBrush)new BrushConverter().ConvertFrom("#CCCCCC")!,
+            Style = (Style)FindResource("SmallText"),
             TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.NoWrap,
             TextTrimming = TextTrimming.CharacterEllipsis,
             Margin = new Thickness(isSmall ? 2 : 6, 0, isSmall ? 2 : 6, isSmall ? 2 : 6),
-            FontFamily = (FontFamily)FindResource("SFProDisplay"),
-            Visibility = isSmall ? Visibility.Collapsed : Visibility.Visible // Hide text for ultra small? Or keep? Let's hide to make it 2-row clean.
+            Visibility = isSmall ? Visibility.Collapsed : Visibility.Visible
         };
         
         if (!isSmall) stack.Children.Add(text);
