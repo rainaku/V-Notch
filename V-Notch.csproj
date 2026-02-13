@@ -10,9 +10,10 @@
     <RootNamespace>VNotch</RootNamespace>
     
     <!-- Single file publish optimized for security (reducing false positives) -->
-    <PublishSingleFile>true</PublishSingleFile>
+    <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <CefSharpBundleBrowserSubprocess>true</CefSharpBundleBrowserSubprocess>
     <ReadyToRun>true</ReadyToRun>
     <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
@@ -30,6 +31,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CefSharp.Wpf.NETCore" Version="144.0.120" />
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="1.1.0" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
@@ -47,6 +49,12 @@
     <Resource Include="Services\icons\twitter.svg" />
     <Resource Include="Services\icons\youtube.svg" />
     <Resource Include="logo.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Resources\youtube_player.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

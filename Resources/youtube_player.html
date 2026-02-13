@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: black;
+        }
+
+        #player {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="player"></div>
+    <script>
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        var player;
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: '',
+                playerVars: {
+                    'playsinline': 1,
+                    'controls': 0,
+                    'disablekb': 1,
+                    'fs': 0,
+                    'modestbranding': 1,
+                    'rel': 0,
+                    'showinfo': 0,
+                    'iv_load_policy': 3,
+                    'autohide': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            if (window.cefCallback) {
+                window.cefCallback.onReady();
+            }
+        }
+
+        function onPlayerStateChange(event) {
+            if (window.cefCallback) {
+                window.cefCallback.onStateChange(event.data, player.getCurrentTime(), player.getDuration());
+            }
+        }
+
+        function onPlayerError(event) {
+            if (window.cefCallback) {
+                window.cefCallback.onError(event.data);
+            }
+        }
+
+        // Methods called from C# via ExecuteScriptAsync
+        function loadVideo(id) {
+            if (player && player.loadVideoById) {
+                player.loadVideoById(id);
+            }
+        }
+
+        function playVideo() {
+            if (player && player.playVideo) player.playVideo();
+        }
+
+        function pauseVideo() {
+            if (player && player.pauseVideo) player.pauseVideo();
+        }
+
+        function seekTo(seconds) {
+            if (player && player.seekTo) player.seekTo(seconds, true);
+        }
+
+        function setVolume(volume) {
+            if (player && player.setVolume) player.setVolume(volume);
+        }
+
+        // Periodic update of position
+        setInterval(function () {
+            if (player && player.getPlayerState() == 1) { // Playing
+                if (window.cefCallback) {
+                    window.cefCallback.onPositionUpdate(player.getCurrentTime(), player.getDuration());
+                }
+            }
+        }, 500);
+    </script>
+</body>
+
+</html>

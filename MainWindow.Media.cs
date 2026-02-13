@@ -67,7 +67,21 @@ public partial class MainWindow
             {
                 MediaAppName.Text = info.MediaSource;
                 titleText = info.CurrentTrack;
-                artistText = string.IsNullOrEmpty(info.CurrentArtist) ? info.MediaSource : info.CurrentArtist;
+                if (!string.IsNullOrEmpty(info.CurrentArtist) && info.CurrentArtist != "YouTube" && info.CurrentArtist != "Browser" && info.CurrentArtist != "Spotify")
+                {
+                    artistText = info.CurrentArtist;
+                }
+                else if (!string.IsNullOrEmpty(info.MediaSource))
+                {
+                    artistText = info.MediaSource;
+                }
+                else
+                {
+                    artistText = "Unknown Artist";
+                }
+                
+                // Final sync: if it's YouTube, make sure we show the source correctly alongside the artist
+                MediaAppName.Text = info.MediaSource;
             }
             else
             {
@@ -85,8 +99,10 @@ public partial class MainWindow
             {
                 if (info.HasThumbnail && info.Thumbnail != null)
                 {
+                    // Check if we already animated THIS track
                     if (isNewTrack)
                     {
+                        // TRIGGER FLIP ONLY NOW
                         _lastAnimatedTrackSignature = currentSig;
                         AnimateThumbnailSwitchOnly(info.Thumbnail);
                     }
@@ -101,9 +117,24 @@ public partial class MainWindow
                     ThumbnailFallback.Visibility = Visibility.Collapsed;
                     UpdateMediaBackground(info);
                 }
-                // Optimization: If we have a track but no thumbnail yet, we DO NOT hide the image.
-                // We keep the old one (or the current state) until the new thumbnail arrives to flip to.
-                // This prevents the 'black box' issues when clicking 'Next' on platforms like Spotify.
+                else if (isNewTrack)
+                {
+                    // Track changed but no thumb yet - DO NOT update _lastAnimatedTrackSignature yet.
+                    // This ensures we will trigger the flip as soon as the thumbnail arrives.
+                    
+                    // Keep old thumb visible or show fallback if absolutely no thumb
+                    if (ThumbnailImage.Source == null)
+                    {
+                        ThumbnailImage.Visibility = Visibility.Collapsed;
+                        ThumbnailFallback.Visibility = Visibility.Visible;
+                        ThumbnailFallback.Text = "🎵";
+                    }
+                    else
+                    {
+                        ThumbnailImage.Visibility = Visibility.Visible;
+                        ThumbnailFallback.Visibility = Visibility.Collapsed;
+                    }
+                }
             }
             else
             {
@@ -126,6 +157,26 @@ public partial class MainWindow
                 UpdatePlayPauseIcon();
             }
             
+            if (info.MediaSource == "YouTube" && hasRealTrack)
+            {
+                YouTubeVideoModeButton.Visibility = Visibility.Visible;
+                if (isNewTrack && !string.IsNullOrEmpty(info.YouTubeVideoId))
+                {
+                    YouTubePlayer.LoadVideo(info.YouTubeVideoId);
+                }
+            }
+            else
+            {
+                YouTubeVideoModeButton.Visibility = Visibility.Collapsed;
+                // If we're not on YouTube, hide player
+                if (_isYouTubeVideoMode)
+                {
+                    _isYouTubeVideoMode = false;
+                    YouTubePlayerContainer.Visibility = Visibility.Collapsed;
+                    MediaWidgetContainer.Visibility = Visibility.Visible;
+                }
+            }
+
             UpdateProgressTracking(info);
             UpdateMusicCompactMode(info);
         });

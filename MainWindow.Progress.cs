@@ -120,25 +120,36 @@ public partial class MainWindow
 
         _currentMediaInfo = info;
         
-        // Show/hide progress section based on timeline availability
-        bool showProgress = info.IsAnyMediaPlaying && (info.HasTimeline || info.IsIndeterminate);
+        // Progress bar should ALWAYS be visible as per user request
+        ProgressSection.Visibility = Visibility.Visible;
+        ProgressSection.Opacity = 1;
         
-        if (showProgress)
+        // Show/hide specific progress elements based on timeline availability
+        bool showProgressDetails = info.IsAnyMediaPlaying && (info.HasTimeline || info.IsIndeterminate);
+        
+        if (showProgressDetails)
         {
-            ProgressSection.Visibility = Visibility.Visible;
-            ProgressSection.Opacity = 1;
+            // IMPORTANT: If user is dragging or we just seeked, don't update internal position from SMTC
+            if (_isDraggingProgress || DateTime.Now < _seekDebounceUntil) return;
 
             if (info.HasTimeline)
             {
-                _lastKnownDuration = info.Duration;
-                
-                // Only accept position updates from the system if we aren't in a seek debounce period.
-                // This prevents the "rubber-band" effect where the UI jumps back to the old position
-                // because the system (SMTC) hasn't processed the seek command yet.
-                if (DateTime.Now >= _seekDebounceUntil)
+                // ROUTE TO PLATFORM SPECIFIC LOGIC
+                if (_isYouTubeVideoMode)
                 {
-                    _lastKnownPosition = info.Position;
-                    _lastMediaUpdate = DateTime.Now;
+                    UpdateYouTubeVideoProgress(info);
+                }
+                else if (info.MediaSource == "YouTube")
+                {
+                    UpdateYouTubeProgress(info);
+                }
+                else if (info.MediaSource == "Spotify")
+                {
+                    UpdateSpotifyProgress(info);
+                }
+                else
+                {
+                    UpdateGeneralProgress(info);
                 }
                 
                 IndeterminateProgress.Visibility = Visibility.Collapsed;
@@ -152,7 +163,14 @@ public partial class MainWindow
             }
 
             // Sync seek capability
-            ProgressBarContainer.Cursor = info.IsSeekEnabled ? Cursors.Hand : Cursors.Arrow;
+            if (_isYouTubeVideoMode)
+            {
+                ProgressBarContainer.Cursor = Cursors.Hand;
+            }
+            else
+            {
+                ProgressBarContainer.Cursor = info.IsSeekEnabled ? Cursors.Hand : Cursors.Arrow;
+            }
             
             UpdateProgressTimerState();
             _isMediaPlaying = info.IsPlaying;
@@ -161,11 +179,21 @@ public partial class MainWindow
         }
         else
         {
-            ProgressSection.Visibility = Visibility.Collapsed;
+            // Case when no media is playing: Keep section visible but reset UI to zero
             UpdateProgressTimerState();
             _isMediaPlaying = false;
             _lastSessionId = "";
+            
+            // Ensure static progress bar is visible instead of indeterminate
+            IndeterminateProgress.Visibility = Visibility.Collapsed;
+            ProgressBar.Visibility = Visibility.Visible;
+            ProgressBarContainer.Cursor = Cursors.Arrow;
+            
+            _lastKnownDuration = TimeSpan.Zero;
+            _lastKnownPosition = TimeSpan.Zero;
+            
             ResetProgressUI();
+            if (_isExpanded) RenderProgressBar();
         }
     }
 
@@ -191,6 +219,37 @@ public partial class MainWindow
         IndeterminateProgress.BeginAnimation(OpacityProperty, anim);
     }
 
+    private void UpdateYouTubeVideoProgress(MediaInfo info)
+    {
+        // For YouTube Video Mode, we trust the local player events more than SMTC.
+        // The events update _lastKnownPosition and _lastKnownDuration in MainWindow.xaml.cs
+        // We don't overwrite them with potentially stale SMTC data here.
+    }
+
+    private void UpdateYouTubeProgress(MediaInfo info)
+    {
+        if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
+        
+        _lastKnownPosition = info.Position;
+        _lastMediaUpdate = info.LastUpdated.LocalDateTime;
+    }
+
+    private void UpdateSpotifyProgress(MediaInfo info)
+    {
+        if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
+        
+        _lastKnownPosition = info.Position;
+        _lastMediaUpdate = info.LastUpdated.LocalDateTime;
+    }
+
+    private void UpdateGeneralProgress(MediaInfo info)
+    {
+        if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
+        
+        _lastKnownPosition = info.Position;
+        _lastMediaUpdate = info.LastUpdated.LocalDateTime;
+    }
+
     private void ResetProgressUI()
     {
         ProgressBarScale.ScaleX = 0;
@@ -213,18 +272,18 @@ public partial class MainWindow
 
         var duration = _lastKnownDuration;
         if (duration.TotalSeconds <= 0) return;
-        
-        // HIGH PRECISION INTERPOLATION
-        // We use our local stabilized anchors (_lastKnownPosition and _lastMediaUpdate)
-        // instead of raw _currentMediaInfo.Position to prevent flickering when the system 
-        // reports stale data during track transitions or seeks.
         TimeSpan displayPosition;
         
         if (_isMediaPlaying)
         {
             var timeSinceUpdate = DateTime.Now - _lastMediaUpdate;
-            // Cap extrapolation to 5 seconds to prevent runaway progress during heavy system lag
-            if (timeSinceUpdate > TimeSpan.FromSeconds(5)) timeSinceUpdate = TimeSpan.FromSeconds(5);
+            
+            // For browser/YouTube sources, extrapolation needs a very high cap 
+            // because browser SMTC updates are extremely infrequent (can be > 60s)
+            double capSeconds = (_currentMediaInfo.MediaSource == "YouTube" || _currentMediaInfo.MediaSource == "Browser") ? 600 : 30;
+            
+            if (timeSinceUpdate > TimeSpan.FromSeconds(capSeconds)) 
+                timeSinceUpdate = TimeSpan.FromSeconds(capSeconds);
             
             displayPosition = _lastKnownPosition + TimeSpan.FromTicks((long)(timeSinceUpdate.Ticks * _currentMediaInfo.PlaybackRate));
             
@@ -326,16 +385,21 @@ public partial class MainWindow
         
         try 
         {
-            // Send seek command via Windows Media Session API
-            await _mediaService.SeekAsync(newPos);
-            
-            // Update local state
+            // Update local state immediately for instant UI feedback
             _lastKnownPosition = newPos;
             _lastMediaUpdate = DateTime.Now;
-            
-            // Set debounce - ignore API position updates for 2 seconds
-            // This prevents the "jump back" effect when API returns stale data
-            _seekDebounceUntil = DateTime.Now.AddSeconds(2.0);
+            _seekDebounceUntil = DateTime.Now.AddSeconds(2.5); // Increased to 2.5s for stability
+            if (_isExpanded) RenderProgressBar();
+
+            if (_isYouTubeVideoMode)
+            {
+                YouTubePlayer.SeekTo(newPos.TotalSeconds);
+            }
+            else
+            {
+                // Send seek command via Windows Media Session API
+                await _mediaService.SeekAsync(newPos);
+            }
         } 
         catch { }
     }
@@ -354,18 +418,23 @@ public partial class MainWindow
         if (newPos < TimeSpan.Zero) newPos = TimeSpan.Zero;
         if (newPos > _lastKnownDuration) newPos = _lastKnownDuration;
 
+        // Update local state immediately for instant UI feedback
+        _lastKnownPosition = newPos;
+        _lastMediaUpdate = DateTime.Now;
+        _seekDebounceUntil = DateTime.Now.AddSeconds(2.5); // Increased to 2.5s
+        if (_isExpanded) RenderProgressBar();
+
         try
         {
-            // We use the service's relative seek for better accuracy with the actual session
-            // but we also update our local state to prevent UI flicker.
-            await _mediaService.SeekRelativeAsync(seconds);
-
-            // Update local state for immediate UI feedback
-            _lastKnownPosition = newPos;
-            _lastMediaUpdate = DateTime.Now;
-            _seekDebounceUntil = DateTime.Now.AddSeconds(2.0);
-            
-            if (_isExpanded) RenderProgressBar();
+            if (_isYouTubeVideoMode)
+            {
+                YouTubePlayer.SeekTo(newPos.TotalSeconds);
+            }
+            else
+            {
+                // We use the service's relative seek for better accuracy with the actual session
+                await _mediaService.SeekRelativeAsync(seconds);
+            }
         }
         catch { }
     }
@@ -383,8 +452,7 @@ public partial class MainWindow
         bool isExpanded = _isExpanded || _isMusicExpanded;
         bool showProgress = _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && 
                             (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
-
-        bool shouldRunProgress = isExpanded && showProgress;
+        bool shouldRunProgress = isExpanded && showProgress; 
         bool shouldRunAutoCollapse = isExpanded;
 
         if (shouldRunProgress)
