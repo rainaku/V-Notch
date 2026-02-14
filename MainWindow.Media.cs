@@ -156,25 +156,6 @@ public partial class MainWindow
                 UpdatePlayPauseIcon();
             }
 
-            if (info.MediaSource == "YouTube" && hasRealTrack)
-            {
-                YouTubeVideoModeButton.Visibility = Visibility.Visible;
-                if (isNewTrack && !string.IsNullOrEmpty(info.YouTubeVideoId))
-                {
-                    YouTubePlayer.LoadVideo(info.YouTubeVideoId);
-                }
-            }
-            else
-            {
-                YouTubeVideoModeButton.Visibility = Visibility.Collapsed;
-
-                if (_isYouTubeVideoMode)
-                {
-                    _isYouTubeVideoMode = false;
-                    YouTubePlayerContainer.Visibility = Visibility.Collapsed;
-                    MediaWidgetContainer.Visibility = Visibility.Visible;
-                }
-            }
 
             UpdateProgressTracking(info);
             UpdateMusicCompactMode(info);

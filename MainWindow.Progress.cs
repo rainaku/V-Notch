@@ -150,11 +150,7 @@ public partial class MainWindow
             if (info.HasTimeline)
             {
 
-                if (_isYouTubeVideoMode)
-                {
-                    UpdateYouTubeVideoProgress(info);
-                }
-                else if (info.MediaSource == "YouTube")
+                if (info.MediaSource == "YouTube")
                 {
                     UpdateYouTubeProgress(info);
                 }
@@ -177,14 +173,7 @@ public partial class MainWindow
                 StartIndeterminateAnimation();
             }
 
-            if (_isYouTubeVideoMode)
-            {
-                ProgressBarContainer.Cursor = Cursors.Hand;
-            }
-            else
-            {
-                ProgressBarContainer.Cursor = info.IsSeekEnabled ? Cursors.Hand : Cursors.Arrow;
-            }
+            ProgressBarContainer.Cursor = info.IsSeekEnabled ? Cursors.Hand : Cursors.Arrow;
 
             UpdateProgressTimerState();
             _isMediaPlaying = info.IsPlaying;
@@ -232,10 +221,6 @@ public partial class MainWindow
         IndeterminateProgress.BeginAnimation(OpacityProperty, anim);
     }
 
-    private void UpdateYouTubeVideoProgress(MediaInfo info)
-    {
-
-    }
 
     private void UpdateYouTubeProgress(MediaInfo info)
     {
@@ -404,15 +389,7 @@ public partial class MainWindow
             _seekDebounceUntil = DateTime.Now.AddSeconds(2.5); 
             if (_isExpanded) RenderProgressBar();
 
-            if (_isYouTubeVideoMode)
-            {
-                YouTubePlayer.SeekTo(newPos.TotalSeconds);
-            }
-            else
-            {
-
-                await _mediaService.SeekAsync(newPos);
-            }
+            await _mediaService.SeekAsync(newPos);
         } 
         catch { }
     }
@@ -436,15 +413,7 @@ public partial class MainWindow
 
         try
         {
-            if (_isYouTubeVideoMode)
-            {
-                YouTubePlayer.SeekTo(newPos.TotalSeconds);
-            }
-            else
-            {
-
-                await _mediaService.SeekRelativeAsync(seconds);
-            }
+            await _mediaService.SeekRelativeAsync(seconds);
         }
         catch { }
     }

@@ -2,7 +2,6 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:tb="http://www.hardcodet.net/taskbar"
-        xmlns:controls="clr-namespace:VNotch.Controls"
         Title="V-Notch"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -435,22 +434,6 @@
                                          </TextBlock.Effect>
                                      </TextBlock>
 
-                                     <Border x:Name="YouTubeVideoModeButton"
-                                             Width="32" Height="14"
-                                             Background="#ccFF0000"
-                                             CornerRadius="3"
-                                             Margin="8,0,0,0"
-                                             Cursor="Hand"
-                                             VerticalAlignment="Center"
-                                             Visibility="Collapsed"
-                                             MouseLeftButtonDown="YouTubeVideoMode_Click">
-                                         <TextBlock Text="VIDEO" 
-                                                    Foreground="White" 
-                                                    FontSize="7" 
-                                                    FontWeight="Bold" 
-                                                    HorizontalAlignment="Center" 
-                                                    VerticalAlignment="Center"/>
-                                     </Border>
                                 </StackPanel>
 
                                 <Grid Grid.Row="1">
@@ -781,15 +764,6 @@
                             </Grid>
                         </Border>
 
-                        <Border x:Name="YouTubePlayerContainer" 
-                                Background="Black"
-                                CornerRadius="16"
-                                ClipToBounds="True"
-                                Visibility="Collapsed"
-                                Height="130"
-                                Margin="0">
-                            <controls:YouTubePlayerControl x:Name="YouTubePlayer"/>
-                        </Border>
                     </Grid>
 
                         <StackPanel x:Name="MediaControls"

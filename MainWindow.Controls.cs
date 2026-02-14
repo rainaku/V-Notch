@@ -24,15 +24,7 @@ public partial class MainWindow
         UpdatePlayPauseIcon();
         PlayButtonPressAnimation(PlayPauseButton);
 
-        if (_isYouTubeVideoMode)
-        {
-            if (_isPlaying) YouTubePlayer.Play();
-            else YouTubePlayer.Pause();
-        }
-        else
-        {
-            await _mediaService.PlayPauseAsync();
-        }
+        await _mediaService.PlayPauseAsync();
     }
 
     private async void NextButton_Click(object sender, MouseButtonEventArgs e)
@@ -44,11 +36,7 @@ public partial class MainWindow
 
         PlayNextSkipAnimation();
 
-        if (_isYouTubeVideoMode)
-        {
-            await SeekRelative(15);
-        }
-        else if (_currentMediaInfo?.IsVideoSource == true)
+        if (_currentMediaInfo?.IsVideoSource == true)
         {
             await SeekRelative(15);
         }
@@ -67,11 +55,7 @@ public partial class MainWindow
 
         PlayPrevSkipAnimation();
 
-        if (_isYouTubeVideoMode)
-        {
-            await SeekRelative(-15);
-        }
-        else if (_currentMediaInfo?.IsVideoSource == true)
+        if (_currentMediaInfo?.IsVideoSource == true)
         {
             await SeekRelative(-15);
         }

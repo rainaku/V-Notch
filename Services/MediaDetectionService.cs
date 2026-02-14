@@ -59,7 +59,6 @@ public class MediaDetectionService : IDisposable
     private bool _disposed;
     private readonly SemaphoreSlim _updateLock = new(1, 1);
     private static readonly HttpClient _httpClient = new();
-    private readonly YouTubeService _youtubeService = new();
 
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -1355,18 +1354,7 @@ public class MediaDetectionService : IDisposable
                 searchQuery = cleanTitle;
             }
 
-            var videoInfo = await _youtubeService.SearchFirstVideoAsync(searchQuery);
-            if (videoInfo != null && !string.IsNullOrEmpty(videoInfo.Id))
-            {
-                return new YouTubeResult { Id = videoInfo.Id, Author = videoInfo.Author, Title = videoInfo.Title, Duration = videoInfo.Duration };
-            }
-
-            if (cleanTitle != title)
-            {
-                videoInfo = await _youtubeService.SearchFirstVideoAsync(title);
-                if (videoInfo != null && !string.IsNullOrEmpty(videoInfo.Id))
-                    return new YouTubeResult { Id = videoInfo.Id, Author = videoInfo.Author, Title = videoInfo.Title, Duration = videoInfo.Duration };
-            }
+            // Removed _youtubeService dependency
 
             string searchUrl = $"https://www.youtube.com/results?search_query={Uri.EscapeDataString(title)}";
             string html = await _httpClient.GetStringAsync(searchUrl);

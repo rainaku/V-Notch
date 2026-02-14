@@ -123,7 +123,6 @@ public partial class MainWindow : Window
 
     private MediaInfo? _currentMediaInfo;
     private bool _isMusicCompactMode = false;
-    private bool _isYouTubeVideoMode = false;
     private DateTime _lastMediaActionTime = DateTime.MinValue;
 
     private readonly DispatcherTimer _progressTimer;
@@ -210,50 +209,8 @@ public partial class MainWindow : Window
         Deactivated += MainWindow_Deactivated;
 
         _mediaService.MediaChanged += OnMediaChanged;
-
-        YouTubePlayer.VideoStateChanged += (s, state) =>
-        {
-            if (state == "playing") _isMediaPlaying = true;
-            else if (state == "paused" || state == "ended") _isMediaPlaying = false;
-        };
-
-        YouTubePlayer.PositionChanged += (s, pos) =>
-        {
-            if (_isYouTubeVideoMode && !_isDraggingProgress)
-            {
-                _lastKnownPosition = TimeSpan.FromSeconds(pos);
-                _lastMediaUpdate = DateTime.Now;
-                _seekDebounceUntil = DateTime.MinValue; 
-            }
-        };
-
-        YouTubePlayer.DurationChanged += (s, dur) =>
-        {
-            if (_isYouTubeVideoMode)
-            {
-                _lastKnownDuration = TimeSpan.FromSeconds(dur);
-            }
-        };
     }
 
-    private void YouTubeVideoMode_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        _isYouTubeVideoMode = !_isYouTubeVideoMode;
-
-        if (_isYouTubeVideoMode)
-        {
-            MediaWidgetContainer.Visibility = Visibility.Collapsed;
-            YouTubePlayerContainer.Visibility = Visibility.Visible;
-            YouTubeVideoModeButton.Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x44, 0x44, 0x44)); 
-        }
-        else
-        {
-            YouTubePlayerContainer.Visibility = Visibility.Collapsed;
-            MediaWidgetContainer.Visibility = Visibility.Visible;
-            YouTubeVideoModeButton.Background = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0x00, 0x00)); 
-        }
-    }
 
     #region Window Lifecycle
 
