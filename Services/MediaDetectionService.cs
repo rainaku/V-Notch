@@ -8,6 +8,7 @@ using Windows.Media.Control;
 using Windows.Storage.Streams;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace VNotch.Services;
 
@@ -42,6 +43,7 @@ public class MediaInfo
     public DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.Now;
     public bool IsIndeterminate { get; set; }
     public bool IsSeekEnabled { get; set; }
+    public bool IsThrottled { get; set; } // Detected that source is sleeping/throttled
     
     public double Progress => Duration.TotalSeconds > 0 ? Position.TotalSeconds / Duration.TotalSeconds : 0;
     public bool HasTimeline => Duration.TotalSeconds > 0 && !IsIndeterminate;
@@ -91,7 +93,7 @@ public class MediaDetectionService : IDisposable
     private List<string> _cachedWindowTitles = new();
     private DateTime _lastWindowEnumTime = DateTime.MinValue;
     private static readonly string[] _platformKeywords = { 
-        "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x", "apple music"
+        "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x", "apple music", "apple", "music"
     };
 
     private DateTime _lastMetadataEventTime = DateTime.MinValue;
@@ -99,6 +101,25 @@ public class MediaDetectionService : IDisposable
     private CancellationTokenSource? _thumbCts;
     private string _lastStableTrackSignature = "";
     private DateTime _emptyMetadataStartTime = DateTime.MinValue;
+    private readonly Dictionary<string, DateTime> _sessionLastPlayingTimes = new();
+    private readonly Dictionary<string, string> _sessionSourceOverrides = new();
+    private readonly Dictionary<string, string> _trackSourceCache = new();
+    private readonly string _cachePath;
+
+    // Throttling detection fields
+    private DateTime _lastMetadataChangeTime = DateTime.MinValue;
+    private string _lastTrackName = "";
+    private TimeSpan _lastObservedPosition = TimeSpan.Zero;
+    private DateTime _lastPositionChangeTime = DateTime.MinValue;
+    private bool _isThrottled;
+    private TimeSpan _recoveredDuration = TimeSpan.Zero;
+    private BitmapImage? _recoveredThumbnail;
+
+    // Simulated timeline (for throttled/background playback)
+    private DateTime _simBaseWallTimeUtc = DateTime.MinValue;
+    private TimeSpan _simBasePosition = TimeSpan.Zero;
+    private double _simBasePlaybackRate = 1.0;
+    private string _simSignature = "";
 
     public MediaDetectionService()
     {
@@ -113,6 +134,40 @@ public class MediaDetectionService : IDisposable
             Interval = TimeSpan.FromMilliseconds(200) // Fast initial/default poll
         };
         _pollTimer.Tick += PollTimer_Tick;
+
+        // Init persistent cache
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var dir = Path.Combine(appData, "V-Notch");
+        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        _cachePath = Path.Combine(dir, "source_cache.json");
+        LoadSourceCache();
+    }
+
+    private void LoadSourceCache()
+    {
+        try
+        {
+            if (File.Exists(_cachePath))
+            {
+                var json = File.ReadAllText(_cachePath);
+                var data = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (data != null)
+                {
+                    foreach (var kvp in data) _trackSourceCache[kvp.Key] = kvp.Value;
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void SaveSourceCache()
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(_trackSourceCache);
+            File.WriteAllText(_cachePath, json);
+        }
+        catch { }
     }
 
     private async void PollTimer_Tick(object? sender, EventArgs e)
@@ -146,8 +201,8 @@ public class MediaDetectionService : IDisposable
         
         _pollTimer.Start();
         
-        // Initial detection with a shorter delay to be ready faster
-        await Task.Delay(500);
+        // Initial detection with a longer delay (1.5s) to ensure SMTC/Browsers processes are fully mapped
+        await Task.Delay(1500);
         await UpdateMediaInfoAsync(forceRefresh: true);
     }
 
@@ -275,9 +330,21 @@ public class MediaDetectionService : IDisposable
                 return windowTitles;
             });
 
+            // 1. Check Session Overrides (Sticky for current life)
+            if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId) && _sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sOver))
+            {
+                info.MediaSource = sOver;
+                if (sOver == "YouTube") info.IsYouTubeRunning = true;
+            }
+
+            // 2. Check Persistent Track Cache (Across restarts)
+            if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.CurrentTrack) && _trackSourceCache.TryGetValue(info.CurrentTrack, out var tOver))
+            {
+                info.MediaSource = tOver;
+                if (tOver == "YouTube") info.IsYouTubeRunning = true;
+            }
+
             // OPTIMIZATION: Fallback to process/window detection
-            // Only fall back if we don't have a solid SMTC session or it's just a generic browser.
-            // But if SMTC reported a source like "Spotify", we trust it and DON'T look at window titles.
             bool needsFallback = !info.IsAnyMediaPlaying || (string.IsNullOrEmpty(info.CurrentTrack) && info.MediaSource == "Browser") || info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource);
 
             if (needsFallback)
@@ -334,6 +401,171 @@ public class MediaDetectionService : IDisposable
             // Sync with final metadata
             var currentSignature = info.GetSignature();
 
+            // --- THROTTLING / SLEEPING TAB DETECTION ---
+            bool isVideoSource = info.MediaSource is "YouTube" or "Browser";
+            if (isVideoSource && info.IsPlaying)
+            {
+                // Track position stability
+                if (info.Position != _lastObservedPosition)
+                {
+                    _lastObservedPosition = info.Position;
+                    _lastPositionChangeTime = DateTime.Now;
+                }
+
+                // Conditions for suspicion:
+                // 1. Position hasn't changed for 1.5s while "Playing"
+                // 2. OR we are at the very end (>98%) and metadata hasn't changed for 1.2s
+                double progress = info.Duration.TotalSeconds > 0 ? info.Position.TotalSeconds / info.Duration.TotalSeconds : 0;
+                bool positionStuck = (DateTime.Now - _lastPositionChangeTime).TotalSeconds > 1.5;
+                bool atEndStuck = progress > 0.98 && (DateTime.Now - _lastMetadataChangeTime).TotalSeconds > 1.2;
+                
+                if (positionStuck || atEndStuck)
+                {
+                    bool foundRecovery = false;
+
+                    // NEW: If SMTC still provides a track and we already know it's YouTube, do not require a YouTube window title.
+                    if (!string.IsNullOrEmpty(info.CurrentTrack) && IsLikelyYouTube(info))
+                    {
+                        // Promote source to YouTube if needed (prevents UI from flipping to generic Browser)
+                        info.MediaSource = "YouTube";
+                        info.IsYouTubeRunning = true;
+
+                        ApplySimulatedTimeline(info, atEndStuck);
+                        foundRecovery = true;
+                    }
+
+                    // FALLBACK: window-title based recovery (only if we haven't recovered via SMTC)
+                    if (!foundRecovery)
+                    {
+                        // Check if window titles reveal a different reality
+                        windowTitles ??= GetAllWindowTitles();
+
+                        foreach (var title in windowTitles)
+                        {
+                            var lowerWinTitle = title.ToLower();
+                            if (lowerWinTitle.Contains("youtube") && !lowerWinTitle.StartsWith("youtube -") && lowerWinTitle != "youtube")
+                            {
+                                var extractedTitle = ExtractVideoTitle(title, "YouTube");
+                                string trackName = extractedTitle;
+                                string artistName = "YouTube";
+
+                                if (extractedTitle.Contains(" - "))
+                                {
+                                    var parts = extractedTitle.Split(" - ", 2);
+                                    trackName = parts[1].Trim();
+                                    artistName = parts[0].Trim();
+                                }
+
+                                bool isNewTrack = trackName != _lastTrackName && !_lastTrackName.Contains(trackName);
+                                
+                                if (isNewTrack)
+                                {
+                                    // CASE A: Track Change detected
+                                    info.CurrentTrack = trackName;
+                                    info.CurrentArtist = artistName;
+                                    info.MediaSource = "YouTube";
+                                    info.IsYouTubeRunning = true;
+                                    info.IsThrottled = true;
+                                    _isThrottled = true;
+                                    
+                                    // FORCE CLEAR DURATION to prevent "Stuck at end" (e.g. 3:15/3:15)
+                                    _recoveredDuration = TimeSpan.Zero;
+                                    _recoveredThumbnail = null;
+                                    info.Duration = TimeSpan.Zero; 
+                                    
+                                    info.Position = TimeSpan.FromSeconds(1.5); 
+                                    info.LastUpdated = DateTimeOffset.Now; 
+                                    foundRecovery = true;
+                                    break;
+                                }
+                                else if (positionStuck || _isThrottled)
+                                {
+                                    // CASE B: Stalled track (Continue recovery)
+                                    info.CurrentTrack = trackName;
+                                    info.CurrentArtist = artistName;
+                                    info.MediaSource = "YouTube";
+                                    info.IsYouTubeRunning = true;
+                                    info.IsThrottled = true;
+                                    _isThrottled = true;
+                                    
+                                    // APPLY RECOVERY CACHE - DO NOT trust info.Duration from SMTC here
+                                    if (_recoveredDuration.TotalSeconds > 0) 
+                                    {
+                                        info.Duration = _recoveredDuration;
+                                    }
+                                    else 
+                                    {
+                                        // If we don't have recovered duration yet, MUST NOT use the old stale one
+                                        info.Duration = TimeSpan.Zero; 
+                                    }
+
+                                    if (_recoveredThumbnail != null) info.Thumbnail = _recoveredThumbnail;
+
+                                    var timeOnTrack = DateTime.Now - _lastMetadataChangeTime;
+                                    info.Position = timeOnTrack;
+                                    info.LastUpdated = DateTimeOffset.Now;
+                                    foundRecovery = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!foundRecovery && _isThrottled)
+                    {
+                        // Stickiness: Keep throttled mode for 2 seconds even if recovery fails temporarily
+                        if ((DateTime.Now - _lastPositionChangeTime).TotalSeconds > 3.5)
+                        {
+                            _isThrottled = false;
+                            _recoveredDuration = TimeSpan.Zero;
+                            _recoveredThumbnail = null;
+
+                            // Reset simulation state
+                            _simBaseWallTimeUtc = DateTime.MinValue;
+                            _simBasePosition = TimeSpan.Zero;
+                            _simSignature = "";
+                        }
+                    }
+                }
+                else if (_isThrottled)
+                {
+                    // Natural release: Only release if position has actually moved in the last 500ms
+                    if ((DateTime.Now - _lastPositionChangeTime).TotalMilliseconds < 500)
+                    {
+                        _isThrottled = false;
+                        _recoveredDuration = TimeSpan.Zero;
+                        _recoveredThumbnail = null;
+
+                        // Reset simulation state
+                        _simBaseWallTimeUtc = DateTime.MinValue;
+                        _simBasePosition = TimeSpan.Zero;
+                        _simSignature = "";
+                    }
+                }
+            }
+            else
+            {
+                _isThrottled = false;
+                _recoveredDuration = TimeSpan.Zero;
+                _recoveredThumbnail = null;
+
+                _simBaseWallTimeUtc = DateTime.MinValue;
+                _simBasePosition = TimeSpan.Zero;
+                _simSignature = "";
+            }
+            
+            // Track metadata stability AFTER recovery logic
+            if (info.CurrentTrack != _lastTrackName)
+            {
+                _lastTrackName = info.CurrentTrack;
+                _lastMetadataChangeTime = DateTime.Now;
+                // If this was a natural track change (not mid-song throttle), reset throttled state
+                if (_isThrottled) _isThrottled = false; 
+            }
+
+            info.IsThrottled = _isThrottled;
+            currentSignature = info.GetSignature(); // Re-calculate after override
+
             // GRACE PERIOD: If metadata is currently empty, don't show "No media playing" immediately.
             if (string.IsNullOrEmpty(info.CurrentTrack))
             {
@@ -341,8 +573,7 @@ public class MediaDetectionService : IDisposable
                 {
                     _emptyMetadataStartTime = DateTime.Now;
                 }
-
-                if ((DateTime.Now - _emptyMetadataStartTime).TotalSeconds < 1.0 && !string.IsNullOrEmpty(_lastStableTrackSignature))
+                if ((DateTime.Now - _emptyMetadataStartTime).TotalSeconds < 2.5 && !string.IsNullOrEmpty(_lastStableTrackSignature))
                 {
                     return;
                 }
@@ -359,9 +590,10 @@ public class MediaDetectionService : IDisposable
             bool sourceChanged = info.MediaSource != _lastSource;
             bool seekCapabilityChanged = info.IsSeekEnabled != _lastSeekEnabled;
             
-            bool significantJump = Math.Abs((info.Position - _lastPosition).TotalSeconds) >= 0.5;
+            bool significantJump = Math.Abs((info.Position - _lastPosition).TotalSeconds) >= (info.IsThrottled ? 5.0 : 1.5);
+            bool throttleChanged = info.IsThrottled != _lastIsThrottled;
 
-            if (forceRefresh || metadataChanged || playbackChanged || sourceChanged || significantJump || seekCapabilityChanged)
+            if (forceRefresh || metadataChanged || playbackChanged || sourceChanged || (significantJump && !info.IsThrottled) || seekCapabilityChanged || throttleChanged)
             {
                 if (string.IsNullOrEmpty(info.CurrentTrack) && !string.IsNullOrEmpty(_lastTrackSignature) && !forceRefresh)
                 {
@@ -373,12 +605,19 @@ public class MediaDetectionService : IDisposable
                 _lastSource = info.MediaSource;
                 _lastPosition = info.Position;
                 _lastSeekEnabled = info.IsSeekEnabled;
+                _lastIsThrottled = info.IsThrottled;
                 
                 MediaChanged?.Invoke(this, info);
             }
 
-            // REFINEMENT: If it's YouTube and we DON'T have a good thumbnail, fetch in background
-            if (info.MediaSource == "YouTube" && !string.IsNullOrEmpty(info.CurrentTrack))
+            // REFINEMENT: If it's YouTube (or potential YouTube in Browser) and we DON'T have a good thumbnail, fetch in background
+            // We treat ANY Browser source as potential YouTube if we don't have a high-res thumb yet.
+            bool isPotentialYouTube = info.MediaSource == "YouTube" || info.MediaSource == "Browser";
+
+            bool needsFetch = (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
+            if (_isThrottled && _recoveredThumbnail != null) needsFetch = false;
+
+            if (isPotentialYouTube && !string.IsNullOrEmpty(info.CurrentTrack) && needsFetch)
             {
                 // Cancel previous thumb fetch
                 _thumbCts?.Cancel();
@@ -386,7 +625,11 @@ public class MediaDetectionService : IDisposable
                 var token = _thumbCts.Token;
 
                 string trackDuringFetch = info.CurrentTrack;
-                bool needsBetterThumb = info.Thumbnail == null || info.Thumbnail.PixelWidth < 50;
+                string artistDuringFetch = info.CurrentArtist;
+                
+                // If it's a browser source, we almost always want to fetch if the thumb is small OR looks like a browser icon
+                bool isBrowserIcon = info.Thumbnail != null && info.MediaSource == "Browser"; 
+                bool needsBetterThumb = info.Thumbnail == null || info.Thumbnail.PixelWidth < 120 || isBrowserIcon;
                 
                 _ = Task.Run(async () => {
                     try
@@ -398,14 +641,39 @@ public class MediaDetectionService : IDisposable
                         {
                             if (string.IsNullOrEmpty(videoId))
                             {
-                                var result = await TryGetYouTubeVideoIdWithInfoAsync(trackDuringFetch);
+                                var result = await TryGetYouTubeVideoIdWithInfoAsync(trackDuringFetch, artistDuringFetch);
                                 if (result != null)
                                 {
                                     videoId = result.Id;
+                                    
+                                    // UPGRADE: If we found a high-confidence YouTube match, upgrade the source
+                                    bool highConfidence = result.TitleMatches(trackDuringFetch) || info.MediaSource == "YouTube";
+                                     if (highConfidence && info.MediaSource == "Browser")
+                                    {
+                                        info.MediaSource = "YouTube";
+                                        info.IsYouTubeRunning = true;
+                                        
+                                        if (!string.IsNullOrEmpty(info.SourceAppId))
+                                        {
+                                            _sessionSourceOverrides[info.SourceAppId] = "YouTube";
+                                        }
+
+                                        // Persist to disk
+                                        _trackSourceCache[trackDuringFetch] = "YouTube";
+                                        SaveSourceCache();
+                                    }
+
                                     if (!string.IsNullOrEmpty(result.Author) && result.Author != "YouTube")
                                     {
                                         info.CurrentArtist = result.Author;
                                         _stableArtist = result.Author;
+                                    }
+
+                                    // IMPROVEMENT: Update duration if SMTC is giving us junk (common in background tabs)
+                                    if (result.Duration.TotalSeconds > 0)
+                                    {
+                                        _recoveredDuration = result.Duration;
+                                        info.Duration = result.Duration;
                                     }
                                 }
                             }
@@ -414,29 +682,38 @@ public class MediaDetectionService : IDisposable
                             {
                                 info.YouTubeVideoId = videoId;
                                 
-                                if (needsBetterThumb)
-                                {
-                                    string thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/hqdefault.jpg";
-                                    var frameBitmap = await DownloadImageAsync(thumbnailUrl);
-                                    
-                                    if (frameBitmap == null)
+                                    if (needsBetterThumb || info.MediaSource == "YouTube") // Force fetch if we now know it's YT
                                     {
-                                        thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/mqdefault.jpg";
-                                        frameBitmap = await DownloadImageAsync(thumbnailUrl);
-                                    }
+                                        string thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/hqdefault.jpg";
+                                        var frameBitmap = await DownloadImageAsync(thumbnailUrl);
+                                        
+                                        if (frameBitmap == null)
+                                        {
+                                            thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/mqdefault.jpg";
+                                            frameBitmap = await DownloadImageAsync(thumbnailUrl);
+                                        }
 
-                                    if (frameBitmap != null && !token.IsCancellationRequested && _lastTrackSignature.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
-                                        info.Thumbnail = frameBitmap;
+                                        if (frameBitmap != null && !token.IsCancellationRequested)
+                                        {
+                                            // Check signature again before applying
+                                            string currentSig = _lastTrackSignature;
+                                            if (currentSig.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
+                                                _recoveredThumbnail = frameBitmap; // CACHE IT
+                                                info.Thumbnail = frameBitmap;
 
-                                        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => {
-                                            if (!token.IsCancellationRequested && _lastTrackSignature.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
-                                                MediaChanged?.Invoke(this, info);
-                                        });
-                                        break; 
+                                                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => {
+                                                    if (!token.IsCancellationRequested && _lastTrackSignature.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        _lastTrackSignature = info.GetSignature();
+                                                        MediaChanged?.Invoke(this, info);
+                                                    }
+                                                });
+                                                break; 
+                                            }
+                                        }
                                     }
-                                }
                                 else break;
                             }
 
@@ -466,6 +743,7 @@ public class MediaDetectionService : IDisposable
 
     private string _lastSource = "";
     private bool _lastIsPlaying = false;
+    private bool _lastIsThrottled = false;
     private bool _lastSeekEnabled = false;
     private TimeSpan _lastPosition = TimeSpan.Zero;
 
@@ -584,34 +862,52 @@ public class MediaDetectionService : IDisposable
                                 if (props.Thumbnail != null) score += 10;
                             }
 
-                            // App Priority
-                            bool isSpotify = sourceApp.Contains("Spotify", StringComparison.OrdinalIgnoreCase);
-                            if (isSpotify) score += 200;
-                            else if (sourceApp.Contains("Music", StringComparison.OrdinalIgnoreCase)) score += 100;
-                            
-                            // Play state weight
-                            if (isActive) score += 300; // Prefer currently playing apps strongly
+                              // App Priority
+                              bool isSpotify = sourceApp.Contains("Spotify", StringComparison.OrdinalIgnoreCase);
+                              bool isMusic = sourceApp.Contains("Music", StringComparison.OrdinalIgnoreCase);
+                              bool isYouTube = sourceApp.Contains("YouTube", StringComparison.OrdinalIgnoreCase);
+                              bool isBrowser = sourceApp.Contains("Chrome", StringComparison.OrdinalIgnoreCase) || 
+                                              sourceApp.Contains("Edge", StringComparison.OrdinalIgnoreCase) ||
+                                              sourceApp.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
+                                              sourceApp.Contains("Firefox", StringComparison.OrdinalIgnoreCase);
+                              
+                              if (isSpotify) score += 400;
+                              else if (isMusic) score += 400;
+                              else if (isYouTube) score += 350;
+                              else if (isBrowser) score += 100; // Browsers are common, but give them a base score
+                             
+                             // Play state weight
+                             if (isActive) 
+                             {
+                                 score += 500; // Prefer currently playing apps strongly
+                                 _sessionLastPlayingTimes[sourceApp] = DateTime.Now;
+                             }
 
-                            // STICKINESS: Massive boost for the CURRENT session to prevent flickering
-                            if (isPrevActive) score += 1000; 
+                             // Recency Weight: Sessions that were playing recently get a boost
+                             if (_sessionLastPlayingTimes.TryGetValue(sourceApp, out var lastPlaying))
+                             {
+                                 var idleSeconds = (DateTime.Now - lastPlaying).TotalSeconds;
+                                 if (idleSeconds < 30) score += (int)((30 - idleSeconds) * 10);
+                             }
 
-                            // Preferred App Lock: If we have an active Spotify/Music session, 
-                            // we give it absolute priority. DO NOT switch unless it's gone for a while.
-                            if (isPrevActive && (isSpotify || sourceApp.Contains("Music", StringComparison.OrdinalIgnoreCase))) 
-                            {
-                                score += 10000; // Absolute stickiness for premium apps
-                            }
+                             // STICKINESS: Moderate boost for the CURRENT session
+                              // Meta Score: Prefer sessions with actual titles
+                              if (props != null && !string.IsNullOrEmpty(props.Title)) 
+                              {
+                                  score += 1500; // Heavy weight for actual media vs "System" sounds
+                                  if (!string.IsNullOrEmpty(props.Artist) && props.Artist != "YouTube" && props.Artist != "Browser") score += 200;
+                              }
 
-                            if (score > bestScore && (isActive || isPrevActive))
-                            {
-                                bestScore = score;
-                                bestSession = s;
-                            }
-                        }
-                        catch { }
-                    }
-                }
-                catch { }
+                              if (score > bestScore && (isActive || isPrevActive))
+                             {
+                                 bestScore = score;
+                                 bestSession = s;
+                             }
+                         }
+                         catch { }
+                     }
+                 }
+                 catch { }
 
                 // SESSION HYSTERESIS: Prevent rapid flipping between sessions
                 if (bestSession != null && _activeDisplaySession != null && bestSession.SourceAppUserModelId != _activeDisplaySession.SourceAppUserModelId)
@@ -693,7 +989,8 @@ public class MediaDetectionService : IDisposable
             // Populate source before checking metadata to block fallback logic
             var sessionSourceApp = session.SourceAppUserModelId ?? "";
             info.IsAnyMediaPlaying = true; // We HAVE a session, so we are playing/paused something
-            
+            info.SourceAppId = sessionSourceApp; // Ensure SourceAppId is set early
+
             if (!string.IsNullOrEmpty(sessionSourceApp))
             {
                 if (sessionSourceApp.Contains("Spotify", StringComparison.OrdinalIgnoreCase))
@@ -702,54 +999,154 @@ public class MediaDetectionService : IDisposable
                     info.IsSpotifyPlaying = true;
                     info.IsSpotifyRunning = true;
                 }
+                else if (sessionSourceApp.Contains("YouTube", StringComparison.OrdinalIgnoreCase))
+                {
+                    info.MediaSource = "YouTube";
+                    info.IsYouTubeRunning = true;
+                }
                 else if (sessionSourceApp.Contains("Chrome", StringComparison.OrdinalIgnoreCase) ||
                          sessionSourceApp.Contains("Edge", StringComparison.OrdinalIgnoreCase) ||
                          sessionSourceApp.Contains("Firefox", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("MS-Edge", StringComparison.OrdinalIgnoreCase) ||
                          sessionSourceApp.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
                          sessionSourceApp.Contains("Opera", StringComparison.OrdinalIgnoreCase) ||
                          sessionSourceApp.Contains("Brave", StringComparison.OrdinalIgnoreCase) ||
                          sessionSourceApp.Contains("Vivaldi", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Coccoc", StringComparison.OrdinalIgnoreCase))
+                         sessionSourceApp.Contains("Coccoc", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("Arc", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("Sidekick", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("Browser", StringComparison.OrdinalIgnoreCase))
                 {
                     info.MediaSource = "Browser";
                 }
-                else if (sessionSourceApp.Contains("Music", StringComparison.OrdinalIgnoreCase))
+                else if (sessionSourceApp.Contains("Music", StringComparison.OrdinalIgnoreCase) || 
+                         sessionSourceApp.Contains("Apple", StringComparison.OrdinalIgnoreCase) ||
+                         sessionSourceApp.Contains("AppleMusic", StringComparison.OrdinalIgnoreCase))
                 {
                     info.MediaSource = "Apple Music";
                     info.IsAppleMusicRunning = true;
+                }
+                else
+                {
+                    // Generic fallback for any other media session
+                    info.MediaSource = "Browser";
+                }
+                
+                // Early check for ID-based override (e.g. we know this specific browser instance is YouTube)
+                if (info.MediaSource == "Browser" && _sessionSourceOverrides.TryGetValue(sessionSourceApp, out var overriden))
+                {
+                    info.MediaSource = overriden;
+                    if (overriden == "YouTube") info.IsYouTubeRunning = true;
                 }
             }
 
             var mediaProperties = await session.TryGetMediaPropertiesAsync();
             
-            // TRACK FILTERING: Block generic system/app titles that aren't real songs
             string sessionTitle = mediaProperties?.Title ?? "";
             string lowerTitle = sessionTitle.ToLower();
+            string sessionArtist = mediaProperties?.Artist ?? "";
+            string lowerArtist = sessionArtist.ToLower();
+            string lowerAlbum = (mediaProperties?.AlbumTitle ?? "").ToLower();
+
+            // REFINEMENT: Detect platform from SMTC fields (YouTube background tabs often have suffixes)
+            if (info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource))
+            {
+                bool isYouTube = lowerArtist.Contains("youtube") || 
+                                 lowerTitle.Contains("youtube") || 
+                                 lowerTitle.EndsWith("- youtube") || 
+                                 lowerTitle.EndsWith("– youtube") ||
+                                 lowerAlbum.Contains("youtube");
+                
+                if (isYouTube)
+                {
+                    info.MediaSource = "YouTube";
+                    info.IsYouTubeRunning = true;
+                }
+                else if (lowerArtist.Contains("apple music") || lowerTitle.Contains("apple music") || lowerAlbum.Contains("apple music") || lowerAlbum.Contains("music.apple.com"))
+                {
+                    info.MediaSource = "Apple Music";
+                    info.IsAppleMusicRunning = true;
+                }
+                else if (lowerArtist.Contains("soundcloud") || lowerTitle.Contains("soundcloud") || lowerAlbum.Contains("soundcloud"))
+                {
+                    info.MediaSource = "SoundCloud";
+                    info.IsSoundCloudRunning = true;
+                }
+            }
+
+            // TRACK FILTERING: Block generic system/app titles that aren't real songs
             bool isJunkTitle = string.IsNullOrEmpty(sessionTitle) || 
                                lowerTitle == "spotify" || 
-                               lowerTitle == "youtube" ||
                                lowerTitle == "advertisement" ||
                                lowerTitle == "windows media player" ||
                                lowerTitle == "spotify free" ||
                                lowerTitle == "spotify premium" ||
                                lowerTitle == "chrome" ||
-                               lowerTitle == "edge";
+                               lowerTitle == "edge" ||
+                               lowerTitle == "brave" ||
+                               lowerTitle == "opera" ||
+                               lowerTitle == "firefox" ||
+                               (lowerTitle == "youtube" && (string.IsNullOrEmpty(sessionArtist) || lowerArtist == "youtube"));
 
-            if (isJunkTitle)
-            {
-                // If it's a junk title, we still have info.MediaSource set.
-                // This will prevent the window-title fallback.
-                return;
-            }
-
-            // Sync playback state
+            // Sync playback & timeline even for junk titles (so we have at least the platform icon and play state)
             var pbInfo = session.GetPlaybackInfo();
             info.IsPlaying = pbInfo != null && pbInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
             info.IsAnyMediaPlaying = true;
+            
+            // Populate metadata early for timeline state protection
+            info.CurrentTrack = sessionTitle;
+            info.CurrentArtist = sessionArtist;
 
-            // Get track info
-            info.CurrentTrack = mediaProperties?.Title ?? "";
-            info.CurrentArtist = mediaProperties?.Artist ?? "";
+            try {
+                var timeline = session.GetTimelineProperties();
+                if (timeline != null && timeline.EndTime.TotalSeconds > 0)
+                {
+                    // STALE DATA PROTECTION: 
+                    // If we just detected a track change, and the position is at the very end, 
+                    // it's likely stale data from the previous track's end state (Windows behavior).
+                    bool isNearlyEnd = (timeline.EndTime - timeline.Position).TotalMilliseconds < 800; // Increased threshold
+                    bool isNewTrack = !string.IsNullOrEmpty(info.CurrentTrack) && info.CurrentTrack != _lastTrackSignature.Split('|')[0];
+                    
+                    if (isNewTrack && isNearlyEnd)
+                    {
+                        info.Position = TimeSpan.Zero;
+                        info.Duration = timeline.EndTime;
+                        info.IsIndeterminate = false;
+                    }
+                    else
+                    {
+                        info.Position = timeline.Position;
+                        info.Duration = timeline.EndTime;
+                    }
+                    
+                    info.IsSeekEnabled = pbInfo?.Controls?.IsPlaybackPositionEnabled ?? false;
+                    info.LastUpdated = DateTimeOffset.Now;
+                }
+                else {
+                    info.IsIndeterminate = true;
+                }
+            } catch { info.IsIndeterminate = true; }
+
+            if (isJunkTitle)
+            {
+                // If we identified it's YouTube but title is just "YouTube", we keep identifying it as YouTube
+                if (info.MediaSource == "YouTube")
+                {
+                    info.CurrentTrack = ""; // No song name yet
+                    info.CurrentArtist = "YouTube";
+                }
+                else if (info.MediaSource == "Browser")
+                {
+                    // Generic browser with junk title -> actually no media we care about
+                    if (!string.IsNullOrEmpty(_lastStableTrackSignature) && (DateTime.Now - _emptyMetadataStartTime).TotalSeconds < 2.5)
+                        return;
+                        
+                    return;
+                }
+                
+                // If it's a known source but junk title, we still want to show the source icon
+                return; 
+            }
 
             // If SMTC gives us the platform name as Artist (YouTube/Browser), try to keep our stable artist
             if ((info.CurrentArtist == "YouTube" || info.CurrentArtist == "Browser") && 
@@ -807,9 +1204,18 @@ public class MediaDetectionService : IDisposable
                 else
                 {
                     var windowTitles = windowTitleFactory();
+                    string trackTitleLower = info.CurrentTrack.ToLower();
+                    bool hasTrack = !string.IsNullOrEmpty(trackTitleLower) && trackTitleLower != "browser" && trackTitleLower != "now playing";
+
                     foreach (var title in windowTitles)
                     {
                         var winTitleLower = title.ToLower();
+                        
+                        // If we have a track title from SMTC, the window title should contain it
+                        // This prevents misidentifying the source if multiple tabs are open
+                        if (hasTrack && !winTitleLower.Contains(trackTitleLower))
+                            continue;
+
                         if (winTitleLower.Contains("youtube") && !winTitleLower.StartsWith("youtube -") && winTitleLower != "youtube")
                         {
                              info.MediaSource = "YouTube";
@@ -822,7 +1228,13 @@ public class MediaDetectionService : IDisposable
                              info.IsSoundCloudRunning = true;
                              break;
                         }
-                        // Other platform checks...
+                        else if (winTitleLower.Contains("apple music") || winTitleLower.Contains("music.apple.com") || 
+                                 (winTitleLower.Contains("apple") && winTitleLower.Contains("music")))
+                        {
+                             info.MediaSource = "Apple Music";
+                             info.IsAppleMusicRunning = true;
+                             break;
+                        }
                         else if (winTitleLower.Contains("facebook") && (winTitleLower.Contains("watch") || winTitleLower.Contains("video")))
                         {
                             info.MediaSource = "Facebook";
@@ -845,12 +1257,6 @@ public class MediaDetectionService : IDisposable
                         {
                              info.MediaSource = "Twitter";
                              info.IsTwitterRunning = true;
-                             break;
-                        }
-                        else if (winTitleLower.Contains("apple music"))
-                        {
-                             info.MediaSource = "Apple Music";
-                             info.IsAppleMusicRunning = true;
                              break;
                         }
                     }
@@ -888,15 +1294,15 @@ public class MediaDetectionService : IDisposable
                                 // DETECT BROWSER ICON VS VIDEO THUMBNAIL
                                 // YouTube thumbnails are 16:9. Browser icons are 1:1.
                                 double aspect = (double)newBitmap.PixelWidth / newBitmap.PixelHeight;
-                                bool isSquare = Math.Abs(aspect - 1.0) < 0.1;
+                                bool isSquare = Math.Abs(aspect - 1.0) < 0.05; // Tighter square check
 
-                                bool isPlatformWithVideo = info.MediaSource == "YouTube" || info.MediaSource == "SoundCloud";
+                                // If it's a square image, and we are either YouTube, SoundCloud OR a Browser source,
+                                // it's almost certainly a site/browser icon (favicon) and NOT the content thumbnail.
+                                bool isGenericIcon = info.MediaSource == "YouTube" || info.MediaSource == "SoundCloud" || info.MediaSource == "Browser";
 
-                                // If it's a square image on a video platform, it's likely just a browser icon.
-                                // We'll ignore it to allow our background fetch to find the real 16:9 thumbnail.
-                                if (isSquare && isPlatformWithVideo)
+                                if (isSquare && isGenericIcon)
                                 {
-                                    // Junk browser icon - do not set info.Thumbnail
+                                    // Junk icon - do not set info.Thumbnail to allow background high-res fetch to take over
                                 }
                                 else
                                 {
@@ -974,35 +1380,73 @@ public class MediaDetectionService : IDisposable
         }
     }
 
-    private class YouTubeResult { public string? Id; public string? Author; }
+    private class YouTubeResult 
+    { 
+        public string? Id; 
+        public string? Author; 
+        public string? Title;
+        public TimeSpan Duration;
 
-    private async Task<YouTubeResult?> TryGetYouTubeVideoIdWithInfoAsync(string title)
+        public bool TitleMatches(string otherTitle)
+        {
+            if (string.IsNullOrEmpty(Title) || string.IsNullOrEmpty(otherTitle)) return false;
+            string t1 = Title.ToLower();
+            string t2 = otherTitle.ToLower();
+            return t1.Contains(t2) || t2.Contains(t1);
+        }
+    }
+
+    private async Task<YouTubeResult?> TryGetYouTubeVideoIdWithInfoAsync(string title, string artist = "")
     {
         try
         {
             string cleanTitle = title;
-            var parts = title.Split(new[] { " - ", " | ", " – " }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2) cleanTitle = parts[0].Trim();
+            // Only clean if it's not a direct video ID (already handled)
+            if (title.Length != 11)
+            {
+                // Better cleaning: if there is a dash, take both the full title and parts
+                var parts = title.Split(new[] { " - ", " | ", " – " }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2) cleanTitle = parts[0].Trim();
+            }
 
             if (cleanTitle.Length == 11 && Regex.IsMatch(cleanTitle, @"^[a-zA-Z0-9_-]{11}$"))
                 return new YouTubeResult { Id = cleanTitle };
 
-            var videoInfo = await _youtubeService.SearchFirstVideoAsync(cleanTitle);
+            // Try searching with title + artist for better precision
+            string searchQuery = cleanTitle;
+            if (!string.IsNullOrEmpty(artist) && artist != "YouTube" && artist != "Browser")
+            {
+                // Most browser titles are "Artist - Title", but search works best with both
+                searchQuery = $"{cleanTitle} {artist}";
+            }
+            else if (cleanTitle.Contains(" - "))
+            {
+                // Already has a dash, likely good as-is
+                searchQuery = cleanTitle;
+            }
+
+            var videoInfo = await _youtubeService.SearchFirstVideoAsync(searchQuery);
             if (videoInfo != null && !string.IsNullOrEmpty(videoInfo.Id))
             {
-                return new YouTubeResult { Id = videoInfo.Id, Author = videoInfo.Author };
+                return new YouTubeResult { Id = videoInfo.Id, Author = videoInfo.Author, Title = videoInfo.Title, Duration = videoInfo.Duration };
             }
 
             if (cleanTitle != title)
             {
                 videoInfo = await _youtubeService.SearchFirstVideoAsync(title);
                 if (videoInfo != null && !string.IsNullOrEmpty(videoInfo.Id))
-                    return new YouTubeResult { Id = videoInfo.Id, Author = videoInfo.Author };
+                    return new YouTubeResult { Id = videoInfo.Id, Author = videoInfo.Author, Title = videoInfo.Title, Duration = videoInfo.Duration };
             }
 
             string searchUrl = $"https://www.youtube.com/results?search_query={Uri.EscapeDataString(title)}";
             string html = await _httpClient.GetStringAsync(searchUrl);
+            
+            // Try to find video ID in HTML (Regex for both URL and initialData JSON)
             var match = Regex.Match(html, @"/watch\?v=([a-zA-Z0-9_-]{11})");
+            if (match.Success) return new YouTubeResult { Id = match.Groups[1].Value };
+
+            // Fallback: search for "videoId":"..." in the raw HTML (often in ytInitialData)
+            match = Regex.Match(html, @"""videoId"":""([a-zA-Z0-9_-]{11})""");
             if (match.Success) return new YouTubeResult { Id = match.Groups[1].Value };
         }
         catch { }
@@ -1190,6 +1634,79 @@ public class MediaDetectionService : IDisposable
         _cachedWindowTitles = titles;
         _lastWindowEnumTime = DateTime.Now;
         return titles;
+    }
+
+    private bool IsLikelyYouTube(MediaInfo info)
+    {
+        if (info.MediaSource == "YouTube") return true;
+
+        // If Browser but we already learned/overrode it is YouTube
+        if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId))
+        {
+            if (_sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sOver) && sOver == "YouTube")
+                return true;
+        }
+
+        // Track persistent cache says YouTube
+        if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.CurrentTrack))
+        {
+            if (_trackSourceCache.TryGetValue(info.CurrentTrack, out var tOver) && tOver == "YouTube")
+                return true;
+        }
+
+        // Heuristic: SMTC metadata sometimes uses Artist="YouTube" for browser sessions
+        if (!string.IsNullOrEmpty(info.CurrentArtist) &&
+            info.CurrentArtist.Equals("YouTube", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+
+    private void ApplySimulatedTimeline(MediaInfo info, bool atEndStuck)
+    {
+        var nowUtc = DateTime.UtcNow;
+
+        // Reset base if track/source changed
+        var sig = info.GetSignature();
+        if (_simSignature != sig || _simBaseWallTimeUtc == DateTime.MinValue)
+        {
+            _simSignature = sig;
+            _simBaseWallTimeUtc = nowUtc;
+
+            // Prefer last observed position (more stable than a frozen SMTC position)
+            _simBasePosition = _lastObservedPosition != TimeSpan.Zero ? _lastObservedPosition : info.Position;
+
+            _simBasePlaybackRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
+        }
+
+        var elapsed = nowUtc - _simBaseWallTimeUtc;
+        var sim = _simBasePosition + TimeSpan.FromSeconds(elapsed.TotalSeconds * _simBasePlaybackRate);
+
+        // If we're "stuck at end", duration is likely stale -> avoid clamping to it.
+        if (!atEndStuck && info.Duration > TimeSpan.Zero && sim > info.Duration)
+            sim = info.Duration;
+
+        info.Position = sim;
+
+        info.IsThrottled = true;
+        _isThrottled = true;
+
+        // Keep cache duration/thumbnail if we have them (avoid 3:15/3:15 end-stuck visuals)
+        if (atEndStuck)
+        {
+            if (_recoveredDuration > TimeSpan.Zero) info.Duration = _recoveredDuration;
+            else info.Duration = TimeSpan.Zero;
+        }
+        else
+        {
+            if (info.Duration <= TimeSpan.Zero && _recoveredDuration > TimeSpan.Zero)
+                info.Duration = _recoveredDuration;
+        }
+
+        if (info.Thumbnail == null && _recoveredThumbnail != null)
+            info.Thumbnail = _recoveredThumbnail;
+
+        info.LastUpdated = DateTimeOffset.Now;
     }
 
     private void ParseSpotifyTitle(string title, MediaInfo info)

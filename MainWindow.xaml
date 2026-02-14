@@ -60,6 +60,11 @@
         
         <!-- Apple Music Pink -->
         <SolidColorBrush x:Key="AppleMusicPink" Color="#FA243C"/>
+
+        <LinearGradientBrush x:Key="AppleMusicGradient" StartPoint="0.5,1" EndPoint="0.5,0">
+            <GradientStop Color="#FA233B" Offset="0"/>
+            <GradientStop Color="#FB5C74" Offset="1"/>
+        </LinearGradientBrush>
         
         <!-- Primary System Font (modern Windows 11 weight-balanced) -->
         <FontFamily x:Key="MainSystemFont">Segoe UI Variable Text, Segoe UI, Inter, SF Pro Display, Roboto, Sans-serif</FontFamily>
@@ -444,8 +449,11 @@
                                                 Width="20" Height="20" 
                                                 Background="Transparent"
                                                 Visibility="Collapsed">
-                                            <Viewbox>
-                                                <Path Data="M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M15.5,14c0,2.5-2,3-3.5,3s-3.5-0.5-3.5-3s2-3.5,3.5-3.5V7l4-1v2.5L15.5,14z" Fill="{StaticResource AppleMusicPink}"/>
+                                            <Viewbox Stretch="Uniform">
+                                                <Grid Width="512" Height="512">
+                                                    <Rectangle Width="512" Height="512" RadiusX="76.8" RadiusY="76.8" Fill="{StaticResource AppleMusicGradient}"/>
+                                                    <Path Data="M199 359V199q0-9 10-11l138-28q11-2 12 10v122q0 15-45 20c-57 9-48 105 30 79 30-11 35-40 35-69V88s0-20-17-15l-170 35s-13 2-13 18v203q0 15-45 20c-57 9-48 105 30 79 30-11 35-40 35-69" Fill="White"/>
+                                                </Grid>
                                             </Viewbox>
                                         </Border>
 

@@ -104,6 +104,7 @@ public partial class MainWindow
     
     private DateTime _lastTimelineAvailableTime = DateTime.MinValue;
     private string _lastSessionId = "";
+    private string _lastProgressSignature = "";
 
     /// <summary>
     /// Called when MediaDetectionService fires MediaChanged event
@@ -118,6 +119,24 @@ public partial class MainWindow
             HandleSessionTransition();
         }
 
+        // IMPORTANT: Track changes must bypass seek-debounce.
+        // When user seeks to the end and the player auto-advances, the next track often arrives within the debounce window.
+        // If we return early, progress stays clamped at 100% and appears frozen.
+        string signature = info.GetSignature();
+        bool signatureChanged = !string.IsNullOrEmpty(signature) && signature != _lastProgressSignature;
+        if (signatureChanged)
+        {
+            _lastProgressSignature = signature;
+
+            // Allow immediate state refresh for the new track/session.
+            _seekDebounceUntil = DateTime.MinValue;
+
+            // Reset local timeline to whatever we have now (avoid carrying old duration/position).
+            _lastKnownDuration = info.Duration.TotalSeconds > 0 ? info.Duration : TimeSpan.Zero;
+            _lastKnownPosition = info.Position < TimeSpan.Zero ? TimeSpan.Zero : info.Position;
+            _lastMediaUpdate = info.LastUpdated.LocalDateTime;
+        }
+
         _currentMediaInfo = info;
         
         // Progress bar should ALWAYS be visible as per user request
@@ -129,8 +148,18 @@ public partial class MainWindow
         
         if (showProgressDetails)
         {
-            // IMPORTANT: If user is dragging or we just seeked, don't update internal position from SMTC
-            if (_isDraggingProgress || DateTime.Now < _seekDebounceUntil) return;
+            // IMPORTANT: If user is dragging, don't update internal position from SMTC.
+            // If we are within seek-debounce, still allow updates when the track/session signature changed.
+            if (_isDraggingProgress) return;
+            if (DateTime.Now < _seekDebounceUntil)
+            {
+                string sigNow = info.GetSignature();
+                bool changed = !string.IsNullOrEmpty(sigNow) && sigNow != _lastProgressSignature;
+                if (!changed) return;
+
+                _lastProgressSignature = sigNow;
+                _seekDebounceUntil = DateTime.MinValue;
+            }
 
             if (info.HasTimeline)
             {
@@ -228,8 +257,29 @@ public partial class MainWindow
 
     private void UpdateYouTubeProgress(MediaInfo info)
     {
-        if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
+        // If it's a new track or throttled, and we don't have a new duration yet, 
+        // reset duration to prevent old track's duration from being used for the new track.
+        bool isNewTrack = info.CurrentTrack != _lastAnimatedTrackSignature.Split('|')[0];
+        if (isNewTrack || info.IsThrottled)
+        {
+            if (info.Duration.TotalSeconds > 0) 
+            {
+                _lastKnownDuration = info.Duration;
+            }
+            else 
+            {
+                // FORCE RESET: If we are synched/new track and no duration yet, 
+                // we must reset everything to 0 to prevent "Stuck on old track" visual.
+                _lastKnownDuration = TimeSpan.Zero;
+                _lastKnownPosition = TimeSpan.Zero;
+            }
+        }
+        else if (info.Duration.TotalSeconds > 0)
+        {
+            _lastKnownDuration = info.Duration;
+        }
         
+        // If throttled, always use the compensated position from info
         _lastKnownPosition = info.Position;
         _lastMediaUpdate = info.LastUpdated.LocalDateTime;
     }
@@ -263,15 +313,14 @@ public partial class MainWindow
     {
         if (_isDraggingProgress || _currentMediaInfo == null) return;
         
-        if (_currentMediaInfo.IsIndeterminate)
+        var duration = _lastKnownDuration;
+        if (duration.TotalSeconds <= 0)
         {
-            CurrentTimeText.Text = "Live";
-            RemainingTimeText.Text = "Live";
+            CurrentTimeText.Text = "--:--";
+            RemainingTimeText.Text = "--:--";
+            ProgressBarScale.ScaleX = 0;
             return;
         }
-
-        var duration = _lastKnownDuration;
-        if (duration.TotalSeconds <= 0) return;
         TimeSpan displayPosition;
         
         if (_isMediaPlaying)
@@ -280,7 +329,9 @@ public partial class MainWindow
             
             // For browser/YouTube sources, extrapolation needs a very high cap 
             // because browser SMTC updates are extremely infrequent (can be > 60s)
-            double capSeconds = (_currentMediaInfo.MediaSource == "YouTube" || _currentMediaInfo.MediaSource == "Browser") ? 600 : 30;
+            // If throttled, we ignore the cap to keep progress moving locally.
+            double capSeconds = (_currentMediaInfo.IsThrottled) ? 3600 : 
+                               (_currentMediaInfo.MediaSource == "YouTube" || _currentMediaInfo.MediaSource == "Browser") ? 600 : 30;
             
             if (timeSinceUpdate > TimeSpan.FromSeconds(capSeconds)) 
                 timeSinceUpdate = TimeSpan.FromSeconds(capSeconds);

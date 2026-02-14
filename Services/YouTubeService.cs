@@ -87,49 +87,55 @@ public class YouTubeService : IDisposable
                     const data = window.ytInitialData;
                     let contents = null;
                     
-                    // Try different paths for contents in ytInitialData
                     if (data && data.contents && data.contents.twoColumnSearchResultsRenderer) {
                         contents = data.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents[0].itemSectionRenderer.contents;
+                    } else if (data && data.contents && data.contents.sectionListRenderer) {
+                        contents = data.contents.sectionListRenderer.contents[0].itemSectionRenderer.contents;
                     }
 
                     if (contents) {
-                        const firstVideo = contents.find(c => c.videoRenderer || c.playlistVideoRenderer);
+                        // Filter out ads and shorts, find first real video
+                        const firstVideo = contents.find(c => (c.videoRenderer || c.playlistVideoRenderer) && !c.adSlotRenderer);
                         
                         if (firstVideo) {
                             const vr = firstVideo.videoRenderer || firstVideo.playlistVideoRenderer;
-                            return {
-                                Id: vr.videoId,
-                                Title: vr.title.runs[0].text,
-                                Author: vr.ownerText ? vr.ownerText.runs[0].text : (vr.shortBylineText ? vr.shortBylineText.runs[0].text : ''),
-                                ThumbnailUrl: vr.thumbnail.thumbnails[vr.thumbnail.thumbnails.length - 1].url,
-                                DurationText: vr.lengthText ? (vr.lengthText.simpleText || vr.lengthText.runs[0].text) : '0:00'
-                            };
+                            if (vr) {
+                                return {
+                                    Id: vr.videoId,
+                                    Title: vr.title.runs[0].text,
+                                    Author: vr.ownerText ? vr.ownerText.runs[0].text : (vr.shortBylineText ? vr.shortBylineText.runs[0].text : 'YouTube'),
+                                    ThumbnailUrl: vr.thumbnail.thumbnails[vr.thumbnail.thumbnails.length - 1].url,
+                                    DurationText: vr.lengthText ? (vr.lengthText.simpleText || vr.lengthText.runs[0].text) : '0:00'
+                                };
+                            }
                         }
                     }
-                } catch (e) { console.error('ytInitialData error:', e); }
+                } catch (e) { }
 
                 // Fallback to DOM parsing
                 try {
-                    const videoEl = document.querySelector('ytd-video-renderer, ytd-grid-video-renderer');
+                    const videos = Array.from(document.querySelectorAll('ytd-video-renderer, ytd-grid-video-renderer'));
+                    const videoEl = videos.find(v => !v.querySelector('[aria-label=""Shorts""]'));
+                    
                     if (videoEl) {
                         const titleLink = videoEl.querySelector('a#video-title');
                         const thumbImg = videoEl.querySelector('img');
+                        const artistEl = videoEl.querySelector('#channel-name, #byline');
                         
                         if (titleLink) {
                             const href = titleLink.href;
-                            const url = new URL(href);
-                            const videoId = url.searchParams.get('v');
+                            const videoId = href.includes('v=') ? href.split('v=')[1].split('&')[0] : '';
                             
                             return {
                                 Id: videoId,
                                 Title: titleLink.innerText.trim(),
-                                Author: '', 
-                                ThumbnailUrl: thumbImg ? thumbImg.src : (videoId ? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` : ''),
+                                Author: artistEl ? artistEl.innerText.trim() : 'YouTube', 
+                                ThumbnailUrl: thumbImg ? thumbImg.src : (videoId ? 'https://i.ytimg.com/vi/' + videoId + '/mqdefault.jpg' : ''),
                                 DurationText: '0:00'
                             };
                         }
                     }
-                } catch (e) { console.error('DOM fallback error:', e); }
+                } catch (e) { }
                 return null;
             })();
         ";

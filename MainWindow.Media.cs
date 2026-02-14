@@ -91,8 +91,17 @@ public partial class MainWindow
             }
 
             // 1. Update text immediately for responsiveness
-            UpdateTitleText(titleText);
-            UpdateArtistText(artistText);
+            if (isNewTrack)
+            {
+                UpdateTitleText(titleText);
+                UpdateArtistText(artistText);
+            }
+            else
+            {
+                // If same track, just update text properties directly to avoid re-triggering Slide animations
+                TrackTitle.Text = titleText;
+                TrackArtist.Text = artistText;
+            }
 
             // 2. Update thumbnail logic with persistence (avoids black flicker during skip)
             if (hasRealTrack)
@@ -109,8 +118,11 @@ public partial class MainWindow
                     else
                     {
                         // Direct update for resolution changes or same track re-sync
-                        ThumbnailImage.Source = info.Thumbnail;
-                        CompactThumbnail.Source = info.Thumbnail;
+                        if (ThumbnailImage.Source != info.Thumbnail)
+                        {
+                            ThumbnailImage.Source = info.Thumbnail;
+                            CompactThumbnail.Source = info.Thumbnail;
+                        }
                     }
                     
                     ThumbnailImage.Visibility = Visibility.Visible;

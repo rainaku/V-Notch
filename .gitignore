@@ -43,3 +43,4 @@ task.md
 /release_final
 /release_secure
 *.iss
+debug_log.txt
