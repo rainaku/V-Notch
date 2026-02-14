@@ -143,14 +143,10 @@ public partial class MainWindow
     // --- Optimization: Cached Animation Objects ---
     private DoubleAnimation? _cachedThumbWidthExpand;
     private DoubleAnimation? _cachedThumbHeightExpand;
-    private DoubleAnimation? _cachedThumbTranslateXExpand;
-    private DoubleAnimation? _cachedThumbTranslateYExpand;
     private RectAnimation? _cachedThumbRectExpand;
 
     private DoubleAnimation? _cachedThumbWidthCollapse;
     private DoubleAnimation? _cachedThumbHeightCollapse;
-    private DoubleAnimation? _cachedThumbTranslateXCollapse;
-    private DoubleAnimation? _cachedThumbTranslateYCollapse;
     private RectAnimation? _cachedThumbRectCollapse;
 
     private void ExpandNotch()
@@ -287,6 +283,7 @@ public partial class MainWindow
 
             AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectExpand);
 
+            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
         }
 
@@ -323,7 +320,7 @@ public partial class MainWindow
             {
                 _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-                CompactThumbnail.Opacity = 1;
+                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             }
             
             CollapsedContent.Visibility = Visibility.Collapsed;
@@ -470,6 +467,7 @@ public partial class MainWindow
 
             AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
             
+            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
         }
 

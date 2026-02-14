@@ -91,7 +91,7 @@ public class MediaDetectionService : IDisposable
     private List<string> _cachedWindowTitles = new();
     private DateTime _lastWindowEnumTime = DateTime.MinValue;
     private static readonly string[] _platformKeywords = { 
-        "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x"
+        "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x", "apple music"
     };
 
     private DateTime _lastMetadataEventTime = DateTime.MinValue;
@@ -616,7 +616,7 @@ public class MediaDetectionService : IDisposable
                 // SESSION HYSTERESIS: Prevent rapid flipping between sessions
                 if (bestSession != null && _activeDisplaySession != null && bestSession.SourceAppUserModelId != _activeDisplaySession.SourceAppUserModelId)
                 {
-                    string bestId = bestSession.SourceAppUserModelId;
+                    string bestId = bestSession.SourceAppUserModelId ?? "";
                     if (bestId != _pendingSessionAppId)
                     {
                         _pendingSessionAppId = bestId;
@@ -748,8 +748,8 @@ public class MediaDetectionService : IDisposable
             info.IsAnyMediaPlaying = true;
 
             // Get track info
-            info.CurrentTrack = mediaProperties.Title ?? "";
-            info.CurrentArtist = mediaProperties.Artist ?? "";
+            info.CurrentTrack = mediaProperties?.Title ?? "";
+            info.CurrentArtist = mediaProperties?.Artist ?? "";
 
             // If SMTC gives us the platform name as Artist (YouTube/Browser), try to keep our stable artist
             if ((info.CurrentArtist == "YouTube" || info.CurrentArtist == "Browser") && 
@@ -847,6 +847,12 @@ public class MediaDetectionService : IDisposable
                              info.IsTwitterRunning = true;
                              break;
                         }
+                        else if (winTitleLower.Contains("apple music"))
+                        {
+                             info.MediaSource = "Apple Music";
+                             info.IsAppleMusicRunning = true;
+                             break;
+                        }
                     }
                 }
             }
@@ -909,7 +915,7 @@ public class MediaDetectionService : IDisposable
             // Get timeline properties for progress bar
             try
             {
-                var timeline = session.GetTimelineProperties();
+                var timeline = session?.GetTimelineProperties();
                 if (timeline != null)
                 {
                     info.Position = timeline.Position;
@@ -935,13 +941,13 @@ public class MediaDetectionService : IDisposable
             // Get playback info and capabilities
             try
             {
-                var playbackInfo = session.GetPlaybackInfo();
+                var playbackInfo = session?.GetPlaybackInfo();
                 if (playbackInfo != null)
                 {
                     var status = playbackInfo.PlaybackStatus;
                     info.IsPlaying = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
                     info.PlaybackRate = playbackInfo.PlaybackRate ?? 1.0;
-                    info.SourceAppId = session.SourceAppUserModelId ?? "";
+                    info.SourceAppId = session?.SourceAppUserModelId ?? "";
                     
                     // Mark as indeterminate if changing (switching tracks/buffering)
                     if (status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Changing)
@@ -1217,6 +1223,7 @@ public class MediaDetectionService : IDisposable
         var separators = new[] { 
             " - YouTube", " – YouTube", " - SoundCloud", " | Facebook", 
             " - TikTok", " / X", " | TikTok", " • Instagram",
+            " - Apple Music", " – Apple Music",
             " - Google Chrome", " - Microsoft​ Edge", " - Microsoft Edge",
             " - Mozilla Firefox", " - Opera", " - Brave", " - Cốc Cốc",
             " - Vivaldi", " – Vivaldi"

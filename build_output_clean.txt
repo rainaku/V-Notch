@@ -1,0 +1,14 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+D:\CodeShii\V-Notch\Services\MediaDetectionService.cs(944,40): warning CS8602: Dereference of a possibly null reference. [D:\CodeShii\V-Notch\V-Notch_smi1htfm_wpftmp.csproj]
+D:\CodeShii\V-Notch\Services\MediaDetectionService.cs(944,40): warning CS8602: Dereference of a possibly null reference. [D:\CodeShii\V-Notch\V-Notch.csproj]
+  V-Notch -> D:\CodeShii\V-Notch\bin\Debug\net8.0-windows10.0.19041.0\win-x64\V-Notch.dll
+
+Build succeeded.
+
+D:\CodeShii\V-Notch\Services\MediaDetectionService.cs(944,40): warning CS8602: Dereference of a possibly null reference. [D:\CodeShii\V-Notch\V-Notch_smi1htfm_wpftmp.csproj]
+D:\CodeShii\V-Notch\Services\MediaDetectionService.cs(944,40): warning CS8602: Dereference of a possibly null reference. [D:\CodeShii\V-Notch\V-Notch.csproj]
+    2 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:03.57

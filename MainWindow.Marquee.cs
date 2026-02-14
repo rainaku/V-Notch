@@ -13,15 +13,8 @@ public partial class MainWindow
 {
     #region Marquee Fields
 
-    private DispatcherTimer? _marqueeTimer;
-    private double _titleScrollOffset = 0;
-    private double _artistScrollOffset = 0;
     private double _titleScrollDistance = 0;
     private double _artistScrollDistance = 0;
-    private bool _titleScrollForward = true;
-    private bool _artistScrollForward = true;
-    private DateTime _titlePauseUntil = DateTime.MinValue;
-    private DateTime _artistPauseUntil = DateTime.MinValue;
     private string _lastTitleText = "";
     private string _lastArtistText = "";
     private bool _isTitleActiveA = true; // Tracks which Title TextBlock is visible
@@ -98,9 +91,6 @@ public partial class MainWindow
         }
         
         // Reset marquee state for the NEWLY active text
-        _titleScrollOffset = 0;
-        _titleScrollForward = true;
-        _titlePauseUntil = DateTime.Now.AddSeconds(2.2); // Slightly longer pause for morph to settle
         
         TitleMarqueeTranslate.X = 0;
         TitleMarqueeTranslateNext.X = 0;
@@ -149,9 +139,6 @@ public partial class MainWindow
         }
         
         // Reset marquee state for the NEWLY active text
-        _artistScrollOffset = 0;
-        _artistScrollForward = true;
-        _artistPauseUntil = DateTime.Now.AddSeconds(2.5);
         
         ArtistMarqueeTranslate.X = 0;
         ArtistMarqueeTranslateNext.X = 0;

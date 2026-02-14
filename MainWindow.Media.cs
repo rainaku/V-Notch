@@ -14,8 +14,6 @@ namespace VNotch;
 /// </summary>
 public partial class MainWindow
 {
-    private ImageSource? _activeThumbnailSource;
-    // _thumbnailSwapTimer removed in favor of KeyFrame animations
     private string _lastAnimatedTrackSignature = "";
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
 
@@ -38,6 +36,7 @@ public partial class MainWindow
             TikTokIcon.Visibility = Visibility.Collapsed;
             InstagramIcon.Visibility = Visibility.Collapsed;
             TwitterIcon.Visibility = Visibility.Collapsed;
+            AppleMusicIcon.Visibility = Visibility.Collapsed;
             BrowserIcon.Visibility = Visibility.Collapsed;
             
             bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
@@ -54,6 +53,7 @@ public partial class MainWindow
                     case "TikTok": TikTokIcon.Visibility = Visibility.Visible; break;
                     case "Instagram": InstagramIcon.Visibility = Visibility.Visible; break;
                     case "Twitter": case "X": TwitterIcon.Visibility = Visibility.Visible; break;
+                    case "Apple Music": AppleMusicIcon.Visibility = Visibility.Visible; break;
                     default: BrowserIcon.Visibility = Visibility.Visible; break;
                 }
             }
