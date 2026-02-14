@@ -175,14 +175,14 @@ public partial class MainWindow
         AnimationThumbnailTranslate.Y = 0;
         MediaBackground.Opacity = 0;
         MediaBackground2.Opacity = 0;
-        
+
         // Ensure other states are collapsed immediately or fading out
         SecondaryContent.Visibility = Visibility.Collapsed;
         // CollapsedContent and MusicCompactContent will fade out below
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
-        
+
         PaginationDots.Visibility = Visibility.Visible;
         PaginationDots.Opacity = 0;
         UpdatePaginationDots();
@@ -192,17 +192,17 @@ public partial class MainWindow
         {
             double oldW = NotchBorder.Width;
             double oldH = NotchBorder.Height;
-            
+
             // Temporarily set expanded dimensions
             NotchBorder.Width = _expandedWidth;
             NotchBorder.Height = _expandedHeight;
-            
+
             // Force layout pass
             this.UpdateLayout();
-            
+
             // Compute and cache
             _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
-            
+
             // Revert to original size so animation starts from correct position
             NotchBorder.Width = oldW;
             NotchBorder.Height = oldH;
@@ -215,7 +215,7 @@ public partial class MainWindow
         var widthAnim = MakeAnim(_expandedWidth, _dur400, _easeExpOut6);
         var heightAnim = MakeAnim(_expandedHeight, _dur400, _easeExpOut6);
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
-        
+
         // Expanded Content: Slide up
         var expandedGroup = new TransformGroup();
         var expandedTranslate = new TranslateTransform(0, 10);
@@ -259,13 +259,13 @@ public partial class MainWindow
             {
                 _cachedThumbWidthExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
                 _cachedThumbHeightExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
-                _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), thumbDur) 
-                { 
+                _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), thumbDur)
+                {
                     EasingFunction = thumbEase,
                     BeginTime = thumbDelay
                 };
                 Timeline.SetDesiredFrameRate(_cachedThumbRectExpand, 120);
-                
+
                 _cachedThumbWidthExpand.Freeze();
                 _cachedThumbHeightExpand.Freeze();
                 _cachedThumbRectExpand.Freeze();
@@ -297,16 +297,16 @@ public partial class MainWindow
             UpdateCalendarInfo();
             RenderProgressBar();
             ShowMediaBackground();
-            
+
             ExpandedContent.Effect = null;
-            
+
             // Set final values before clearing animations
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
-            
+
             // Keep the transform group to avoid sub-pixel snapping glitches at the end
             // ExpandedContent.RenderTransform = null;
-            
+
             // Cleanup Thumbnail Animation
             AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
             AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
@@ -322,7 +322,7 @@ public partial class MainWindow
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             }
-            
+
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
         };
@@ -331,7 +331,7 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
         CollapsedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutAnim);
-        
+
         ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
         PaginationDots.BeginAnimation(OpacityProperty, fadeInAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
@@ -359,7 +359,7 @@ public partial class MainWindow
         AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-        
+
         // Reset state
         AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
         AnimationThumbnailTranslate.X = 0;
@@ -394,7 +394,7 @@ public partial class MainWindow
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
             ExpandedContent.Effect = null;
-            
+
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             SecondaryContent.Opacity = 0;
             SecondaryContent.Visibility = Visibility.Collapsed;
@@ -445,8 +445,8 @@ public partial class MainWindow
             {
                 _cachedThumbWidthCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
                 _cachedThumbHeightCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
-                _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), thumbDur) 
-                { 
+                _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), thumbDur)
+                {
                     EasingFunction = thumbEase,
                     BeginTime = thumbDelay
                 };
@@ -466,7 +466,7 @@ public partial class MainWindow
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
 
             AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
-            
+
             if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
         }
@@ -477,7 +477,7 @@ public partial class MainWindow
             _isExpanded = false;
             NotchBorder.IsHitTestVisible = true;
             UpdateProgressTimerState();
-            
+
             contentToShow.RenderTransform = null;
 
             if (_isMusicCompactMode)
@@ -497,14 +497,14 @@ public partial class MainWindow
                 AnimationThumbnailTranslate.X = 0;
                 AnimationThumbnailTranslate.Y = 0;
             }
-            
+
             // Avoid nulling RenderTransform to prevent layout snapping
             // contentToShow.RenderTransform = null;
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
-        
+
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         PaginationDots.BeginAnimation(OpacityProperty, fadeOutAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, slideOutAnim);
@@ -513,7 +513,7 @@ public partial class MainWindow
         {
             SecondaryContent.BeginAnimation(OpacityProperty, fadeOutAnim);
             // Also blur secondary if active
-            SecondaryContent.Effect = new BlurEffect { Radius = 15 }; 
+            SecondaryContent.Effect = new BlurEffect { Radius = 15 };
         }
 
         contentToShow.Visibility = Visibility.Visible;
@@ -682,7 +682,8 @@ public partial class MainWindow
         to.BeginAnimation(OpacityProperty, null);
 
         var fadeOut = MakeAnim(0, _dur100);
-        fadeOut.Completed += (s, e) => {
+        fadeOut.Completed += (s, e) =>
+        {
             if (from.Opacity < 0.05) from.Visibility = Visibility.Collapsed;
         };
         from.BeginAnimation(OpacityProperty, fadeOut);

@@ -12,12 +12,12 @@ public class SettingsService
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var appFolder = Path.Combine(appDataPath, "V-Notch");
-        
+
         if (!Directory.Exists(appFolder))
         {
             Directory.CreateDirectory(appFolder);
         }
-        
+
         _settingsPath = Path.Combine(appFolder, "settings.json");
     }
 
@@ -35,7 +35,7 @@ public class SettingsService
         {
             // Return default settings on error
         }
-        
+
         return new NotchSettings();
     }
 

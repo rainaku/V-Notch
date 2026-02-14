@@ -28,13 +28,13 @@ public partial class MainWindow
     private bool _isSecondaryView = false;
     private readonly List<string> _shelfFiles = new List<string>();
     private readonly HashSet<string> _selectedFiles = new HashSet<string>();
-    
+
     // Cached Brushes for Shelf Selection
     private static readonly SolidColorBrush _brushShelfItemBg = CreateFrozenBrush(37, 37, 37);
     private static readonly SolidColorBrush _brushShelfItemBorder = CreateFrozenBrush(51, 51, 51);
     private static readonly SolidColorBrush _brushShelfSelectedBg = CreateFrozenBrush(0, 122, 255, 64); // #40007AFF
     private static readonly SolidColorBrush _brushShelfSelectedBorder = CreateFrozenBrush(0, 122, 255); // #007AFF
-    
+
     // Multi-selection state
     private Point _selectionStart;
     private bool _isSelecting = false;
@@ -43,15 +43,15 @@ public partial class MainWindow
     private bool _isSweepSelecting = false;
     private string? _sweepStartFile = null;
     private bool _wasSelectedOnMouseDown = false;
-    
+
     // File watchers for external deletion detection
     private readonly Dictionary<string, FileSystemWatcher> _shelfWatchers = new();
-    
+
     // Camera state
     // Note: Since we are in WPF but targeting Windows SDK, we can use WinRT if properly referenced.
     // For now, let's use a simpler approach or UI placeholders if WinRT is too restricted here.
     // Given net8.0-windows10.0.19041.0, we can use Windows.Media.Capture.
-    
+
     private void NotchWrapper_MouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (!_isExpanded || _isAnimating) return;
@@ -102,7 +102,8 @@ public partial class MainWindow
         var fadeOut = MakeAnim(1, 0, durFast, _easeQuadOut);
         var slideOut = MakeAnim(0, -10, durTotal, _easeExpOut7);
 
-        fadeOut.Completed += (s, e) => {
+        fadeOut.Completed += (s, e) =>
+        {
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
             ExpandedContent.Effect = null; // Cleanup depth effect
@@ -130,19 +131,20 @@ public partial class MainWindow
 
         var fadeIn = MakeAnim(0, 1, durTotal, _easePowerOut3);
         // Tighter spring feel (Damped Spring simulation)
-        var springScale = MakeAnim(1.08, 1, durTotal, _easeMenuSpring); 
+        var springScale = MakeAnim(1.08, 1, durTotal, _easeMenuSpring);
         var springSlide = MakeAnim(15, 0, durTotal, _easeExpOut7);
-        
+
         UpdatePaginationDots();
 
-        fadeIn.Completed += (s, e) => {
+        fadeIn.Completed += (s, e) =>
+        {
             _isAnimating = false;
             NotchBorder.IsHitTestVisible = true;
-            
+
             // Set final values before clearing animations to prevent flickering/glitches
             SecondaryContent.Opacity = 1;
             SecondaryContent.BeginAnimation(OpacityProperty, null);
-            
+
             // Keep the transform group but clear animations from its children if needed,
             // or just leave it since it's already at scale 1, translate 0.
             // Removing it entirely can cause "snapping" glitches with LayoutRounding.
@@ -175,7 +177,8 @@ public partial class MainWindow
         var fadeOut = MakeAnim(1, 0, durFast, _easeQuadOut);
         var slideOut = MakeAnim(0, 10, durTotal, _easeExpOut7);
 
-        fadeOut.Completed += (s, e) => {
+        fadeOut.Completed += (s, e) =>
+        {
             SecondaryContent.Visibility = Visibility.Collapsed;
             SecondaryContent.RenderTransform = null;
             SecondaryContent.Effect = null; // Cleanup depth effect
@@ -204,17 +207,18 @@ public partial class MainWindow
         var fadeIn = MakeAnim(0, 1, durTotal, _easePowerOut3);
         var springScale = MakeAnim(0.92, 1, durTotal, _easeMenuSpring);
         var springSlide = MakeAnim(-10, 0, durTotal, _easeExpOut7);
-        
+
         UpdatePaginationDots();
 
-        fadeIn.Completed += (s, e) => {
+        fadeIn.Completed += (s, e) =>
+        {
             _isAnimating = false;
             NotchBorder.IsHitTestVisible = true;
-            
+
             // Set final values before clearing animations to prevent flickering/glitches
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
-            
+
             // Keep the transform group at its final values (Identity) instead of setting to null
             // to avoid sub-pixel snapping jumps at the end of animation.
         };
@@ -270,7 +274,7 @@ public partial class MainWindow
     private void AddFileToShelf(string filePath)
     {
         if (_shelfFiles.Contains(filePath)) return;
-        
+
         _shelfFiles.Add(filePath);
         ShelfPlaceholder.Visibility = Visibility.Collapsed;
         WatchShelfDirectory(filePath);
@@ -302,7 +306,7 @@ public partial class MainWindow
         double width = isSmall ? 52 : 64;
         double height = isSmall ? 52 : 80;
         double iconSize = isSmall ? 28 : 36;
-        
+
         var border = new Border
         {
             Width = width,
@@ -320,7 +324,7 @@ public partial class MainWindow
         };
 
         var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        
+
         // Icon / Thumbnail
         var iconSource = GetFileIcon(filePath);
         var image = new Image
@@ -331,14 +335,14 @@ public partial class MainWindow
             Margin = new Thickness(0, isSmall ? 2 : 6, 0, isSmall ? 2 : 4),
             Stretch = Stretch.UniformToFill, // Use UniformToFill for better shelf appearance
             Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, Opacity = 0.3, ShadowDepth = 2 },
-            Clip = new RectangleGeometry 
-            { 
-                RadiusX = isSmall ? 4 : 6, 
-                RadiusY = isSmall ? 4 : 6, 
-                Rect = new Rect(0, 0, iconSize, iconSize) 
+            Clip = new RectangleGeometry
+            {
+                RadiusX = isSmall ? 4 : 6,
+                RadiusY = isSmall ? 4 : 6,
+                Rect = new Rect(0, 0, iconSize, iconSize)
             }
         };
-        
+
         stack.Children.Add(image);
 
         // Text (only if not small or based on preference, here we keep it but smaller or clipped)
@@ -352,12 +356,13 @@ public partial class MainWindow
             Margin = new Thickness(isSmall ? 2 : 6, 0, isSmall ? 2 : 6, isSmall ? 2 : 6),
             Visibility = isSmall ? Visibility.Collapsed : Visibility.Visible
         };
-        
+
         if (!isSmall) stack.Children.Add(text);
 
         border.Child = stack;
 
-        border.MouseEnter += (s, e) => {
+        border.MouseEnter += (s, e) =>
+        {
             if (!_selectedFiles.Contains(filePath))
             {
                 border.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#303030")!;
@@ -366,7 +371,8 @@ public partial class MainWindow
             if (!_isSweepSelecting)
                 AnimateButtonScale((ScaleTransform)border.RenderTransform!, 1.05);
         };
-        border.MouseLeave += (s, e) => {
+        border.MouseLeave += (s, e) =>
+        {
             if (!_selectedFiles.Contains(filePath))
             {
                 border.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#252525")!;
@@ -384,25 +390,26 @@ public partial class MainWindow
         border.ContextMenu = menu;
 
         // Selection logic
-        border.MouseLeftButtonDown += (s, e) => {
+        border.MouseLeftButtonDown += (s, e) =>
+        {
             _dragStartPoint = e.GetPosition(null);
             _selectionStart = e.GetPosition(FileShelfGrid); // Absolute start point on shelf
             _didDragOutFromShelf = false;
             _isSweepSelecting = false;
             _sweepStartFile = filePath;
-            
+
             // Critical check: Was this file already selected?
             _wasSelectedOnMouseDown = _selectedFiles.Contains(filePath);
-            
+
             border.CaptureMouse();
             e.Handled = true;
-            
+
             // Initialization for lasso (even if we don't start it yet)
             SelectionRect.Width = 0;
             SelectionRect.Height = 0;
-            
+
             bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
-            
+
             if (isCtrl)
             {
                 // Ctrl+Click: toggle selection
@@ -428,7 +435,8 @@ public partial class MainWindow
             }
         };
 
-        border.MouseLeftButtonUp += (s, e) => {
+        border.MouseLeftButtonUp += (s, e) =>
+        {
             if (_didDragOutFromShelf || _isSweepSelecting || _isSelecting)
             {
                 // Drag, Sweep or Lasso happened - reset state
@@ -438,7 +446,7 @@ public partial class MainWindow
                 SelectionCanvas.Visibility = Visibility.Collapsed;
 
                 if (border.IsMouseCaptured) border.ReleaseMouseCapture();
-                
+
                 // Reset scale on all items
                 foreach (var child in ShelfItemsContainer.Children)
                 {
@@ -447,10 +455,10 @@ public partial class MainWindow
                 }
                 return;
             }
-            
+
             _sweepStartFile = null;
             bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
-            
+
             // If click released without dragging on a multi-selected group
             // and NOT holding Ctrl -> Reduce selection to single clicked file
             if (!isCtrl && _selectedFiles.Count > 1 && _wasSelectedOnMouseDown)
@@ -463,11 +471,12 @@ public partial class MainWindow
                         UpdateShelfItemVisualState(b, _selectedFiles.Contains(p));
                 }
             }
-            
+
             if (border.IsMouseCaptured) border.ReleaseMouseCapture();
         };
 
-        border.MouseMove += (s, e) => {
+        border.MouseMove += (s, e) =>
+        {
             if (e.LeftButton == MouseButtonState.Pressed && !_isSelecting && !_isSweepSelecting)
             {
                 Point currentPosGlobal = e.GetPosition(null);
@@ -509,7 +518,7 @@ public partial class MainWindow
                         _isSelecting = true;
                         _isSweepSelecting = true; // Flag we started from an item
                         SelectionCanvas.Visibility = Visibility.Visible;
-                        
+
                         bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
                         if (isCtrl)
                             _selectionInitialState = new HashSet<string>(_selectedFiles);
@@ -542,15 +551,15 @@ public partial class MainWindow
     private void FileShelf_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_isAnimating) return;
-        
+
         _dragStartPoint = e.GetPosition(null); // Screen coordinates
         _selectionStart = e.GetPosition(FileShelfGrid); // Absolute start point on shelf grid
         _isSelecting = false; // Don't start until threshold is crossed
         _isSweepSelecting = false; // Started from empty space
         _wasSelectedOnMouseDown = false;
-        
+
         bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
-        
+
         if (isCtrl)
         {
             _selectionInitialState = new HashSet<string>(_selectedFiles);
@@ -559,7 +568,7 @@ public partial class MainWindow
         {
             _selectedFiles.Clear();
             _selectionInitialState.Clear();
-            
+
             // Clear visual state of all items immediately (performant)
             foreach (var child in ShelfItemsContainer.Children)
             {
@@ -571,7 +580,7 @@ public partial class MainWindow
         SelectionCanvas.Visibility = Visibility.Collapsed;
         SelectionRect.Width = 0;
         SelectionRect.Height = 0;
-        
+
         FileShelfGrid.CaptureMouse();
         e.Handled = true;
     }
@@ -581,7 +590,7 @@ public partial class MainWindow
         if (e.LeftButton == MouseButtonState.Pressed)
         {
             Point posInGrid = e.GetPosition(FileShelfGrid);
-            
+
             if (!_isSelecting)
             {
                 Point currentPosGlobal = e.GetPosition(null);
@@ -592,7 +601,7 @@ public partial class MainWindow
                 {
                     _isSelecting = true;
                     // Reset start point to avoid small jump from threshold
-                    _selectionStart = posInGrid; 
+                    _selectionStart = posInGrid;
                     SelectionCanvas.Visibility = Visibility.Visible;
                 }
             }
@@ -669,7 +678,7 @@ public partial class MainWindow
     {
         var targetBg = isSelected ? _brushShelfSelectedBg : _brushShelfItemBg;
         var targetBorder = isSelected ? _brushShelfSelectedBorder : _brushShelfItemBorder;
-        
+
         if (item.Background != targetBg) item.Background = targetBg;
         if (item.BorderBrush != targetBorder) item.BorderBrush = targetBorder;
     }
@@ -724,7 +733,7 @@ public partial class MainWindow
                 _selectedFiles.Remove(file);
                 UnwatchShelfDirectory(file);
             }
-            
+
             RefreshShelfLayout();
             if (_shelfFiles.Count == 0)
             {
@@ -806,7 +815,7 @@ public partial class MainWindow
             // Dot 1 shrinks (inactive)
             Dot1Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(0.7, dur, ease));
             Dot1Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(0.7, dur, ease));
-            
+
             // Dot 2 expands with spring (active)
             Dot2Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(1.3, dur, ease));
             Dot2Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(1.3, dur, ease));
@@ -819,7 +828,7 @@ public partial class MainWindow
             // Dot 1 expands with spring (active)
             Dot1Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(1.3, dur, ease));
             Dot1Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(1.3, dur, ease));
-            
+
             // Dot 2 shrinks (inactive)
             Dot2Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(0.7, dur, ease));
             Dot2Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(0.7, dur, ease));
@@ -832,7 +841,7 @@ public partial class MainWindow
         _selectedFiles.Remove(filePath);
         UnwatchShelfDirectory(filePath);
         RefreshShelfLayout();
-        
+
         if (_shelfFiles.Count == 0)
         {
             ShelfPlaceholder.Visibility = Visibility.Visible;
@@ -864,9 +873,9 @@ public partial class MainWindow
         if (string.IsNullOrEmpty(dir)) return;
 
         // Only dispose watcher if no more shelf files in this directory
-        bool hasOtherFiles = _shelfFiles.Any(f => 
+        bool hasOtherFiles = _shelfFiles.Any(f =>
             string.Equals(Path.GetDirectoryName(f), dir, StringComparison.OrdinalIgnoreCase));
-        
+
         if (!hasOtherFiles && _shelfWatchers.TryGetValue(dir, out var watcher))
         {
             watcher.EnableRaisingEvents = false;
@@ -882,12 +891,12 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(() =>
         {
             if (!_shelfFiles.Contains(e.FullPath)) return;
-            
+
             _shelfFiles.Remove(e.FullPath);
             _selectedFiles.Remove(e.FullPath);
             UnwatchShelfDirectory(e.FullPath);
             RefreshShelfLayout();
-            
+
             if (_shelfFiles.Count == 0)
                 ShelfPlaceholder.Visibility = Visibility.Visible;
         });
@@ -898,17 +907,17 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(() =>
         {
             if (!_shelfFiles.Contains(e.OldFullPath)) return;
-            
+
             int idx = _shelfFiles.IndexOf(e.OldFullPath);
             if (idx >= 0) _shelfFiles[idx] = e.FullPath;
-            
+
             if (_selectedFiles.Remove(e.OldFullPath))
                 _selectedFiles.Add(e.FullPath);
-            
+
             // Update watcher for potential new directory
             WatchShelfDirectory(e.FullPath);
             UnwatchShelfDirectory(e.OldFullPath);
-            
+
             RefreshShelfLayout();
         });
     }
@@ -982,7 +991,7 @@ public partial class MainWindow
                                 }
                                 return null;
                             });
-                            
+
                             var result = thumbnailTask.Result;
                             if (result != null) return result;
                         }
@@ -994,11 +1003,11 @@ public partial class MainWindow
                     {
                         Guid guid = new Guid("bcc18b79-ba16-442f-80c4-8746c1f01a3b");
                         SHCreateItemFromParsingName(filePath, IntPtr.Zero, guid, out IShellItemImageFactory factory);
-                        
+
                         // SIIGBF_BIGGERSIZEOK (0x01) | SIIGBF_RESIZETOFIT (0x00)
                         // Removed THUMBNAILONLY (0x02) to allow on-the-fly generation
                         int hr = factory.GetImage(new SIZE { cx = 128, cy = 128 }, 0x01, out IntPtr hBitmap);
-                        
+
                         if (hr == 0 && hBitmap != IntPtr.Zero)
                         {
                             try
@@ -1018,7 +1027,7 @@ public partial class MainWindow
                         }
                     }
                     catch { }
-                    
+
                     if (isImage)
                     {
                         try
@@ -1060,8 +1069,8 @@ public partial class MainWindow
             }
         }
         catch { }
-        
-        return null; 
+
+        return null;
     }
 
     #endregion
@@ -1075,7 +1084,7 @@ public partial class MainWindow
     private void CameraSection_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true; // Prevent event bubbling to NotchBorder which closes the notch
-        
+
         if (!_isCameraActive)
         {
             StartCameraPreview();
@@ -1102,18 +1111,18 @@ public partial class MainWindow
     private async void StartCameraPreview()
     {
         if (_isCameraActive && _frameReader != null) return;
-        
-        try 
+
+        try
         {
             _isCameraActive = true;
             CameraOverlay.Visibility = Visibility.Collapsed;
             CameraLiveIndicator.Visibility = Visibility.Visible;
-            
+
             _mediaCapture = new MediaCapture();
-            
+
             var frameSourceGroups = await MediaFrameSourceGroup.FindAllAsync();
             var selectedGroup = frameSourceGroups.FirstOrDefault(g => g.SourceInfos.Any(s => s.SourceKind == MediaFrameSourceKind.Color));
-            
+
             if (selectedGroup == null)
             {
                 throw new Exception("Không tìm thấy camera khả dụng.");
@@ -1151,8 +1160,8 @@ public partial class MainWindow
         if (frame?.VideoMediaFrame?.SoftwareBitmap == null) return;
 
         var softwareBitmap = frame.VideoMediaFrame.SoftwareBitmap;
-        
-        if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 || 
+
+        if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 ||
             softwareBitmap.BitmapAlphaMode != BitmapAlphaMode.Premultiplied)
         {
             softwareBitmap = SoftwareBitmap.Convert(softwareBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
@@ -1193,7 +1202,7 @@ public partial class MainWindow
         _isCameraActive = false;
         CameraOverlay.Visibility = Visibility.Visible;
         CameraLiveIndicator.Visibility = Visibility.Collapsed;
-        
+
         if (_frameReader != null)
         {
             _frameReader.FrameArrived -= FrameReader_FrameArrived;
@@ -1208,7 +1217,8 @@ public partial class MainWindow
             _mediaCapture = null;
         }
 
-        Dispatcher.Invoke(() => {
+        Dispatcher.Invoke(() =>
+        {
             CameraPreviewImage.Source = null;
         });
     }

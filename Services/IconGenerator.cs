@@ -9,17 +9,17 @@ public static class IconGenerator
     {
         using var bitmap = new Bitmap(size, size);
         using var g = Graphics.FromImage(bitmap);
-        
+
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.Clear(Color.Transparent);
-        
+
         // Draw notch shape (rounded rectangle at top)
         using var brush = new SolidBrush(Color.FromArgb(30, 30, 30));
         using var path = new GraphicsPath();
-        
+
         int radius = size / 4;
         var rect = new Rectangle(0, 0, size, size);
-        
+
         // Top corners square, bottom corners rounded
         path.AddLine(rect.Left, rect.Top, rect.Right, rect.Top);
         path.AddLine(rect.Right, rect.Top, rect.Right, rect.Bottom - radius);
@@ -28,16 +28,16 @@ public static class IconGenerator
         path.AddArc(rect.Left, rect.Bottom - radius * 2, radius * 2, radius * 2, 90, 90);
         path.AddLine(rect.Left, rect.Bottom - radius, rect.Left, rect.Top);
         path.CloseFigure();
-        
+
         g.FillPath(brush, path);
-        
+
         // Draw camera dot
         int dotSize = size / 4;
         int dotX = (size - dotSize) / 2;
         int dotY = (size - dotSize) / 2 - 1;
         using var dotBrush = new SolidBrush(Color.FromArgb(60, 60, 60));
         g.FillEllipse(dotBrush, dotX, dotY, dotSize, dotSize);
-        
+
         return Icon.FromHandle(bitmap.GetHicon());
     }
 }

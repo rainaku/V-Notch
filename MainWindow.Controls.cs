@@ -15,18 +15,18 @@ public partial class MainWindow
     #region Media Controls
 
     private bool _isPlaying = true;
-    
+
     private async void PlayPauseButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        
+
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
-        
+
         _isPlaying = !_isPlaying;
         UpdatePlayPauseIcon();
         PlayButtonPressAnimation(PlayPauseButton);
-        
+
         if (_isYouTubeVideoMode)
         {
             if (_isPlaying) YouTubePlayer.Play();
@@ -41,12 +41,12 @@ public partial class MainWindow
     private async void NextButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        
+
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
-        
+
         PlayNextSkipAnimation();
-        
+
         if (_isYouTubeVideoMode)
         {
             await SeekRelative(15);
@@ -64,12 +64,12 @@ public partial class MainWindow
     private async void PrevButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        
+
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
-        
+
         PlayPrevSkipAnimation();
-        
+
         if (_isYouTubeVideoMode)
         {
             await SeekRelative(-15);
@@ -83,11 +83,11 @@ public partial class MainWindow
             await _mediaService.PreviousTrackAsync();
         }
     }
-    
+
     private void UpdatePlayPauseIcon()
     {
         var duration = TimeSpan.FromMilliseconds(180);
-        
+
         if (_isPlaying)
         {
             AnimateIconSwitch(PlayIcon, PauseIcon, duration, _easeQuadInOut);
@@ -103,26 +103,26 @@ public partial class MainWindow
     private async void InlinePlayPauseButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        
+
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
-        
+
         _isPlaying = !_isPlaying;
         UpdatePlayPauseIcon();
         PlayButtonPressAnimation(InlinePlayPauseButton);
-        
+
         await _mediaService.PlayPauseAsync();
     }
 
     private async void InlineNextButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        
+
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
-        
+
         PlayNextSkipAnimation(InlineNextArrow0, InlineNextArrow1, InlineNextArrow2);
-        
+
         if (_currentMediaInfo?.IsVideoSource == true)
         {
             await SeekRelative(15);
@@ -136,12 +136,12 @@ public partial class MainWindow
     private async void InlinePrevButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        
+
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
-        
+
         PlayPrevSkipAnimation(InlinePrevArrow0, InlinePrevArrow1, InlinePrevArrow2);
-        
+
         if (_currentMediaInfo?.IsVideoSource == true)
         {
             await SeekRelative(-15);
@@ -166,7 +166,7 @@ public partial class MainWindow
     {
         MediaWidget_Click(sender, e);
     }
-    
+
     private void MediaWidget_Click(object sender, MouseButtonEventArgs e)
     {
         if (_isMusicExpanded)
@@ -179,10 +179,10 @@ public partial class MainWindow
                 source = VisualTreeHelper.GetParent(source);
             }
         }
-        
+
         e.Handled = true;
         if (_isMusicAnimating) return;
-        
+
         if (_isMusicExpanded)
             CollapseMusicWidget();
         else
@@ -236,11 +236,11 @@ public partial class MainWindow
         const double volumeBarWidth = 100.0;
         var pos = e.GetPosition(VolumeBarContainer);
         float newVolume = (float)Math.Clamp(pos.X / volumeBarWidth, 0.0, 1.0);
-        
+
         _currentVolume = newVolume;
         VolumeBarScale.ScaleX = newVolume;
         UpdateVolumeIcon(newVolume, false);
-        
+
         if (_volumeService.IsAvailable)
         {
             _volumeService.SetVolume(newVolume);
@@ -250,16 +250,16 @@ public partial class MainWindow
     private void SyncVolumeFromSystem()
     {
         if (_isDraggingVolume) return;
-        
+
         Dispatcher.BeginInvoke(new Action(() =>
         {
             if (_isDraggingVolume) return;
-            
+
             if (_volumeService.IsAvailable)
             {
                 _currentVolume = _volumeService.GetVolume();
                 bool isMuted = _volumeService.GetMute();
-                
+
                 VolumeBarScale.ScaleX = _currentVolume;
                 UpdateVolumeIcon(_currentVolume, isMuted);
             }

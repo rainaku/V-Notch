@@ -25,7 +25,7 @@ public partial class MainWindow
     {
         _currentMediaInfo = info;
         _lastMediaUpdate = DateTime.Now;
-        
+
         Dispatcher.BeginInvoke(() =>
         {
             // Update Platform Icons
@@ -38,7 +38,7 @@ public partial class MainWindow
             TwitterIcon.Visibility = Visibility.Collapsed;
             AppleMusicIcon.Visibility = Visibility.Collapsed;
             BrowserIcon.Visibility = Visibility.Collapsed;
-            
+
             bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
             // Only show icon if we have a source
@@ -79,7 +79,7 @@ public partial class MainWindow
                 {
                     artistText = "Unknown Artist";
                 }
-                
+
                 // Final sync: if it's YouTube, make sure we show the source correctly alongside the artist
                 MediaAppName.Text = info.MediaSource;
             }
@@ -124,7 +124,7 @@ public partial class MainWindow
                             CompactThumbnail.Source = info.Thumbnail;
                         }
                     }
-                    
+
                     ThumbnailImage.Visibility = Visibility.Visible;
                     ThumbnailFallback.Visibility = Visibility.Collapsed;
                     UpdateMediaBackground(info);
@@ -133,7 +133,7 @@ public partial class MainWindow
                 {
                     // Track changed but no thumb yet - DO NOT update _lastAnimatedTrackSignature yet.
                     // This ensures we will trigger the flip as soon as the thumbnail arrives.
-                    
+
                     // Keep old thumb visible or show fallback if absolutely no thumb
                     if (ThumbnailImage.Source == null)
                     {
@@ -156,7 +156,7 @@ public partial class MainWindow
                 ThumbnailFallback.Visibility = Visibility.Visible;
                 HideMediaBackground();
                 ThumbnailFallback.Text = "🎵";
-                
+
                 // Clear sources to ensure clean state
                 ThumbnailImage.Source = null;
                 CompactThumbnail.Source = null;
@@ -168,7 +168,7 @@ public partial class MainWindow
                 _isPlaying = info.IsPlaying;
                 UpdatePlayPauseIcon();
             }
-            
+
             if (info.MediaSource == "YouTube" && hasRealTrack)
             {
                 YouTubeVideoModeButton.Visibility = Visibility.Visible;
@@ -223,7 +223,7 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(sourceAnim, 120);
 
         // Apply animations to all relevant transforms and images simultaneously for perfect sync
-        
+
         // Expanded Mode Targets
         ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
         ThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
@@ -232,7 +232,7 @@ public partial class MainWindow
 
         // Compact Mode Targets
         CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
-        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim); 
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
         CompactThumbnail.BeginAnimation(Image.SourceProperty, sourceAnim);
 
@@ -273,13 +273,13 @@ public partial class MainWindow
     private void UpdateMusicCompactMode(MediaInfo info)
     {
         bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
-        
+
         // Ensure we don't calculate layout if it's generic browser info with no real track
         if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
         _collapsedWidth = shouldBeCompact ? 180 : _settings.Width;
-        
-        if (shouldBeCompact == _isMusicCompactMode) 
+
+        if (shouldBeCompact == _isMusicCompactMode)
         {
             if (shouldBeCompact && info?.Thumbnail != null)
             {
@@ -302,10 +302,10 @@ public partial class MainWindow
                 EasingFunction = _easeExpOut6
             };
             NotchBorder.BeginAnimation(WidthProperty, widthAnim);
-            
+
             if (_isMusicCompactMode)
             {
-                if (info?.Thumbnail != null) 
+                if (info?.Thumbnail != null)
                 {
                     AnimateThumbnailSwitchOnly(info.Thumbnail);
                 }
@@ -322,7 +322,7 @@ public partial class MainWindow
         {
             if (_isMusicCompactMode)
             {
-                if (info?.Thumbnail != null) 
+                if (info?.Thumbnail != null)
                 {
                     AnimateThumbnailSwitchOnly(info.Thumbnail);
                 }
@@ -332,7 +332,7 @@ public partial class MainWindow
             {
                 StopVisualizerAnimation();
             }
-            
+
             // Always ensure compact layers are hidden when expanded
             MusicCompactContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Opacity = 0;

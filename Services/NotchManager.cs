@@ -14,7 +14,7 @@ public class NotchManager : IDisposable
     private NotchSettings _settings;
     private readonly NotchStateManager _stateManager;
     private readonly HoverDetectionService _hoverService;
-    
+
     // Store original dimensions for collapse animation
     private double _originalWidth;
     private double _originalHeight;
@@ -113,7 +113,7 @@ public class NotchManager : IDisposable
 
         double margin = 4;
         double notchLeft = workingArea.Left + (workingArea.Width - notchWidth) / 2;
-        
+
         _safeArea = new Rect(
             notchLeft - margin,
             workingArea.Top,
@@ -127,12 +127,12 @@ public class NotchManager : IDisposable
     private Screen GetTargetScreen()
     {
         var screens = Screen.AllScreens;
-        
+
         if (_settings.MonitorIndex >= 0 && _settings.MonitorIndex < screens.Length)
         {
             return screens[_settings.MonitorIndex];
         }
-        
+
         return Screen.PrimaryScreen ?? screens[0];
     }
 

@@ -182,7 +182,7 @@ public partial class MainWindow : Window
             Interval = TimeSpan.FromSeconds(30)
         };
         _updateTimer.Tick += UpdateTimer_Tick;
-        
+
         // Setup Z-order timer - safety check to stay on top
         _zOrderTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
@@ -190,7 +190,7 @@ public partial class MainWindow : Window
         };
         _zOrderTimer.Tick += (s, e) => EnsureTopmost();
         _zOrderTimer.Start();
-        
+
         // Setup progress timer for realtime progress bar (60fps for maximum smoothness)
         _progressTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
@@ -204,13 +204,14 @@ public partial class MainWindow : Window
             Interval = TimeSpan.FromMilliseconds(100)
         };
         _autoCollapseTimer.Tick += AutoCollapseTimer_Tick;
-        
+
         // Setup hover collapse timer (1.0 second delay)
         _hoverCollapseTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(1000)
         };
-        _hoverCollapseTimer.Tick += (s, e) => {
+        _hoverCollapseTimer.Tick += (s, e) =>
+        {
             _hoverCollapseTimer.Stop();
             if (_isExpanded && !NotchWrapper.IsMouseOver)
             {
@@ -223,7 +224,7 @@ public partial class MainWindow : Window
 
         // Subscribe to media changes
         _mediaService.MediaChanged += OnMediaChanged;
-        
+
         // Setup YouTube Player events
         YouTubePlayer.VideoStateChanged += (s, state) =>
         {
@@ -254,7 +255,7 @@ public partial class MainWindow : Window
     {
         e.Handled = true;
         _isYouTubeVideoMode = !_isYouTubeVideoMode;
-        
+
         if (_isYouTubeVideoMode)
         {
             MediaWidgetContainer.Visibility = Visibility.Collapsed;
@@ -284,7 +285,7 @@ public partial class MainWindow : Window
             {
                 var icon = new System.Drawing.Icon(iconPath);
                 TrayIcon.Icon = icon;
-                
+
                 // Also set the window icon
                 this.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(iconPath));
             }
@@ -293,11 +294,11 @@ public partial class MainWindow : Window
                 TrayIcon.Icon = IconGenerator.CreateNotchIcon(16);
             }
         }
-        catch 
+        catch
         {
             TrayIcon.Icon = IconGenerator.CreateNotchIcon(16);
         }
-        
+
         ApplySettings();
         ConfigureOverlayWindow();
         PositionAtTop();
@@ -326,14 +327,15 @@ public partial class MainWindow : Window
                 break;
 
             case WM_ACTIVATE:
-                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 break;
 
             case WM_ACTIVATEAPP:
                 if (wParam == IntPtr.Zero)
                 {
-                    Dispatcher.BeginInvoke(new Action(() => {
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
                         if (_isExpanded && !_isAnimating)
                         {
                             CollapseNotch();
@@ -385,9 +387,9 @@ public partial class MainWindow : Window
     private void ConfigureOverlayWindow()
     {
         var exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
-        exStyle |= WS_EX_TOOLWINDOW; 
-        exStyle |= WS_EX_TOPMOST;    
-        exStyle |= WS_EX_NOACTIVATE; 
+        exStyle |= WS_EX_TOOLWINDOW;
+        exStyle |= WS_EX_TOPMOST;
+        exStyle |= WS_EX_NOACTIVATE;
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
         EnsureTopmost();
     }
@@ -425,7 +427,7 @@ public partial class MainWindow : Window
             // This avoids redundant Win32 calls every 500ms
             if (GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero)
             {
-                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
             }
         }
@@ -434,10 +436,10 @@ public partial class MainWindow : Window
     private void UpdateZOrderTimerInterval()
     {
         if (_zOrderTimer == null) return;
-        
+
         bool isCritical = _isExpanded || _isMusicExpanded;
         var newInterval = isCritical ? TimeSpan.FromMilliseconds(500) : TimeSpan.FromSeconds(3);
-        
+
         if (_zOrderTimer.Interval != newInterval)
         {
             _zOrderTimer.Interval = newInterval;
@@ -448,12 +450,12 @@ public partial class MainWindow : Window
     {
         var screen = System.Windows.Forms.Screen.PrimaryScreen;
         if (screen == null) return;
-        
+
         _windowWidth = (int)(_expandedWidth + 40);
         _windowHeight = (int)(_expandedHeight + 20);
         _fixedX = screen.Bounds.Left + (screen.Bounds.Width - _windowWidth) / 2;
         _fixedY = 0;
-        
+
         this.Width = _windowWidth;
         this.Height = _windowHeight;
         SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
@@ -507,7 +509,7 @@ public partial class MainWindow : Window
         {
             ExpandNotch();
         }
-        
+
         e.Handled = true;
     }
 
@@ -548,7 +550,7 @@ public partial class MainWindow : Window
     {
         UpdateBatteryInfo();
         UpdateCalendarInfo();
-        
+
         if (_isMusicExpanded) SyncVolumeFromSystem();
         EnsureTopmost();
     }
@@ -640,12 +642,12 @@ public partial class MainWindow : Window
         DayText.Text = now.Day.ToString();
 
         var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-        
+
         for (int i = -1; i <= 1; i++)
         {
             int idx = i + 1;
             var date = now.AddDays(i);
-            
+
             _calendarDayNames[idx].Text = dayNames[(int)date.DayOfWeek];
             _calendarDayNumbers[idx].Text = date.Day.ToString();
 
@@ -676,14 +678,14 @@ public partial class MainWindow : Window
     private void UpdateNotchClip()
     {
         if (NotchContent == null || NotchBorder == null) return;
-        
+
         double w = NotchContent.ActualWidth;
         double h = NotchContent.ActualHeight;
-        
+
         if (w <= 0 || h <= 0) return;
 
         double r = NotchBorder.CornerRadius.BottomRight;
-        
+
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
         {
@@ -694,15 +696,15 @@ public partial class MainWindow : Window
                 ctx.ArcTo(new Point(w - r, h), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
             else
                 ctx.LineTo(new Point(w, h), true, false);
-                
+
             ctx.LineTo(new Point(r, h), true, false);
-            
+
             if (r > 0)
                 ctx.ArcTo(new Point(0, h - r), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
             else
                 ctx.LineTo(new Point(0, h), true, false);
         }
-        
+
         NotchContent.Clip = geometry;
     }
 
@@ -742,7 +744,7 @@ public partial class MainWindow : Window
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
         _hwndSource?.RemoveHook(WndProc);
-        
+
         _mediaService.Dispose();
         _notchManager.Dispose();
         TrayIcon.Dispose();

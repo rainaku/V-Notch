@@ -24,20 +24,20 @@ public partial class MainWindow
         }
 
         var dominantColor = GetDominantColor(info.Thumbnail);
-        if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49) 
+        if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49)
         {
             return;
         }
-        
+
         _lastDominantColor = dominantColor;
-        
+
         var targetColor = Color.FromRgb(dominantColor.R, dominantColor.G, dominantColor.B);
         var vibrantTargetColor = GetVibrantColor(targetColor);
-        
+
         var colorAnim = new ColorAnimation
         {
             To = targetColor,
-            Duration = TimeSpan.FromMilliseconds(500), 
+            Duration = TimeSpan.FromMilliseconds(500),
             EasingFunction = _easeQuadOut
         };
 
@@ -47,7 +47,7 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(500),
             EasingFunction = _easeQuadOut
         };
-        
+
         // Always animate color even if not visible yet
         MediaBackgroundBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
         MediaBackgroundBrush2.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
@@ -55,7 +55,7 @@ public partial class MainWindow
         // Opacity logic: Only show if expanded and NOT in the middle of a primary animation
         // (unless we are updating because of a track change)
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh)) ? 0.5 : 0;
-        
+
         var opacityAnim = new DoubleAnimation
         {
             To = targetOpacity,
@@ -70,11 +70,11 @@ public partial class MainWindow
         var currentBg = ProgressBar.Background as SolidColorBrush;
         if (currentBg == null || currentBg.IsFrozen)
             ProgressBar.Background = new SolidColorBrush(currentBg?.Color ?? Colors.White);
-            
+
         var currentSt = CurrentTimeText.Foreground as SolidColorBrush;
         if (currentSt == null || currentSt.IsFrozen)
             CurrentTimeText.Foreground = new SolidColorBrush(currentSt?.Color ?? Color.FromRgb(136, 136, 136));
-            
+
         var currentRt = RemainingTimeText.Foreground as SolidColorBrush;
         if (currentRt == null || currentRt.IsFrozen)
             RemainingTimeText.Foreground = new SolidColorBrush(currentRt?.Color ?? Color.FromRgb(136, 136, 136));
@@ -90,10 +90,10 @@ public partial class MainWindow
 
         if (ProgressBar.Background is SolidColorBrush pbb && !pbb.IsFrozen)
             pbb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
-            
+
         if (CurrentTimeText.Foreground is SolidColorBrush ctf && !ctf.IsFrozen)
             ctf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
-            
+
         if (RemainingTimeText.Foreground is SolidColorBrush rtf && !rtf.IsFrozen)
             rtf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
@@ -191,7 +191,7 @@ public partial class MainWindow
     private void HideMediaBackground()
     {
         if (MediaBackground.Opacity == 0) return;
-        
+
         _lastDominantColor = Colors.Transparent;
         var opacityAnim = new DoubleAnimation(0, TimeSpan.FromMilliseconds(400))
         {
@@ -235,29 +235,29 @@ public partial class MainWindow
 
             double totalWeight = 0;
             double wr = 0, wg = 0, wb = 0;
-            
+
             for (int i = 0; i < pixelBuffer.Length; i += 4)
             {
                 double pb = pixelBuffer[i] / 255.0;
                 double pg = pixelBuffer[i + 1] / 255.0;
                 double pr = pixelBuffer[i + 2] / 255.0;
-                
+
                 double max = Math.Max(pr, Math.Max(pg, pb));
                 double min = Math.Min(pr, Math.Min(pg, pb));
                 double lum = (pr + pg + pb) / 3.0;
                 double sat = max == 0 ? 0 : (max - min) / max;
-                
+
                 // IGNORE very dark pixels (black bars, shadows)
                 if (lum < 0.12) continue;
-                
+
                 // Weighting: 
                 // 1. Favor saturated colors heavily
                 // 2. Favor mid-brightness (avoid pure white/black)
-                double weight = Math.Pow(sat, 1.5) + 0.05; 
-                
+                double weight = Math.Pow(sat, 1.5) + 0.05;
+
                 // Brightness penalty (avoiding washed out colors)
                 if (lum > 0.85) weight *= 0.3;
-                
+
                 wr += pr * weight;
                 wg += pg * weight;
                 wb += pb * weight;
@@ -265,7 +265,7 @@ public partial class MainWindow
             }
 
             // Fallback if no suitable vibrant pixels found
-            if (totalWeight < 0.1) 
+            if (totalWeight < 0.1)
             {
                 // Try again with simpler average of everything
                 totalWeight = 0; wr = 0; wg = 0; wb = 0;

@@ -28,7 +28,7 @@ public partial class SettingsWindow : Window
         HeightSlider.Value = _settings.Height;
         RadiusSlider.Value = _settings.CornerRadius;
         OpacitySlider.Value = _settings.Opacity * 100;
-        
+
         // Visual Effects
         ShadowCheck.IsChecked = _settings.EnableShadow;
         GlowCheck.IsChecked = _settings.EnableGlowOnHover;
@@ -101,24 +101,24 @@ public partial class SettingsWindow : Window
     {
         // Reset to defaults
         var defaults = new NotchSettings();
-        
+
         WidthSlider.Value = defaults.Width;
         HeightSlider.Value = defaults.Height;
         RadiusSlider.Value = defaults.CornerRadius;
         OpacitySlider.Value = defaults.Opacity * 100;
-        
+
         ShadowCheck.IsChecked = defaults.EnableShadow;
         GlowCheck.IsChecked = defaults.EnableGlowOnHover;
         CameraCheck.IsChecked = defaults.ShowCameraIndicator;
-        
+
         AnimationCheck.IsChecked = defaults.EnableAnimations;
         BounceCheck.IsChecked = defaults.EnableBounceEffect;
         AnimSpeedSlider.Value = defaults.AnimationSpeed;
-        
+
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
         CursorBypassCheck.IsChecked = defaults.EnableCursorBypass;
         HoverDelaySlider.Value = defaults.HoverExpandDelay;
-        
+
         MusicNotifyCheck.IsChecked = defaults.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = defaults.ShowSystemNotifications;
     }
@@ -135,19 +135,19 @@ public partial class SettingsWindow : Window
         _settings.Height = (int)HeightSlider.Value;
         _settings.CornerRadius = (int)RadiusSlider.Value;
         _settings.Opacity = OpacitySlider.Value / 100.0;
-        
+
         _settings.EnableShadow = ShadowCheck.IsChecked ?? true;
         _settings.EnableGlowOnHover = GlowCheck.IsChecked ?? true;
         _settings.ShowCameraIndicator = CameraCheck.IsChecked ?? true;
-        
+
         _settings.EnableAnimations = AnimationCheck.IsChecked ?? true;
         _settings.EnableBounceEffect = BounceCheck.IsChecked ?? true;
         _settings.AnimationSpeed = AnimSpeedSlider.Value;
-        
+
         _settings.EnableHoverExpand = HoverExpandCheck.IsChecked ?? true;
         _settings.EnableCursorBypass = CursorBypassCheck.IsChecked ?? true;
         _settings.HoverExpandDelay = (int)HoverDelaySlider.Value;
-        
+
         _settings.MonitorIndex = MonitorCombo.SelectedIndex;
         _settings.AutoStart = AutoStartCheck.IsChecked ?? false;
         _settings.ShowMusicNotifications = MusicNotifyCheck.IsChecked ?? true;

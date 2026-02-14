@@ -9,7 +9,7 @@ public class NotchSettings
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 16;
     public double Opacity { get; set; } = 1.0;
-    
+
     // Position
     public int MonitorIndex { get; set; } = 0; // 0 = Primary
 

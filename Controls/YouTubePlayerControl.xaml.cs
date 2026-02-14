@@ -20,12 +20,12 @@ public partial class YouTubePlayerControl : UserControl
     public YouTubePlayerControl()
     {
         InitializeComponent();
-        
+
         Browser.JavascriptObjectRepository.Settings.LegacyBindingEnabled = true;
         Browser.JavascriptObjectRepository.Register("cefCallback", new YouTubeCallbackProxy(this));
-        
+
         Browser.FrameLoadEnd += OnFrameLoadEnd;
-        
+
         LoadPlayer();
     }
 

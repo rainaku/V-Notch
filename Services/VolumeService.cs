@@ -53,7 +53,7 @@ public class VolumeService : IDisposable
     public float GetVolume()
     {
         if (!IsAvailable) return 0.5f;
-        
+
         try
         {
             int hr = _endpointVolume!.GetMasterVolumeLevelScalar(out float level);
@@ -66,19 +66,19 @@ public class VolumeService : IDisposable
         {
             System.Diagnostics.Debug.WriteLine($"[VolumeService] GetVolume error: {ex.Message}");
         }
-        
+
         return 0.5f;
     }
 
     public bool SetVolume(float volume)
     {
         if (!IsAvailable) return false;
-        
+
         try
         {
             volume = Math.Clamp(volume, 0f, 1f);
             int hr = _endpointVolume!.SetMasterVolumeLevelScalar(volume, Guid.Empty);
-            
+
             if (hr == 0)
             {
                 System.Diagnostics.Debug.WriteLine($"[VolumeService] Volume set to {volume:P0}");
@@ -93,28 +93,28 @@ public class VolumeService : IDisposable
         {
             System.Diagnostics.Debug.WriteLine($"[VolumeService] SetVolume error: {ex.Message}");
         }
-        
+
         return false;
     }
 
     public bool GetMute()
     {
         if (!IsAvailable) return false;
-        
+
         try
         {
             int hr = _endpointVolume!.GetMute(out bool mute);
             if (hr == 0) return mute;
         }
         catch { }
-        
+
         return false;
     }
 
     public void SetMute(bool mute)
     {
         if (!IsAvailable) return;
-        
+
         try
         {
             _endpointVolume!.SetMute(mute, Guid.Empty);

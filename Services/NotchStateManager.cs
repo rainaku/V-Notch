@@ -143,13 +143,13 @@ public enum NotchState
 {
     /// <summary>Default collapsed appearance</summary>
     Collapsed,
-    
+
     /// <summary>Expanded to show content</summary>
     Expanded,
-    
+
     /// <summary>Completely hidden</summary>
     Hidden,
-    
+
     /// <summary>Transitioning between states</summary>
     Transitioning
 }
@@ -161,10 +161,10 @@ public enum NotchExpandMode
 {
     /// <summary>Minimal expansion</summary>
     Compact,
-    
+
     /// <summary>Medium expansion for music, timer</summary>
     Medium,
-    
+
     /// <summary>Large expansion for detailed content</summary>
     Large
 }

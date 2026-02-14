@@ -37,7 +37,7 @@ public class YouTubeService : IDisposable
             _browser.Width = 10;
             _browser.Height = 10;
             _browser.Visibility = Visibility.Collapsed;
-            
+
             _browser.IsBrowserInitializedChanged += (s, e) =>
             {
                 if (_browser.IsBrowserInitialized)
@@ -57,10 +57,10 @@ public class YouTubeService : IDisposable
         if (_browser == null) return null;
 
         string searchUrl = $"https://www.youtube.com/results?search_query={Uri.EscapeDataString(query)}";
-        
+
         // Load the page
         await _browser.LoadUrlAsync(searchUrl);
-        
+
         // Polling wait for YouTube's heavy JS to render results
         bool success = false;
         for (int i = 0; i < 30; i++) // Max 6 seconds
@@ -78,7 +78,7 @@ public class YouTubeService : IDisposable
             }
             await Task.Delay(200);
         }
-        
+
         if (!success) await Task.Delay(400); // One last short breath
 
         string script = @"

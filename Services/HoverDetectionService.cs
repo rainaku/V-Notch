@@ -17,7 +17,7 @@ public class HoverDetectionService : IDisposable
     private Rect _hoverZone;
     private bool _isHovering;
     private bool _disposed;
-    
+
     // Debounce mechanism
     private DateTime _hoverEnterTime;
     private DateTime _hoverLeaveTime;
@@ -58,7 +58,7 @@ public class HoverDetectionService : IDisposable
     public void UpdateNotchBounds(double left, double top, double width, double height)
     {
         _notchBounds = new Rect(left, top, width, height);
-        
+
         // Create extended hover zone around the notch
         _hoverZone = new Rect(
             left - _hoverZoneMargin,
@@ -101,7 +101,7 @@ public class HoverDetectionService : IDisposable
         {
             // Mouse is in hover zone
             _pendingLeave = false;
-            
+
             if (!_isHovering)
             {
                 if (!_pendingEnter)
@@ -123,7 +123,7 @@ public class HoverDetectionService : IDisposable
         {
             // Mouse is outside hover zone
             _pendingEnter = false;
-            
+
             if (_isHovering)
             {
                 if (!_pendingLeave)
@@ -162,7 +162,7 @@ public class HoverDetectionService : IDisposable
         );
 
         return Math.Sqrt(
-            Math.Pow(point.X - center.X, 2) + 
+            Math.Pow(point.X - center.X, 2) +
             Math.Pow(point.Y - center.Y, 2)
         );
     }

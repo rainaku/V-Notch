@@ -30,7 +30,7 @@ public class StartupManager
 
             if (enable)
             {
-                var exePath = Environment.ProcessPath ?? 
+                var exePath = Environment.ProcessPath ??
                     Path.Combine(AppContext.BaseDirectory, "V-Notch.exe");
                 key.SetValue(AppName, $"\"{exePath}\"");
             }
@@ -41,7 +41,7 @@ public class StartupManager
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Không thể thay đổi cài đặt khởi động: {ex.Message}", 
+            System.Windows.MessageBox.Show($"Không thể thay đổi cài đặt khởi động: {ex.Message}",
                 "Lỗi", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }

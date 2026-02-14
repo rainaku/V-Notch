@@ -46,13 +46,13 @@ public partial class MainWindow
         {
             // Detect mouse down using state tracking
             bool isDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-            
+
             if (isDown && !_wasLButtonDown) // Transition: up -> down
             {
                 if (GetCursorPos(out POINT pt))
                 {
                     IntPtr hWndAtPoint = WindowFromPoint(pt);
-                    
+
                     // Check if click is NOT on this window or any of its child controls
                     if (hWndAtPoint != _hwnd && !IsChildWindow(_hwnd, hWndAtPoint))
                     {
@@ -61,7 +61,7 @@ public partial class MainWindow
                             // In menu 2, enforce double click to avoid closing while dragging files
                             var now = DateTime.Now;
                             double doubleClickTime = GetDoubleClickTime();
-                            
+
                             if ((now - _lastOutsideClickTime).TotalMilliseconds < doubleClickTime)
                             {
                                 CollapseAll();
@@ -101,7 +101,7 @@ public partial class MainWindow
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetParent(IntPtr hWnd);
-    
+
     private DateTime _lastTimelineAvailableTime = DateTime.MinValue;
     private string _lastSessionId = "";
     private string _lastProgressSignature = "";
@@ -138,14 +138,14 @@ public partial class MainWindow
         }
 
         _currentMediaInfo = info;
-        
+
         // Progress bar should ALWAYS be visible as per user request
         ProgressSection.Visibility = Visibility.Visible;
         ProgressSection.Opacity = 1;
-        
+
         // Show/hide specific progress elements based on timeline availability
         bool showProgressDetails = info.IsAnyMediaPlaying && (info.HasTimeline || info.IsIndeterminate);
-        
+
         if (showProgressDetails)
         {
             // IMPORTANT: If user is dragging, don't update internal position from SMTC.
@@ -180,7 +180,7 @@ public partial class MainWindow
                 {
                     UpdateGeneralProgress(info);
                 }
-                
+
                 IndeterminateProgress.Visibility = Visibility.Collapsed;
                 ProgressBar.Visibility = Visibility.Visible;
             }
@@ -200,7 +200,7 @@ public partial class MainWindow
             {
                 ProgressBarContainer.Cursor = info.IsSeekEnabled ? Cursors.Hand : Cursors.Arrow;
             }
-            
+
             UpdateProgressTimerState();
             _isMediaPlaying = info.IsPlaying;
 
@@ -212,15 +212,15 @@ public partial class MainWindow
             UpdateProgressTimerState();
             _isMediaPlaying = false;
             _lastSessionId = "";
-            
+
             // Ensure static progress bar is visible instead of indeterminate
             IndeterminateProgress.Visibility = Visibility.Collapsed;
             ProgressBar.Visibility = Visibility.Visible;
             ProgressBarContainer.Cursor = Cursors.Arrow;
-            
+
             _lastKnownDuration = TimeSpan.Zero;
             _lastKnownPosition = TimeSpan.Zero;
-            
+
             ResetProgressUI();
             if (_isExpanded) RenderProgressBar();
         }
@@ -239,7 +239,7 @@ public partial class MainWindow
     private void StartIndeterminateAnimation()
     {
         if (IndeterminateProgress.Visibility != Visibility.Visible) return;
-        
+
         var anim = new DoubleAnimation(0.3, 0.8, TimeSpan.FromSeconds(1))
         {
             AutoReverse = true,
@@ -262,11 +262,11 @@ public partial class MainWindow
         bool isNewTrack = info.CurrentTrack != _lastAnimatedTrackSignature.Split('|')[0];
         if (isNewTrack || info.IsThrottled)
         {
-            if (info.Duration.TotalSeconds > 0) 
+            if (info.Duration.TotalSeconds > 0)
             {
                 _lastKnownDuration = info.Duration;
             }
-            else 
+            else
             {
                 // FORCE RESET: If we are synched/new track and no duration yet, 
                 // we must reset everything to 0 to prevent "Stuck on old track" visual.
@@ -278,7 +278,7 @@ public partial class MainWindow
         {
             _lastKnownDuration = info.Duration;
         }
-        
+
         // If throttled, always use the compensated position from info
         _lastKnownPosition = info.Position;
         _lastMediaUpdate = info.LastUpdated.LocalDateTime;
@@ -287,7 +287,7 @@ public partial class MainWindow
     private void UpdateSpotifyProgress(MediaInfo info)
     {
         if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
-        
+
         _lastKnownPosition = info.Position;
         _lastMediaUpdate = info.LastUpdated.LocalDateTime;
     }
@@ -295,7 +295,7 @@ public partial class MainWindow
     private void UpdateGeneralProgress(MediaInfo info)
     {
         if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
-        
+
         _lastKnownPosition = info.Position;
         _lastMediaUpdate = info.LastUpdated.LocalDateTime;
     }
@@ -308,11 +308,11 @@ public partial class MainWindow
         IndeterminateProgress.BeginAnimation(OpacityProperty, null);
         IndeterminateProgress.Visibility = Visibility.Collapsed;
     }
-    
+
     private void RenderProgressBar()
     {
         if (_isDraggingProgress || _currentMediaInfo == null) return;
-        
+
         var duration = _lastKnownDuration;
         if (duration.TotalSeconds <= 0)
         {
@@ -322,34 +322,34 @@ public partial class MainWindow
             return;
         }
         TimeSpan displayPosition;
-        
+
         if (_isMediaPlaying)
         {
             var timeSinceUpdate = DateTime.Now - _lastMediaUpdate;
-            
+
             // For browser/YouTube sources, extrapolation needs a very high cap 
             // because browser SMTC updates are extremely infrequent (can be > 60s)
             // If throttled, we ignore the cap to keep progress moving locally.
-            double capSeconds = (_currentMediaInfo.IsThrottled) ? 3600 : 
+            double capSeconds = (_currentMediaInfo.IsThrottled) ? 3600 :
                                (_currentMediaInfo.MediaSource == "YouTube" || _currentMediaInfo.MediaSource == "Browser") ? 600 : 30;
-            
-            if (timeSinceUpdate > TimeSpan.FromSeconds(capSeconds)) 
+
+            if (timeSinceUpdate > TimeSpan.FromSeconds(capSeconds))
                 timeSinceUpdate = TimeSpan.FromSeconds(capSeconds);
-            
+
             displayPosition = _lastKnownPosition + TimeSpan.FromTicks((long)(timeSinceUpdate.Ticks * _currentMediaInfo.PlaybackRate));
-            
+
             if (displayPosition > duration) displayPosition = duration;
         }
         else
         {
             displayPosition = _lastKnownPosition;
         }
-        
+
         if (displayPosition < TimeSpan.Zero) displayPosition = TimeSpan.Zero;
-        
+
         double ratio = displayPosition.TotalSeconds / duration.TotalSeconds;
         ratio = Math.Clamp(ratio, 0, 1);
-        
+
         ProgressBarScale.ScaleX = ratio;
         CurrentTimeText.Text = FormatTime(displayPosition);
         RemainingTimeText.Text = FormatTime(duration);
@@ -361,20 +361,20 @@ public partial class MainWindow
             return time.ToString(@"h\:mm\:ss");
         return time.ToString(@"m\:ss");
     }
-    
+
     #region Progress Bar Click and Drag to Seek
-    
+
     private void ProgressBar_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_currentMediaInfo == null || !_currentMediaInfo.IsSeekEnabled) return;
 
         // Prevent event from bubbling up to parent (which would collapse notch)
         e.Handled = true;
-        
+
         // Start dragging
         _isDraggingProgress = true;
         ProgressBarContainer.CaptureMouse();
-        
+
         // Update UI immediately to show where user clicked
         UpdateProgressFromMouse(e);
     }
@@ -383,7 +383,7 @@ public partial class MainWindow
     {
         // Prevent bubbling
         e.Handled = true;
-        
+
         // Update progress while dragging
         if (_isDraggingProgress && e.LeftButton == MouseButtonState.Pressed)
         {
@@ -395,46 +395,46 @@ public partial class MainWindow
     {
         // Prevent bubbling
         e.Handled = true;
-        
+
         if (_isDraggingProgress)
         {
             _isDraggingProgress = false;
             ProgressBarContainer.ReleaseMouseCapture();
-            
+
             // Seek to final position
             await SeekToPosition(_dragSeekPosition);
         }
     }
-    
+
     /// <summary>
     /// Update progress bar UI from mouse position (during drag)
     /// </summary>
     private void UpdateProgressFromMouse(MouseEventArgs e)
     {
         if (_lastKnownDuration.TotalSeconds <= 0) return;
-        
+
         var position = e.GetPosition(ProgressBarContainer);
         double ratio = position.X / ProgressBarContainer.ActualWidth;
         ratio = Math.Clamp(ratio, 0, 1);
-        
+
         // Update UI immediately
         ProgressBarScale.ScaleX = ratio;
-        
+
         // Calculate and store seek position
         _dragSeekPosition = TimeSpan.FromSeconds(_lastKnownDuration.TotalSeconds * ratio);
-        
+
         // Update displayed time
         CurrentTimeText.Text = FormatTime(_dragSeekPosition);
     }
-    
+
     /// <summary>
     /// Seek to specified position
     /// </summary>
     private async Task SeekToPosition(TimeSpan newPos)
     {
         if (_lastKnownDuration.TotalSeconds <= 0) return;
-        
-        try 
+
+        try
         {
             // Update local state immediately for instant UI feedback
             _lastKnownPosition = newPos;
@@ -451,7 +451,7 @@ public partial class MainWindow
                 // Send seek command via Windows Media Session API
                 await _mediaService.SeekAsync(newPos);
             }
-        } 
+        }
         catch { }
     }
 
@@ -462,9 +462,9 @@ public partial class MainWindow
         // Calculate current extrapolated position
         var elapsed = DateTime.Now - _lastMediaUpdate;
         var currentPos = _lastKnownPosition + (_isMediaPlaying ? elapsed : TimeSpan.Zero);
-        
+
         var newPos = currentPos + TimeSpan.FromSeconds(seconds);
-        
+
         // Clamp
         if (newPos < TimeSpan.Zero) newPos = TimeSpan.Zero;
         if (newPos > _lastKnownDuration) newPos = _lastKnownDuration;
@@ -489,21 +489,21 @@ public partial class MainWindow
         }
         catch { }
     }
-    
+
     #endregion
-    
+
     #region Progress Bar Animation on Expand
-    
+
     // Expand animation removed
-    
+
     private void UpdateProgressTimerState()
     {
         if (_progressTimer == null || _autoCollapseTimer == null) return;
 
         bool isExpanded = _isExpanded || _isMusicExpanded;
-        bool showProgress = _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && 
+        bool showProgress = _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying &&
                             (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
-        bool shouldRunProgress = isExpanded && showProgress; 
+        bool shouldRunProgress = isExpanded && showProgress;
         bool shouldRunAutoCollapse = isExpanded;
 
         if (shouldRunProgress)

@@ -29,10 +29,10 @@ public partial class MainWindow
     private void StartMarqueeAnimation(TranslateTransform transform, double distance, double durationPerPixel = 40)
     {
         transform.BeginAnimation(TranslateTransform.XProperty, null);
-        
+
         var totalDuration = TimeSpan.FromMilliseconds(distance * durationPerPixel);
         var pauseDuration = TimeSpan.FromSeconds(2);
-        
+
         var storyboard = new Storyboard
         {
             RepeatBehavior = RepeatBehavior.Forever,
@@ -47,7 +47,7 @@ public partial class MainWindow
             BeginTime = pauseDuration,
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
         };
-        
+
         // Add a slight pause at the ends by making the animation longer than the duration but with stagnant start
         // Actually, better to use a DoubleAnimationUsingKeyFrames for precise pause control
         var keyAnim = new DoubleAnimationUsingKeyFrames
@@ -55,12 +55,12 @@ public partial class MainWindow
             RepeatBehavior = RepeatBehavior.Forever,
             AutoReverse = true
         };
-        
+
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(0)));
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(2))); // Pause at start
         keyAnim.KeyFrames.Add(new SplineDoubleKeyFrame(-distance, TimeSpan.FromSeconds(2) + totalDuration, new KeySpline(0.4, 0, 0.6, 1)));
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(-distance, TimeSpan.FromSeconds(4) + totalDuration)); // Pause at end
-        
+
         transform.BeginAnimation(TranslateTransform.XProperty, keyAnim);
     }
 
@@ -71,10 +71,10 @@ public partial class MainWindow
     private void UpdateTitleText(string newText)
     {
         if (newText == _lastTitleText) return;
-        
+
         // DEBOUNCE: Don't morph again if we just did one recently (< 400ms)
         if ((DateTime.Now - _lastTitleMorphTime).TotalMilliseconds < 400) return;
-        
+
         _lastTitleText = newText;
         _lastTitleMorphTime = DateTime.Now;
 
@@ -89,20 +89,20 @@ public partial class MainWindow
             AnimateTextMorph(TrackTitleNext, TrackTitle, TitleBlur, TitleMorphTranslateNext, TitleMorphTranslate, newText);
             _isTitleActiveA = true;
         }
-        
+
         // Reset marquee state for the NEWLY active text
-        
+
         TitleMarqueeTranslate.X = 0;
         TitleMarqueeTranslateNext.X = 0;
-        
+
         // Calculate marquee for the new active text
         var activeText = _isTitleActiveA ? TrackTitle : TrackTitleNext;
         var activeTranslate = _isTitleActiveA ? TitleMarqueeTranslate : TitleMarqueeTranslateNext;
-        
+
         activeText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double textWidth = activeText.DesiredSize.Width;
         double containerWidth = TitleScrollContainer.Width > 0 ? TitleScrollContainer.Width : 250;
-        
+
         if (textWidth > containerWidth)
         {
             _titleScrollDistance = textWidth - containerWidth + 15;
@@ -115,7 +115,7 @@ public partial class MainWindow
             activeTranslate.X = 0;
         }
     }
-    
+
     private void UpdateArtistText(string newText)
     {
         if (newText == _lastArtistText) return;
@@ -125,7 +125,7 @@ public partial class MainWindow
 
         _lastArtistText = newText;
         _lastArtistMorphTime = DateTime.Now;
-        
+
         // Perform Morph Animation
         if (_isArtistActiveA)
         {
@@ -137,20 +137,20 @@ public partial class MainWindow
             AnimateTextMorph(TrackArtistNext, TrackArtist, ArtistBlur, ArtistMorphTranslateNext, ArtistMorphTranslate, newText);
             _isArtistActiveA = true;
         }
-        
+
         // Reset marquee state for the NEWLY active text
-        
+
         ArtistMarqueeTranslate.X = 0;
         ArtistMarqueeTranslateNext.X = 0;
-        
+
         // Calculate marquee for the new active text
         var activeText = _isArtistActiveA ? TrackArtist : TrackArtistNext;
         var activeTranslate = _isArtistActiveA ? ArtistMarqueeTranslate : ArtistMarqueeTranslateNext;
-        
+
         activeText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double textWidth = activeText.DesiredSize.Width;
         double containerWidth = ArtistScrollContainer.Width > 0 ? ArtistScrollContainer.Width : 250;
-        
+
         if (textWidth > containerWidth)
         {
             _artistScrollDistance = textWidth - containerWidth + 15;
@@ -167,9 +167,9 @@ public partial class MainWindow
     private void AnimateTextMorph(TextBlock current, TextBlock next, System.Windows.Media.Effects.BlurEffect blur, TranslateTransform currentMorph, TranslateTransform nextMorph, string newText)
     {
         next.Text = newText;
-        
+
         // Stationary Blur-Dissolve: Slow, calm, premium.
-        var dur = TimeSpan.FromMilliseconds(450); 
+        var dur = TimeSpan.FromMilliseconds(450);
         var easeInOut = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
 
         // Ensure no stray movement from previous animations/initializations

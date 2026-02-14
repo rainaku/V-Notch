@@ -15,10 +15,10 @@ public partial class App : Application
     {
         // Single instance check
         _mutex = new Mutex(true, MutexName, out bool createdNew);
-        
+
         if (!createdNew)
         {
-            MessageBox.Show("V-Notch đang chạy!", "V-Notch", 
+            MessageBox.Show("V-Notch đang chạy!", "V-Notch",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
@@ -41,16 +41,16 @@ public partial class App : Application
     private void InitializeCefSharp()
     {
         var settings = new CefSettings();
-        
+
         // Cấu hình tối ưu cho app background/overlay
         settings.LogSeverity = LogSeverity.Disable;
         settings.WindowlessRenderingEnabled = true;
-        
+
         // Cho phép YouTube IFrame API và autoplay
         settings.CefCommandLineArgs["autoplay-policy"] = "no-user-gesture-required";
         settings.CefCommandLineArgs["disable-gpu"] = "1";
         settings.CefCommandLineArgs["disable-gpu-compositing"] = "1";
-        
+
         // Cache directory để lưu session/cookies nếu cần
         string cachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VNotch", "CefCache");
         if (!Directory.Exists(cachePath)) Directory.CreateDirectory(cachePath);
@@ -73,7 +73,7 @@ public partial class App : Application
         {
             Cef.Shutdown();
         }
-        
+
         _mutex?.ReleaseMutex();
         _mutex?.Dispose();
         base.OnExit(e);
