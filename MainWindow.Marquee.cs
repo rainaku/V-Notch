@@ -6,9 +6,6 @@ using System.Windows.Media.Animation;
 
 namespace VNotch;
 
-/// <summary>
-/// Partial class for Marquee text scrolling logic
-/// </summary>
 public partial class MainWindow
 {
     #region Marquee Fields
@@ -17,8 +14,8 @@ public partial class MainWindow
     private double _artistScrollDistance = 0;
     private string _lastTitleText = "";
     private string _lastArtistText = "";
-    private bool _isTitleActiveA = true; // Tracks which Title TextBlock is visible
-    private bool _isArtistActiveA = true; // Tracks which Artist TextBlock is visible
+    private bool _isTitleActiveA = true; 
+    private bool _isArtistActiveA = true; 
     private DateTime _lastTitleMorphTime = DateTime.MinValue;
     private DateTime _lastArtistMorphTime = DateTime.MinValue;
 
@@ -48,8 +45,6 @@ public partial class MainWindow
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
         };
 
-        // Add a slight pause at the ends by making the animation longer than the duration but with stagnant start
-        // Actually, better to use a DoubleAnimationUsingKeyFrames for precise pause control
         var keyAnim = new DoubleAnimationUsingKeyFrames
         {
             RepeatBehavior = RepeatBehavior.Forever,
@@ -57,9 +52,9 @@ public partial class MainWindow
         };
 
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(0)));
-        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(2))); // Pause at start
+        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(2))); 
         keyAnim.KeyFrames.Add(new SplineDoubleKeyFrame(-distance, TimeSpan.FromSeconds(2) + totalDuration, new KeySpline(0.4, 0, 0.6, 1)));
-        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(-distance, TimeSpan.FromSeconds(4) + totalDuration)); // Pause at end
+        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(-distance, TimeSpan.FromSeconds(4) + totalDuration)); 
 
         transform.BeginAnimation(TranslateTransform.XProperty, keyAnim);
     }
@@ -72,13 +67,11 @@ public partial class MainWindow
     {
         if (newText == _lastTitleText) return;
 
-        // DEBOUNCE: Don't morph again if we just did one recently (< 400ms)
         if ((DateTime.Now - _lastTitleMorphTime).TotalMilliseconds < 400) return;
 
         _lastTitleText = newText;
         _lastTitleMorphTime = DateTime.Now;
 
-        // Perform Morph Animation
         if (_isTitleActiveA)
         {
             AnimateTextMorph(TrackTitle, TrackTitleNext, TitleBlur, TitleMorphTranslate, TitleMorphTranslateNext, newText);
@@ -90,12 +83,9 @@ public partial class MainWindow
             _isTitleActiveA = true;
         }
 
-        // Reset marquee state for the NEWLY active text
-
         TitleMarqueeTranslate.X = 0;
         TitleMarqueeTranslateNext.X = 0;
 
-        // Calculate marquee for the new active text
         var activeText = _isTitleActiveA ? TrackTitle : TrackTitleNext;
         var activeTranslate = _isTitleActiveA ? TitleMarqueeTranslate : TitleMarqueeTranslateNext;
 
@@ -120,13 +110,11 @@ public partial class MainWindow
     {
         if (newText == _lastArtistText) return;
 
-        // DEBOUNCE: Don't morph again if we just did one recently (< 400ms)
         if ((DateTime.Now - _lastArtistMorphTime).TotalMilliseconds < 400) return;
 
         _lastArtistText = newText;
         _lastArtistMorphTime = DateTime.Now;
 
-        // Perform Morph Animation
         if (_isArtistActiveA)
         {
             AnimateTextMorph(TrackArtist, TrackArtistNext, ArtistBlur, ArtistMorphTranslate, ArtistMorphTranslateNext, newText);
@@ -138,12 +126,9 @@ public partial class MainWindow
             _isArtistActiveA = true;
         }
 
-        // Reset marquee state for the NEWLY active text
-
         ArtistMarqueeTranslate.X = 0;
         ArtistMarqueeTranslateNext.X = 0;
 
-        // Calculate marquee for the new active text
         var activeText = _isArtistActiveA ? TrackArtist : TrackArtistNext;
         var activeTranslate = _isArtistActiveA ? ArtistMarqueeTranslate : ArtistMarqueeTranslateNext;
 
@@ -168,25 +153,20 @@ public partial class MainWindow
     {
         next.Text = newText;
 
-        // Stationary Blur-Dissolve: Slow, calm, premium.
         var dur = TimeSpan.FromMilliseconds(450);
         var easeInOut = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
 
-        // Ensure no stray movement from previous animations/initializations
         currentMorph.BeginAnimation(TranslateTransform.YProperty, null);
         nextMorph.BeginAnimation(TranslateTransform.YProperty, null);
         currentMorph.Y = 0;
         nextMorph.Y = 0;
 
-        // 1. Pronounced Blur - Slopes with the fade
         var blurAnim = new DoubleAnimation(0, 10, dur.Divide(2)) { EasingFunction = easeInOut, AutoReverse = true };
         blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty, blurAnim);
 
-        // 2. Slow Cross-Fade Current (Out)
         var fadeOut = new DoubleAnimation(1, 0, dur) { EasingFunction = easeInOut };
         current.BeginAnimation(OpacityProperty, fadeOut);
 
-        // 3. Slow Cross-Fade Next (In)
         var fadeIn = new DoubleAnimation(0, 1, dur) { EasingFunction = easeInOut };
         next.BeginAnimation(OpacityProperty, fadeIn);
     }

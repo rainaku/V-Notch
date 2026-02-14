@@ -13,7 +13,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // Single instance check
+
         _mutex = new Mutex(true, MutexName, out bool createdNew);
 
         if (!createdNew)
@@ -24,10 +24,8 @@ public partial class App : Application
             return;
         }
 
-        // Initialize CefSharp
         InitializeCefSharp();
 
-        // Global exception handling
         DispatcherUnhandledException += (s, args) =>
         {
             MessageBox.Show($"Lỗi: {args.Exception.Message}", "V-Notch Error",
@@ -42,16 +40,13 @@ public partial class App : Application
     {
         var settings = new CefSettings();
 
-        // Cấu hình tối ưu cho app background/overlay
         settings.LogSeverity = LogSeverity.Disable;
         settings.WindowlessRenderingEnabled = true;
 
-        // Cho phép YouTube IFrame API và autoplay
         settings.CefCommandLineArgs["autoplay-policy"] = "no-user-gesture-required";
         settings.CefCommandLineArgs["disable-gpu"] = "1";
         settings.CefCommandLineArgs["disable-gpu-compositing"] = "1";
 
-        // Cache directory để lưu session/cookies nếu cần
         string cachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VNotch", "CefCache");
         if (!Directory.Exists(cachePath)) Directory.CreateDirectory(cachePath);
         settings.CachePath = cachePath;

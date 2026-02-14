@@ -107,7 +107,6 @@ public partial class MainWindow : Window
     private IntPtr _hwnd;
     private HwndSource? _hwndSource;
 
-    // Animation state tracking
     private bool _isAnimating = false;
     private bool _isExpanded = false;
     private double _collapsedWidth;
@@ -117,19 +116,16 @@ public partial class MainWindow : Window
     private double _cornerRadiusCollapsed;
     private double _cornerRadiusExpanded = 24;
 
-    // Fixed position
     private int _fixedX = 0;
     private int _fixedY = 0;
     private int _windowWidth = 0;
     private int _windowHeight = 0;
 
-    // Current media state
     private MediaInfo? _currentMediaInfo;
     private bool _isMusicCompactMode = false;
     private bool _isYouTubeVideoMode = false;
     private DateTime _lastMediaActionTime = DateTime.MinValue;
 
-    // Progress bar (timer defined here, logic in MainWindow.Progress.cs)
     private readonly DispatcherTimer _progressTimer;
     private DateTime _lastMediaUpdate = DateTime.Now;
     private TimeSpan _lastKnownPosition = TimeSpan.Zero;
@@ -137,14 +133,12 @@ public partial class MainWindow : Window
     private bool _isMediaPlaying = false;
     private DateTime _seekDebounceUntil = DateTime.MinValue;
 
-    // Cached Brushes & Fonts for Performance
     private static readonly SolidColorBrush _brushCharging = CreateFrozenBrush(48, 209, 88);
     private static readonly SolidColorBrush _brushLowBattery = CreateFrozenBrush(255, 59, 48);
     private static readonly SolidColorBrush _brushWhite = CreateFrozenBrush(255, 255, 255);
     private static readonly SolidColorBrush _brushBlack = CreateFrozenBrush(0, 0, 0);
     private static readonly SolidColorBrush _brushTransparent = CreateFrozenBrush(0, 0, 0, 0);
     private static readonly SolidColorBrush _brushGray = CreateFrozenBrush(102, 102, 102);
-
 
     private static SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b, byte a = 255)
     {
@@ -153,7 +147,6 @@ public partial class MainWindow : Window
         return brush;
     }
 
-    // Calendar UI Cache
     private bool _calendarInitialized = false;
     private readonly TextBlock[] _calendarDayNames = new TextBlock[3];
     private readonly Border[] _calendarDayBorders = new Border[3];
@@ -171,19 +164,16 @@ public partial class MainWindow : Window
         _mediaService = new MediaDetectionService();
         _volumeService = new VolumeService();
 
-        // Store dimensions
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;
         _cornerRadiusCollapsed = _settings.CornerRadius;
 
-        // Setup update timer for battery & calendar only
         _updateTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(30)
         };
         _updateTimer.Tick += UpdateTimer_Tick;
 
-        // Setup Z-order timer - safety check to stay on top
         _zOrderTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
             Interval = TimeSpan.FromSeconds(3)
@@ -191,21 +181,18 @@ public partial class MainWindow : Window
         _zOrderTimer.Tick += (s, e) => EnsureTopmost();
         _zOrderTimer.Start();
 
-        // Setup progress timer for realtime progress bar (60fps for maximum smoothness)
         _progressTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(16)
         };
         _progressTimer.Tick += ProgressTimer_Tick;
 
-        // Setup auto-collapse timer (check click outside notch - 10fps for double click detect)
         _autoCollapseTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(100)
         };
         _autoCollapseTimer.Tick += AutoCollapseTimer_Tick;
 
-        // Setup hover collapse timer (1.0 second delay)
         _hoverCollapseTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(1000)
@@ -222,10 +209,8 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
         Deactivated += MainWindow_Deactivated;
 
-        // Subscribe to media changes
         _mediaService.MediaChanged += OnMediaChanged;
 
-        // Setup YouTube Player events
         YouTubePlayer.VideoStateChanged += (s, state) =>
         {
             if (state == "playing") _isMediaPlaying = true;
@@ -238,7 +223,7 @@ public partial class MainWindow : Window
             {
                 _lastKnownPosition = TimeSpan.FromSeconds(pos);
                 _lastMediaUpdate = DateTime.Now;
-                _seekDebounceUntil = DateTime.MinValue; // Accept local position immediately
+                _seekDebounceUntil = DateTime.MinValue; 
             }
         };
 
@@ -260,13 +245,13 @@ public partial class MainWindow : Window
         {
             MediaWidgetContainer.Visibility = Visibility.Collapsed;
             YouTubePlayerContainer.Visibility = Visibility.Visible;
-            YouTubeVideoModeButton.Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x44, 0x44, 0x44)); // Darker when active
+            YouTubeVideoModeButton.Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x44, 0x44, 0x44)); 
         }
         else
         {
             YouTubePlayerContainer.Visibility = Visibility.Collapsed;
             MediaWidgetContainer.Visibility = Visibility.Visible;
-            YouTubeVideoModeButton.Background = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0x00, 0x00)); // YouTube red
+            YouTubeVideoModeButton.Background = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0x00, 0x00)); 
         }
     }
 
@@ -286,7 +271,6 @@ public partial class MainWindow : Window
                 var icon = new System.Drawing.Icon(iconPath);
                 TrayIcon.Icon = icon;
 
-                // Also set the window icon
                 this.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(iconPath));
             }
             else
@@ -354,8 +338,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
-        // Don't auto-collapse on focus loss if in secondary view (Shelf/Camera)
-        // This allows user to click files in Explorer to start a drag operation.
+
         if ((_isExpanded || _isMusicExpanded) && !_isAnimating && !_isSecondaryView)
         {
             CollapseAll();
@@ -394,10 +377,6 @@ public partial class MainWindow : Window
         EnsureTopmost();
     }
 
-    /// <summary>
-    /// Temporarily removes WS_EX_NOACTIVATE so window can receive keyboard input.
-    /// Call when shelf/secondary view is shown and keyboard shortcuts are needed.
-    /// </summary>
     private void EnableKeyboardInput()
     {
         if (_hwnd == IntPtr.Zero) return;
@@ -407,10 +386,6 @@ public partial class MainWindow : Window
         Activate();
     }
 
-    /// <summary>
-    /// Re-adds WS_EX_NOACTIVATE so window doesn't steal focus from other apps.
-    /// Call when returning to normal notch mode.
-    /// </summary>
     private void DisableKeyboardInput()
     {
         if (_hwnd == IntPtr.Zero) return;
@@ -423,8 +398,7 @@ public partial class MainWindow : Window
     {
         if (_hwnd != IntPtr.Zero)
         {
-            // Only call SetWindowPos if we are not already at the top of the Z-order
-            // This avoids redundant Win32 calls every 500ms
+
             if (GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero)
             {
                 SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
@@ -496,12 +470,12 @@ public partial class MainWindow : Window
         {
             if (_isSecondaryView)
             {
-                // In menu 2, require double click to prevent accidents
+
                 if (e.ClickCount == 2) CollapseNotch();
             }
             else
             {
-                // In menu 1, single click is enough
+
                 CollapseNotch();
             }
         }
@@ -524,8 +498,7 @@ public partial class MainWindow : Window
 
     private void NotchWrapper_MouseLeave(object sender, MouseEventArgs e)
     {
-        // Don't auto-collapse on hover out if in secondary view (Shelf/Camera)
-        // User must click outside to close in that mode.
+
         if (_isExpanded && !_isAnimating && !_isSecondaryView)
         {
             _hoverCollapseTimer.Start();
@@ -540,7 +513,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Open Windows Battery Saver settings
+
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:batterysaver") { UseShellExecute = true });
         }
         catch { }
@@ -651,7 +624,7 @@ public partial class MainWindow : Window
             _calendarDayNames[idx].Text = dayNames[(int)date.DayOfWeek];
             _calendarDayNumbers[idx].Text = date.Day.ToString();
 
-            if (i == 0) // Today
+            if (i == 0) 
             {
                 _calendarDayBorders[idx].Background = _brushWhite;
                 _calendarDayNumbers[idx].Foreground = _brushBlack;
@@ -756,10 +729,4 @@ public partial class MainWindow : Window
 
     #endregion
 
-    // Media Progress Tracking -> MainWindow.Progress.cs
-    // Animation logic (ExpandNotch, CollapseNotch, etc.) -> MainWindow.Animation.cs
-    // Media Controls (PlayPause, Next, Prev, Volume) -> MainWindow.Controls.cs
-    // Marquee text scrolling -> MainWindow.Marquee.cs
-    // Media Changed handler & Compact Mode -> MainWindow.Media.cs
-    // Media Background & Color Extraction -> MainWindow.MediaBackground.cs
 }

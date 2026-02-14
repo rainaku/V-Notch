@@ -4,11 +4,6 @@ using System.Windows.Threading;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Service to detect mouse hover near the notch area
-/// Handles the "invisible" hover zone for triggering notch interactions
-/// With debounce to prevent flickering
-/// </summary>
 public class HoverDetectionService : IDisposable
 {
     private readonly DispatcherTimer _pollTimer;
@@ -18,11 +13,10 @@ public class HoverDetectionService : IDisposable
     private bool _isHovering;
     private bool _disposed;
 
-    // Debounce mechanism
     private DateTime _hoverEnterTime;
     private DateTime _hoverLeaveTime;
-    private readonly TimeSpan _enterDelay = TimeSpan.FromMilliseconds(150); // Delay before enter
-    private readonly TimeSpan _leaveDelay = TimeSpan.FromMilliseconds(400); // Delay before leave
+    private readonly TimeSpan _enterDelay = TimeSpan.FromMilliseconds(150); 
+    private readonly TimeSpan _leaveDelay = TimeSpan.FromMilliseconds(400); 
     private bool _pendingEnter;
     private bool _pendingLeave;
 
@@ -47,30 +41,23 @@ public class HoverDetectionService : IDisposable
         _hoverZoneMargin = hoverZoneMargin;
         _pollTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(33) // ~30fps polling (smoother)
+            Interval = TimeSpan.FromMilliseconds(33) 
         };
         _pollTimer.Tick += PollTimer_Tick;
     }
 
-    /// <summary>
-    /// Update the notch bounds and recalculate hover zone
-    /// </summary>
     public void UpdateNotchBounds(double left, double top, double width, double height)
     {
         _notchBounds = new Rect(left, top, width, height);
 
-        // Create extended hover zone around the notch
         _hoverZone = new Rect(
             left - _hoverZoneMargin,
-            top, // No margin on top since notch is at screen edge
+            top, 
             width + _hoverZoneMargin * 2,
             height + _hoverZoneMargin
         );
     }
 
-    /// <summary>
-    /// Start monitoring mouse position
-    /// </summary>
     public void Start()
     {
         if (!_disposed)
@@ -79,9 +66,6 @@ public class HoverDetectionService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Stop monitoring mouse position
-    /// </summary>
     public void Stop()
     {
         _pollTimer.Stop();
@@ -99,20 +83,20 @@ public class HoverDetectionService : IDisposable
 
         if (isInZone)
         {
-            // Mouse is in hover zone
+
             _pendingLeave = false;
 
             if (!_isHovering)
             {
                 if (!_pendingEnter)
                 {
-                    // Start enter timer
+
                     _pendingEnter = true;
                     _hoverEnterTime = now;
                 }
                 else if (now - _hoverEnterTime >= _enterDelay)
                 {
-                    // Enter delay passed, trigger hover
+
                     _isHovering = true;
                     _pendingEnter = false;
                     HoverEnter?.Invoke(this, EventArgs.Empty);
@@ -121,20 +105,20 @@ public class HoverDetectionService : IDisposable
         }
         else
         {
-            // Mouse is outside hover zone
+
             _pendingEnter = false;
 
             if (_isHovering)
             {
                 if (!_pendingLeave)
                 {
-                    // Start leave timer
+
                     _pendingLeave = true;
                     _hoverLeaveTime = now;
                 }
                 else if (now - _hoverLeaveTime >= _leaveDelay)
                 {
-                    // Leave delay passed, trigger leave
+
                     _isHovering = false;
                     _pendingLeave = false;
                     HoverLeave?.Invoke(this, EventArgs.Empty);
@@ -143,17 +127,11 @@ public class HoverDetectionService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Check if a point is directly over the notch (not just hover zone)
-    /// </summary>
     public bool IsPointOverNotch(Point point)
     {
         return _notchBounds.Contains(point);
     }
 
-    /// <summary>
-    /// Get the distance from a point to the notch center
-    /// </summary>
     public double GetDistanceToNotch(Point point)
     {
         var center = new Point(
@@ -167,9 +145,6 @@ public class HoverDetectionService : IDisposable
         );
     }
 
-    /// <summary>
-    /// Force reset hover state
-    /// </summary>
     public void ResetHoverState()
     {
         _isHovering = false;

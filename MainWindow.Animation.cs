@@ -8,11 +8,6 @@ using System.Windows.Media.Effects;
 
 namespace VNotch;
 
-/// <summary>
-/// Partial class for Animation logic with Object Pooling.
-/// All EasingFunctions are cached as frozen static singletons.
-/// Reusable DoubleAnimation helpers reduce GC pressure.
-/// </summary>
 public partial class MainWindow
 {
     #region Cached Easing Functions (Frozen - Thread Safe)
@@ -63,10 +58,6 @@ public partial class MainWindow
 
     #region Animation Pool Helpers
 
-    /// <summary>
-    /// Get a DoubleAnimation configured with cached easing. No event handlers.
-    /// Safe to reuse since WPF clones internally when frozen, or uses directly otherwise.
-    /// </summary>
     private static DoubleAnimation MakeAnim(double? from, double to, Duration duration, IEasingFunction? easing = null, int fps = 120)
     {
         var anim = new DoubleAnimation
@@ -101,9 +92,7 @@ public partial class MainWindow
             Duration = duration,
             EasingFunction = easing
         };
-        // Only set BeginTime when explicitly specified (non-null).
-        // In WPF, BeginTime = null means the timeline NEVER starts.
-        // Default is TimeSpan.Zero (start immediately).
+
         if (beginTime.HasValue)
             anim.BeginTime = beginTime.Value;
         Timeline.SetDesiredFrameRate(anim, 120);
@@ -113,34 +102,27 @@ public partial class MainWindow
     #endregion
 
     #region Notch Expand/Collapse
-    /// <summary>
-    /// Compute the target translate offset for the floating thumbnail animation.
-    /// Returns the offset from the AnimationThumbnailBorder base position (Margin 8,4)
-    /// to where ThumbnailBorder actually sits inside the expanded layout.
-    /// Must be called AFTER NotchBorder has expanded dimensions set.
-    /// </summary>
+
     private (double X, double Y) ComputeThumbnailExpandTarget()
     {
         try
         {
-            // Get the position of ThumbnailBorder relative to InnerClipBorder
+
             var thumbPos = ThumbnailBorder.TransformToAncestor(InnerClipBorder).Transform(new Point(0, 0));
-            // AnimationThumbnailBorder base position is Margin(8,4)
+
             double targetX = thumbPos.X - 8;
             double targetY = thumbPos.Y - 4;
             return (targetX, targetY);
         }
         catch
         {
-            // Fallback to measured defaults
+
             return (20, 48);
         }
     }
 
-    // Cached target for thumbnail expand animation (computed once after first expand)
     private (double X, double Y)? _cachedThumbnailExpandTarget;
 
-    // --- Optimization: Cached Animation Objects ---
     private DoubleAnimation? _cachedThumbWidthExpand;
     private DoubleAnimation? _cachedThumbHeightExpand;
     private RectAnimation? _cachedThumbRectExpand;
@@ -157,7 +139,6 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // Clear any stale animations from prior transitions
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
@@ -170,15 +151,12 @@ public partial class MainWindow
         MediaBackground2.BeginAnimation(OpacityProperty, null);
         PaginationDots.BeginAnimation(OpacityProperty, null);
 
-        // Reset translate and background to base
         AnimationThumbnailTranslate.X = 0;
         AnimationThumbnailTranslate.Y = 0;
         MediaBackground.Opacity = 0;
         MediaBackground2.Opacity = 0;
 
-        // Ensure other states are collapsed immediately or fading out
         SecondaryContent.Visibility = Visibility.Collapsed;
-        // CollapsedContent and MusicCompactContent will fade out below
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
@@ -187,36 +165,28 @@ public partial class MainWindow
         PaginationDots.Opacity = 0;
         UpdatePaginationDots();
 
-        // --- Fix: Pre-compute accurate thumbnail target on first expand to avoid glitch ---
         if (!_cachedThumbnailExpandTarget.HasValue && _isMusicCompactMode)
         {
             double oldW = NotchBorder.Width;
             double oldH = NotchBorder.Height;
 
-            // Temporarily set expanded dimensions
             NotchBorder.Width = _expandedWidth;
             NotchBorder.Height = _expandedHeight;
 
-            // Force layout pass
             this.UpdateLayout();
 
-            // Compute and cache
             _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
 
-            // Revert to original size so animation starts from correct position
             NotchBorder.Width = oldW;
             NotchBorder.Height = oldH;
         }
 
-        // Hit-test protection
         NotchBorder.IsHitTestVisible = false;
 
-        // Base Notch Animations - Use 400ms for snappy but smooth sync
         var widthAnim = MakeAnim(_expandedWidth, _dur400, _easeExpOut6);
         var heightAnim = MakeAnim(_expandedHeight, _dur400, _easeExpOut6);
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
 
-        // Expanded Content: Slide up
         var expandedGroup = new TransformGroup();
         var expandedTranslate = new TranslateTransform(0, 10);
         expandedGroup.Children.Add(expandedTranslate);
@@ -228,16 +198,14 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0.15, _dur200);
 
-        // Depth: Blur incoming content slightly then clear
         var expandedBlur = new BlurEffect { Radius = 10, KernelType = KernelType.Gaussian };
         ExpandedContent.Effect = expandedBlur;
         var blurFadeIn = MakeAnim(10, 0, _dur400, _easeQuadOut);
         expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurFadeIn);
 
-        // --- Thumbnail Animation Logic ---
         if (_isMusicCompactMode && CompactThumbnail.Source != null)
         {
-            // Setup floating thumbnail at compact position (Margin is fixed at 8,4)
+
             AnimationThumbnailImage.Source = CompactThumbnail.Source;
             AnimationThumbnailBorder.Visibility = Visibility.Visible;
             AnimationThumbnailBorder.Width = 22;
@@ -246,11 +214,8 @@ public partial class MainWindow
             AnimationThumbnailTranslate.X = 0;
             AnimationThumbnailTranslate.Y = 0;
 
-            // Use cached target or fallback defaults
-            // Target will be recalculated and cached in heightAnim.Completed
             var (targetX, targetY) = _cachedThumbnailExpandTarget ?? (20, 48);
 
-            // Animate to the target position with a slight delay
             var thumbDelay = TimeSpan.FromMilliseconds(50);
             var thumbDur = _dur400;
             var thumbEase = _easeExpOut6;
@@ -271,8 +236,6 @@ public partial class MainWindow
                 _cachedThumbRectExpand.Freeze();
             }
 
-            // Translate animations depend on target coordinates, so we recreate or update them
-            // Optimization: Only recreate if target changed
             var thumbTranslateXAnim = MakeAnim(0, targetX, thumbDur, thumbEase, thumbDelay);
             var thumbTranslateYAnim = MakeAnim(0, targetY, thumbDur, thumbEase, thumbDelay);
 
@@ -300,14 +263,9 @@ public partial class MainWindow
 
             ExpandedContent.Effect = null;
 
-            // Set final values before clearing animations
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
 
-            // Keep the transform group to avoid sub-pixel snapping glitches at the end
-            // ExpandedContent.RenderTransform = null;
-
-            // Cleanup Thumbnail Animation
             AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
             AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
             AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
@@ -349,7 +307,6 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // Clear prior animations
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         SecondaryContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
@@ -360,19 +317,15 @@ public partial class MainWindow
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
 
-        // Reset state
         AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
         AnimationThumbnailTranslate.X = 0;
         AnimationThumbnailTranslate.Y = 0;
 
-        // Hit-test protection
         NotchBorder.IsHitTestVisible = false;
 
-        // Match collapse duration to 400ms for perfect sync
         var widthAnim = MakeAnim(_collapsedWidth, _dur400, _easeExpOut6);
         var heightAnim = MakeAnim(_collapsedHeight, _dur400, _easeExpOut6);
 
-        // Outgoing: Slide and blur
         var expandedGroup = new TransformGroup();
         var expandedTranslate = new TranslateTransform(0, 0);
         expandedGroup.Children.Add(expandedTranslate);
@@ -410,7 +363,6 @@ public partial class MainWindow
         contentToHide.Visibility = Visibility.Collapsed;
         contentToHide.Opacity = 0;
 
-        // Content To Show: Spring Scale Up
         var showGroup = new TransformGroup();
         var showScale = new ScaleTransform(0.8, 0.8);
         showGroup.Children.Add(showScale);
@@ -422,7 +374,6 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0, _dur150);
 
-        // --- Thumbnail Animation Logic ---
         if (_isMusicCompactMode && ThumbnailImage.Source != null)
         {
             var (startX, startY) = _cachedThumbnailExpandTarget ?? ComputeThumbnailExpandTarget();
@@ -436,7 +387,6 @@ public partial class MainWindow
             AnimationThumbnailTranslate.X = startX;
             AnimationThumbnailTranslate.Y = startY;
 
-            // Collapse also gets a slight delay
             var thumbDelay = TimeSpan.FromMilliseconds(40);
             var thumbDur = _dur400;
             var thumbEase = _easeExpOut6;
@@ -485,7 +435,6 @@ public partial class MainWindow
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
-                // Set final values before clearing animations
                 contentToShow.Opacity = 1;
                 contentToShow.BeginAnimation(OpacityProperty, null);
 
@@ -498,8 +447,6 @@ public partial class MainWindow
                 AnimationThumbnailTranslate.Y = 0;
             }
 
-            // Avoid nulling RenderTransform to prevent layout snapping
-            // contentToShow.RenderTransform = null;
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
@@ -512,7 +459,7 @@ public partial class MainWindow
         if (SecondaryContent.Visibility == Visibility.Visible)
         {
             SecondaryContent.BeginAnimation(OpacityProperty, fadeOutAnim);
-            // Also blur secondary if active
+
             SecondaryContent.Effect = new BlurEffect { Radius = 15 };
         }
 
@@ -546,7 +493,6 @@ public partial class MainWindow
         var expandDuration = new Duration(TimeSpan.FromMilliseconds(500));
         var contentDelay = TimeSpan.FromMilliseconds(150);
 
-        // Step 1: Fade out Calendar & Controls (cached easing)
         var fadeOutCalendar = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
         fadeOutCalendar.Completed += (s, e) => CalendarWidget.Visibility = Visibility.Collapsed;
         CalendarWidget.BeginAnimation(OpacityProperty, fadeOutCalendar);
@@ -555,7 +501,6 @@ public partial class MainWindow
         fadeOutControls.Completed += (s, e) => MediaControls.Visibility = Visibility.Collapsed;
         MediaControls.BeginAnimation(OpacityProperty, fadeOutControls);
 
-        // Step 2: Width & Margin animation
         double startWidth = MediaWidgetContainer.ActualWidth;
         double finalWidth = ExpandedContent.ActualWidth;
 
@@ -568,7 +513,6 @@ public partial class MainWindow
         {
             EasingFunction = _easeExpOut7
         };
-        // Timeline.SetDesiredFrameRate(widthAnim, 60);
 
         var marginAnim = new ThicknessAnimation(new Thickness(0, 0, 8, 0), new Thickness(0), expandDuration)
         {
@@ -589,7 +533,6 @@ public partial class MainWindow
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
         MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
 
-        // Step 3: Show inline controls
         InlineControls.Visibility = Visibility.Visible;
 
         var fadeInInline = MakeAnim(0d, 1d, _dur350, _easeExpOut7, contentDelay);
@@ -626,7 +569,6 @@ public partial class MainWindow
         };
         InlineControls.BeginAnimation(OpacityProperty, fadeOutInline);
 
-        // Step 2: Width shrinking & Margin restore
         double currentWidth = MediaWidgetContainer.ActualWidth;
         double targetSmallWidth = _musicWidgetSmallWidth > 0 ? _musicWidgetSmallWidth : (ExpandedContent.ActualWidth / 3.0) - 8;
 
@@ -637,7 +579,6 @@ public partial class MainWindow
         {
             EasingFunction = _easeExpOut7
         };
-        // Timeline.SetDesiredFrameRate(widthAnim, 60);
 
         var marginAnim = new ThicknessAnimation(new Thickness(0), new Thickness(0, 0, 8, 0), collapseDuration)
         {
@@ -660,12 +601,10 @@ public partial class MainWindow
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
         MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
 
-        // Step 3: Fade in controls
         MediaControls.Visibility = Visibility.Visible;
         var fadeInControls = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, contentDelay);
         MediaControls.BeginAnimation(OpacityProperty, fadeInControls);
 
-        // Step 4: Fade in calendar
         CalendarWidget.Visibility = Visibility.Visible;
         var fadeInCalendar = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(120));
         CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
@@ -677,7 +616,7 @@ public partial class MainWindow
 
     private void FadeSwitch(FrameworkElement from, FrameworkElement to)
     {
-        // Cancel existing animations to prevent race conditions during rapid switching
+
         from.BeginAnimation(OpacityProperty, null);
         to.BeginAnimation(OpacityProperty, null);
 
@@ -704,7 +643,7 @@ public partial class MainWindow
 
     private void AnimateIconSwitch(Canvas fromIcon, Canvas toIcon, TimeSpan duration, EasingFunctionBase easing)
     {
-        // Cancel ongoing animations
+
         var fromTransform = fromIcon.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
         fromIcon.RenderTransform = fromTransform;
         fromTransform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -717,7 +656,6 @@ public partial class MainWindow
         toTransform.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         toIcon.BeginAnimation(OpacityProperty, null);
 
-        // Set initial states
         fromIcon.Visibility = Visibility.Visible;
         fromTransform.ScaleX = 1;
         fromTransform.ScaleY = 1;
@@ -739,7 +677,7 @@ public partial class MainWindow
 
         fadeOut.Completed += (s, e) =>
         {
-            // Set final values BEFORE clearing animations to prevent flickering
+
             capturedFromTransform.ScaleX = 1;
             capturedFromTransform.ScaleY = 1;
             capturedFromIcon.Opacity = 1;
@@ -784,7 +722,7 @@ public partial class MainWindow
 
     private void PlayNextSkipAnimation(Path arrow0, Path arrow1, Path arrow2)
     {
-        // All use cached _easeQuadOut
+
         var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow2.RenderTransform = arrow2Transform;
 
@@ -810,7 +748,7 @@ public partial class MainWindow
 
         fadeOut2.Completed += (s, e) =>
         {
-            // Set final values BEFORE clearing animations to prevent flickering
+
             arrow2Transform.X = 0;
             arrow2.Opacity = 1;
             arrow1Transform.X = 0;
@@ -857,7 +795,7 @@ public partial class MainWindow
 
         fadeOut2.Completed += (s, e) =>
         {
-            // Set final values BEFORE clearing animations to prevent flickering
+
             arrow2Transform.X = 0;
             arrow2.Opacity = 1;
             arrow1Transform.X = 0;

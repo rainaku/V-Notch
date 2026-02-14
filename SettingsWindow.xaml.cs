@@ -23,33 +23,28 @@ public partial class SettingsWindow : Window
 
     private void LoadSettings()
     {
-        // Appearance
+
         WidthSlider.Value = _settings.Width;
         HeightSlider.Value = _settings.Height;
         RadiusSlider.Value = _settings.CornerRadius;
         OpacitySlider.Value = _settings.Opacity * 100;
 
-        // Visual Effects
         ShadowCheck.IsChecked = _settings.EnableShadow;
         GlowCheck.IsChecked = _settings.EnableGlowOnHover;
         CameraCheck.IsChecked = _settings.ShowCameraIndicator;
 
-        // Animations
         AnimationCheck.IsChecked = _settings.EnableAnimations;
         BounceCheck.IsChecked = _settings.EnableBounceEffect;
         AnimSpeedSlider.Value = _settings.AnimationSpeed;
 
-        // Behavior
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         CursorBypassCheck.IsChecked = _settings.EnableCursorBypass;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
 
-        // Monitor
         var monitors = NotchManager.GetMonitorNames();
         MonitorCombo.ItemsSource = monitors;
         MonitorCombo.SelectedIndex = Math.Min(_settings.MonitorIndex, monitors.Length - 1);
 
-        // System
         AutoStartCheck.IsChecked = StartupManager.IsAutoStartEnabled();
         MusicNotifyCheck.IsChecked = _settings.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = _settings.ShowSystemNotifications;
@@ -99,7 +94,7 @@ public partial class SettingsWindow : Window
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        // Reset to defaults
+
         var defaults = new NotchSettings();
 
         WidthSlider.Value = defaults.Width;
@@ -130,7 +125,7 @@ public partial class SettingsWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        // Update settings from UI
+
         _settings.Width = (int)WidthSlider.Value;
         _settings.Height = (int)HeightSlider.Value;
         _settings.CornerRadius = (int)RadiusSlider.Value;
@@ -153,13 +148,10 @@ public partial class SettingsWindow : Window
         _settings.ShowMusicNotifications = MusicNotifyCheck.IsChecked ?? true;
         _settings.ShowSystemNotifications = SystemNotifyCheck.IsChecked ?? true;
 
-        // Save to file
         _settingsService.Save(_settings);
 
-        // Update auto start
         StartupManager.SetAutoStart(_settings.AutoStart);
 
-        // Notify main window
         SettingsChanged?.Invoke(this, _settings);
 
         Close();

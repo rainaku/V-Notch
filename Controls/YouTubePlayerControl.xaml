@@ -7,16 +7,14 @@
              mc:Ignorable="d" 
              d:DesignHeight="150" d:DesignWidth="300">
     <Grid Background="Black">
-        <!-- Thumbnail fallback while loading -->
+
         <Image x:Name="PlayerThumbnail" Stretch="UniformToFill" Opacity="0.5"/>
-        
-        <!-- The Browser -->
+
         <cef:ChromiumWebBrowser x:Name="Browser" 
                                  HorizontalAlignment="Stretch" 
                                  VerticalAlignment="Stretch"
                                  Visibility="Hidden"/>
-        
-        <!-- Loading overlay -->
+
         <Grid x:Name="LoadingOverlay" Visibility="Visible">
             <ProgressBar IsIndeterminate="True" 
                          Width="100" Height="4" 
@@ -26,7 +24,6 @@
                          VerticalAlignment="Center"/>
         </Grid>
 
-        <!-- Overlay for interactions if needed -->
         <Border Background="Transparent" IsHitTestVisible="False"/>
     </Grid>
 </UserControl>

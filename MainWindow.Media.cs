@@ -9,9 +9,6 @@ using VNotch.Services;
 
 namespace VNotch;
 
-/// <summary>
-/// Partial class for Media detection handling, background color extraction, and visualizer
-/// </summary>
 public partial class MainWindow
 {
     private string _lastAnimatedTrackSignature = "";
@@ -28,7 +25,7 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() =>
         {
-            // Update Platform Icons
+
             SpotifyIcon.Visibility = Visibility.Collapsed;
             YouTubeIcon.Visibility = Visibility.Collapsed;
             SoundCloudIcon.Visibility = Visibility.Collapsed;
@@ -41,7 +38,6 @@ public partial class MainWindow
 
             bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
-            // Only show icon if we have a source
             if (hasRealTrack && !string.IsNullOrEmpty(info.MediaSource))
             {
                 switch (info.MediaSource)
@@ -61,7 +57,6 @@ public partial class MainWindow
             string currentSig = info.GetSignature();
             bool isNewTrack = currentSig != _lastAnimatedTrackSignature;
 
-            // Prepare text
             string titleText, artistText;
             if (hasRealTrack)
             {
@@ -80,7 +75,6 @@ public partial class MainWindow
                     artistText = "Unknown Artist";
                 }
 
-                // Final sync: if it's YouTube, make sure we show the source correctly alongside the artist
                 MediaAppName.Text = info.MediaSource;
             }
             else
@@ -90,7 +84,6 @@ public partial class MainWindow
                 MediaAppName.Text = "Now Playing";
             }
 
-            // 1. Update text immediately for responsiveness
             if (isNewTrack)
             {
                 UpdateTitleText(titleText);
@@ -98,26 +91,25 @@ public partial class MainWindow
             }
             else
             {
-                // If same track, just update text properties directly to avoid re-triggering Slide animations
+
                 TrackTitle.Text = titleText;
                 TrackArtist.Text = artistText;
             }
 
-            // 2. Update thumbnail logic with persistence (avoids black flicker during skip)
             if (hasRealTrack)
             {
                 if (info.HasThumbnail && info.Thumbnail != null)
                 {
-                    // Check if we already animated THIS track
+
                     if (isNewTrack)
                     {
-                        // TRIGGER FLIP ONLY NOW
+
                         _lastAnimatedTrackSignature = currentSig;
                         AnimateThumbnailSwitchOnly(info.Thumbnail);
                     }
                     else
                     {
-                        // Direct update for resolution changes or same track re-sync
+
                         if (ThumbnailImage.Source != info.Thumbnail)
                         {
                             ThumbnailImage.Source = info.Thumbnail;
@@ -131,10 +123,7 @@ public partial class MainWindow
                 }
                 else if (isNewTrack)
                 {
-                    // Track changed but no thumb yet - DO NOT update _lastAnimatedTrackSignature yet.
-                    // This ensures we will trigger the flip as soon as the thumbnail arrives.
 
-                    // Keep old thumb visible or show fallback if absolutely no thumb
                     if (ThumbnailImage.Source == null)
                     {
                         ThumbnailImage.Visibility = Visibility.Collapsed;
@@ -150,19 +139,17 @@ public partial class MainWindow
             }
             else
             {
-                // No media playing - reset state
+
                 _lastAnimatedTrackSignature = "";
                 ThumbnailImage.Visibility = Visibility.Collapsed;
                 ThumbnailFallback.Visibility = Visibility.Visible;
                 HideMediaBackground();
                 ThumbnailFallback.Text = "🎵";
 
-                // Clear sources to ensure clean state
                 ThumbnailImage.Source = null;
                 CompactThumbnail.Source = null;
             }
 
-            // Sync Play/Pause state
             if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds > 500 && _isPlaying != info.IsPlaying)
             {
                 _isPlaying = info.IsPlaying;
@@ -180,7 +167,7 @@ public partial class MainWindow
             else
             {
                 YouTubeVideoModeButton.Visibility = Visibility.Collapsed;
-                // If we're not on YouTube, hide player
+
                 if (_isYouTubeVideoMode)
                 {
                     _isYouTubeVideoMode = false;
@@ -196,47 +183,36 @@ public partial class MainWindow
 
     private void AnimateThumbnailSwitchOnly(ImageSource newThumb)
     {
-        // Snappy but smooth flip: 180ms per half (360ms total)
+
         var halfDur = TimeSpan.FromMilliseconds(180);
         var totalDur = TimeSpan.FromMilliseconds(360);
 
-        // 1. ScaleX Animation (1.0 -> 0.0 -> 1.0)
-        // This creates the 'flip' effect by shrinking to zero then expanding back.
         var flipAnim = new DoubleAnimationUsingKeyFrames();
         flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
         flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(halfDur), _easeQuadIn));
         flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), _easeQuadOut));
         Timeline.SetDesiredFrameRate(flipAnim, 120);
 
-        // 2. Pulse Animation (1.0 -> 1.08 -> 1.0)
-        // Adds a subtle 'pop' effect during the flip for better visual feedback.
         var pulseAnim = new DoubleAnimationUsingKeyFrames();
         pulseAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
         pulseAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.08, KeyTime.FromTimeSpan(halfDur), _easeQuadOut));
         pulseAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), _easeQuadIn));
         Timeline.SetDesiredFrameRate(pulseAnim, 120);
 
-        // 3. Source Swap exactly at the 0-scale mark
-        // DiscreteObjectKeyFrame ensures the image changes perfectly when it's invisible (at width 0).
         var sourceAnim = new ObjectAnimationUsingKeyFrames();
         sourceAnim.KeyFrames.Add(new DiscreteObjectKeyFrame(newThumb, KeyTime.FromTimeSpan(halfDur)));
         Timeline.SetDesiredFrameRate(sourceAnim, 120);
 
-        // Apply animations to all relevant transforms and images simultaneously for perfect sync
-
-        // Expanded Mode Targets
         ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
         ThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
         ThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
         ThumbnailImage.BeginAnimation(Image.SourceProperty, sourceAnim);
 
-        // Compact Mode Targets
         CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
         CompactThumbnail.BeginAnimation(Image.SourceProperty, sourceAnim);
 
-        // Setup completion to clear animations and set base values
         flipAnim.Completed += (s, e) =>
         {
             ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -274,7 +250,6 @@ public partial class MainWindow
     {
         bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
 
-        // Ensure we don't calculate layout if it's generic browser info with no real track
         if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
         _collapsedWidth = shouldBeCompact ? 180 : _settings.Width;
@@ -333,7 +308,6 @@ public partial class MainWindow
                 StopVisualizerAnimation();
             }
 
-            // Always ensure compact layers are hidden when expanded
             MusicCompactContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Opacity = 0;
             CollapsedContent.Visibility = Visibility.Collapsed;
@@ -375,7 +349,6 @@ public partial class MainWindow
     #endregion
 
     #region Thumbnail Transition
-
 
     #endregion
 }

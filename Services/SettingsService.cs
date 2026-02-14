@@ -33,7 +33,7 @@ public class SettingsService
         }
         catch
         {
-            // Return default settings on error
+
         }
 
         return new NotchSettings();

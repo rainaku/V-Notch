@@ -6,9 +6,9 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Background="#1a1a1a">
-    
+
     <Window.Resources>
-        <!-- Modern TextBlock style refined for Apple-native quality with grid-aligned rendering -->
+
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="FontSize" Value="13"/>
@@ -19,31 +19,27 @@
             <Setter Property="UseLayoutRounding" Value="True"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
-        
-        <!-- Section Header style -->
+
         <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#A6FFFFFF"/> <!-- 65% Opacity White -->
+            <Setter Property="Foreground" Value="#A6FFFFFF"/> 
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin" Value="0,16,0,8"/>
         </Style>
-        
-        <!-- Modern Slider style -->
+
         <Style TargetType="Slider">
             <Setter Property="Margin" Value="0,4,0,12"/>
             <Setter Property="Height" Value="20"/>
             <Setter Property="Foreground" Value="#0a84ff"/>
         </Style>
-        
-        <!-- Modern CheckBox style -->
+
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="#ffffff"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Margin" Value="0,6,0,6"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
-        
-        <!-- Modern ComboBox style -->
+
         <Style TargetType="ComboBox">
             <Setter Property="Margin" Value="0,4,0,12"/>
             <Setter Property="Height" Value="32"/>
@@ -51,8 +47,7 @@
             <Setter Property="Foreground" Value="#ffffff"/>
             <Setter Property="BorderBrush" Value="#3a3a3a"/>
         </Style>
-        
-        <!-- Modern Button style -->
+
         <Style TargetType="Button">
             <Setter Property="Background" Value="#0a84ff"/>
             <Setter Property="Foreground" Value="#ffffff"/>
@@ -78,7 +73,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        
+
         <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="#3a3a3a"/>
             <Style.Triggers>
@@ -88,15 +83,14 @@
             </Style.Triggers>
         </Style>
     </Window.Resources>
-    
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        
-        <!-- Header -->
+
         <Border Grid.Row="0" Background="#252525" Padding="20,16">
             <StackPanel>
                 <TextBlock Text="⚙️ Cài đặt V-Notch" 
@@ -108,17 +102,14 @@
                            Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
-        
-        <!-- Settings ScrollViewer -->
+
         <ScrollViewer Grid.Row="1" 
                       VerticalScrollBarVisibility="Auto"
                       Padding="20,0">
             <StackPanel Margin="0,0,0,20">
-                
-                <!-- APPEARANCE SECTION -->
+
                 <TextBlock Text="GIAO DIỆN" Style="{StaticResource SectionHeader}"/>
-                
-                <!-- Width -->
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -136,8 +127,7 @@
                         TickFrequency="10"
                         IsSnapToTickEnabled="True"
                         ValueChanged="WidthSlider_ValueChanged"/>
-                
-                <!-- Height -->
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -155,8 +145,7 @@
                         TickFrequency="2"
                         IsSnapToTickEnabled="True"
                         ValueChanged="HeightSlider_ValueChanged"/>
-                
-                <!-- Corner Radius -->
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -174,8 +163,7 @@
                         TickFrequency="2"
                         IsSnapToTickEnabled="True"
                         ValueChanged="RadiusSlider_ValueChanged"/>
-                
-                <!-- Opacity -->
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -193,19 +181,16 @@
                         TickFrequency="5"
                         IsSnapToTickEnabled="True"
                         ValueChanged="OpacitySlider_ValueChanged"/>
-                
-                <!-- Visual Effects -->
+
                 <CheckBox x:Name="ShadowCheck" Content="Hiệu ứng đổ bóng"/>
                 <CheckBox x:Name="GlowCheck" Content="Hiệu ứng phát sáng khi hover"/>
                 <CheckBox x:Name="CameraCheck" Content="Hiện chỉ báo camera"/>
-                
-                <!-- ANIMATION SECTION -->
+
                 <TextBlock Text="ANIMATION" Style="{StaticResource SectionHeader}"/>
-                
+
                 <CheckBox x:Name="AnimationCheck" Content="Bật animations"/>
                 <CheckBox x:Name="BounceCheck" Content="Hiệu ứng bounce"/>
-                
-                <!-- Animation Speed -->
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -223,14 +208,12 @@
                         TickFrequency="0.1"
                         IsSnapToTickEnabled="True"
                         ValueChanged="AnimSpeedSlider_ValueChanged"/>
-                
-                <!-- BEHAVIOR SECTION -->
+
                 <TextBlock Text="HÀNH VI" Style="{StaticResource SectionHeader}"/>
-                
+
                 <CheckBox x:Name="HoverExpandCheck" Content="Mở rộng khi hover"/>
                 <CheckBox x:Name="CursorBypassCheck" Content="Cursor bypass (không bị kẹt chuột)"/>
-                
-                <!-- Hover Expand Delay -->
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -248,22 +231,19 @@
                         TickFrequency="50"
                         IsSnapToTickEnabled="True"
                         ValueChanged="HoverDelaySlider_ValueChanged"/>
-                
-                <!-- MONITOR SECTION -->
+
                 <TextBlock Text="MÀN HÌNH" Style="{StaticResource SectionHeader}"/>
                 <TextBlock Text="Chọn màn hình hiển thị"/>
                 <ComboBox x:Name="MonitorCombo"/>
-                
-                <!-- SYSTEM SECTION -->
+
                 <TextBlock Text="HỆ THỐNG" Style="{StaticResource SectionHeader}"/>
                 <CheckBox x:Name="AutoStartCheck" Content="Khởi động cùng Windows"/>
                 <CheckBox x:Name="MusicNotifyCheck" Content="Hiện thông báo nhạc"/>
                 <CheckBox x:Name="SystemNotifyCheck" Content="Hiện thông báo hệ thống"/>
-                
+
             </StackPanel>
         </ScrollViewer>
-        
-        <!-- Buttons -->
+
         <Border Grid.Row="2" Background="#252525" Padding="20,16">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Đặt lại mặc định" 

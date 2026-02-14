@@ -3,8 +3,6 @@ using System.Windows.Forms;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// </summary>
 public static class BatteryService
 {
     [DllImport("kernel32.dll")]
@@ -32,15 +30,13 @@ public static class BatteryService
                 info.Percentage = status.BatteryLifePercent == 255 ? 100 : status.BatteryLifePercent;
                 info.IsCharging = status.ACLineStatus == 1;
                 info.IsPluggedIn = status.ACLineStatus == 1;
-                info.HasBattery = status.BatteryFlag != 128; // 128 = No battery
+                info.HasBattery = status.BatteryFlag != 128; 
 
-                // Determine charging state
-                if (status.BatteryFlag == 8) // Charging
+                if (status.BatteryFlag == 8) 
                 {
                     info.IsCharging = true;
                 }
 
-                // Calculate remaining time if available
                 if (status.BatteryLifeTime != -1)
                 {
                     info.RemainingMinutes = status.BatteryLifeTime / 60;
@@ -49,7 +45,7 @@ public static class BatteryService
         }
         catch
         {
-            // Default values on error
+
             info.Percentage = 100;
             info.HasBattery = false;
         }

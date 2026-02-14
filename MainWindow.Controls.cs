@@ -7,9 +7,6 @@ using VNotch.Services;
 
 namespace VNotch;
 
-/// <summary>
-/// Partial class for Media Controls (Play/Pause, Next, Prev, Volume)
-/// </summary>
 public partial class MainWindow
 {
     #region Media Controls

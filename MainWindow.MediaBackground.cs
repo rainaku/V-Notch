@@ -6,9 +6,6 @@ using VNotch.Services;
 
 namespace VNotch;
 
-/// <summary>
-/// Partial class for Media Background color extraction and glow effects
-/// </summary>
 public partial class MainWindow
 {
     #region Media Background & Color Extraction
@@ -48,12 +45,9 @@ public partial class MainWindow
             EasingFunction = _easeQuadOut
         };
 
-        // Always animate color even if not visible yet
         MediaBackgroundBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
         MediaBackgroundBrush2.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
 
-        // Opacity logic: Only show if expanded and NOT in the middle of a primary animation
-        // (unless we are updating because of a track change)
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh)) ? 0.5 : 0;
 
         var opacityAnim = new DoubleAnimation
@@ -66,7 +60,6 @@ public partial class MainWindow
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
 
-        // Update Progress Bar, Time labels and Song Title color
         var currentBg = ProgressBar.Background as SolidColorBrush;
         if (currentBg == null || currentBg.IsFrozen)
             ProgressBar.Background = new SolidColorBrush(currentBg?.Color ?? Colors.White);
@@ -79,7 +72,6 @@ public partial class MainWindow
         if (currentRt == null || currentRt.IsFrozen)
             RemainingTimeText.Foreground = new SolidColorBrush(currentRt?.Color ?? Color.FromRgb(136, 136, 136));
 
-        // Track Title Colors
         var currentTitle = TrackTitle.Foreground as SolidColorBrush;
         if (currentTitle == null || currentTitle.IsFrozen)
             TrackTitle.Foreground = new SolidColorBrush(currentTitle?.Color ?? Colors.White);
@@ -111,13 +103,12 @@ public partial class MainWindow
 
     private Color GetVibrantColor(Color c)
     {
-        // Convert RGB to HSL for better color manipulation
+
         double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
         double max = Math.Max(r, Math.Max(g, b));
         double min = Math.Min(r, Math.Min(g, b));
         double h = 0, s = 0, l = (max + min) / 2.0;
 
-        // If effectively grayscale (no distinct hue), return White
         if ((max - min) < 0.03)
         {
             return Colors.White;
@@ -130,16 +121,12 @@ public partial class MainWindow
         else if (max == g) h = ((b - r) / d + 2) / 6.0;
         else h = ((r - g) / d + 4) / 6.0;
 
-        // Boost saturation - keep at least 70% for vibrant look on progress bars
         s = Math.Max(s, 0.70);
         s = Math.Min(s, 0.95);
 
-        // Ensure luminance is bright enough for dark background/OLED black
-        // If it was dark, we boost it to at least 0.65 to ensure it "pops"
         l = Math.Max(l, 0.65);
         l = Math.Min(l, 0.85);
 
-        // Convert HSL back to RGB
         return HslToColor(h, s, l);
     }
 
@@ -228,7 +215,7 @@ public partial class MainWindow
     {
         try
         {
-            // Use 15x15 for better detail without sacrificing much speed
+
             var small = new TransformedBitmap(bitmap, new ScaleTransform(15.0 / bitmap.PixelWidth, 15.0 / bitmap.PixelHeight));
             byte[] pixelBuffer = new byte[15 * 15 * 4];
             small.CopyPixels(pixelBuffer, 15 * 4, 0);
@@ -247,15 +234,10 @@ public partial class MainWindow
                 double lum = (pr + pg + pb) / 3.0;
                 double sat = max == 0 ? 0 : (max - min) / max;
 
-                // IGNORE very dark pixels (black bars, shadows)
                 if (lum < 0.12) continue;
 
-                // Weighting: 
-                // 1. Favor saturated colors heavily
-                // 2. Favor mid-brightness (avoid pure white/black)
                 double weight = Math.Pow(sat, 1.5) + 0.05;
 
-                // Brightness penalty (avoiding washed out colors)
                 if (lum > 0.85) weight *= 0.3;
 
                 wr += pr * weight;
@@ -264,10 +246,9 @@ public partial class MainWindow
                 totalWeight += weight;
             }
 
-            // Fallback if no suitable vibrant pixels found
             if (totalWeight < 0.1)
             {
-                // Try again with simpler average of everything
+
                 totalWeight = 0; wr = 0; wg = 0; wb = 0;
                 for (int i = 0; i < pixelBuffer.Length; i += 4)
                 {

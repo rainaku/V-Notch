@@ -2,10 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Service to manage system master volume using CoreAudio API (WASAPI)
-/// Rewritten with proper COM interface definitions and error handling
-/// </summary>
 public class VolumeService : IDisposable
 {
     private IAudioEndpointVolume? _endpointVolume;
@@ -22,18 +18,16 @@ public class VolumeService : IDisposable
     {
         try
         {
-            // Create device enumerator
+
             var deviceEnumeratorType = Type.GetTypeFromCLSID(new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"));
             if (deviceEnumeratorType == null) return;
 
             var deviceEnumerator = (IMMDeviceEnumerator?)Activator.CreateInstance(deviceEnumeratorType);
             if (deviceEnumerator == null) return;
 
-            // Get default audio endpoint (speakers)
             int hr = deviceEnumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eMultimedia, out var device);
             if (hr != 0 || device == null) return;
 
-            // Activate IAudioEndpointVolume interface
             var iidAudioEndpointVolume = typeof(IAudioEndpointVolume).GUID;
             hr = device.Activate(ref iidAudioEndpointVolume, (uint)CLSCTX.CLSCTX_ALL, IntPtr.Zero, out var endpointVolume);
             if (hr != 0 || endpointVolume == null) return;

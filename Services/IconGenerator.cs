@@ -13,14 +13,12 @@ public static class IconGenerator
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.Clear(Color.Transparent);
 
-        // Draw notch shape (rounded rectangle at top)
         using var brush = new SolidBrush(Color.FromArgb(30, 30, 30));
         using var path = new GraphicsPath();
 
         int radius = size / 4;
         var rect = new Rectangle(0, 0, size, size);
 
-        // Top corners square, bottom corners rounded
         path.AddLine(rect.Left, rect.Top, rect.Right, rect.Top);
         path.AddLine(rect.Right, rect.Top, rect.Right, rect.Bottom - radius);
         path.AddArc(rect.Right - radius * 2, rect.Bottom - radius * 2, radius * 2, radius * 2, 0, 90);
@@ -31,7 +29,6 @@ public static class IconGenerator
 
         g.FillPath(brush, path);
 
-        // Draw camera dot
         int dotSize = size / 4;
         int dotX = (size - dotSize) / 2;
         int dotY = (size - dotSize) / 2 - 1;

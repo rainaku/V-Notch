@@ -4,52 +4,42 @@ namespace VNotch.Models;
 
 public class NotchSettings
 {
-    // Appearance
+
     public int Width { get; set; } = 200;
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 16;
     public double Opacity { get; set; } = 1.0;
 
-    // Position
-    public int MonitorIndex { get; set; } = 0; // 0 = Primary
+    public int MonitorIndex { get; set; } = 0; 
 
-    // Behavior
     public bool AutoStart { get; set; } = false;
     public bool EnableHoverExpand { get; set; } = true;
     public bool EnableCursorBypass { get; set; } = true;
     public bool EnableAnimations { get; set; } = true;
     public bool ShowCameraIndicator { get; set; } = true;
 
-    // Animation Settings
-    public double AnimationSpeed { get; set; } = 1.0; // 0.5 = slow, 1.0 = normal, 2.0 = fast
+    public double AnimationSpeed { get; set; } = 1.0; 
     public bool EnableBounceEffect { get; set; } = true;
 
-    // Hover Settings
-    public int HoverExpandDelay { get; set; } = 100; // ms before expand on hover
-    public int HoverCollapseDelay { get; set; } = 500; // ms before collapse on leave
-    public int HoverZoneMargin { get; set; } = 60; // px around notch for hover detection
+    public int HoverExpandDelay { get; set; } = 100; 
+    public int HoverCollapseDelay { get; set; } = 500; 
+    public int HoverZoneMargin { get; set; } = 60; 
 
-    // Expand Settings
     public double CompactExpandMultiplier { get; set; } = 1.2;
     public double MediumExpandMultiplier { get; set; } = 1.8;
     public double LargeExpandMultiplier { get; set; } = 2.5;
 
-    // Visual Effects
     public bool EnableShadow { get; set; } = true;
     public bool EnableGlowOnHover { get; set; } = true;
-    public string NotchStyle { get; set; } = "default"; // default, minimal, vibrant
+    public string NotchStyle { get; set; } = "default"; 
 
-    // Content Settings
     public bool ShowMusicNotifications { get; set; } = true;
     public bool ShowSystemNotifications { get; set; } = true;
-    public int NotificationDuration { get; set; } = 5000; // ms
+    public int NotificationDuration { get; set; } = 5000; 
 
     [JsonIgnore]
     public bool IsDirty { get; set; } = false;
 
-    /// <summary>
-    /// Create a deep copy of settings
-    /// </summary>
     public NotchSettings Clone()
     {
         return new NotchSettings

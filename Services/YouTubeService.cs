@@ -47,7 +47,6 @@ public class YouTubeService : IDisposable
                 }
             };
 
-            // Add to hidden container if needed, but for off-screen it's fine
         });
     }
 
@@ -58,12 +57,10 @@ public class YouTubeService : IDisposable
 
         string searchUrl = $"https://www.youtube.com/results?search_query={Uri.EscapeDataString(query)}";
 
-        // Load the page
         await _browser.LoadUrlAsync(searchUrl);
 
-        // Polling wait for YouTube's heavy JS to render results
         bool success = false;
-        for (int i = 0; i < 30; i++) // Max 6 seconds
+        for (int i = 0; i < 30; i++) 
         {
             var checkResponse = await _browser.EvaluateScriptAsync(@"
                 (function() {
@@ -79,14 +76,14 @@ public class YouTubeService : IDisposable
             await Task.Delay(200);
         }
 
-        if (!success) await Task.Delay(400); // One last short breath
+        if (!success) await Task.Delay(400); 
 
         string script = @"
             (function() {
                 try {
                     const data = window.ytInitialData;
                     let contents = null;
-                    
+
                     if (data && data.contents && data.contents.twoColumnSearchResultsRenderer) {
                         contents = data.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents[0].itemSectionRenderer.contents;
                     } else if (data && data.contents && data.contents.sectionListRenderer) {
@@ -96,7 +93,7 @@ public class YouTubeService : IDisposable
                     if (contents) {
                         // Filter out ads and shorts, find first real video
                         const firstVideo = contents.find(c => (c.videoRenderer || c.playlistVideoRenderer) && !c.adSlotRenderer);
-                        
+
                         if (firstVideo) {
                             const vr = firstVideo.videoRenderer || firstVideo.playlistVideoRenderer;
                             if (vr) {
@@ -116,16 +113,16 @@ public class YouTubeService : IDisposable
                 try {
                     const videos = Array.from(document.querySelectorAll('ytd-video-renderer, ytd-grid-video-renderer'));
                     const videoEl = videos.find(v => !v.querySelector('[aria-label=""Shorts""]'));
-                    
+
                     if (videoEl) {
                         const titleLink = videoEl.querySelector('a#video-title');
                         const thumbImg = videoEl.querySelector('img');
                         const artistEl = videoEl.querySelector('#channel-name, #byline');
-                        
+
                         if (titleLink) {
                             const href = titleLink.href;
                             const videoId = href.includes('v=') ? href.split('v=')[1].split('&')[0] : '';
-                            
+
                             return {
                                 Id: videoId,
                                 Title: titleLink.innerText.trim(),
@@ -154,7 +151,6 @@ public class YouTubeService : IDisposable
                     ThumbnailUrl = dict.ContainsKey("ThumbnailUrl") ? dict["ThumbnailUrl"]?.ToString() ?? "" : ""
                 };
 
-                // Ensure high quality thumbnail URL
                 if (!string.IsNullOrEmpty(info.Id) && (string.IsNullOrEmpty(info.ThumbnailUrl) || info.ThumbnailUrl.Contains("googleusercontent")))
                 {
                     info.ThumbnailUrl = $"https://i.ytimg.com/vi/{info.Id}/hqdefault.jpg";

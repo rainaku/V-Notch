@@ -2,10 +2,6 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Manages the different states of the notch (collapsed, expanded, etc.)
-/// Similar to Apple's Dynamic Island state management
-/// </summary>
 public class NotchStateManager
 {
     private NotchState _currentState = NotchState.Collapsed;
@@ -32,9 +28,6 @@ public class NotchStateManager
     public NotchState PreviousState => _previousState;
     public NotchExpandMode ExpandMode => _expandMode;
 
-    /// <summary>
-    /// Transition to collapsed state (default notch appearance)
-    /// </summary>
     public void Collapse()
     {
         lock (_stateLock)
@@ -44,9 +37,6 @@ public class NotchStateManager
         }
     }
 
-    /// <summary>
-    /// Transition to compact expanded state (minimal expansion for hover)
-    /// </summary>
     public void ExpandCompact()
     {
         lock (_stateLock)
@@ -56,9 +46,6 @@ public class NotchStateManager
         }
     }
 
-    /// <summary>
-    /// Transition to medium expanded state (for music player, timer, etc.)
-    /// </summary>
     public void ExpandMedium()
     {
         lock (_stateLock)
@@ -68,9 +55,6 @@ public class NotchStateManager
         }
     }
 
-    /// <summary>
-    /// Transition to large expanded state (for detailed content)
-    /// </summary>
     public void ExpandLarge()
     {
         lock (_stateLock)
@@ -80,9 +64,6 @@ public class NotchStateManager
         }
     }
 
-    /// <summary>
-    /// Transition to hidden state (notch completely invisible)
-    /// </summary>
     public void Hide()
     {
         lock (_stateLock)
@@ -91,9 +72,6 @@ public class NotchStateManager
         }
     }
 
-    /// <summary>
-    /// Restore from hidden state
-    /// </summary>
     public void Show()
     {
         lock (_stateLock)
@@ -105,25 +83,16 @@ public class NotchStateManager
         }
     }
 
-    /// <summary>
-    /// Check if notch can expand
-    /// </summary>
     public bool CanExpand()
     {
         return _currentState == NotchState.Collapsed;
     }
 
-    /// <summary>
-    /// Check if notch can collapse
-    /// </summary>
     public bool CanCollapse()
     {
         return _currentState == NotchState.Expanded;
     }
 
-    /// <summary>
-    /// Get the size multiplier for current expand mode
-    /// </summary>
     public (double widthMultiplier, double heightMultiplier) GetExpandMultiplier()
     {
         return _expandMode switch
@@ -136,42 +105,28 @@ public class NotchStateManager
     }
 }
 
-/// <summary>
-/// Notch states
-/// </summary>
 public enum NotchState
 {
-    /// <summary>Default collapsed appearance</summary>
+
     Collapsed,
 
-    /// <summary>Expanded to show content</summary>
     Expanded,
 
-    /// <summary>Completely hidden</summary>
     Hidden,
 
-    /// <summary>Transitioning between states</summary>
     Transitioning
 }
 
-/// <summary>
-/// Expansion modes (like Dynamic Island)
-/// </summary>
 public enum NotchExpandMode
 {
-    /// <summary>Minimal expansion</summary>
+
     Compact,
 
-    /// <summary>Medium expansion for music, timer</summary>
     Medium,
 
-    /// <summary>Large expansion for detailed content</summary>
     Large
 }
 
-/// <summary>
-/// Event args for state changes
-/// </summary>
 public class NotchStateChangedEventArgs : EventArgs
 {
     public NotchState PreviousState { get; }

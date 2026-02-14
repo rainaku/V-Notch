@@ -4,10 +4,6 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Enhanced NotchManager with Apple-style animations and interactions
-/// Handles positioning, state transitions, and dynamic resizing
-/// </summary>
 public class NotchManager : IDisposable
 {
     private readonly Window _window;
@@ -15,11 +11,9 @@ public class NotchManager : IDisposable
     private readonly NotchStateManager _stateManager;
     private readonly HoverDetectionService _hoverService;
 
-    // Store original dimensions for collapse animation
     private double _originalWidth;
     private double _originalHeight;
 
-    // Screen bounds for safe area calculations
     private Screen? _currentScreen;
     private Rect _safeArea;
     private bool _disposed;
@@ -38,18 +32,15 @@ public class NotchManager : IDisposable
         _stateManager = new NotchStateManager();
         _hoverService = new HoverDetectionService(settings.HoverZoneMargin);
 
-        // Store original dimensions
         _originalWidth = settings.Width;
         _originalHeight = settings.Height;
 
-        // Setup event handlers only if hover expand is enabled
         if (settings.EnableHoverExpand)
         {
             _hoverService.HoverEnter += OnHoverEnter;
             _hoverService.HoverLeave += OnHoverLeave;
         }
 
-        // Start hover detection
         _hoverService.Start();
     }
 
@@ -60,7 +51,6 @@ public class NotchManager : IDisposable
         _originalWidth = settings.Width;
         _originalHeight = settings.Height;
 
-        // Update hover service subscription
         if (settings.EnableHoverExpand && !oldHoverEnabled)
         {
             _hoverService.HoverEnter += OnHoverEnter;
@@ -80,29 +70,22 @@ public class NotchManager : IDisposable
         _currentScreen = GetTargetScreen();
         var workingArea = _currentScreen.Bounds;
 
-        // Window size should accommodate the largest possible notch size
-        double maxWidth = _settings.Width * 2.5; // Max expansion
+        double maxWidth = _settings.Width * 2.5; 
         double maxHeight = _settings.Height * 3;
 
-        // Position window at top center, large enough to contain expanded notch
         _window.Width = maxWidth;
         _window.Height = maxHeight;
         _window.Left = workingArea.Left + (workingArea.Width - maxWidth) / 2;
         _window.Top = workingArea.Top;
 
-        // Update hover detection bounds based on actual notch position
         double notchLeft = workingArea.Left + (workingArea.Width - _settings.Width) / 2;
         _hoverService.UpdateNotchBounds(notchLeft, workingArea.Top, _settings.Width, _settings.Height);
 
-        // Calculate safe area
         UpdateSafeArea();
 
         PositionUpdated?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>
-    /// Calculate the safe area that apps should avoid
-    /// </summary>
     private void UpdateSafeArea()
     {
         if (_currentScreen == null) return;
@@ -152,7 +135,7 @@ public class NotchManager : IDisposable
 
     private void OnHoverEnter(object? sender, EventArgs e)
     {
-        // Expand to compact mode on hover
+
         if (_stateManager.CanExpand())
         {
             _stateManager.ExpandCompact();
@@ -161,7 +144,7 @@ public class NotchManager : IDisposable
 
     private void OnHoverLeave(object? sender, EventArgs e)
     {
-        // Collapse when mouse leaves
+
         if (_stateManager.CanCollapse())
         {
             _stateManager.Collapse();
@@ -172,9 +155,6 @@ public class NotchManager : IDisposable
 
     #region Public Controls
 
-    /// <summary>
-    /// Manually trigger expansion
-    /// </summary>
     public void Expand(NotchExpandMode mode = NotchExpandMode.Compact)
     {
         switch (mode)
@@ -191,26 +171,17 @@ public class NotchManager : IDisposable
         }
     }
 
-    /// <summary>
-    /// Manually trigger collapse
-    /// </summary>
     public void Collapse()
     {
         _stateManager.Collapse();
     }
 
-    /// <summary>
-    /// Hide the notch
-    /// </summary>
     public void Hide()
     {
         _hoverService.Stop();
         _stateManager.Hide();
     }
 
-    /// <summary>
-    /// Show the notch
-    /// </summary>
     public void Show()
     {
         _hoverService.Start();
