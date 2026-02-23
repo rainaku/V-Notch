@@ -12,19 +12,15 @@
 # Rider
 .idea/
 
-# User-specific files
-*.rsuser
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-
 # Build Results
 [Dd]ebug/
 [Rr]elease/
 x64/
 x86/
 build/
+/installers
+/release_final
+/release_secure
 
 # OS generated files
 .DS_Store
@@ -34,13 +30,17 @@ Thumbs.db
 .env
 .env.local
 
-# Temp files
+# Temp and Log files
 *.tmp
 *.log
-task.md
-*.md
-/installers
-/release_final
-/release_secure
-*.iss
 debug_log.txt
+build_output.txt
+build_output_clean.txt
+build_output_clean_final.txt
+*.txt
+
+# Project specific
+task.md
+*.iss
+*.md
+!README.md
