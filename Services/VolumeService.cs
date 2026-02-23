@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace VNotch.Services;
 
-public class VolumeService : IDisposable
+public class VolumeService : IVolumeService
 {
     private IAudioEndpointVolume? _endpointVolume;
     private bool _isInitialized = false;

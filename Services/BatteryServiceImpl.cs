@@ -3,12 +3,7 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Static helper that wraps the Win32 power status API.
-/// Kept for backward compatibility during migration.
-/// New code should use IBatteryService via DI.
-/// </summary>
-public static class BatteryService
+public class BatteryServiceImpl : IBatteryService
 {
     [DllImport("kernel32.dll")]
     private static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
@@ -24,7 +19,7 @@ public static class BatteryService
         public int BatteryFullLifeTime;
     }
 
-    public static BatteryInfo GetBatteryInfo()
+    public BatteryInfo GetBatteryInfo()
     {
         var info = new BatteryInfo();
 

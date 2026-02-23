@@ -4,7 +4,7 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-public class SettingsService
+public class SettingsService : ISettingsService
 {
     private readonly string _settingsPath;
 

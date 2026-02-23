@@ -153,15 +153,18 @@ public partial class MainWindow : Window
 
     #endregion
 
-    public MainWindow()
+    public MainWindow(
+        ISettingsService settingsService,
+        IMediaDetectionService mediaService,
+        IVolumeService volumeService)
     {
         InitializeComponent();
 
-        _settingsService = new SettingsService();
+        _settingsService = (SettingsService)settingsService;
         _settings = _settingsService.Load();
         _notchManager = new NotchManager(this, _settings);
-        _mediaService = new MediaDetectionService();
-        _volumeService = new VolumeService();
+        _mediaService = (MediaDetectionService)mediaService;
+        _volumeService = (VolumeService)volumeService;
 
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;

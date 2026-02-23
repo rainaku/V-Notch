@@ -44,3 +44,4 @@ task.md
 *.iss
 *.md
 !README.md
+fix_xaml.py
