@@ -12,6 +12,7 @@ namespace VNotch;
 public partial class MainWindow
 {
     private string _lastAnimatedTrackSignature = "";
+    private string _lastColorTrackSignature = "";
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
 
     private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
@@ -119,7 +120,13 @@ public partial class MainWindow
 
                     ThumbnailImage.Visibility = Visibility.Visible;
                     ThumbnailFallback.Visibility = Visibility.Collapsed;
-                    UpdateMediaBackground(info);
+
+                    // Only update dominant color on track change, not during seek
+                    if (isNewTrack || _lastColorTrackSignature != currentSig)
+                    {
+                        _lastColorTrackSignature = currentSig;
+                        UpdateMediaBackground(info);
+                    }
                 }
                 else if (isNewTrack)
                 {
@@ -141,6 +148,7 @@ public partial class MainWindow
             {
 
                 _lastAnimatedTrackSignature = "";
+                _lastColorTrackSignature = "";
                 ThumbnailImage.Visibility = Visibility.Collapsed;
                 ThumbnailFallback.Visibility = Visibility.Visible;
                 HideMediaBackground();
@@ -316,6 +324,7 @@ public partial class MainWindow
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = _easeSineInOut
         };
+        Timeline.SetDesiredFrameRate(anim, 30);
         bar.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 

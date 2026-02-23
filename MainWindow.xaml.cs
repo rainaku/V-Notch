@@ -191,7 +191,7 @@ public partial class MainWindow : Window
 
         _autoCollapseTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(100)
+            Interval = TimeSpan.FromMilliseconds(200)
         };
         _autoCollapseTimer.Tick += AutoCollapseTimer_Tick;
 

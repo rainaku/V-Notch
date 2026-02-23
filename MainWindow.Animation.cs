@@ -198,10 +198,7 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0.15, _dur200);
 
-        var expandedBlur = new BlurEffect { Radius = 10, KernelType = KernelType.Gaussian };
-        ExpandedContent.Effect = expandedBlur;
-        var blurFadeIn = MakeAnim(10, 0, _dur400, _easeQuadOut);
-        expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurFadeIn);
+
 
         if (_isMusicCompactMode && CompactThumbnail.Source != null)
         {
@@ -261,7 +258,7 @@ public partial class MainWindow
             RenderProgressBar();
             ShowMediaBackground();
 
-            ExpandedContent.Effect = null;
+
 
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
@@ -332,10 +329,7 @@ public partial class MainWindow
         ExpandedContent.RenderTransform = expandedGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
 
-        var expandedBlur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian };
-        ExpandedContent.Effect = expandedBlur;
-        var blurAnim = MakeAnim(0, 15, _dur200, _easeQuadOut);
-        expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+
 
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
         var slideOutAnim = MakeAnim(0, -10, _dur400, _easeExpOut6);
@@ -346,7 +340,6 @@ public partial class MainWindow
             ExpandedContent.Opacity = 0;
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
-            ExpandedContent.Effect = null;
 
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             SecondaryContent.Opacity = 0;
@@ -460,7 +453,7 @@ public partial class MainWindow
         {
             SecondaryContent.BeginAnimation(OpacityProperty, fadeOutAnim);
 
-            SecondaryContent.Effect = new BlurEffect { Radius = 15 };
+
         }
 
         contentToShow.Visibility = Visibility.Visible;

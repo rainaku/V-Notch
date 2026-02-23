@@ -50,6 +50,7 @@ public partial class MainWindow
             RepeatBehavior = RepeatBehavior.Forever,
             AutoReverse = true
         };
+        Timeline.SetDesiredFrameRate(keyAnim, 30);
 
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(0)));
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(2))); 
@@ -74,12 +75,12 @@ public partial class MainWindow
 
         if (_isTitleActiveA)
         {
-            AnimateTextMorph(TrackTitle, TrackTitleNext, TitleBlur, TitleMorphTranslate, TitleMorphTranslateNext, newText);
+            AnimateTextMorph(TrackTitle, TrackTitleNext, TitleMorphTranslate, TitleMorphTranslateNext, newText);
             _isTitleActiveA = false;
         }
         else
         {
-            AnimateTextMorph(TrackTitleNext, TrackTitle, TitleBlur, TitleMorphTranslateNext, TitleMorphTranslate, newText);
+            AnimateTextMorph(TrackTitleNext, TrackTitle, TitleMorphTranslateNext, TitleMorphTranslate, newText);
             _isTitleActiveA = true;
         }
 
@@ -117,12 +118,12 @@ public partial class MainWindow
 
         if (_isArtistActiveA)
         {
-            AnimateTextMorph(TrackArtist, TrackArtistNext, ArtistBlur, ArtistMorphTranslate, ArtistMorphTranslateNext, newText);
+            AnimateTextMorph(TrackArtist, TrackArtistNext, ArtistMorphTranslate, ArtistMorphTranslateNext, newText);
             _isArtistActiveA = false;
         }
         else
         {
-            AnimateTextMorph(TrackArtistNext, TrackArtist, ArtistBlur, ArtistMorphTranslateNext, ArtistMorphTranslate, newText);
+            AnimateTextMorph(TrackArtistNext, TrackArtist, ArtistMorphTranslateNext, ArtistMorphTranslate, newText);
             _isArtistActiveA = true;
         }
 
@@ -149,7 +150,7 @@ public partial class MainWindow
         }
     }
 
-    private void AnimateTextMorph(TextBlock current, TextBlock next, System.Windows.Media.Effects.BlurEffect blur, TranslateTransform currentMorph, TranslateTransform nextMorph, string newText)
+    private void AnimateTextMorph(TextBlock current, TextBlock next, TranslateTransform currentMorph, TranslateTransform nextMorph, string newText)
     {
         next.Text = newText;
 
@@ -160,9 +161,6 @@ public partial class MainWindow
         nextMorph.BeginAnimation(TranslateTransform.YProperty, null);
         currentMorph.Y = 0;
         nextMorph.Y = 0;
-
-        var blurAnim = new DoubleAnimation(0, 10, dur.Divide(2)) { EasingFunction = easeInOut, AutoReverse = true };
-        blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty, blurAnim);
 
         var fadeOut = new DoubleAnimation(1, 0, dur) { EasingFunction = easeInOut };
         current.BeginAnimation(OpacityProperty, fadeOut);

@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
+using System.Threading.Channels;
 using Windows.Media.Control;
 using Windows.Storage.Streams;
 using System.Net.Http;
@@ -15,11 +15,18 @@ namespace VNotch.Services;
 
 public class MediaDetectionService : IMediaDetectionService
 {
-    private readonly DispatcherTimer _pollTimer;
     private GlobalSystemMediaTransportControlsSessionManager? _sessionManager;
     private bool _disposed;
     private readonly SemaphoreSlim _updateLock = new(1, 1);
     private static readonly HttpClient _httpClient = new();
+
+    // Event-driven architecture - replaces DispatcherTimer polling
+    private readonly Channel<ChangeType> _changeChannel;
+    private CancellationTokenSource? _bgCts;
+    private Task? _processingTask;
+    private Task? _heartbeatTask;
+    private DetectionMode _currentMode = DetectionMode.Idle;
+    private long _lastEventTimeTicks;
 
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -50,8 +57,7 @@ public class MediaDetectionService : IMediaDetectionService
         "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x", "apple music", "apple", "music"
     };
 
-    private DateTime _lastMetadataEventTime = DateTime.MinValue;
-    private CancellationTokenSource? _metadataCts;
+
     private CancellationTokenSource? _thumbCts;
     private string _lastStableTrackSignature = "";
     private DateTime _emptyMetadataStartTime = DateTime.MinValue;
@@ -81,11 +87,12 @@ public class MediaDetectionService : IMediaDetectionService
             _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         }
 
-        _pollTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(200) 
-        };
-        _pollTimer.Tick += PollTimer_Tick;
+        _changeChannel = Channel.CreateBounded<ChangeType>(
+            new BoundedChannelOptions(16)
+            {
+                FullMode = BoundedChannelFullMode.DropOldest,
+                SingleReader = true
+            });
 
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var dir = Path.Combine(appData, "V-Notch");
@@ -121,13 +128,7 @@ public class MediaDetectionService : IMediaDetectionService
         catch { }
     }
 
-    private async void PollTimer_Tick(object? sender, EventArgs e)
-    {
 
-        if ((DateTime.Now - _lastMetadataEventTime).TotalMilliseconds < 200) return;
-
-        await UpdateMediaInfoAsync();
-    }
 
     private GlobalSystemMediaTransportControlsSession? _currentSession;
     private GlobalSystemMediaTransportControlsSession? _activeDisplaySession; 
@@ -145,21 +146,28 @@ public class MediaDetectionService : IMediaDetectionService
         catch (Exception)
         {
 #if DEBUG
-
             System.Diagnostics.Debug.WriteLine("[MediaService] Failed to init SMTC");
 #endif
         }
 
-        _pollTimer.Start();
+        // Start background processing loops
+        _bgCts = new CancellationTokenSource();
+        var ct = _bgCts.Token;
+        _processingTask = Task.Run(() => ProcessingLoopAsync(ct), ct);
+        _heartbeatTask = Task.Run(() => HeartbeatLoopAsync(ct), ct);
 
-        await Task.Delay(1500);
-        await UpdateMediaInfoAsync(forceRefresh: true);
+        // Initial update after brief delay
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(1500, ct); } catch { return; }
+            _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
+        }, ct);
     }
 
     public void Stop()
     {
         UnsubscribeFromSession();
-        _pollTimer.Stop();
+        _bgCts?.Cancel();
     }
 
     private async Task SubscribeToCurrentSession()
@@ -206,55 +214,26 @@ public class MediaDetectionService : IMediaDetectionService
 
     private void OnTimelineChanged(GlobalSystemMediaTransportControlsSession sender, TimelinePropertiesChangedEventArgs args)
     {
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(async () =>
-        {
-            await UpdateMediaInfoAsync();
-        });
+        Interlocked.Exchange(ref _lastEventTimeTicks, DateTime.UtcNow.Ticks);
+        _changeChannel.Writer.TryWrite(ChangeType.Timeline);
     }
 
     private void OnPlaybackChanged(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args)
     {
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(async () =>
-        {
-            await UpdateMediaInfoAsync();
-        });
+        Interlocked.Exchange(ref _lastEventTimeTicks, DateTime.UtcNow.Ticks);
+        _changeChannel.Writer.TryWrite(ChangeType.Playback);
     }
 
     private void OnMediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        dispatcher?.BeginInvoke(async () =>
-        {
-            _metadataCts?.Cancel();
-            _metadataCts = new CancellationTokenSource();
-            var token = _metadataCts.Token;
-
-            try
-            {
-
-                await Task.Delay(50, token);
-
-                if (!token.IsCancellationRequested)
-                {
-                    await UpdateMediaInfoAsync(forceRefresh: true);
-                }
-            }
-            catch (TaskCanceledException) { }
-        });
+        Interlocked.Exchange(ref _lastEventTimeTicks, DateTime.UtcNow.Ticks);
+        _changeChannel.Writer.TryWrite(ChangeType.MediaProperties);
     }
 
-    private async void OnSessionChanged(GlobalSystemMediaTransportControlsSessionManager sender, CurrentSessionChangedEventArgs args)
+    private void OnSessionChanged(GlobalSystemMediaTransportControlsSessionManager sender, CurrentSessionChangedEventArgs args)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher != null)
-        {
-            await dispatcher.InvokeAsync(async () =>
-            {
-                Log("Session Changed", "System-wide session focus shifted");
-                await SubscribeToCurrentSession();
-                await UpdateMediaInfoAsync(forceRefresh: true);
-            });
-        }
+        Log("Session Changed", "System-wide session focus shifted");
+        _changeChannel.Writer.TryWrite(ChangeType.SessionChanged);
     }
 
     private void Log(string tag, string message)
@@ -263,6 +242,88 @@ public class MediaDetectionService : IMediaDetectionService
         System.Diagnostics.Debug.WriteLine($"[MediaService][{tag}] {message}");
 #endif
     }
+
+    #region Background Processing
+
+    private async Task ProcessingLoopAsync(CancellationToken ct)
+    {
+        await foreach (var change in _changeChannel.Reader.ReadAllAsync(ct))
+        {
+            try
+            {
+                // Debounce: wait 50ms, then drain all queued events
+                await Task.Delay(50, ct);
+                var types = change;
+                while (_changeChannel.Reader.TryRead(out var extra))
+                {
+                    types |= extra;
+                }
+
+                bool forceRefresh = types.HasFlag(ChangeType.MediaProperties)
+                    || types.HasFlag(ChangeType.SessionChanged)
+                    || types.HasFlag(ChangeType.ForceRefresh);
+
+                if (types.HasFlag(ChangeType.SessionChanged))
+                {
+                    await SubscribeToCurrentSession();
+                }
+
+                await UpdateMediaInfoAsync(forceRefresh);
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception ex)
+            {
+                Log("ProcessError", ex.Message);
+            }
+        }
+    }
+
+    private async Task HeartbeatLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            var interval = _currentMode switch
+            {
+                DetectionMode.Idle => TimeSpan.FromSeconds(5),
+                DetectionMode.EventDriven => TimeSpan.FromSeconds(3),
+                DetectionMode.ThrottledMedia => TimeSpan.FromMilliseconds(1500),
+                _ => TimeSpan.FromSeconds(3)
+            };
+
+            try
+            {
+                await Task.Delay(interval, ct);
+            }
+            catch (OperationCanceledException) { break; }
+
+            // Safety: if truly idle and no events for a while, skip
+            var lastEvtTicks = Interlocked.Read(ref _lastEventTimeTicks);
+            if (_currentMode == DetectionMode.Idle
+                && lastEvtTicks > 0
+                && (DateTime.UtcNow - new DateTime(lastEvtTicks)).TotalSeconds > 10)
+                continue;
+
+            _changeChannel.Writer.TryWrite(ChangeType.Heartbeat);
+        }
+    }
+
+    private void UpdateDetectionMode(MediaInfo info)
+    {
+        if (!info.IsAnyMediaPlaying || string.IsNullOrEmpty(info.CurrentTrack))
+        {
+            _currentMode = DetectionMode.Idle;
+        }
+        else if (info.IsThrottled)
+        {
+            _currentMode = DetectionMode.ThrottledMedia;
+        }
+        else
+        {
+            _currentMode = DetectionMode.EventDriven;
+        }
+    }
+
+    #endregion
 
     private async Task UpdateMediaInfoAsync(bool forceRefresh = false)
     {
@@ -539,7 +600,15 @@ public class MediaDetectionService : IMediaDetectionService
                 _lastSeekEnabled = info.IsSeekEnabled;
                 _lastIsThrottled = info.IsThrottled;
 
-                MediaChanged?.Invoke(this, info);
+                // Update detection mode for adaptive heartbeat
+                UpdateDetectionMode(info);
+
+                // Marshal event to UI thread
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher != null)
+                {
+                    await dispatcher.InvokeAsync(() => MediaChanged?.Invoke(this, info));
+                }
             }
 
             bool isPotentialYouTube = info.MediaSource == "YouTube" || info.MediaSource == "Browser";
@@ -1006,36 +1075,7 @@ public class MediaDetectionService : IMediaDetectionService
             info.CurrentTrack = sessionTitle;
             info.CurrentArtist = sessionArtist;
 
-            try
-            {
-                var timeline = session.GetTimelineProperties();
-                if (timeline != null && timeline.EndTime.TotalSeconds > 0)
-                {
-
-                    bool isNearlyEnd = (timeline.EndTime - timeline.Position).TotalMilliseconds < 800; 
-                    bool isNewTrack = !string.IsNullOrEmpty(info.CurrentTrack) && info.CurrentTrack != _lastTrackSignature.Split('|')[0];
-
-                    if (isNewTrack && isNearlyEnd)
-                    {
-                        info.Position = TimeSpan.Zero;
-                        info.Duration = timeline.EndTime;
-                        info.IsIndeterminate = false;
-                    }
-                    else
-                    {
-                        info.Position = timeline.Position;
-                        info.Duration = timeline.EndTime;
-                    }
-
-                    info.IsSeekEnabled = pbInfo?.Controls?.IsPlaybackPositionEnabled ?? false;
-                    info.LastUpdated = DateTimeOffset.Now;
-                }
-                else
-                {
-                    info.IsIndeterminate = true;
-                }
-            }
-            catch { info.IsIndeterminate = true; }
+            // Timeline properties read once later (avoid duplicate GetTimelineProperties call)
 
             if (isJunkTitle)
             {
@@ -1219,12 +1259,27 @@ public class MediaDetectionService : IMediaDetectionService
                 var timeline = session?.GetTimelineProperties();
                 if (timeline != null)
                 {
-                    info.Position = timeline.Position;
-                    info.LastUpdated = timeline.LastUpdatedTime;
-
                     var duration = timeline.EndTime - timeline.StartTime;
                     if (duration <= TimeSpan.Zero) duration = timeline.MaxSeekTime;
-                    info.Duration = duration;
+
+                    // Handle track transition: new track but timeline still shows old track near end
+                    bool isNearlyEnd = duration.TotalSeconds > 0 &&
+                        (duration - timeline.Position).TotalMilliseconds < 800;
+                    bool isNewTrack = !string.IsNullOrEmpty(info.CurrentTrack) &&
+                        info.CurrentTrack != _lastTrackSignature.Split('|')[0];
+
+                    if (isNewTrack && isNearlyEnd)
+                    {
+                        info.Position = TimeSpan.Zero;
+                        info.Duration = duration;
+                        info.IsIndeterminate = false;
+                    }
+                    else
+                    {
+                        info.Position = timeline.Position;
+                        info.Duration = duration;
+                        info.LastUpdated = timeline.LastUpdatedTime;
+                    }
 
                     if (info.Duration <= TimeSpan.Zero || info.Duration.TotalDays > 30)
                     {
@@ -1464,8 +1519,9 @@ public class MediaDetectionService : IMediaDetectionService
 
     private List<string> GetAllWindowTitles()
     {
-        // Cache results for a short time to reduce Win32 calls but stay responsive
-        if ((DateTime.Now - _lastWindowEnumTime).TotalMilliseconds < 300)
+        // Adaptive cache: shorter when throttled (need window titles), longer otherwise
+        var cacheDuration = _isThrottled ? 500 : 1500;
+        if ((DateTime.Now - _lastWindowEnumTime).TotalMilliseconds < cacheDuration)
         {
             return _cachedWindowTitles;
         }
@@ -1650,7 +1706,8 @@ public class MediaDetectionService : IMediaDetectionService
     {
         if (_disposed) return;
         _disposed = true;
-        _pollTimer.Stop();
+        _bgCts?.Cancel();
+        _changeChannel.Writer.TryComplete();
 
         if (_sessionManager != null)
         {
@@ -1759,4 +1816,23 @@ public class MediaDetectionService : IMediaDetectionService
         }
         catch { }
     }
+}
+
+[Flags]
+public enum ChangeType
+{
+    None = 0,
+    Heartbeat = 1,
+    Timeline = 2,
+    Playback = 4,
+    MediaProperties = 8,
+    SessionChanged = 16,
+    ForceRefresh = 32
+}
+
+public enum DetectionMode
+{
+    Idle,
+    EventDriven,
+    ThrottledMedia
 }

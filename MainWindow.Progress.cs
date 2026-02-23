@@ -12,6 +12,7 @@ namespace VNotch;
 public partial class MainWindow
 {
     private bool _isDraggingProgress = false; 
+    private int _lastDisplayedSecond = -1;
     private TimeSpan _dragSeekPosition = TimeSpan.Zero; 
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
@@ -218,6 +219,7 @@ public partial class MainWindow
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever
         };
+        Timeline.SetDesiredFrameRate(anim, 15);
         IndeterminateProgress.BeginAnimation(OpacityProperty, anim);
     }
 
@@ -283,6 +285,7 @@ public partial class MainWindow
             CurrentTimeText.Text = "--:--";
             RemainingTimeText.Text = "--:--";
             ProgressBarScale.ScaleX = 0;
+            _lastDisplayedSecond = -1;
             return;
         }
         TimeSpan displayPosition;
@@ -311,9 +314,17 @@ public partial class MainWindow
         double ratio = displayPosition.TotalSeconds / duration.TotalSeconds;
         ratio = Math.Clamp(ratio, 0, 1);
 
+        // Progress bar scale updates every frame for smooth animation
         ProgressBarScale.ScaleX = ratio;
-        CurrentTimeText.Text = FormatTime(displayPosition);
-        RemainingTimeText.Text = FormatTime(duration);
+
+        // Only update text when the displayed second changes (avoids 60 layout passes/s)
+        int currentSecond = (int)displayPosition.TotalSeconds;
+        if (currentSecond != _lastDisplayedSecond)
+        {
+            _lastDisplayedSecond = currentSecond;
+            CurrentTimeText.Text = FormatTime(displayPosition);
+            RemainingTimeText.Text = FormatTime(duration);
+        }
     }
 
     private string FormatTime(TimeSpan time)

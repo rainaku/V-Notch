@@ -95,16 +95,12 @@ public partial class MainWindow
         {
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
-            ExpandedContent.Effect = null; 
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOut);
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
 
-        var blur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian };
-        ExpandedContent.Effect = blur;
-        var blurAnim = MakeAnim(0, 15, durFast, _easeQuadOut);
-        blur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+
 
         SecondaryContent.Visibility = Visibility.Visible;
         SecondaryContent.Opacity = 0;
@@ -163,17 +159,13 @@ public partial class MainWindow
         {
             SecondaryContent.Visibility = Visibility.Collapsed;
             SecondaryContent.RenderTransform = null;
-            SecondaryContent.Effect = null; 
             DisableKeyboardInput();
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeOut);
         secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
 
-        var blur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian };
-        SecondaryContent.Effect = blur;
-        var blurAnim = MakeAnim(0, 15, durFast, _easeQuadOut);
-        blur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+
 
         ExpandedContent.Visibility = Visibility.Visible;
         ExpandedContent.Opacity = 0;
