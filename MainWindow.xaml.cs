@@ -11,6 +11,8 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using VNotch.Services;
 using VNotch.Models;
+using VNotch.Modules;
+using VNotch.Contracts;
 namespace VNotch;
 
 public partial class MainWindow : Window
@@ -97,15 +99,18 @@ public partial class MainWindow : Window
     private readonly NotchManager _notchManager;
     private readonly MediaDetectionService _mediaService;
     private readonly DispatcherTimer _updateTimer;
-    private readonly DispatcherTimer _zOrderTimer;
     private readonly VolumeService _volumeService;
     private readonly DispatcherTimer _hoverCollapseTimer;
-    private readonly DispatcherTimer _autoCollapseTimer;
+
     private bool _isDraggingVolume = false;
     private NotchSettings _settings;
     private bool _isNotchVisible = true;
     private IntPtr _hwnd;
     private HwndSource? _hwndSource;
+
+    private readonly BatteryModule _batteryModule;
+    private readonly CalendarModule _calendarModule;
+
 
     private bool _isAnimating = false;
     private bool _isExpanded = false;
@@ -166,6 +171,12 @@ public partial class MainWindow : Window
         _mediaService = (MediaDetectionService)mediaService;
         _volumeService = (VolumeService)volumeService;
 
+        _batteryModule = new BatteryModule((IBatteryService)App.Services.GetService(typeof(IBatteryService))!);
+        _batteryModule.BatteryUpdated += BatteryModule_BatteryUpdated;
+        
+        _calendarModule = new CalendarModule();
+        _calendarModule.CalendarUpdated += CalendarModule_CalendarUpdated;
+
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;
         _cornerRadiusCollapsed = _settings.CornerRadius;
@@ -176,24 +187,16 @@ public partial class MainWindow : Window
         };
         _updateTimer.Tick += UpdateTimer_Tick;
 
-        _zOrderTimer = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = TimeSpan.FromSeconds(3)
-        };
-        _zOrderTimer.Tick += (s, e) => EnsureTopmost();
-        _zOrderTimer.Start();
+        // _zOrderTimer was removed to save CPU. Topmost is updated on change.
 
-        _progressTimer = new DispatcherTimer(DispatcherPriority.Render)
+        _progressTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
-            Interval = TimeSpan.FromMilliseconds(16)
+            Interval = TimeSpan.FromMilliseconds(1000)
         };
         _progressTimer.Tick += ProgressTimer_Tick;
 
-        _autoCollapseTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(200)
-        };
-        _autoCollapseTimer.Tick += AutoCollapseTimer_Tick;
+        GlobalMouseHook.MouseLeftButtonDown += GlobalMouseHook_MouseLeftButtonDown;
+
 
         _hoverCollapseTimer = new DispatcherTimer
         {
@@ -250,8 +253,9 @@ public partial class MainWindow : Window
         _mediaService.Start();
         _updateTimer.Start();
 
-        UpdateBatteryInfo();
-        UpdateCalendarInfo();
+        _batteryModule.Start();
+        _calendarModule.Start();
+        
         PlayAppearAnimation();
     }
 
@@ -318,7 +322,8 @@ public partial class MainWindow : Window
         _notchManager?.Dispose();
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
-        _zOrderTimer?.Stop();
+        _batteryModule?.Stop();
+        _calendarModule?.Stop();
         DisposeAllShelfWatchers();
         base.OnClosed(e);
     }
@@ -369,15 +374,7 @@ public partial class MainWindow : Window
 
     private void UpdateZOrderTimerInterval()
     {
-        if (_zOrderTimer == null) return;
-
-        bool isCritical = _isExpanded || _isMusicExpanded;
-        var newInterval = isCritical ? TimeSpan.FromMilliseconds(500) : TimeSpan.FromSeconds(3);
-
-        if (_zOrderTimer.Interval != newInterval)
-        {
-            _zOrderTimer.Interval = newInterval;
-        }
+        // No longer using _zOrderTimer. Z-order and Topmost will be ensured based on specific triggers.
     }
 
     private void PositionAtTop()
@@ -481,45 +478,41 @@ public partial class MainWindow : Window
 
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {
-        UpdateBatteryInfo();
-        UpdateCalendarInfo();
-
         if (_isMusicExpanded) SyncVolumeFromSystem();
         EnsureTopmost();
     }
 
-    private void UpdateBatteryInfo()
+    private void BatteryModule_BatteryUpdated(object? sender, BatteryInfo battery)
     {
-        try
+        BatteryPercent.Text = battery.GetPercentageText();
+
+        double fillWidth = Math.Max(2, battery.Percentage / 100.0 * 26);
+        BatteryFill.Width = fillWidth;
+
+        if (battery.IsCharging)
         {
-            var battery = BatteryService.GetBatteryInfo();
-
-            BatteryPercent.Text = battery.GetPercentageText();
-
-            double fillWidth = Math.Max(2, battery.Percentage / 100.0 * 26);
-            BatteryFill.Width = fillWidth;
-
-            if (battery.IsCharging)
-            {
-                BatteryFill.Background = _brushCharging;
-                BatteryPercent.Foreground = _brushWhite;
-            }
-            else if (battery.Percentage < 20)
-            {
-                BatteryFill.Background = _brushLowBattery;
-                BatteryPercent.Foreground = _brushLowBattery;
-            }
-            else
-            {
-                BatteryFill.Background = _brushWhite;
-                BatteryPercent.Foreground = _brushWhite;
-            }
+            BatteryFill.Background = _brushCharging;
+            BatteryPercent.Foreground = _brushWhite;
         }
-        catch
+        else if (battery.Percentage < 20)
         {
-            BatteryPercent.Text = "N/A";
+            BatteryFill.Background = _brushLowBattery;
+            BatteryPercent.Foreground = _brushLowBattery;
+        }
+        else
+        {
+            BatteryFill.Background = _brushWhite;
+            BatteryPercent.Foreground = _brushWhite;
         }
     }
+
+    private void UpdateBatteryInfo()
+    {
+        // Now handled by BatteryModule
+    }
+
+
+
 
     private void InitializeCalendar()
     {
@@ -566,11 +559,11 @@ public partial class MainWindow : Window
         _calendarInitialized = true;
     }
 
-    private void UpdateCalendarInfo()
+    private void CalendarModule_CalendarUpdated(object? sender, CalendarUpdateEventArgs e)
     {
         if (!_calendarInitialized) InitializeCalendar();
 
-        var now = DateTime.Now;
+        var now = e.Now;
         MonthText.Text = now.ToString("MMM");
         DayText.Text = now.Day.ToString();
 
@@ -597,6 +590,11 @@ public partial class MainWindow : Window
         }
 
         EventText.Text = "Enjoy your day!";
+    }
+
+    private void UpdateCalendarInfo()
+    {
+        // Now handled by CalendarModule
     }
 
     #endregion
@@ -682,7 +680,6 @@ public partial class MainWindow : Window
         _notchManager.Dispose();
         TrayIcon.Dispose();
         _updateTimer.Stop();
-        _zOrderTimer.Stop();
         DisposeAllShelfWatchers();
         System.Windows.Application.Current.Shutdown();
     }

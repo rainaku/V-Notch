@@ -1,10 +1,11 @@
 using System.Windows;
 using System.Windows.Forms;
 using VNotch.Models;
+using VNotch.Contracts;
 
 namespace VNotch.Services;
 
-public class NotchManager : IDisposable
+public class NotchManager : INotchManager
 {
     private readonly Window _window;
     private NotchSettings _settings;

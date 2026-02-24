@@ -34,54 +34,39 @@ public partial class MainWindow
     }
 
     private DateTime _lastOutsideClickTime = DateTime.MinValue;
-    private bool _wasLButtonDown = false;
 
-    private void AutoCollapseTimer_Tick(object? sender, EventArgs e)
+    private void GlobalMouseHook_MouseLeftButtonDown(object? sender, GlobalMouseHook.POINT pt)
     {
-
-        if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
+        Dispatcher.Invoke(() =>
         {
-
-            bool isDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-
-            if (isDown && !_wasLButtonDown) 
+            if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
             {
-                if (GetCursorPos(out POINT pt))
+                IntPtr hWndAtPoint = WindowFromPoint(new POINT { X = pt.x, Y = pt.y });
+
+                if (hWndAtPoint != _hwnd && !IsChildWindow(_hwnd, hWndAtPoint))
                 {
-                    IntPtr hWndAtPoint = WindowFromPoint(pt);
-
-                    if (hWndAtPoint != _hwnd && !IsChildWindow(_hwnd, hWndAtPoint))
+                    if (_isSecondaryView)
                     {
-                        if (_isSecondaryView)
+                        var now = DateTime.Now;
+                        double doubleClickTime = GetDoubleClickTime();
+
+                        if ((now - _lastOutsideClickTime).TotalMilliseconds < doubleClickTime)
                         {
-
-                            var now = DateTime.Now;
-                            double doubleClickTime = GetDoubleClickTime();
-
-                            if ((now - _lastOutsideClickTime).TotalMilliseconds < doubleClickTime)
-                            {
-                                CollapseAll();
-                                _lastOutsideClickTime = DateTime.MinValue;
-                            }
-                            else
-                            {
-                                _lastOutsideClickTime = now;
-                            }
+                            CollapseAll();
+                            _lastOutsideClickTime = DateTime.MinValue;
                         }
                         else
                         {
-
-                            CollapseAll();
+                            _lastOutsideClickTime = now;
                         }
+                    }
+                    else
+                    {
+                        CollapseAll();
                     }
                 }
             }
-            _wasLButtonDown = isDown;
-        }
-        else
-        {
-            _wasLButtonDown = false;
-        }
+        });
     }
 
     private bool IsChildWindow(IntPtr parent, IntPtr child)
@@ -268,6 +253,7 @@ public partial class MainWindow
 
     private void ResetProgressUI()
     {
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         ProgressBarScale.ScaleX = 0;
         CurrentTimeText.Text = "0:00";
         RemainingTimeText.Text = "0:00";
@@ -284,10 +270,12 @@ public partial class MainWindow
         {
             CurrentTimeText.Text = "--:--";
             RemainingTimeText.Text = "--:--";
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             ProgressBarScale.ScaleX = 0;
             _lastDisplayedSecond = -1;
             return;
         }
+
         TimeSpan displayPosition;
 
         if (_isMediaPlaying)
@@ -314,10 +302,26 @@ public partial class MainWindow
         double ratio = displayPosition.TotalSeconds / duration.TotalSeconds;
         ratio = Math.Clamp(ratio, 0, 1);
 
-        // Progress bar scale updates every frame for smooth animation
-        ProgressBarScale.ScaleX = ratio;
+        // WPF Animation for smooth progress tracking without 60fps C# polling
+        if (_isMediaPlaying)
+        {
+            var remainingTime = duration - displayPosition;
+            if (remainingTime.TotalMilliseconds > 0)
+            {
+                var anim = new DoubleAnimation(ratio, 1.0, remainingTime)
+                {
+                    FillBehavior = FillBehavior.HoldEnd
+                };
+                ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+            }
+        }
+        else
+        {
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ProgressBarScale.ScaleX = ratio;
+        }
 
-        // Only update text when the displayed second changes (avoids 60 layout passes/s)
+        // Only update text when the displayed second changes
         int currentSecond = (int)displayPosition.TotalSeconds;
         if (currentSecond != _lastDisplayedSecond)
         {
@@ -377,6 +381,8 @@ public partial class MainWindow
     {
         if (_lastKnownDuration.TotalSeconds <= 0) return;
 
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+
         var position = e.GetPosition(ProgressBarContainer);
         double ratio = position.X / ProgressBarContainer.ActualWidth;
         ratio = Math.Clamp(ratio, 0, 1);
@@ -435,13 +441,12 @@ public partial class MainWindow
 
     private void UpdateProgressTimerState()
     {
-        if (_progressTimer == null || _autoCollapseTimer == null) return;
+        if (_progressTimer == null) return;
 
         bool isExpanded = _isExpanded || _isMusicExpanded;
         bool showProgress = _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && 
                             (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
         bool shouldRunProgress = isExpanded && showProgress; 
-        bool shouldRunAutoCollapse = isExpanded;
 
         if (shouldRunProgress)
         {
@@ -452,13 +457,13 @@ public partial class MainWindow
             if (_progressTimer.IsEnabled) _progressTimer.Stop();
         }
 
-        if (shouldRunAutoCollapse)
+        if (isExpanded)
         {
-            if (!_autoCollapseTimer.IsEnabled) _autoCollapseTimer.Start();
+            GlobalMouseHook.Start();
         }
         else
         {
-            if (_autoCollapseTimer.IsEnabled) _autoCollapseTimer.Stop();
+            GlobalMouseHook.Stop();
         }
     }
 
