@@ -860,6 +860,7 @@ public partial class MainWindow
             window.InnerClipBorder.CornerRadius = cr;
             window.MediaBackground.CornerRadius = cr;
             window.MediaBackground2.CornerRadius = cr;
+            window.NotchBorderShadow.CornerRadius = cr;
             window.UpdateNotchClip();
         }
     }

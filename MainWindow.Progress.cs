@@ -1,9 +1,11 @@
+using System;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using VNotch.Models;
 using VNotch.Services;
 
@@ -14,11 +16,12 @@ public partial class MainWindow
     private bool _isDraggingProgress = false; 
     private int _lastDisplayedSecond = -1;
     private TimeSpan _dragSeekPosition = TimeSpan.Zero; 
+    
+    private readonly ProgressEngine _progressEngine = new ProgressEngine();
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
-
-        if (_currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying)
+        if (_currentMediaInfo != null && (_currentMediaInfo.IsAnyMediaPlaying || _progressEngine.GetUiFrame().State == ProgressState.Playing))
         {
             if (_isExpanded)
             {
@@ -83,19 +86,17 @@ public partial class MainWindow
     [DllImport("user32.dll")]
     private static extern IntPtr GetParent(IntPtr hWnd);
 
-    private DateTime _lastTimelineAvailableTime = DateTime.MinValue;
     private string _lastSessionId = "";
-
     private string _lastProgressSignature = "";
 
     private void UpdateProgressTracking(MediaInfo info)
     {
-
         bool isSessionSwitch = !string.IsNullOrEmpty(info.SourceAppId) && info.SourceAppId != _lastSessionId;
         if (isSessionSwitch)
         {
             _lastSessionId = info.SourceAppId;
             HandleSessionTransition();
+            _progressEngine.Reset();
         }
 
         _currentMediaInfo = info;
@@ -103,83 +104,61 @@ public partial class MainWindow
         ProgressSection.Visibility = Visibility.Visible;
         ProgressSection.Opacity = 1;
 
-        bool showProgressDetails = info.IsAnyMediaPlaying && (info.HasTimeline || info.IsIndeterminate);
+        bool showProgressDetails = info.IsAnyMediaPlaying || info.Duration.TotalSeconds > 0;
 
-        if (showProgressDetails)
+        if (showProgressDetails || info.HasTimeline || info.IsIndeterminate)
         {
-
             if (_isDraggingProgress) return;
 
             string sig = $"{info.SourceAppId}|{info.MediaSource}|{info.CurrentTrack}|{info.CurrentArtist}";
             if (sig != _lastProgressSignature)
             {
                 _lastProgressSignature = sig;
-                _seekDebounceUntil = DateTime.MinValue;
-
-                if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
-                _lastKnownPosition = info.Position;
-                _lastMediaUpdate = DateTime.Now;
+                _progressEngine.Reset();
             }
 
-            bool inSeekDebounce = DateTime.Now < _seekDebounceUntil;
-            if (inSeekDebounce)
+            var snapshot = new ProgressSnapshot
             {
+                Position = info.Position,
+                Duration = info.Duration,
+                IsPlaying = info.IsPlaying,
+                IsYouTube = info.MediaSource == "YouTube" || info.MediaSource == "Browser",
+                PlaybackRate = info.PlaybackRate,
+                IsSeekEnabled = info.IsSeekEnabled,
+                IsIndeterminate = info.IsIndeterminate,
+                Timestamp = info.LastUpdated.UtcDateTime
+            };
+            
+            _progressEngine.OnMediaSnapshot(snapshot);
 
-                _isMediaPlaying = info.IsAnyMediaPlaying;
-                if (info.Duration.TotalSeconds > 0 && info.Duration != _lastKnownDuration)
-                    _lastKnownDuration = info.Duration;
-
-                if (_isExpanded) RenderProgressBar();
-                return;
-            }
-
-            if (info.HasTimeline)
-            {
-
-                if (info.MediaSource == "YouTube")
-                {
-                    UpdateYouTubeProgress(info);
-                }
-                else if (info.MediaSource == "Spotify")
-                {
-                    UpdateSpotifyProgress(info);
-                }
-                else
-                {
-                    UpdateGeneralProgress(info);
-                }
-
-                IndeterminateProgress.Visibility = Visibility.Collapsed;
-                ProgressBar.Visibility = Visibility.Visible;
-            }
-            else if (info.IsIndeterminate)
+            if (info.IsIndeterminate)
             {
                 IndeterminateProgress.Visibility = Visibility.Visible;
                 ProgressBar.Visibility = Visibility.Collapsed;
                 StartIndeterminateAnimation();
             }
+            else
+            {
+                IndeterminateProgress.Visibility = Visibility.Collapsed;
+                ProgressBar.Visibility = Visibility.Visible;
+            }
 
             ProgressBarContainer.Cursor = info.IsSeekEnabled ? Cursors.Hand : Cursors.Arrow;
 
             UpdateProgressTimerState();
-            _isMediaPlaying = info.IsPlaying;
 
             if (_isExpanded) RenderProgressBar();
         }
         else
         {
-
             UpdateProgressTimerState();
-            _isMediaPlaying = false;
             _lastSessionId = "";
-
+            
             IndeterminateProgress.Visibility = Visibility.Collapsed;
             ProgressBar.Visibility = Visibility.Visible;
             ProgressBarContainer.Cursor = Cursors.Arrow;
 
-            _lastKnownDuration = TimeSpan.Zero;
-            _lastKnownPosition = TimeSpan.Zero;
-
+            _progressEngine.Reset();
             ResetProgressUI();
             if (_isExpanded) RenderProgressBar();
         }
@@ -187,7 +166,6 @@ public partial class MainWindow
 
     private void HandleSessionTransition()
     {
-
         var anim = new DoubleAnimation(0.2, 1.0, TimeSpan.FromMilliseconds(400))
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
@@ -208,49 +186,6 @@ public partial class MainWindow
         IndeterminateProgress.BeginAnimation(OpacityProperty, anim);
     }
 
-
-    private void UpdateYouTubeProgress(MediaInfo info)
-    {
-
-        bool isNewTrack = info.CurrentTrack != _lastAnimatedTrackSignature.Split('|')[0];
-        if (isNewTrack || info.IsThrottled)
-        {
-            if (info.Duration.TotalSeconds > 0) 
-            {
-                _lastKnownDuration = info.Duration;
-            }
-            else 
-            {
-
-                _lastKnownDuration = TimeSpan.Zero;
-                _lastKnownPosition = TimeSpan.Zero;
-            }
-        }
-        else if (info.Duration.TotalSeconds > 0)
-        {
-            _lastKnownDuration = info.Duration;
-        }
-
-        _lastKnownPosition = info.Position;
-        _lastMediaUpdate = info.LastUpdated.LocalDateTime;
-    }
-
-    private void UpdateSpotifyProgress(MediaInfo info)
-    {
-        if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
-
-        _lastKnownPosition = info.Position;
-        _lastMediaUpdate = info.LastUpdated.LocalDateTime;
-    }
-
-    private void UpdateGeneralProgress(MediaInfo info)
-    {
-        if (info.Duration.TotalSeconds > 0) _lastKnownDuration = info.Duration;
-
-        _lastKnownPosition = info.Position;
-        _lastMediaUpdate = info.LastUpdated.LocalDateTime;
-    }
-
     private void ResetProgressUI()
     {
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -265,8 +200,9 @@ public partial class MainWindow
     {
         if (_isDraggingProgress || _currentMediaInfo == null) return;
 
-        var duration = _lastKnownDuration;
-        if (duration.TotalSeconds <= 0)
+        var frame = _progressEngine.GetUiFrame();
+
+        if (frame.Duration.TotalSeconds <= 0 && !frame.ShowIndeterminate)
         {
             CurrentTimeText.Text = "--:--";
             RemainingTimeText.Text = "--:--";
@@ -276,58 +212,22 @@ public partial class MainWindow
             return;
         }
 
-        TimeSpan displayPosition;
-
-        if (_isMediaPlaying)
+        double ratio = 0;
+        if (frame.Duration.TotalSeconds > 0)
         {
-            var timeSinceUpdate = DateTime.Now - _lastMediaUpdate;
-
-            double capSeconds = (_currentMediaInfo.IsThrottled) ? 3600 : 
-                               (_currentMediaInfo.MediaSource == "YouTube" || _currentMediaInfo.MediaSource == "Browser") ? 600 : 30;
-
-            if (timeSinceUpdate > TimeSpan.FromSeconds(capSeconds)) 
-                timeSinceUpdate = TimeSpan.FromSeconds(capSeconds);
-
-            displayPosition = _lastKnownPosition + TimeSpan.FromTicks((long)(timeSinceUpdate.Ticks * _currentMediaInfo.PlaybackRate));
-
-            if (displayPosition > duration) displayPosition = duration;
-        }
-        else
-        {
-            displayPosition = _lastKnownPosition;
+            ratio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
+            ratio = Math.Clamp(ratio, 0, 1);
         }
 
-        if (displayPosition < TimeSpan.Zero) displayPosition = TimeSpan.Zero;
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ProgressBarScale.ScaleX = ratio;
 
-        double ratio = displayPosition.TotalSeconds / duration.TotalSeconds;
-        ratio = Math.Clamp(ratio, 0, 1);
-
-        // WPF Animation for smooth progress tracking without 60fps C# polling
-        if (_isMediaPlaying)
-        {
-            var remainingTime = duration - displayPosition;
-            if (remainingTime.TotalMilliseconds > 0)
-            {
-                var anim = new DoubleAnimation(ratio, 1.0, remainingTime)
-                {
-                    FillBehavior = FillBehavior.HoldEnd
-                };
-                ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
-            }
-        }
-        else
-        {
-            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            ProgressBarScale.ScaleX = ratio;
-        }
-
-        // Only update text when the displayed second changes
-        int currentSecond = (int)displayPosition.TotalSeconds;
+        int currentSecond = (int)frame.Position.TotalSeconds;
         if (currentSecond != _lastDisplayedSecond)
         {
             _lastDisplayedSecond = currentSecond;
-            CurrentTimeText.Text = FormatTime(displayPosition);
-            RemainingTimeText.Text = FormatTime(duration);
+            CurrentTimeText.Text = FormatTime(frame.Position);
+            RemainingTimeText.Text = FormatTime(frame.Duration);
         }
     }
 
@@ -354,7 +254,6 @@ public partial class MainWindow
 
     private void ProgressBar_MouseMove(object sender, MouseEventArgs e)
     {
-
         e.Handled = true;
 
         if (_isDraggingProgress && e.LeftButton == MouseButtonState.Pressed)
@@ -365,7 +264,6 @@ public partial class MainWindow
 
     private async void ProgressBar_MouseUp(object sender, MouseButtonEventArgs e)
     {
-
         e.Handled = true;
 
         if (_isDraggingProgress)
@@ -379,7 +277,8 @@ public partial class MainWindow
 
     private void UpdateProgressFromMouse(MouseEventArgs e)
     {
-        if (_lastKnownDuration.TotalSeconds <= 0) return;
+        var duration = _progressEngine.GetUiFrame().Duration;
+        if (duration.TotalSeconds <= 0) return;
 
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
 
@@ -389,21 +288,19 @@ public partial class MainWindow
 
         ProgressBarScale.ScaleX = ratio;
 
-        _dragSeekPosition = TimeSpan.FromSeconds(_lastKnownDuration.TotalSeconds * ratio);
+        _dragSeekPosition = TimeSpan.FromSeconds(duration.TotalSeconds * ratio);
 
         CurrentTimeText.Text = FormatTime(_dragSeekPosition);
     }
 
     private async Task SeekToPosition(TimeSpan newPos)
     {
-        if (_lastKnownDuration.TotalSeconds <= 0) return;
+        var duration = _progressEngine.GetUiFrame().Duration;
+        if (duration.TotalSeconds <= 0) return;
 
         try 
         {
-
-            _lastKnownPosition = newPos;
-            _lastMediaUpdate = DateTime.Now;
-            _seekDebounceUntil = DateTime.Now.AddSeconds(2.5); 
+            _progressEngine.NotifyUserSeek(newPos);
             if (_isExpanded) RenderProgressBar();
 
             await _mediaService.SeekAsync(newPos);
@@ -413,23 +310,21 @@ public partial class MainWindow
 
     private async Task SeekRelative(double seconds)
     {
-        if (_lastKnownDuration.TotalSeconds <= 0) return;
+        var frame = _progressEngine.GetUiFrame();
+        var duration = frame.Duration;
+        if (duration.TotalSeconds <= 0) return;
 
-        var elapsed = DateTime.Now - _lastMediaUpdate;
-        var currentPos = _lastKnownPosition + (_isMediaPlaying ? elapsed : TimeSpan.Zero);
-
+        var currentPos = frame.Position;
         var newPos = currentPos + TimeSpan.FromSeconds(seconds);
 
         if (newPos < TimeSpan.Zero) newPos = TimeSpan.Zero;
-        if (newPos > _lastKnownDuration) newPos = _lastKnownDuration;
-
-        _lastKnownPosition = newPos;
-        _lastMediaUpdate = DateTime.Now;
-        _seekDebounceUntil = DateTime.Now.AddSeconds(2.5); 
-        if (_isExpanded) RenderProgressBar();
+        if (newPos > duration) newPos = duration;
 
         try
         {
+            _progressEngine.NotifyUserSeek(newPos);
+            if (_isExpanded) RenderProgressBar();
+
             await _mediaService.SeekRelativeAsync(seconds);
         }
         catch { }
@@ -444,9 +339,11 @@ public partial class MainWindow
         if (_progressTimer == null) return;
 
         bool isExpanded = _isExpanded || _isMusicExpanded;
-        bool showProgress = _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && 
-                            (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
-        bool shouldRunProgress = isExpanded && showProgress; 
+        
+        bool hasTimeline = _currentMediaInfo != null && (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
+        bool shouldRunProgress = isExpanded && hasTimeline;
+
+        _progressTimer.Interval = TimeSpan.FromMilliseconds(50);
 
         if (shouldRunProgress)
         {

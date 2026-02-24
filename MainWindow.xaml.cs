@@ -131,11 +131,6 @@ public partial class MainWindow : Window
     private DateTime _lastMediaActionTime = DateTime.MinValue;
 
     private readonly DispatcherTimer _progressTimer;
-    private DateTime _lastMediaUpdate = DateTime.Now;
-    private TimeSpan _lastKnownPosition = TimeSpan.Zero;
-    private TimeSpan _lastKnownDuration = TimeSpan.Zero;
-    private bool _isMediaPlaying = false;
-    private DateTime _seekDebounceUntil = DateTime.MinValue;
 
     private static readonly SolidColorBrush _brushCharging = CreateFrozenBrush(48, 209, 88);
     private static readonly SolidColorBrush _brushLowBattery = CreateFrozenBrush(255, 59, 48);

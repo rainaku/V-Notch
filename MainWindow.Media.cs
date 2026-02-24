@@ -22,7 +22,6 @@ public partial class MainWindow
     private void OnMediaChanged(object? sender, MediaInfo info)
     {
         _currentMediaInfo = info;
-        _lastMediaUpdate = DateTime.Now;
 
         Dispatcher.BeginInvoke(() =>
         {
@@ -245,14 +244,20 @@ public partial class MainWindow
 
         if (shouldBeCompact == _isMusicCompactMode)
         {
-            if (shouldBeCompact && info?.Thumbnail != null)
+            if (shouldBeCompact)
             {
-                string currentSig = info.GetSignature();
-                if (currentSig != _lastAnimatedTrackSignature)
+                if (info?.Thumbnail != null)
                 {
-                    _lastAnimatedTrackSignature = currentSig;
-                    AnimateThumbnailSwitchOnly(info.Thumbnail);
+                    string currentSig = info.GetSignature();
+                    if (currentSig != _lastAnimatedTrackSignature)
+                    {
+                        _lastAnimatedTrackSignature = currentSig;
+                        AnimateThumbnailSwitchOnly(info.Thumbnail);
+                    }
                 }
+                
+                if (info != null && info.IsPlaying) StartVisualizerAnimation();
+                else StopVisualizerAnimation();
             }
             return;
         }
@@ -274,7 +279,8 @@ public partial class MainWindow
                     AnimateThumbnailSwitchOnly(info.Thumbnail);
                 }
                 FadeSwitch(CollapsedContent, MusicCompactContent);
-                StartVisualizerAnimation();
+                if (info != null && info.IsPlaying) StartVisualizerAnimation();
+                else StopVisualizerAnimation();
             }
             else
             {
@@ -290,7 +296,8 @@ public partial class MainWindow
                 {
                     AnimateThumbnailSwitchOnly(info.Thumbnail);
                 }
-                StartVisualizerAnimation();
+                if (info != null && info.IsPlaying) StartVisualizerAnimation();
+                else StopVisualizerAnimation();
             }
             else
             {

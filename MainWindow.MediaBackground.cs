@@ -58,6 +58,23 @@ public partial class MainWindow
             EasingFunction = _easeQuadOut
         };
 
+        if (targetOpacity > 0)
+        {
+            MediaBackground.Visibility = Visibility.Visible;
+            MediaBackground2.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            opacityAnim.Completed += (s, e) =>
+            {
+                if (MediaBackground.Opacity == 0)
+                {
+                    MediaBackground.Visibility = Visibility.Collapsed;
+                    MediaBackground2.Visibility = Visibility.Collapsed;
+                }
+            };
+        }
+
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
 
@@ -100,33 +117,59 @@ public partial class MainWindow
         {
             visualizerBrush.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
         }
+
+        // Apply same color to Media Controls
+        var currentVolIcon = VolumeIcon.Foreground as SolidColorBrush;
+        if (currentVolIcon == null || currentVolIcon.IsFrozen) VolumeIcon.Foreground = new SolidColorBrush(currentVolIcon?.Color ?? Color.FromRgb(136, 136, 136));
+        ((SolidColorBrush)VolumeIcon.Foreground).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+
+        var currentVolBar = VolumeBarFront.Background as SolidColorBrush;
+        if (currentVolBar == null || currentVolBar.IsFrozen) VolumeBarFront.Background = new SolidColorBrush(currentVolBar?.Color ?? Colors.White);
+        ((SolidColorBrush)VolumeBarFront.Background).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+
+        void EnsureUnfrozenFill(System.Windows.Shapes.Shape shape)
+        {
+            var brush = shape.Fill as SolidColorBrush;
+            if (brush == null || brush.IsFrozen) shape.Fill = new SolidColorBrush(brush?.Color ?? Colors.White);
+            ((SolidColorBrush)shape.Fill).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        }
+
+        EnsureUnfrozenFill(InlinePrevArrow0);
+        EnsureUnfrozenFill(InlinePrevArrow1);
+        EnsureUnfrozenFill(InlinePrevArrow2);
+        EnsureUnfrozenFill(InlinePauseBar1);
+        EnsureUnfrozenFill(InlinePauseBar2);
+        EnsureUnfrozenFill(InlinePlayIconPath);
+        EnsureUnfrozenFill(InlineNextArrow0);
+        EnsureUnfrozenFill(InlineNextArrow1);
+        EnsureUnfrozenFill(InlineNextArrow2);
     }
 
     private Color GetVibrantColor(Color c)
     {
-
         double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
         double max = Math.Max(r, Math.Max(g, b));
         double min = Math.Min(r, Math.Min(g, b));
         double h = 0, s = 0, l = (max + min) / 2.0;
 
-        if ((max - min) < 0.03)
+        double d = max - min;
+        
+        if (d > 0)
         {
-            return Colors.White;
+            s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
+
+            if (max == r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6.0;
+            else if (max == g) h = ((b - r) / d + 2) / 6.0;
+            else h = ((r - g) / d + 4) / 6.0;
+            
+            // Giữ lại sắc độ nhưng boost saturation lên để màu không bị quá nhạt
+            s = Math.Max(s, 0.45);
+            s = Math.Min(s, 0.95);
         }
 
-        double d = max - min;
-        s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
-
-        if (max == r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6.0;
-        else if (max == g) h = ((b - r) / d + 2) / 6.0;
-        else h = ((r - g) / d + 4) / 6.0;
-
-        s = Math.Max(s, 0.45);
-        s = Math.Min(s, 0.95);
-
-        l = Math.Max(l, 0.65);
-        l = Math.Min(l, 0.85);
+        // Tăng sáng (Boost Lightness) - đảm bảo màu tối/chìm vẫn nhìn thấy rõ trên nền đen
+        l = Math.Max(l, 0.75); 
+        l = Math.Min(l, 0.90);
 
         return HslToColor(h, s, l);
     }
@@ -185,6 +228,16 @@ public partial class MainWindow
         {
             EasingFunction = _easePowerIn2
         };
+
+        opacityAnim.Completed += (s, e) =>
+        {
+            if (MediaBackground.Opacity == 0)
+            {
+                MediaBackground.Visibility = Visibility.Collapsed;
+                MediaBackground2.Visibility = Visibility.Collapsed;
+            }
+        };
+
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
 
@@ -204,6 +257,26 @@ public partial class MainWindow
         if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (TrackTitle.Foreground is SolidColorBrush ttf && !ttf.IsFrozen) ttf.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
         if (TrackTitleNext.Foreground is SolidColorBrush ttnf && !ttnf.IsFrozen) ttnf.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+
+        // Reset same colors for Media Controls
+        if (VolumeIcon.Foreground is SolidColorBrush volIco && !volIco.IsFrozen) volIco.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
+        if (VolumeBarFront.Background is SolidColorBrush volBar && !volBar.IsFrozen) volBar.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+
+        void ResetUnfrozenFill(System.Windows.Shapes.Shape shape)
+        {
+            if (shape.Fill is SolidColorBrush brush && !brush.IsFrozen)
+                brush.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+        }
+
+        ResetUnfrozenFill(InlinePrevArrow0);
+        ResetUnfrozenFill(InlinePrevArrow1);
+        ResetUnfrozenFill(InlinePrevArrow2);
+        ResetUnfrozenFill(InlinePauseBar1);
+        ResetUnfrozenFill(InlinePauseBar2);
+        ResetUnfrozenFill(InlinePlayIconPath);
+        ResetUnfrozenFill(InlineNextArrow0);
+        ResetUnfrozenFill(InlineNextArrow1);
+        ResetUnfrozenFill(InlineNextArrow2);
     }
 
     private void ShowMediaBackground()

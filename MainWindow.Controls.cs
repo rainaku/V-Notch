@@ -186,6 +186,22 @@ public partial class MainWindow
         }
     }
 
+    private void VolumeIcon_MouseEnter(object sender, MouseEventArgs e)
+    {
+        var animX = new DoubleAnimation(1, 1.2, _dur150) { EasingFunction = _easeQuadOut };
+        var animY = new DoubleAnimation(1, 1.2, _dur150) { EasingFunction = _easeQuadOut };
+        VolumeIconScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+        VolumeIconScale.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
+    }
+
+    private void VolumeIcon_MouseLeave(object sender, MouseEventArgs e)
+    {
+        var animX = new DoubleAnimation(VolumeIconScale.ScaleX, 1, _dur150) { EasingFunction = _easeQuadOut };
+        var animY = new DoubleAnimation(VolumeIconScale.ScaleY, 1, _dur150) { EasingFunction = _easeQuadOut };
+        VolumeIconScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+        VolumeIconScale.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
+    }
+
     private void VolumeBar_MouseDown(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
@@ -252,22 +268,18 @@ public partial class MainWindow
         if (isMuted || volume <= 0.01f)
         {
             VolumeIcon.Text = "\uE74F";
-            VolumeIcon.Foreground = new SolidColorBrush(Color.FromRgb(255, 59, 48));
         }
         else if (volume < 0.33f)
         {
             VolumeIcon.Text = "\uE993";
-            VolumeIcon.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136));
         }
         else if (volume < 0.66f)
         {
             VolumeIcon.Text = "\uE994";
-            VolumeIcon.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136));
         }
         else
         {
             VolumeIcon.Text = "\uE995";
-            VolumeIcon.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136));
         }
     }
 
