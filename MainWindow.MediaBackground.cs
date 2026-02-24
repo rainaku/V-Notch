@@ -122,7 +122,7 @@ public partial class MainWindow
         else if (max == g) h = ((b - r) / d + 2) / 6.0;
         else h = ((r - g) / d + 4) / 6.0;
 
-        s = Math.Max(s, 0.70);
+        s = Math.Max(s, 0.45);
         s = Math.Min(s, 0.95);
 
         l = Math.Max(l, 0.65);
@@ -230,55 +230,122 @@ public partial class MainWindow
     {
         try
         {
+            var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+            double scaleX = 20.0 / formattedBitmap.PixelWidth;
+            double scaleY = 20.0 / formattedBitmap.PixelHeight;
+            var small = new TransformedBitmap(formattedBitmap, new ScaleTransform(scaleX, scaleY));
+            
+            int width = small.PixelWidth;
+            int height = small.PixelHeight;
+            if (width == 0 || height == 0) return Color.FromRgb(30, 30, 30);
 
-            var small = new TransformedBitmap(bitmap, new ScaleTransform(15.0 / bitmap.PixelWidth, 15.0 / bitmap.PixelHeight));
-            byte[] pixelBuffer = new byte[15 * 15 * 4];
-            small.CopyPixels(pixelBuffer, 15 * 4, 0);
+            int stride = width * 4;
+            byte[] pixelBuffer = new byte[height * stride];
+            small.CopyPixels(pixelBuffer, stride, 0);
 
-            double totalWeight = 0;
-            double wr = 0, wg = 0, wb = 0;
+            var pixels = new (double R, double G, double B, double H, double S, double L, double weight)[width * height];
+            int pCount = 0;
 
             for (int i = 0; i < pixelBuffer.Length; i += 4)
             {
-                double pb = pixelBuffer[i] / 255.0;
-                double pg = pixelBuffer[i + 1] / 255.0;
-                double pr = pixelBuffer[i + 2] / 255.0;
+                double b = pixelBuffer[i] / 255.0;
+                double g = pixelBuffer[i + 1] / 255.0;
+                double r = pixelBuffer[i + 2] / 255.0;
 
-                double max = Math.Max(pr, Math.Max(pg, pb));
-                double min = Math.Min(pr, Math.Min(pg, pb));
-                double lum = (pr + pg + pb) / 3.0;
-                double sat = max == 0 ? 0 : (max - min) / max;
+                double max = Math.Max(r, Math.Max(g, b));
+                double min = Math.Min(r, Math.Min(g, b));
+                double l = (max + min) / 2.0;
 
-                if (lum < 0.12) continue;
+                if (l < 0.15) continue; 
 
-                double weight = Math.Pow(sat, 1.5) + 0.05;
-
-                if (lum > 0.85) weight *= 0.3;
-
-                wr += pr * weight;
-                wg += pg * weight;
-                wb += pb * weight;
-                totalWeight += weight;
-            }
-
-            if (totalWeight < 0.1)
-            {
-
-                totalWeight = 0; wr = 0; wg = 0; wb = 0;
-                for (int i = 0; i < pixelBuffer.Length; i += 4)
+                double s = 0;
+                if (max != min)
                 {
-                    wr += pixelBuffer[i + 2];
-                    wg += pixelBuffer[i + 1];
-                    wb += pixelBuffer[i];
-                    totalWeight++;
+                    double d = max - min;
+                    s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
                 }
-                return Color.FromRgb((byte)(wr / totalWeight), (byte)(wg / totalWeight), (byte)(wb / totalWeight));
+
+                if (s < 0.15 && l < 0.3) continue;
+
+                double h = 0;
+                if (max != min)
+                {
+                    double d = max - min;
+                    if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
+                    else if (max == g) h = (b - r) / d + 2;
+                    else h = (r - g) / d + 4;
+                    h /= 6.0;
+                }
+
+                double luminanceWeight = l;
+                if (l > 0.8) luminanceWeight = Math.Max(0, 1.0 - (l - 0.8) * 5);
+                
+                double weight = Math.Pow(s, 1.5) * Math.Pow(luminanceWeight, 1.5);
+                
+                if (s > 0.5 && l > 0.4) weight *= 2.0;
+                if (s > 0.7 && l > 0.5) weight *= 2.0;
+
+                if (weight > 0.001)
+                {
+                    pixels[pCount++] = (r, g, b, h, s, l, weight);
+                }
             }
 
-            return Color.FromRgb(
-                (byte)Math.Clamp(wr / totalWeight * 255, 0, 255),
-                (byte)Math.Clamp(wg / totalWeight * 255, 0, 255),
-                (byte)Math.Clamp(wb / totalWeight * 255, 0, 255));
+            if (pCount > 0)
+            {
+                double[] bucketWeight = new double[12];
+                double[] bucketR = new double[12];
+                double[] bucketG = new double[12];
+                double[] bucketB = new double[12];
+
+                for (int i = 0; i < pCount; i++)
+                {
+                    var p = pixels[i];
+                    int hBucket = (int)(p.H * 12.0) % 12;
+                    if (hBucket < 0) hBucket += 12;
+
+                    bucketWeight[hBucket] += p.weight;
+                    bucketR[hBucket] += p.R * p.weight;
+                    bucketG[hBucket] += p.G * p.weight;
+                    bucketB[hBucket] += p.B * p.weight;
+                }
+
+                int bestBucket = -1;
+                double maxBw = -1;
+                for (int i = 0; i < 12; i++)
+                {
+                    if (bucketWeight[i] > maxBw)
+                    {
+                        maxBw = bucketWeight[i];
+                        bestBucket = i;
+                    }
+                }
+
+                if (bestBucket != -1 && maxBw > 0)
+                {
+                    double sumR = bucketR[bestBucket] / maxBw;
+                    double sumG = bucketG[bestBucket] / maxBw;
+                    double sumB = bucketB[bestBucket] / maxBw;
+                    
+                    return Color.FromRgb(
+                        (byte)Math.Clamp(sumR * 255.0, 0, 255),
+                        (byte)Math.Clamp(sumG * 255.0, 0, 255),
+                        (byte)Math.Clamp(sumB * 255.0, 0, 255)
+                    );
+                }
+            }
+
+            double totalR = 0, totalG = 0, totalB = 0;
+            int total = 0;
+            for (int i = 0; i < pixelBuffer.Length; i += 4)
+            {
+                totalB += pixelBuffer[i];
+                totalG += pixelBuffer[i + 1];
+                totalR += pixelBuffer[i + 2];
+                total++;
+            }
+            if (total == 0) return Color.FromRgb(30, 30, 30);
+            return Color.FromRgb((byte)(totalR / total), (byte)(totalG / total), (byte)(totalB / total));
         }
         catch
         {

@@ -21,8 +21,9 @@ public static class FastBlurService
                 int height = (int)(source.PixelHeight * ((double)width / source.PixelWidth));
                 if (height < 1) height = 1;
 
+                var formattedBitmap = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
                 // 1. Downscale
-                var smallBitmap = new TransformedBitmap(source, new ScaleTransform((double)width / source.PixelWidth, (double)height / source.PixelHeight));
+                var smallBitmap = new TransformedBitmap(formattedBitmap, new ScaleTransform((double)width / formattedBitmap.PixelWidth, (double)height / formattedBitmap.PixelHeight));
                 
                 int stride = width * 4;
                 byte[] pixels = new byte[height * stride];
