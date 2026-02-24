@@ -818,52 +818,40 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(OpacityProperty, opacityAnim);
     }
 
-    private DispatcherTimer? _cornerRadiusTimer;
+    public static readonly DependencyProperty CurrentCornerRadiusProperty =
+        DependencyProperty.Register("CurrentCornerRadius", typeof(double), typeof(MainWindow),
+            new PropertyMetadata(0.0, OnCurrentCornerRadiusChanged));
+
+    public double CurrentCornerRadius
+    {
+        get => (double)GetValue(CurrentCornerRadiusProperty);
+        set => SetValue(CurrentCornerRadiusProperty, value);
+    }
+
+    private static void OnCurrentCornerRadiusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is MainWindow window)
+        {
+            double radius = (double)e.NewValue;
+            var cr = new CornerRadius(0, 0, radius, radius);
+            window.NotchBorder.CornerRadius = cr;
+            window.InnerClipBorder.CornerRadius = cr;
+            window.MediaBackground.CornerRadius = cr;
+            window.MediaBackground2.CornerRadius = cr;
+            window.UpdateNotchClip();
+        }
+    }
 
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
     {
-        _cornerRadiusTimer?.Stop();
-
         double startRadius = NotchBorder.CornerRadius.BottomLeft;
-        double delta = targetRadius - startRadius;
+        
+        if (Math.Abs(targetRadius - startRadius) < 0.5) return;
 
-        if (Math.Abs(delta) < 0.5) return;
+        CurrentCornerRadius = startRadius;
 
-        int totalSteps = (int)(duration.TotalMilliseconds / 16);
-        int currentStep = 0;
-
-        _cornerRadiusTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(16)
-        };
-
-        _cornerRadiusTimer.Tick += (s, e) =>
-        {
-            currentStep++;
-            double progress = (double)currentStep / totalSteps;
-            double easedProgress = 1 - Math.Pow(1 - Math.Min(progress, 1), 5);
-            double currentRadius = startRadius + delta * easedProgress;
-
-            var cr = new CornerRadius(0, 0, currentRadius, currentRadius);
-            NotchBorder.CornerRadius = cr;
-            InnerClipBorder.CornerRadius = cr;
-            MediaBackground.CornerRadius = cr;
-            MediaBackground2.CornerRadius = cr;
-            UpdateNotchClip();
-
-            if (currentStep >= totalSteps)
-            {
-                _cornerRadiusTimer?.Stop();
-                var finalCr = new CornerRadius(0, 0, targetRadius, targetRadius);
-                NotchBorder.CornerRadius = finalCr;
-                InnerClipBorder.CornerRadius = finalCr;
-                MediaBackground.CornerRadius = finalCr;
-                MediaBackground2.CornerRadius = finalCr;
-                UpdateNotchClip();
-            }
-        };
-
-        _cornerRadiusTimer.Start();
+        var anim = MakeAnim(startRadius, targetRadius, new Duration(duration), _easeExpOut6, null);
+        this.BeginAnimation(CurrentCornerRadiusProperty, anim);
     }
 
     #endregion
