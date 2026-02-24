@@ -18,6 +18,7 @@
         TextOptions.TextHintingMode="Fixed"
         RenderOptions.ClearTypeHint="Enabled"
         RenderOptions.BitmapScalingMode="HighQuality"
+        xmlns:ctrl="clr-namespace:VNotch.Controls"
         RenderOptions.EdgeMode="Unspecified">
 
     <Window.Resources>
@@ -311,24 +312,13 @@
                             </Canvas>
                         </Grid>
 
-                        <StackPanel Grid.Row="0" Grid.Column="2" 
-                                    Orientation="Horizontal" 
-                                    VerticalAlignment="Center" 
-                                    Margin="0,0,4,0" 
-                                    Height="14">
-                            <Rectangle Width="2.5" Height="6" Fill="{StaticResource MusicVisualizerBrush}" Margin="1.2,0" RadiusX="1" RadiusY="1">
-                                <Rectangle.RenderTransform><ScaleTransform x:Name="VizBar1" ScaleY="1" CenterY="7"/></Rectangle.RenderTransform>
-                            </Rectangle>
-                            <Rectangle Width="2.5" Height="10" Fill="{StaticResource MusicVisualizerBrush}" Margin="1.2,0" RadiusX="1" RadiusY="1">
-                                <Rectangle.RenderTransform><ScaleTransform x:Name="VizBar2" ScaleY="1" CenterY="7"/></Rectangle.RenderTransform>
-                            </Rectangle>
-                            <Rectangle Width="2.5" Height="8" Fill="{StaticResource MusicVisualizerBrush}" Margin="1.2,0" RadiusX="1" RadiusY="1">
-                                <Rectangle.RenderTransform><ScaleTransform x:Name="VizBar3" ScaleY="1" CenterY="10"/></Rectangle.RenderTransform>
-                            </Rectangle>
-                            <Rectangle Width="2.5" Height="12" Fill="{StaticResource MusicVisualizerBrush}" Margin="1.2,0" RadiusX="1" RadiusY="1">
-                                <Rectangle.RenderTransform><ScaleTransform x:Name="VizBar4" ScaleY="1" CenterY="7"/></Rectangle.RenderTransform>
-                            </Rectangle>
-                        </StackPanel>
+                        <ctrl:MusicVisualizer x:Name="MusicViz" 
+                                              Grid.Row="0" Grid.Column="2" 
+                                              Width="16" Height="14"
+                                              Margin="0,0,4,0"
+                                              VerticalAlignment="Center"
+                                              ActiveBrush="{StaticResource MusicVisualizerBrush}"/>
+
                     </Grid>
 
                     <Grid x:Name="ExpandedContent" 

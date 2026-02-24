@@ -59,6 +59,10 @@ public class ProgressEngine
     private bool _isIndeterminate = false;
     private bool _isSeekEnabled = false;
 
+    private DateTime _firstSnapshotTime = DateTime.MinValue;
+    private bool _isInitialWarmup = true;
+    private readonly TimeSpan _initialWarmupDuration = TimeSpan.FromSeconds(4);
+
     private readonly object _lock = new object();
 
     public void OnMediaSnapshot(ProgressSnapshot snapshot)
@@ -77,19 +81,19 @@ public class ProgressEngine
             bool isNowPlaying = snapshot.IsPlaying;
             DateTime now = DateTime.UtcNow;
 
-            TimeSpan staleness = TimeSpan.Zero;
-            if (snapshot.Timestamp > DateTime.MinValue && snapshot.Timestamp.Kind == DateTimeKind.Utc)
+            if (_firstSnapshotTime == DateTime.MinValue && isNowPlaying)
             {
-                staleness = now - snapshot.Timestamp;
+                _firstSnapshotTime = now;
+                _isInitialWarmup = true;
             }
-            else if (snapshot.Timestamp > DateTime.MinValue)
-            {
-                staleness = now - snapshot.Timestamp.ToUniversalTime();
-            }
-            
-            if (staleness.TotalSeconds < 0 || staleness.TotalDays > 1) staleness = TimeSpan.Zero;
 
-            // SMTC gives us the position AT the Timestamp. The real current position is Position + Staleness.
+            TimeSpan staleness = now - (snapshot.Timestamp.Kind == DateTimeKind.Utc 
+                ? snapshot.Timestamp 
+                : snapshot.Timestamp.ToUniversalTime());
+
+            if (staleness < TimeSpan.Zero || staleness > TimeSpan.FromMinutes(5)) 
+                staleness = TimeSpan.Zero;
+
             TimeSpan actualCurrentPos = snapshot.Position;
             if (isNowPlaying)
             {
@@ -105,6 +109,9 @@ public class ProgressEngine
                 return;
             }
 
+            // Initial warmup: accept large drift and aggressively sync
+            bool inWarmup = _isInitialWarmup && (now - _firstSnapshotTime) < _initialWarmupDuration;
+
             if (_state != ProgressState.Playing && _state != ProgressState.Seeking)
             {
                 _state = ProgressState.Playing;
@@ -116,26 +123,18 @@ public class ProgressEngine
                 return;
             }
 
-            // We are playing or seeking.
             TimeSpan observedPos = actualCurrentPos;
 
-            // Check if we are in seek debounce
             if (now < _seekDebounceEndTime)
-            {
-                // In stabilization window, ignore incoming samples to avoid jitter
                 return;
-            }
 
             if (_state == ProgressState.Seeking)
-            {
                 _state = ProgressState.Playing;
-            }
 
-            // Real seek detection
+            // Seek detection
             TimeSpan seekThreshold = TimeSpan.FromMilliseconds(Math.Max(2000, _duration.TotalMilliseconds * 0.01));
             if (Math.Abs((observedPos - _lastDisplayedPosition).TotalMilliseconds) > seekThreshold.TotalMilliseconds)
             {
-                // Real seek detected
                 _anchorPosition = observedPos;
                 _anchorTimestamp = snapshot.Timestamp;
                 _stopwatch.Restart();
@@ -145,27 +144,44 @@ public class ProgressEngine
                 return;
             }
 
-            // Anti-backwards when playing
+            // During warmup: sync more aggressively, allow larger drift
+            TimeSpan effectiveDriftTolerance = inWarmup 
+                ? TimeSpan.FromSeconds(5)   // chấp nhận drift lớn trong 4s đầu
+                : _driftTolerance;
+
+            TimeSpan effectiveSyncInterval = inWarmup 
+                ? TimeSpan.FromMilliseconds(600) 
+                : _minSyncInterval;
+
+            // Anti-backwards
             if (observedPos < _lastDisplayedPosition - _backwardsTolerance)
-            {
-                // Drop sample (it's slightly in the past, maybe stale)
                 return;
-            }
 
-            // Soft sync logic (drift correction)
-            if (now - _lastSyncTime >= _minSyncInterval)
+            // Drift correction
+            if (now - _lastSyncTime >= effectiveSyncInterval)
             {
-                TimeSpan predictedPos = GetPredictedPosition();
-                double driftMs = (observedPos - predictedPos).TotalMilliseconds;
+                TimeSpan predicted = GetPredictedPosition();
+                double driftMs = (observedPos - predicted).TotalMilliseconds;
 
-                if (Math.Abs(driftMs) > _driftTolerance.TotalMilliseconds)
+                if (Math.Abs(driftMs) > effectiveDriftTolerance.TotalMilliseconds)
                 {
-                    // Update anchor
                     _anchorPosition = observedPos;
                     _anchorTimestamp = snapshot.Timestamp;
                     _stopwatch.Restart();
                     _lastSyncTime = now;
+
+                    if (inWarmup && Math.Abs(driftMs) < 3000) // nếu drift nhỏ dần → kết thúc warmup sớm
+                    {
+                        if ((now - _firstSnapshotTime).TotalSeconds > 1.5)
+                            _isInitialWarmup = false;
+                    }
                 }
+            }
+
+            // Kết thúc warmup nếu đã qua thời gian hoặc drift ổn định
+            if (inWarmup && (now - _firstSnapshotTime) >= _initialWarmupDuration)
+            {
+                _isInitialWarmup = false;
             }
         }
     }
@@ -196,6 +212,8 @@ public class ProgressEngine
             _lastDisplayedPosition = TimeSpan.Zero;
             _seekDebounceEndTime = DateTime.MinValue;
             _isIndeterminate = false;
+            _firstSnapshotTime = DateTime.MinValue;
+            _isInitialWarmup = true;
         }
     }
 

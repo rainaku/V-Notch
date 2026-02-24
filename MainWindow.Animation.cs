@@ -994,5 +994,28 @@ public partial class MainWindow
         this.BeginAnimation(CurrentCornerRadiusProperty, anim);
     }
 
+    public void PlayTrackChangeBounce()
+    {
+        if (_isExpanded || _isAnimating) return;
+
+        var durPeak = TimeSpan.FromMilliseconds(150);
+        var durEnd = TimeSpan.FromMilliseconds(800);
+
+        // Bouncy scale effect (Squash and Stretch)
+        // We must return to 1.0 to avoid permanent stretching
+        var bounceX = new DoubleAnimationUsingKeyFrames();
+        bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.12, KeyTime.FromTimeSpan(durPeak), _easeQuadOut));
+        bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(durEnd), _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(bounceX, 144);
+
+        var bounceY = new DoubleAnimationUsingKeyFrames();
+        bounceY.KeyFrames.Add(new EasingDoubleKeyFrame(0.92, KeyTime.FromTimeSpan(durPeak), _easeQuadOut));
+        bounceY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(durEnd), _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(bounceY, 144);
+
+        NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceX);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);
+    }
+
     #endregion
 }

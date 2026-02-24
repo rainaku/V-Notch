@@ -101,6 +101,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _updateTimer;
     private readonly VolumeService _volumeService;
     private readonly DispatcherTimer _hoverCollapseTimer;
+    private readonly DispatcherTimer _hoverThumbnailDelayTimer;
+
 
     private bool _isDraggingVolume = false;
     private NotchSettings _settings;
@@ -203,6 +205,19 @@ public partial class MainWindow : Window
             if (_isExpanded && !NotchWrapper.IsMouseOver)
             {
                 CollapseNotch();
+            }
+        };
+
+        _hoverThumbnailDelayTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(150)
+        };
+        _hoverThumbnailDelayTimer.Tick += (s, e) =>
+        {
+            _hoverThumbnailDelayTimer.Stop();
+            if (CompactThumbnailBorder.IsMouseOver)
+            {
+                AnimateThumbnailHover(true);
             }
         };
 
@@ -461,12 +476,13 @@ public partial class MainWindow : Window
     {
         if (!_isExpanded && !_isAnimating && _isMusicCompactMode)
         {
-            AnimateThumbnailHover(true);
+            _hoverThumbnailDelayTimer.Start();
         }
     }
 
     private void CompactThumbnailBorder_MouseLeave(object sender, MouseEventArgs e)
     {
+        _hoverThumbnailDelayTimer.Stop();
         if (!_isExpanded && !_isAnimating && _isMusicCompactMode)
         {
             AnimateThumbnailHover(false);

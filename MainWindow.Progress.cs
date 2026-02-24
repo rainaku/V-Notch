@@ -8,7 +8,6 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using VNotch.Models;
 using VNotch.Services;
-
 namespace VNotch;
 
 public partial class MainWindow
@@ -247,6 +246,7 @@ public partial class MainWindow
         e.Handled = true;
 
         _isDraggingProgress = true;
+        MusicViz.IsBuffering = true;
         ProgressBarContainer.CaptureMouse();
 
         UpdateProgressFromMouse(e);
@@ -269,6 +269,7 @@ public partial class MainWindow
         if (_isDraggingProgress)
         {
             _isDraggingProgress = false;
+            MusicViz.IsBuffering = false;
             ProgressBarContainer.ReleaseMouseCapture();
 
             await SeekToPosition(_dragSeekPosition);

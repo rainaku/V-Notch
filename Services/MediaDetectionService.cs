@@ -1259,27 +1259,53 @@ public class MediaDetectionService : IMediaDetectionService
                 var timeline = session?.GetTimelineProperties();
                 if (timeline != null)
                 {
+                    // Try to get fresher position on initial load or after big change
+                    bool isInitialOrBigChange = forceRefresh ||
+                                               _lastTrackSignature == "" ||
+                                               (DateTime.Now - _lastMetadataChangeTime).TotalSeconds < 4.0;
+
+                    if (isInitialOrBigChange)
+                    {
+                        // Wait a tiny bit and try again to get fresher timeline
+                        await Task.Delay(120);
+                        timeline = session?.GetTimelineProperties() ?? timeline;
+                    }
+
                     var duration = timeline.EndTime - timeline.StartTime;
                     if (duration <= TimeSpan.Zero) duration = timeline.MaxSeekTime;
 
-                    // Handle track transition: new track but timeline still shows old track near end
                     bool isNearlyEnd = duration.TotalSeconds > 0 &&
                         (duration - timeline.Position).TotalMilliseconds < 800;
                     bool isNewTrack = !string.IsNullOrEmpty(info.CurrentTrack) &&
-                        info.CurrentTrack != _lastTrackSignature.Split('|')[0];
+                        !string.IsNullOrEmpty(_lastTrackName) &&
+                        info.CurrentTrack != _lastTrackName;
+
+                    TimeSpan chosenPosition;
 
                     if (isNewTrack && isNearlyEnd)
                     {
-                        info.Position = TimeSpan.Zero;
-                        info.Duration = duration;
+                        chosenPosition = TimeSpan.Zero;
                         info.IsIndeterminate = false;
                     }
                     else
                     {
-                        info.Position = timeline.Position;
-                        info.Duration = duration;
-                        info.LastUpdated = timeline.LastUpdatedTime;
+                        chosenPosition = timeline.Position;
                     }
+
+                    // Extra safety: if position looks unreasonably old on initial load
+                    if (isInitialOrBigChange && chosenPosition.TotalSeconds > 5)
+                    {
+                        var playback = session?.GetPlaybackInfo();
+                        if (playback?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                        {
+                            // Assume it has been playing for at least a few seconds
+                            chosenPosition = chosenPosition + TimeSpan.FromSeconds(1.5);
+                        }
+                    }
+
+                    info.Position = chosenPosition;
+                    info.Duration = duration;
+                    info.LastUpdated = timeline.LastUpdatedTime;
 
                     if (info.Duration <= TimeSpan.Zero || info.Duration.TotalDays > 30)
                     {

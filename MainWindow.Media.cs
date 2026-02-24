@@ -104,9 +104,9 @@ public partial class MainWindow
 
                     if (isNewTrack)
                     {
-
                         _lastAnimatedTrackSignature = currentSig;
                         AnimateThumbnailSwitchOnly(info.Thumbnail);
+                        PlayTrackChangeBounce();
                     }
                     else
                     {
@@ -167,6 +167,9 @@ public partial class MainWindow
 
             UpdateProgressTracking(info);
             UpdateMusicCompactMode(info);
+
+            MusicViz.TrackId = info?.GetSignature() ?? "";
+            MusicViz.IsPlaying = info?.IsPlaying ?? false;
         });
     }
 
@@ -257,14 +260,17 @@ public partial class MainWindow
                     }
                 }
                 
-                if (info != null && info.IsPlaying) StartVisualizerAnimation();
-                else StopVisualizerAnimation();
+                if (info != null)
+                {
+                    MusicViz.IsPlaying = info.IsPlaying;
+                    MusicViz.TrackId = info.GetSignature();
+                }
             }
             return;
         }
 
         _isMusicCompactMode = shouldBeCompact;
-
+        
         if (!_isExpanded)
         {
             var widthAnim = new DoubleAnimation(_collapsedWidth, TimeSpan.FromMilliseconds(450))
@@ -280,68 +286,19 @@ public partial class MainWindow
                     AnimateThumbnailSwitchOnly(info.Thumbnail);
                 }
                 FadeSwitch(CollapsedContent, MusicCompactContent);
-                if (info != null && info.IsPlaying) StartVisualizerAnimation();
-                else StopVisualizerAnimation();
             }
             else
             {
                 FadeSwitch(MusicCompactContent, CollapsedContent);
-                StopVisualizerAnimation();
             }
         }
         else
         {
-            if (_isMusicCompactMode)
-            {
-                if (info?.Thumbnail != null)
-                {
-                    AnimateThumbnailSwitchOnly(info.Thumbnail);
-                }
-                if (info != null && info.IsPlaying) StartVisualizerAnimation();
-                else StopVisualizerAnimation();
-            }
-            else
-            {
-                StopVisualizerAnimation();
-            }
-
             MusicCompactContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Opacity = 0;
             CollapsedContent.Visibility = Visibility.Collapsed;
             CollapsedContent.Opacity = 0;
         }
-    }
-
-    #endregion
-
-    #region Visualizer
-
-    private void StartVisualizerAnimation()
-    {
-        AnimateVizBar(VizBar1, 0.4, 1.3, 0.45);
-        AnimateVizBar(VizBar2, 0.3, 1.6, 0.55);
-        AnimateVizBar(VizBar3, 0.5, 1.2, 0.35);
-        AnimateVizBar(VizBar4, 0.2, 1.5, 0.65);
-    }
-
-    private void AnimateVizBar(ScaleTransform bar, double from, double to, double durationSec)
-    {
-        var anim = new DoubleAnimation(from, to, TimeSpan.FromSeconds(durationSec))
-        {
-            AutoReverse = true,
-            RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = _easeSineInOut
-        };
-        Timeline.SetDesiredFrameRate(anim, 30);
-        bar.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
-    }
-
-    private void StopVisualizerAnimation()
-    {
-        VizBar1.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        VizBar2.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        VizBar3.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        VizBar4.BeginAnimation(ScaleTransform.ScaleYProperty, null);
     }
 
     #endregion
