@@ -489,15 +489,15 @@ public partial class MainWindow : Window
         double fillWidth = Math.Max(2, battery.Percentage / 100.0 * 26);
         BatteryFill.Width = fillWidth;
 
-        if (battery.IsCharging)
-        {
-            BatteryFill.Background = _brushCharging;
-            BatteryPercent.Foreground = _brushWhite;
-        }
-        else if (battery.Percentage < 20)
+        if (battery.Percentage <= 20)
         {
             BatteryFill.Background = _brushLowBattery;
             BatteryPercent.Foreground = _brushLowBattery;
+        }
+        else if (battery.IsCharging)
+        {
+            BatteryFill.Background = _brushCharging;
+            BatteryPercent.Foreground = _brushWhite;
         }
         else
         {

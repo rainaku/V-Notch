@@ -22,15 +22,19 @@ public class BatteryModule : INotchModule
 
     public void Initialize()
     {
-        _timer = new DispatcherTimer
+        if (_timer == null)
         {
-            Interval = TimeSpan.FromSeconds(30)
-        };
-        _timer.Tick += Timer_Tick;
+            _timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _timer.Tick += Timer_Tick;
+        }
     }
 
     public void Start()
     {
+        Initialize();
         Update();
         _timer?.Start();
     }
