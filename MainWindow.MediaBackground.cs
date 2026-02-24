@@ -22,6 +22,9 @@ public partial class MainWindow
         }
 
         var dominantColor = GetDominantColor(info.Thumbnail);
+
+        _ = UpdateBlurredBackgroundAsync(info.Thumbnail);
+
         if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49)
         {
             return;
@@ -45,11 +48,8 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(500),
             EasingFunction = _easeQuadOut
         };
-
-        MediaBackgroundBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
-        MediaBackgroundBrush2.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
-
-        double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh)) ? 0.5 : 0;
+        // Note: Image blurred masks handle their own visual cross-fading via Image source.
+        double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh)) ? 0.9 : 0;
 
         var opacityAnim = new DoubleAnimation
         {
@@ -210,6 +210,20 @@ public partial class MainWindow
     {
         if (!_isExpanded || _isAnimating || _currentMediaInfo == null) return;
         UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
+    }
+
+    private async Task UpdateBlurredBackgroundAsync(BitmapSource thumbnail)
+    {
+        try
+        {
+            var blurredImage = await FastBlurService.GetBlurredImageAsync(thumbnail);
+            if (blurredImage != null)
+            {
+                MediaBackgroundImage.Source = blurredImage;
+                MediaBackgroundImage2.Source = blurredImage;
+            }
+        }
+        catch { }
     }
 
     private Color GetDominantColor(BitmapSource bitmap)

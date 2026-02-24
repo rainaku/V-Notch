@@ -187,6 +187,9 @@ public partial class MainWindow
         var heightAnim = MakeAnim(_expandedHeight, _dur400, _easeExpOut6);
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
 
+        ExpandedContent.Width = _expandedWidth - 32;
+        ExpandedContent.Height = _expandedHeight - 24;
+
         var expandedGroup = new TransformGroup();
         var expandedTranslate = new TranslateTransform(0, 10);
         expandedGroup.Children.Add(expandedTranslate);
@@ -348,6 +351,10 @@ public partial class MainWindow
 
             _isSecondaryView = false;
         };
+
+        var fadeOutBlurAnim = MakeAnim(0, TimeSpan.FromMilliseconds(150), _easeQuadOut);
+        MediaBackground.BeginAnimation(OpacityProperty, fadeOutBlurAnim);
+        MediaBackground2.BeginAnimation(OpacityProperty, fadeOutBlurAnim);
 
         FrameworkElement contentToShow = _isMusicCompactMode ? MusicCompactContent : CollapsedContent;
         FrameworkElement contentToHide = _isMusicCompactMode ? CollapsedContent : MusicCompactContent;

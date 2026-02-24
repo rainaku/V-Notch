@@ -283,41 +283,37 @@
                         <Grid x:Name="MediaWidgetContainer" Grid.Column="0" Margin="0,0,8,0">
 
                             <Border x:Name="MediaBackground"
-                                    Width="160" Height="100"
+                                    Width="200" Height="140"
                                     HorizontalAlignment="Left"
                                     VerticalAlignment="Bottom"
-                                    CornerRadius="30"
                                     Opacity="0"
-                                    Margin="-20,0,0,-20"
+                                    Margin="-40,-10,-10,-40"
                                     IsHitTestVisible="False">
-                                <Border.Background>
-                                    <SolidColorBrush x:Name="MediaBackgroundBrush" Color="Transparent"/>
-                                </Border.Background>
-                                <Border.CacheMode>
-                                    <BitmapCache RenderAtScale="1" EnableClearType="False" SnapsToDevicePixels="False" />
-                                </Border.CacheMode>
-                                <Border.Effect>
-                                    <BlurEffect Radius="60" KernelType="Gaussian" RenderingBias="Performance"/>
-                                </Border.Effect>
+                                <Border.OpacityMask>
+                                    <RadialGradientBrush GradientOrigin="0.5,0.5" Center="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+                                        <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                        <GradientStop Color="#80FFFFFF" Offset="0.7"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                    </RadialGradientBrush>
+                                </Border.OpacityMask>
+                                <Image x:Name="MediaBackgroundImage" Stretch="UniformToFill" Opacity="0.85"/>
                             </Border>
 
                             <Border x:Name="MediaBackground2"
-                                    Width="120" Height="80"
+                                    Width="160" Height="120"
                                     HorizontalAlignment="Left"
                                     VerticalAlignment="Top"
-                                    CornerRadius="30"
                                     Opacity="0"
-                                    Margin="20,5,0,0"
+                                    Margin="0,-10,-10,-10"
                                     IsHitTestVisible="False">
-                                <Border.Background>
-                                    <SolidColorBrush x:Name="MediaBackgroundBrush2" Color="Transparent"/>
-                                </Border.Background>
-                                <Border.CacheMode>
-                                    <BitmapCache RenderAtScale="1" EnableClearType="False" SnapsToDevicePixels="False" />
-                                </Border.CacheMode>
-                                <Border.Effect>
-                                    <BlurEffect Radius="60" KernelType="Gaussian" RenderingBias="Performance"/>
-                                </Border.Effect>
+                                <Border.OpacityMask>
+                                    <RadialGradientBrush GradientOrigin="0.5,0.5" Center="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+                                        <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                        <GradientStop Color="#80FFFFFF" Offset="0.7"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                    </RadialGradientBrush>
+                                </Border.OpacityMask>
+                                <Image x:Name="MediaBackgroundImage2" Stretch="UniformToFill" Opacity="0.85"/>
                             </Border>
 
                             <Border x:Name="MediaWidget"
@@ -425,16 +421,20 @@
                                             <Path Data="{StaticResource BrowserLogo}" Fill="White" Stretch="Uniform" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                     </Grid>
-                                    <TextBlock x:Name="MediaAppName" 
-                                               Text="Now Playing" 
-                                               Style="{StaticResource SubtitleText}"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               VerticalAlignment="Center">
-                                         <TextBlock.Effect>
-                                             <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="3" Opacity="0.3" Direction="270"/>
-                                         </TextBlock.Effect>
-                                     </TextBlock>
+                                    <Grid VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Text, ElementName=MediaAppName}" 
+                                                   Style="{StaticResource SubtitleText}"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="#80000000"
+                                                   Margin="0,1,0,0" />
+                                        <TextBlock x:Name="MediaAppName" 
+                                                   Text="Now Playing" 
+                                                   Style="{StaticResource SubtitleText}"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="White" />
+                                     </Grid>
 
                                 </StackPanel>
 
@@ -488,68 +488,90 @@
                                             <Canvas x:Name="TitleScrollContainer" Height="18" Width="250" ClipToBounds="True">
                                                 <Grid x:Name="TitleMorphContainer" Canvas.Left="0" Canvas.Top="0">
 
-                                                    <TextBlock x:Name="TrackTitle" 
-                                                               Text="No media playing"
-                                                               Style="{StaticResource TitleText}">
-                                                        <TextBlock.Effect>
-                                                            <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="4" Opacity="0.5" Direction="270"/>
-                                                        </TextBlock.Effect>
-                                                        <TextBlock.RenderTransform>
+                                                    <Grid Opacity="{Binding Opacity, ElementName=TrackTitle}">
+                                                        <Grid.RenderTransform>
                                                             <TransformGroup>
                                                                 <TranslateTransform x:Name="TitleMarqueeTranslate" X="0"/>
                                                                 <TranslateTransform x:Name="TitleMorphTranslate" Y="0"/>
                                                             </TransformGroup>
-                                                        </TextBlock.RenderTransform>
-                                                    </TextBlock>
+                                                        </Grid.RenderTransform>
+                                                        <!-- Shadow layer -->
+                                                        <TextBlock Text="{Binding Text, ElementName=TrackTitle}"
+                                                                   Style="{StaticResource TitleText}"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#80000000"
+                                                                   Margin="0,1,0,0" />
+                                                        <!-- Main layer -->
+                                                        <TextBlock x:Name="TrackTitle" 
+                                                                   Text="No media playing"
+                                                                   Style="{StaticResource TitleText}"
+                                                                   FontWeight="Bold" />
+                                                    </Grid>
 
-                                                    <TextBlock x:Name="TrackTitleNext" 
-                                                               Text=""
-                                                               Style="{StaticResource TitleText}"
-                                                               Opacity="0">
-                                                        <TextBlock.Effect>
-                                                            <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="5" Opacity="0.7" Direction="270"/>
-                                                        </TextBlock.Effect>
-                                                        <TextBlock.RenderTransform>
+                                                    <Grid Opacity="{Binding Opacity, ElementName=TrackTitleNext}">
+                                                        <Grid.RenderTransform>
                                                             <TransformGroup>
                                                                 <TranslateTransform x:Name="TitleMarqueeTranslateNext" X="0"/>
                                                                 <TranslateTransform x:Name="TitleMorphTranslateNext" Y="0"/>
                                                             </TransformGroup>
-                                                        </TextBlock.RenderTransform>
-                                                    </TextBlock>
+                                                        </Grid.RenderTransform>
+                                                        <!-- Shadow layer -->
+                                                        <TextBlock Text="{Binding Text, ElementName=TrackTitleNext}"
+                                                                   Style="{StaticResource TitleText}"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#80000000"
+                                                                   Margin="0,1,0,0" />
+                                                        <!-- Main layer -->
+                                                        <TextBlock x:Name="TrackTitleNext" 
+                                                                   Text=""
+                                                                   Style="{StaticResource TitleText}"
+                                                                   FontWeight="Bold" />
+                                                    </Grid>
                                                 </Grid>
                                             </Canvas>
 
                                             <Canvas x:Name="ArtistScrollContainer" Height="16" Width="250" ClipToBounds="True" Margin="0,2,0,0">
                                                 <Grid x:Name="ArtistMorphContainer" Canvas.Left="0" Canvas.Top="0">
 
-                                                    <TextBlock x:Name="TrackArtist" 
-                                                                Text="Open Spotify or YouTube"
-                                                                Style="{StaticResource SubtitleText}">
-                                                         <TextBlock.Effect>
-                                                             <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="3" Opacity="0.3" Direction="270"/>
-                                                         </TextBlock.Effect>
-                                                         <TextBlock.RenderTransform>
-                                                             <TransformGroup>
-                                                                 <TranslateTransform x:Name="ArtistMarqueeTranslate" X="0"/>
-                                                                 <TranslateTransform x:Name="ArtistMorphTranslate" Y="0"/>
-                                                             </TransformGroup>
-                                                         </TextBlock.RenderTransform>
-                                                     </TextBlock>
+                                                    <Grid Opacity="{Binding Opacity, ElementName=TrackArtist}">
+                                                        <Grid.RenderTransform>
+                                                            <TransformGroup>
+                                                                <TranslateTransform x:Name="ArtistMarqueeTranslate" X="0"/>
+                                                                <TranslateTransform x:Name="ArtistMorphTranslate" Y="0"/>
+                                                            </TransformGroup>
+                                                        </Grid.RenderTransform>
+                                                        <!-- Shadow layer -->
+                                                        <TextBlock Text="{Binding Text, ElementName=TrackArtist}"
+                                                                   Style="{StaticResource SubtitleText}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#80000000"
+                                                                   Margin="0,1,0,0" />
+                                                        <!-- Main layer -->
+                                                        <TextBlock x:Name="TrackArtist" 
+                                                                    Text="Open Spotify or YouTube"
+                                                                    Style="{StaticResource SubtitleText}"
+                                                                    FontWeight="SemiBold" />
+                                                     </Grid>
 
-                                                     <TextBlock x:Name="TrackArtistNext" 
-                                                                Text=""
-                                                                Style="{StaticResource SubtitleText}"
-                                                                Opacity="0">
-                                                         <TextBlock.Effect>
-                                                             <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="4" Opacity="0.4" Direction="270"/>
-                                                         </TextBlock.Effect>
-                                                         <TextBlock.RenderTransform>
-                                                             <TransformGroup>
-                                                                 <TranslateTransform x:Name="ArtistMarqueeTranslateNext" X="0"/>
-                                                                 <TranslateTransform x:Name="ArtistMorphTranslateNext" Y="0"/>
-                                                             </TransformGroup>
-                                                         </TextBlock.RenderTransform>
-                                                     </TextBlock>
+                                                     <Grid Opacity="{Binding Opacity, ElementName=TrackArtistNext}">
+                                                        <Grid.RenderTransform>
+                                                            <TransformGroup>
+                                                                <TranslateTransform x:Name="ArtistMarqueeTranslateNext" X="0"/>
+                                                                <TranslateTransform x:Name="ArtistMorphTranslateNext" Y="0"/>
+                                                            </TransformGroup>
+                                                        </Grid.RenderTransform>
+                                                        <!-- Shadow layer -->
+                                                        <TextBlock Text="{Binding Text, ElementName=TrackArtistNext}"
+                                                                   Style="{StaticResource SubtitleText}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#80000000"
+                                                                   Margin="0,1,0,0" />
+                                                        <!-- Main layer -->
+                                                         <TextBlock x:Name="TrackArtistNext" 
+                                                                    Text=""
+                                                                    Style="{StaticResource SubtitleText}"
+                                                                    FontWeight="SemiBold" />
+                                                     </Grid>
                                                 </Grid>
                                             </Canvas>
                                         </StackPanel>
