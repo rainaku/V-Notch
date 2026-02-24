@@ -610,6 +610,21 @@ public partial class MainWindow
         CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
     }
 
+    private void MediaWidgetContainer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        double availableWidth = e.NewSize.Width - 72 - 12;
+        double fadeEndX = Math.Max(0, Math.Min(250, availableWidth));
+        
+        if (TextFadeBrush != null)
+        {
+            TextFadeBrush.EndPoint = new Point(fadeEndX, 0);
+            TextFadeBrush.GradientStops[0].Offset = 0;
+            double fadeStartX = Math.Max(0, fadeEndX - 20);
+            TextFadeBrush.GradientStops[1].Offset = fadeEndX > 0 ? fadeStartX / fadeEndX : 0.8;
+            TextFadeBrush.GradientStops[2].Offset = 1;
+        }
+    }
+
     #endregion
 
     #region Animation Helpers

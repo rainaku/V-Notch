@@ -92,7 +92,7 @@ public partial class MainWindow
 
         activeText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double textWidth = activeText.DesiredSize.Width;
-        double containerWidth = TitleScrollContainer.Width > 0 ? TitleScrollContainer.Width : 250;
+        double containerWidth = TitleScrollContainer.ActualWidth > 0 ? TitleScrollContainer.ActualWidth : 250;
 
         if (textWidth > containerWidth)
         {
@@ -135,7 +135,7 @@ public partial class MainWindow
 
         activeText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double textWidth = activeText.DesiredSize.Width;
-        double containerWidth = ArtistScrollContainer.Width > 0 ? ArtistScrollContainer.Width : 250;
+        double containerWidth = ArtistScrollContainer.ActualWidth > 0 ? ArtistScrollContainer.ActualWidth : 250;
 
         if (textWidth > containerWidth)
         {

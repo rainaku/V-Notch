@@ -280,7 +280,7 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Grid x:Name="MediaWidgetContainer" Grid.Column="0" Margin="0,0,8,0">
+                        <Grid x:Name="MediaWidgetContainer" Grid.Column="0" Margin="0,0,8,0" SizeChanged="MediaWidgetContainer_SizeChanged">
 
                             <Border x:Name="MediaBackground"
                                     Width="200" Height="140"
@@ -474,7 +474,7 @@
                                             </Image>
 
                                             <TextBlock x:Name="ThumbnailFallback"
-                                                       Text="🎵" 
+                                                       
                                                        FontSize="20"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"/>
@@ -484,6 +484,13 @@
                                     <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
 
                                         <StackPanel MaxWidth="250">
+                                            <StackPanel.OpacityMask>
+                                                <LinearGradientBrush x:Name="TextFadeBrush" MappingMode="Absolute" StartPoint="0,0" EndPoint="250,0">
+                                                    <GradientStop Color="Black" Offset="0"/>
+                                                    <GradientStop Color="Black" Offset="0.8"/>
+                                                    <GradientStop Color="Transparent" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </StackPanel.OpacityMask>
 
                                             <Canvas x:Name="TitleScrollContainer" Height="18" Width="250" ClipToBounds="True">
                                                 <Grid x:Name="TitleMorphContainer" Canvas.Left="0" Canvas.Top="0">
