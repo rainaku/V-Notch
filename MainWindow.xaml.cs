@@ -442,18 +442,34 @@ public partial class MainWindow : Window
     private void NotchWrapper_MouseEnter(object sender, MouseEventArgs e)
     {
         _hoverCollapseTimer.Stop();
-        if (!_isExpanded && !_isAnimating)
-        {
-            ExpandNotch();
-        }
+        AnimateNotchHover(true);
     }
 
     private void NotchWrapper_MouseLeave(object sender, MouseEventArgs e)
     {
-
         if (_isExpanded && !_isAnimating && !_isSecondaryView)
         {
             _hoverCollapseTimer.Start();
+        }
+        else if (!_isExpanded)
+        {
+            AnimateNotchHover(false);
+        }
+    }
+
+    private void CompactThumbnailBorder_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (!_isExpanded && !_isAnimating && _isMusicCompactMode)
+        {
+            AnimateThumbnailHover(true);
+        }
+    }
+
+    private void CompactThumbnailBorder_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (!_isExpanded && !_isAnimating && _isMusicCompactMode)
+        {
+            AnimateThumbnailHover(false);
         }
     }
 

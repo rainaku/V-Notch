@@ -88,12 +88,13 @@ public partial class MainWindow
             {
                 UpdateTitleText(titleText);
                 UpdateArtistText(artistText);
+                CompactTitleMarquee.Text = titleText;
             }
             else
             {
-
                 TrackTitle.Text = titleText;
                 TrackArtist.Text = artistText;
+                CompactTitleMarquee.Text = titleText;
             }
 
             if (hasRealTrack)
@@ -240,7 +241,7 @@ public partial class MainWindow
 
         if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
-        _collapsedWidth = shouldBeCompact ? 180 : _settings.Width;
+        _collapsedWidth = shouldBeCompact ? 220 : _settings.Width;
 
         if (shouldBeCompact == _isMusicCompactMode)
         {

@@ -12,6 +12,8 @@ public partial class MainWindow
     #region Media Background & Color Extraction
 
     private Color _lastDominantColor = Colors.Transparent;
+    private string? _lastTrackId = null;
+    private bool _isFadingTrack = false;
 
     private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
@@ -23,9 +25,21 @@ public partial class MainWindow
 
         var dominantColor = GetDominantColor(info.Thumbnail);
 
+        // Track change detection
+        string currentTrackId = info.GetSignature();
+        bool isNewTrack = _lastTrackId != null && _lastTrackId != currentTrackId;
+        _lastTrackId = currentTrackId;
+
+        if (isNewTrack && !forceRefresh && !_isFadingTrack && _isExpanded)
+        {
+            _isFadingTrack = true;
+            FadeToBlackThenUpdate(info);
+            return;
+        }
+
         _ = UpdateBlurredBackgroundAsync(info.Thumbnail);
 
-        if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49)
+        if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49 && !isNewTrack)
         {
             return;
         }
@@ -143,6 +157,23 @@ public partial class MainWindow
         EnsureUnfrozenFill(InlineNextArrow0);
         EnsureUnfrozenFill(InlineNextArrow1);
         EnsureUnfrozenFill(InlineNextArrow2);
+    }
+
+    private void FadeToBlackThenUpdate(MediaInfo info)
+    {
+        var fadeToBlack = new DoubleAnimation(0, TimeSpan.FromMilliseconds(300))
+        {
+            EasingFunction = _easeQuadOut
+        };
+
+        fadeToBlack.Completed += (s, e) =>
+        {
+            _isFadingTrack = false;
+            UpdateMediaBackground(info, forceRefresh: true);
+        };
+
+        MediaBackground.BeginAnimation(OpacityProperty, fadeToBlack);
+        MediaBackground2.BeginAnimation(OpacityProperty, fadeToBlack);
     }
 
     private Color GetVibrantColor(Color c)

@@ -194,7 +194,11 @@
                 <Border x:Name="NotchBorder"
                         Grid.Column="1"
                         Background="Transparent"
-                        CornerRadius="0,0,20,20">
+                        CornerRadius="0,0,20,20"
+                        RenderTransformOrigin="0.5,0">
+                    <Border.RenderTransform>
+                        <ScaleTransform x:Name="NotchScale" ScaleX="1" ScaleY="1"/>
+                    </Border.RenderTransform>
 
                 <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True" Background="Transparent">
                     <Grid SnapsToDevicePixels="True" UseLayoutRounding="True">
@@ -244,6 +248,10 @@
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Top"
                           Margin="8,4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -251,6 +259,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border x:Name="CompactThumbnailBorder"
+                                Grid.Row="0"
                                 Grid.Column="0" 
                                 Width="22" Height="22" 
                                 CornerRadius="6" 
@@ -258,7 +267,9 @@
                                 BorderBrush="#333333"
                                 BorderThickness="0.5"
                                 ClipToBounds="True"
-                                RenderTransformOrigin="0.5,0.5">
+                                RenderTransformOrigin="0,0"
+                                MouseEnter="CompactThumbnailBorder_MouseEnter"
+                                MouseLeave="CompactThumbnailBorder_MouseLeave">
                             <Border.RenderTransform>
                                 <TransformGroup>
                                     <ScaleTransform x:Name="CompactThumbnailScale" ScaleX="1" ScaleY="1"/>
@@ -272,7 +283,35 @@
                             </Image>
                         </Border>
 
-                        <StackPanel Grid.Column="2" 
+                        <Grid x:Name="CompactHoverInfo"
+                              Grid.Row="1"
+                              Grid.Column="0"
+                              Grid.ColumnSpan="3"
+                              Opacity="0"
+                              Visibility="Collapsed"
+                              Margin="4,27,4,0">
+                            <Grid.OpacityMask>
+                                <LinearGradientBrush x:Name="CompactMarqueeFadeBrush" StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="Transparent" Offset="0"/>
+                                    <GradientStop Color="Black" Offset="0.02"/>
+                                    <GradientStop Color="Black" Offset="0.98"/>
+                                    <GradientStop Color="Transparent" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Grid.OpacityMask>
+                            <Canvas x:Name="CompactTitleScrollContainer" Height="16" HorizontalAlignment="Stretch" ClipToBounds="True">
+                                <TextBlock x:Name="CompactTitleMarquee" 
+                                           Text="Title" 
+                                           Style="{StaticResource TitleText}" 
+                                           FontSize="10.5" 
+                                           VerticalAlignment="Center">
+                                    <TextBlock.RenderTransform>
+                                        <TranslateTransform x:Name="CompactTitleMarqueeTranslate" X="0"/>
+                                    </TextBlock.RenderTransform>
+                                </TextBlock>
+                            </Canvas>
+                        </Grid>
+
+                        <StackPanel Grid.Row="0" Grid.Column="2" 
                                     Orientation="Horizontal" 
                                     VerticalAlignment="Center" 
                                     Margin="0,0,4,0" 

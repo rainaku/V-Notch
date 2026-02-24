@@ -21,7 +21,9 @@ public partial class MainWindow
     private static readonly PowerEase _easePowerIn2 = new PowerEase { EasingMode = EasingMode.EaseIn, Power = 2 };
     private static readonly PowerEase _easePowerOut3 = new PowerEase { EasingMode = EasingMode.EaseOut, Power = 3 };
     private static readonly ElasticEase _easeSpring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 8 };
+    private static readonly ElasticEase _easeSoftSpring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 3 };
     private static readonly ElasticEase _easeMenuSpring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 4 };
+    private static readonly ElasticEase _easeThumbSpring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 6.5 };
     private static readonly SineEase _easeSineInOut = new SineEase { EasingMode = EasingMode.EaseInOut };
 
     static MainWindow()
@@ -35,7 +37,9 @@ public partial class MainWindow
         _easePowerIn2.Freeze();
         _easePowerOut3.Freeze();
         _easeSpring.Freeze();
+        _easeSoftSpring.Freeze();
         _easeMenuSpring.Freeze();
+        _easeThumbSpring.Freeze();
         _easeSineInOut.Freeze();
     }
 
@@ -43,8 +47,11 @@ public partial class MainWindow
 
     #region Cached Durations
 
+    private static readonly Duration _dur800 = new(TimeSpan.FromMilliseconds(800));
+    private static readonly Duration _dur700 = new(TimeSpan.FromMilliseconds(700));
     private static readonly Duration _dur600 = new(TimeSpan.FromMilliseconds(600));
     private static readonly Duration _dur500 = new(TimeSpan.FromMilliseconds(500));
+    private static readonly Duration _dur450 = new(TimeSpan.FromMilliseconds(450));
     private static readonly Duration _dur400 = new(TimeSpan.FromMilliseconds(400));
     private static readonly Duration _dur350 = new(TimeSpan.FromMilliseconds(350));
     private static readonly Duration _dur250 = new(TimeSpan.FromMilliseconds(250));
@@ -172,6 +179,8 @@ public partial class MainWindow
 
             NotchBorder.Width = _expandedWidth;
             NotchBorder.Height = _expandedHeight;
+            ExpandedContent.Width = _expandedWidth - 32;
+            ExpandedContent.Height = _expandedHeight - 24;
 
             this.UpdateLayout();
 
@@ -182,11 +191,13 @@ public partial class MainWindow
         }
 
         NotchBorder.IsHitTestVisible = false;
+        var animFps = 144;
 
-        var widthAnim = MakeAnim(_expandedWidth, _dur400, _easeExpOut6);
-        var heightAnim = MakeAnim(_expandedHeight, _dur400, _easeExpOut6);
+        var widthAnim = MakeAnim(_expandedWidth, _dur600, _easeExpOut6, animFps);
+        var heightAnim = MakeAnim(_expandedHeight, _dur600, _easeExpOut6, animFps);
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
 
+        // Dimensions already set above if first run, but ensure set here for safety
         ExpandedContent.Width = _expandedWidth - 32;
         ExpandedContent.Height = _expandedHeight - 24;
 
@@ -216,20 +227,24 @@ public partial class MainWindow
 
             var (targetX, targetY) = _cachedThumbnailExpandTarget ?? (20, 48);
 
-            var thumbDelay = TimeSpan.FromMilliseconds(50);
-            var thumbDur = _dur400;
-            var thumbEase = _easeExpOut6;
+            var thumbDelay = TimeSpan.FromMilliseconds(40);
+            var thumbDur = _dur600;
+            var thumbEase = _easeThumbSpring;
+            var thumbFps = 144;
 
             if (_cachedThumbWidthExpand == null || _cachedThumbWidthExpand.Duration != thumbDur)
             {
                 _cachedThumbWidthExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
                 _cachedThumbHeightExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
+                Timeline.SetDesiredFrameRate(_cachedThumbWidthExpand, thumbFps);
+                Timeline.SetDesiredFrameRate(_cachedThumbHeightExpand, thumbFps);
+                
                 _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), thumbDur)
                 {
                     EasingFunction = thumbEase,
                     BeginTime = thumbDelay
                 };
-                Timeline.SetDesiredFrameRate(_cachedThumbRectExpand, 120);
+                Timeline.SetDesiredFrameRate(_cachedThumbRectExpand, thumbFps);
 
                 _cachedThumbWidthExpand.Freeze();
                 _cachedThumbHeightExpand.Freeze();
@@ -238,6 +253,8 @@ public partial class MainWindow
 
             var thumbTranslateXAnim = MakeAnim(0, targetX, thumbDur, thumbEase, thumbDelay);
             var thumbTranslateYAnim = MakeAnim(0, targetY, thumbDur, thumbEase, thumbDelay);
+            Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
+            Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
 
             AnimationThumbnailBorder.BeginAnimation(WidthProperty, _cachedThumbWidthExpand);
             AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightExpand);
@@ -322,9 +339,10 @@ public partial class MainWindow
         AnimationThumbnailTranslate.Y = 0;
 
         NotchBorder.IsHitTestVisible = false;
+        var animFps = 144;
 
-        var widthAnim = MakeAnim(_collapsedWidth, _dur400, _easeExpOut6);
-        var heightAnim = MakeAnim(_collapsedHeight, _dur400, _easeExpOut6);
+        var widthAnim = MakeAnim(_collapsedWidth, _dur500, _easeExpOut6, animFps);
+        var heightAnim = MakeAnim(_collapsedHeight, _dur500, _easeExpOut6, animFps);
 
         var expandedGroup = new TransformGroup();
         var expandedTranslate = new TranslateTransform(0, 0);
@@ -387,20 +405,24 @@ public partial class MainWindow
             AnimationThumbnailTranslate.X = startX;
             AnimationThumbnailTranslate.Y = startY;
 
-            var thumbDelay = TimeSpan.FromMilliseconds(40);
-            var thumbDur = _dur400;
-            var thumbEase = _easeExpOut6;
+            var thumbDelay = TimeSpan.FromMilliseconds(30);
+            var thumbDur = _dur500;
+            var thumbEase = _easeThumbSpring;
+            var thumbFps = 144;
 
             if (_cachedThumbWidthCollapse == null || _cachedThumbWidthCollapse.Duration != thumbDur)
             {
                 _cachedThumbWidthCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
                 _cachedThumbHeightCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
+                Timeline.SetDesiredFrameRate(_cachedThumbWidthCollapse, thumbFps);
+                Timeline.SetDesiredFrameRate(_cachedThumbHeightCollapse, thumbFps);
+
                 _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), thumbDur)
                 {
                     EasingFunction = thumbEase,
                     BeginTime = thumbDelay
                 };
-                Timeline.SetDesiredFrameRate(_cachedThumbRectCollapse, 120);
+                Timeline.SetDesiredFrameRate(_cachedThumbRectCollapse, thumbFps);
 
                 _cachedThumbWidthCollapse.Freeze();
                 _cachedThumbHeightCollapse.Freeze();
@@ -409,6 +431,8 @@ public partial class MainWindow
 
             var thumbTranslateXAnim = MakeAnim(startX, 0, thumbDur, thumbEase, thumbDelay);
             var thumbTranslateYAnim = MakeAnim(startY, 0, thumbDur, thumbEase, thumbDelay);
+            Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
+            Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
 
             AnimationThumbnailBorder.BeginAnimation(WidthProperty, _cachedThumbWidthCollapse);
             AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightCollapse);
@@ -445,6 +469,15 @@ public partial class MainWindow
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
                 AnimationThumbnailTranslate.X = 0;
                 AnimationThumbnailTranslate.Y = 0;
+
+                // Reset compact hover state
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                CompactThumbnailScale.ScaleX = 1.0;
+                CompactThumbnailScale.ScaleY = 1.0;
+                CompactHoverInfo.BeginAnimation(OpacityProperty, null);
+                CompactHoverInfo.Opacity = 0;
+                CompactHoverInfo.Visibility = Visibility.Collapsed;
             }
 
         };
@@ -470,6 +503,90 @@ public partial class MainWindow
 
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
         AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(400));
+    }
+
+    #endregion
+
+    #region Hover Animations
+
+    private void AnimateNotchHover(bool isHovered)
+    {
+        if (_isExpanded || _isAnimating) return;
+
+        double targetScale = isHovered ? 1.08 : 1.0;
+        var duration = isHovered ? _dur500 : _dur350;
+        var easing = isHovered ? (IEasingFunction)_easeSoftSpring : _easeQuadOut;
+
+        var animX = MakeAnim(targetScale, duration, easing);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+    }
+
+    private void AnimateThumbnailHover(bool isHovered)
+    {
+        if (_isExpanded || _isAnimating) return;
+
+        double thumbScale = isHovered ? 1.6 : 1.0;
+        double notchHeight = isHovered ? 84 : _collapsedHeight;
+        double infoOpacity = isHovered ? 1 : 0;
+        
+        var duration = isHovered ? _dur600 : _dur450;
+        var easing = isHovered ? (IEasingFunction)_easeThumbSpring : _easeExpOut6;
+        var animFps = 144;
+
+        // Notch height (Expands to show title)
+        var heightAnim = MakeAnim(notchHeight, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
+        NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+
+        // Thumbnail scale (Anchored at 0,0 grows right and down)
+        var thumbScaleAnimX = MakeAnim(thumbScale, duration, easing, animFps);
+        var thumbScaleAnimY = MakeAnim(thumbScale, duration, easing, animFps);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, thumbScaleAnimX);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, thumbScaleAnimY);
+
+        // Info fade
+        if (isHovered)
+        {
+            CompactHoverInfo.Visibility = Visibility.Visible;
+            UpdateCompactMarquee();
+        }
+
+        var fadeAnim = MakeAnim(infoOpacity, isHovered ? _dur250 : _dur150, _easeQuadOut);
+        if (!isHovered)
+        {
+            fadeAnim.Completed += (s, e) => { if (CompactHoverInfo.Opacity < 0.1) CompactHoverInfo.Visibility = Visibility.Collapsed; };
+        }
+        CompactHoverInfo.BeginAnimation(OpacityProperty, fadeAnim);
+
+        // Corner radius adjust
+        double radius = isHovered ? 24 : _cornerRadiusCollapsed;
+        AnimateCornerRadius(radius, duration.TimeSpan);
+    }
+
+    private void UpdateCompactMarquee()
+    {
+        if (_currentMediaInfo == null) return;
+        
+        CompactTitleMarquee.Text = _currentMediaInfo.CurrentTrack;
+        CompactTitleMarquee.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        
+        double textWidth = CompactTitleMarquee.DesiredSize.Width;
+        // Chiều rộng container bằng chiều rộng Notch trừ đi Margin (4+4=8)
+        double containerWidth = _collapsedWidth - 8; 
+        
+        if (textWidth > containerWidth && containerWidth > 0)
+        {
+            // Bật hiệu ứng fade khi text dài và phải marquee
+            CompactHoverInfo.OpacityMask = CompactMarqueeFadeBrush;
+            StartMarqueeAnimation(CompactTitleMarqueeTranslate, textWidth - containerWidth + 20);
+        }
+        else
+        {
+            // Tắt hiệu ứng fade khi text ngắn để hiển thị rõ 100%
+            CompactHoverInfo.OpacityMask = null;
+            
+            CompactTitleMarqueeTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+            CompactTitleMarqueeTranslate.X = (containerWidth - textWidth) / 2;
+        }
     }
 
     #endregion

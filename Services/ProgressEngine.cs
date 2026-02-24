@@ -75,7 +75,26 @@ public class ProgressEngine
             _isSeekEnabled = snapshot.IsSeekEnabled;
 
             bool isNowPlaying = snapshot.IsPlaying;
-            DateTime now = DateTime.UtcNow; // or use snapshot.Timestamp
+            DateTime now = DateTime.UtcNow;
+
+            TimeSpan staleness = TimeSpan.Zero;
+            if (snapshot.Timestamp > DateTime.MinValue && snapshot.Timestamp.Kind == DateTimeKind.Utc)
+            {
+                staleness = now - snapshot.Timestamp;
+            }
+            else if (snapshot.Timestamp > DateTime.MinValue)
+            {
+                staleness = now - snapshot.Timestamp.ToUniversalTime();
+            }
+            
+            if (staleness.TotalSeconds < 0 || staleness.TotalDays > 1) staleness = TimeSpan.Zero;
+
+            // SMTC gives us the position AT the Timestamp. The real current position is Position + Staleness.
+            TimeSpan actualCurrentPos = snapshot.Position;
+            if (isNowPlaying)
+            {
+                actualCurrentPos += TimeSpan.FromSeconds(staleness.TotalSeconds * _playbackRate);
+            }
 
             if (!isNowPlaying)
             {
@@ -89,15 +108,16 @@ public class ProgressEngine
             if (_state != ProgressState.Playing && _state != ProgressState.Seeking)
             {
                 _state = ProgressState.Playing;
-                _anchorPosition = snapshot.Position;
+                _anchorPosition = actualCurrentPos;
                 _anchorTimestamp = snapshot.Timestamp;
                 _stopwatch.Restart();
                 _lastSyncTime = now;
+                _lastDisplayedPosition = actualCurrentPos;
                 return;
             }
 
             // We are playing or seeking.
-            TimeSpan observedPos = snapshot.Position;
+            TimeSpan observedPos = actualCurrentPos;
 
             // Check if we are in seek debounce
             if (now < _seekDebounceEndTime)
@@ -121,6 +141,7 @@ public class ProgressEngine
                 _stopwatch.Restart();
                 _seekDebounceEndTime = now + _stabilizationWindow;
                 _lastSyncTime = now;
+                _lastDisplayedPosition = observedPos;
                 return;
             }
 
