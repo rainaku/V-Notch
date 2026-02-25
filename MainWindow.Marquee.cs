@@ -50,7 +50,7 @@ public partial class MainWindow
             RepeatBehavior = RepeatBehavior.Forever,
             AutoReverse = true
         };
-        Timeline.SetDesiredFrameRate(keyAnim, 30);
+        Timeline.SetDesiredFrameRate(keyAnim, 144);
 
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(0)));
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(2))); 
@@ -154,18 +154,33 @@ public partial class MainWindow
     {
         next.Text = newText;
 
-        var dur = TimeSpan.FromMilliseconds(450);
-        var easeInOut = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
+        var dur = _dur600;
+        var animFps = 144;
+        
+        // Easing for a heavy smooth feel
+        var easeOut = _easeExpOut6;
 
+        // Reset and animate X translation for horizontal slide
+        currentMorph.BeginAnimation(TranslateTransform.XProperty, null);
+        nextMorph.BeginAnimation(TranslateTransform.XProperty, null);
         currentMorph.BeginAnimation(TranslateTransform.YProperty, null);
         nextMorph.BeginAnimation(TranslateTransform.YProperty, null);
         currentMorph.Y = 0;
         nextMorph.Y = 0;
+        
+        // Old text slides left slightly
+        var slideOut = MakeAnim(0, -10, dur, easeOut, animFps);
+        currentMorph.BeginAnimation(TranslateTransform.XProperty, slideOut);
 
-        var fadeOut = new DoubleAnimation(1, 0, dur) { EasingFunction = easeInOut };
+        // New text slides in from the right
+        var slideIn = MakeAnim(12, 0, dur, easeOut, animFps);
+        nextMorph.BeginAnimation(TranslateTransform.XProperty, slideIn);
+
+        // Fading
+        var fadeOut = MakeAnim(1, 0, dur, easeOut, animFps);
         current.BeginAnimation(OpacityProperty, fadeOut);
 
-        var fadeIn = new DoubleAnimation(0, 1, dur) { EasingFunction = easeInOut };
+        var fadeIn = MakeAnim(0, 1, dur, easeOut, animFps);
         next.BeginAnimation(OpacityProperty, fadeIn);
     }
 

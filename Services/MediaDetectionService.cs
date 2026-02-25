@@ -53,6 +53,7 @@ public class MediaDetectionService : IMediaDetectionService
 
     private List<string> _cachedWindowTitles = new();
     private DateTime _lastWindowEnumTime = DateTime.MinValue;
+
     private static readonly string[] _platformKeywords = {
         "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x", "apple music", "apple", "music"
     };
@@ -699,14 +700,18 @@ public class MediaDetectionService : IMediaDetectionService
                                             _recoveredThumbnail = frameBitmap; 
                                             info.Thumbnail = frameBitmap;
 
-                                            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                                            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                                            if (dispatcher != null)
                                             {
-                                                if (!token.IsCancellationRequested && _lastTrackSignature.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
+                                                await dispatcher.InvokeAsync(() =>
                                                 {
-                                                    _lastTrackSignature = info.GetSignature();
-                                                    MediaChanged?.Invoke(this, info);
-                                                }
-                                            });
+                                                    if (!token.IsCancellationRequested && _lastTrackSignature.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        _lastTrackSignature = info.GetSignature();
+                                                        MediaChanged?.Invoke(this, info);
+                                                    }
+                                                });
+                                            }
                                             break;
                                         }
                                     }
@@ -1152,7 +1157,7 @@ public class MediaDetectionService : IMediaDetectionService
                     {
                         var winTitleLower = title.ToLower();
 
-                        if (hasTrack && !winTitleLower.Contains(trackTitleLower))
+                        if (hasTrack && !winTitleLower.Contains(trackTitleLower) && !winTitleLower.Contains("youtube"))
                             continue;
 
                         if (winTitleLower.Contains("youtube") && !winTitleLower.StartsWith("youtube -") && winTitleLower != "youtube")
@@ -1354,10 +1359,10 @@ public class MediaDetectionService : IMediaDetectionService
 
     private class YouTubeResult
     {
-        public string? Id;
-        public string? Author;
-        public string? Title;
-        public TimeSpan Duration;
+        public string? Id { get; set; }
+        public string? Author { get; set; }
+        public string? Title { get; set; }
+        public TimeSpan Duration { get; set; }
 
         public bool TitleMatches(string otherTitle)
         {
@@ -1426,15 +1431,19 @@ public class MediaDetectionService : IMediaDetectionService
             using var ms = new MemoryStream(bytes);
 
             BitmapImage? bitmap = null;
-            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null)
             {
-                bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.StreamSource = new MemoryStream(bytes); // Need a fresh stream
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                bitmap.Freeze();
-            });
+                await dispatcher.InvokeAsync(() =>
+                {
+                    bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.StreamSource = new MemoryStream(bytes); // Need a fresh stream
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                });
+            }
             return bitmap;
         }
         catch { }

@@ -231,7 +231,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             // Update track info
             if (hasRealTrack)
             {
-                MediaSourceName = info.MediaSource;
+                MediaSourceName = info.MediaSource ?? "Now Playing";
                 TrackTitle = info.CurrentTrack;
 
                 if (!string.IsNullOrEmpty(info.CurrentArtist) &&

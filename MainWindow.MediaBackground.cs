@@ -335,10 +335,12 @@ public partial class MainWindow
         try
         {
             var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-            double scaleX = 20.0 / formattedBitmap.PixelWidth;
-            double scaleY = 20.0 / formattedBitmap.PixelHeight;
+            // Higher resolution for better accuracy
+            int sampleSize = 32;
+            double scaleX = (double)sampleSize / formattedBitmap.PixelWidth;
+            double scaleY = (double)sampleSize / formattedBitmap.PixelHeight;
             var small = new TransformedBitmap(formattedBitmap, new ScaleTransform(scaleX, scaleY));
-            
+
             int width = small.PixelWidth;
             int height = small.PixelHeight;
             if (width == 0 || height == 0) return Color.FromRgb(30, 30, 30);
@@ -347,109 +349,154 @@ public partial class MainWindow
             byte[] pixelBuffer = new byte[height * stride];
             small.CopyPixels(pixelBuffer, stride, 0);
 
-            var pixels = new (double R, double G, double B, double H, double S, double L, double weight)[width * height];
-            int pCount = 0;
+            // 24 hue buckets for finer discrimination
+            const int BUCKET_COUNT = 24;
+            double[] bucketWeight = new double[BUCKET_COUNT];
+            double[] bucketR = new double[BUCKET_COUNT];
+            double[] bucketG = new double[BUCKET_COUNT];
+            double[] bucketB = new double[BUCKET_COUNT];
+            double[] bucketS = new double[BUCKET_COUNT]; // Track avg saturation per bucket
+            int[] bucketCount = new int[BUCKET_COUNT];
 
-            for (int i = 0; i < pixelBuffer.Length; i += 4)
+            double totalWeightAll = 0;
+            double avgR = 0, avgG = 0, avgB = 0;
+
+            double centerX = width / 2.0;
+            double centerY = height / 2.0;
+            double maxDist = Math.Sqrt(centerX * centerX + centerY * centerY);
+
+            int pixelIndex = 0;
+            for (int y = 0; y < height; y++)
             {
-                double b = pixelBuffer[i] / 255.0;
-                double g = pixelBuffer[i + 1] / 255.0;
-                double r = pixelBuffer[i + 2] / 255.0;
-
-                double max = Math.Max(r, Math.Max(g, b));
-                double min = Math.Min(r, Math.Min(g, b));
-                double l = (max + min) / 2.0;
-
-                if (l < 0.15) continue; 
-
-                double s = 0;
-                if (max != min)
+                for (int x = 0; x < width; x++)
                 {
+                    int i = (y * stride) + (x * 4);
+                    double b = pixelBuffer[i] / 255.0;
+                    double g = pixelBuffer[i + 1] / 255.0;
+                    double r = pixelBuffer[i + 2] / 255.0;
+
+                    // Spatial weight: center pixels matter more
+                    double dx = (x - centerX) / centerX;
+                    double dy = (y - centerY) / centerY;
+                    double distNorm = Math.Sqrt(dx * dx + dy * dy) / 1.414;
+                    double spatialWeight = 1.0 - distNorm * 0.5; // Center=1.0, corner=0.5
+
+                    double max = Math.Max(r, Math.Max(g, b));
+                    double min = Math.Min(r, Math.Min(g, b));
+                    double l = (max + min) / 2.0;
+
+                    // Accumulate for fallback average
+                    avgR += r * spatialWeight;
+                    avgG += g * spatialWeight;
+                    avgB += b * spatialWeight;
+                    totalWeightAll += spatialWeight;
+
+                    // Skip very dark pixels
+                    if (l < 0.08) { pixelIndex++; continue; }
+
+                    double s = 0, h = 0;
                     double d = max - min;
-                    s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
-                }
-
-                if (s < 0.15 && l < 0.3) continue;
-
-                double h = 0;
-                if (max != min)
-                {
-                    double d = max - min;
-                    if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
-                    else if (max == g) h = (b - r) / d + 2;
-                    else h = (r - g) / d + 4;
-                    h /= 6.0;
-                }
-
-                double luminanceWeight = l;
-                if (l > 0.8) luminanceWeight = Math.Max(0, 1.0 - (l - 0.8) * 5);
-                
-                double weight = Math.Pow(s, 1.5) * Math.Pow(luminanceWeight, 1.5);
-                
-                if (s > 0.5 && l > 0.4) weight *= 2.0;
-                if (s > 0.7 && l > 0.5) weight *= 2.0;
-
-                if (weight > 0.001)
-                {
-                    pixels[pCount++] = (r, g, b, h, s, l, weight);
-                }
-            }
-
-            if (pCount > 0)
-            {
-                double[] bucketWeight = new double[12];
-                double[] bucketR = new double[12];
-                double[] bucketG = new double[12];
-                double[] bucketB = new double[12];
-
-                for (int i = 0; i < pCount; i++)
-                {
-                    var p = pixels[i];
-                    int hBucket = (int)(p.H * 12.0) % 12;
-                    if (hBucket < 0) hBucket += 12;
-
-                    bucketWeight[hBucket] += p.weight;
-                    bucketR[hBucket] += p.R * p.weight;
-                    bucketG[hBucket] += p.G * p.weight;
-                    bucketB[hBucket] += p.B * p.weight;
-                }
-
-                int bestBucket = -1;
-                double maxBw = -1;
-                for (int i = 0; i < 12; i++)
-                {
-                    if (bucketWeight[i] > maxBw)
+                    if (d > 0.001)
                     {
-                        maxBw = bucketWeight[i];
-                        bestBucket = i;
+                        s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
+                        if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
+                        else if (max == g) h = (b - r) / d + 2;
+                        else h = (r - g) / d + 4;
+                        h /= 6.0;
                     }
-                }
 
-                if (bestBucket != -1 && maxBw > 0)
-                {
-                    double sumR = bucketR[bestBucket] / maxBw;
-                    double sumG = bucketG[bestBucket] / maxBw;
-                    double sumB = bucketB[bestBucket] / maxBw;
-                    
-                    return Color.FromRgb(
-                        (byte)Math.Clamp(sumR * 255.0, 0, 255),
-                        (byte)Math.Clamp(sumG * 255.0, 0, 255),
-                        (byte)Math.Clamp(sumB * 255.0, 0, 255)
-                    );
+                    // Weight: balance between frequency (area coverage) and vibrancy
+                    // Low-saturation pixels still count but with reduced weight
+                    double satWeight = 0.3 + 0.7 * s; // Even gray pixels get 0.3 weight
+                    double lumWeight = l;
+                    if (l > 0.85) lumWeight = Math.Max(0.1, 1.0 - (l - 0.85) * 4);
+                    if (l < 0.2) lumWeight = l * 3; // Fade out very dark
+
+                    double weight = satWeight * lumWeight * spatialWeight;
+
+                    // Bonus for clearly chromatic pixels
+                    if (s > 0.3 && l > 0.2 && l < 0.8) weight *= 1.5;
+                    if (s > 0.5 && l > 0.3 && l < 0.75) weight *= 1.3;
+
+                    if (weight > 0.001)
+                    {
+                        int hBucket = (int)(h * BUCKET_COUNT) % BUCKET_COUNT;
+                        if (hBucket < 0) hBucket += BUCKET_COUNT;
+
+                        bucketWeight[hBucket] += weight;
+                        bucketR[hBucket] += r * weight;
+                        bucketG[hBucket] += g * weight;
+                        bucketB[hBucket] += b * weight;
+                        bucketS[hBucket] += s * weight;
+                        bucketCount[hBucket]++;
+                    }
+
+                    pixelIndex++;
                 }
             }
 
-            double totalR = 0, totalG = 0, totalB = 0;
-            int total = 0;
-            for (int i = 0; i < pixelBuffer.Length; i += 4)
+            // Find best hue region using sliding window of 3 adjacent buckets
+            // This prevents splitting a color across bucket boundaries
+            double bestScore = -1;
+            int bestCenter = -1;
+
+            for (int i = 0; i < BUCKET_COUNT; i++)
             {
-                totalB += pixelBuffer[i];
-                totalG += pixelBuffer[i + 1];
-                totalR += pixelBuffer[i + 2];
-                total++;
+                double regionWeight = 0;
+                double regionSat = 0;
+                double regionSatWeight = 0;
+
+                for (int offset = -1; offset <= 1; offset++)
+                {
+                    int idx = (i + offset + BUCKET_COUNT) % BUCKET_COUNT;
+                    regionWeight += bucketWeight[idx];
+                    regionSat += bucketS[idx];
+                    regionSatWeight += bucketWeight[idx] > 0 ? bucketWeight[idx] : 0;
+                }
+
+                // Score = coverage × (1 + avg_saturation_boost)
+                double avgSat = regionSatWeight > 0 ? regionSat / regionSatWeight : 0;
+                double score = regionWeight * (1.0 + avgSat * 0.5);
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestCenter = i;
+                }
             }
-            if (total == 0) return Color.FromRgb(30, 30, 30);
-            return Color.FromRgb((byte)(totalR / total), (byte)(totalG / total), (byte)(totalB / total));
+
+            if (bestCenter >= 0 && bestScore > 0)
+            {
+                // Merge the 3 adjacent buckets for the result
+                double sumR = 0, sumG = 0, sumB = 0, sumW = 0;
+                for (int offset = -1; offset <= 1; offset++)
+                {
+                    int idx = (bestCenter + offset + BUCKET_COUNT) % BUCKET_COUNT;
+                    sumR += bucketR[idx];
+                    sumG += bucketG[idx];
+                    sumB += bucketB[idx];
+                    sumW += bucketWeight[idx];
+                }
+
+                if (sumW > 0)
+                {
+                    return Color.FromRgb(
+                        (byte)Math.Clamp(sumR / sumW * 255.0, 0, 255),
+                        (byte)Math.Clamp(sumG / sumW * 255.0, 0, 255),
+                        (byte)Math.Clamp(sumB / sumW * 255.0, 0, 255));
+                }
+            }
+
+            // Fallback: spatial-weighted average
+            if (totalWeightAll > 0)
+            {
+                return Color.FromRgb(
+                    (byte)Math.Clamp(avgR / totalWeightAll * 255.0, 0, 255),
+                    (byte)Math.Clamp(avgG / totalWeightAll * 255.0, 0, 255),
+                    (byte)Math.Clamp(avgB / totalWeightAll * 255.0, 0, 255));
+            }
+
+            return Color.FromRgb(30, 30, 30);
         }
         catch
         {

@@ -14,7 +14,6 @@ public partial class MainWindow
 
     private static readonly ExponentialEase _easeExpOut7 = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 7 };
     private static readonly ExponentialEase _easeExpOut6 = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 };
-    private static readonly ExponentialEase _easeExpOut5 = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
     private static readonly QuadraticEase _easeQuadOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
     private static readonly QuadraticEase _easeQuadIn = new QuadraticEase { EasingMode = EasingMode.EaseIn };
     private static readonly QuadraticEase _easeQuadInOut = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
@@ -30,7 +29,6 @@ public partial class MainWindow
     {
         _easeExpOut7.Freeze();
         _easeExpOut6.Freeze();
-        _easeExpOut5.Freeze();
         _easeQuadOut.Freeze();
         _easeQuadIn.Freeze();
         _easeQuadInOut.Freeze();
@@ -47,8 +45,6 @@ public partial class MainWindow
 
     #region Cached Durations
 
-    private static readonly Duration _dur800 = new(TimeSpan.FromMilliseconds(800));
-    private static readonly Duration _dur700 = new(TimeSpan.FromMilliseconds(700));
     private static readonly Duration _dur600 = new(TimeSpan.FromMilliseconds(600));
     private static readonly Duration _dur500 = new(TimeSpan.FromMilliseconds(500));
     private static readonly Duration _dur450 = new(TimeSpan.FromMilliseconds(450));
@@ -56,7 +52,6 @@ public partial class MainWindow
     private static readonly Duration _dur350 = new(TimeSpan.FromMilliseconds(350));
     private static readonly Duration _dur250 = new(TimeSpan.FromMilliseconds(250));
     private static readonly Duration _dur200 = new(TimeSpan.FromMilliseconds(200));
-    private static readonly Duration _dur180 = new(TimeSpan.FromMilliseconds(180));
     private static readonly Duration _dur150 = new(TimeSpan.FromMilliseconds(150));
     private static readonly Duration _dur100 = new(TimeSpan.FromMilliseconds(100));
     private static readonly Duration _dur80 = new(TimeSpan.FromMilliseconds(80));
@@ -145,6 +140,12 @@ public partial class MainWindow
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
+
+        // Reset hover scales to prevent stretching inner components
+        NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        NotchScale.ScaleX = 1.0;
+        NotchScale.ScaleY = 1.0;
 
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.BeginAnimation(OpacityProperty, null);
@@ -529,7 +530,7 @@ public partial class MainWindow
         double notchHeight = isHovered ? 84 : _collapsedHeight;
         double infoOpacity = isHovered ? 1 : 0;
         
-        var duration = isHovered ? _dur600 : _dur450;
+        var duration = isHovered ? _dur500 : _dur350;
         var easing = isHovered ? (IEasingFunction)_easeThumbSpring : _easeExpOut6;
         var animFps = 144;
 
@@ -550,7 +551,7 @@ public partial class MainWindow
             UpdateCompactMarquee();
         }
 
-        var fadeAnim = MakeAnim(infoOpacity, isHovered ? _dur250 : _dur150, _easeQuadOut);
+        var fadeAnim = MakeAnim(infoOpacity, isHovered ? _dur200 : _dur100, _easeQuadOut);
         if (!isHovered)
         {
             fadeAnim.Completed += (s, e) => { if (CompactHoverInfo.Opacity < 0.1) CompactHoverInfo.Visibility = Visibility.Collapsed; };
@@ -655,8 +656,7 @@ public partial class MainWindow
         var fadeInInline = MakeAnim(0d, 1d, _dur350, _easeExpOut7, contentDelay);
         InlineControls.BeginAnimation(OpacityProperty, fadeInInline);
 
-        var dur450 = new Duration(TimeSpan.FromMilliseconds(450));
-        var slideUpAnim = MakeAnim(10, 0, dur450, _easeSpring, contentDelay);
+        var slideUpAnim = MakeAnim(10, 0, _dur450, _easeSpring, contentDelay);
         var slideTransform = InlineControls.RenderTransform as TranslateTransform ?? new TranslateTransform(0, 10);
         InlineControls.RenderTransform = slideTransform;
         slideTransform.BeginAnimation(TranslateTransform.YProperty, slideUpAnim);
@@ -1015,6 +1015,37 @@ public partial class MainWindow
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceX);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);
+    }
+
+    private void AnimateProgressBarHover(bool isHovered)
+    {
+        double margin = isHovered ? 0 : 22;
+        double scaleY = isHovered ? 1.8 : 1.0;
+        double blurRadius = isHovered ? 8 : 0;
+        double bgOpacity = isHovered ? 0.4 : 1.0;
+        
+        var duration = isHovered ? _dur400 : _dur350;
+        var easing = isHovered ? (IEasingFunction)_easeExpOut6 : _easeQuadOut;
+
+        // Margin animation (Expansion)
+        var marginAnim = new ThicknessAnimation(ProgressBarContainer.Margin, new Thickness(margin, 0, margin, 0), duration)
+        {
+            EasingFunction = easing
+        };
+        ProgressBarContainer.BeginAnimation(MarginProperty, marginAnim);
+
+        // Scale animation
+        var scaleAnim = MakeAnim(scaleY, duration, easing);
+        ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+
+        // Blur animation
+        var blurAnim = MakeAnim(blurRadius, duration, _easeQuadOut);
+        CurrentTimeBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+        RemainingTimeBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+
+        // Subtly fade background to focus on the bar
+        var bgFadeAnim = MakeAnim(bgOpacity, duration, _easeQuadOut);
+        ProgressBarBg.BeginAnimation(OpacityProperty, bgFadeAnim);
     }
 
     #endregion

@@ -223,9 +223,7 @@ public class ProgressEngine
         {
             TimeSpan pos = GetPredictedPosition();
 
-            // Floor to avoid jumping around X.99 and Y.00
-            double seconds = Math.Floor(Math.Max(0, pos.TotalSeconds));
-            pos = TimeSpan.FromSeconds(seconds);
+            pos = TimeSpan.FromSeconds(Math.Max(0, pos.TotalSeconds));
 
             // Clamp max
             if (_duration.TotalSeconds > 0 && pos > _duration)
