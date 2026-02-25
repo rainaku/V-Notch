@@ -16,7 +16,7 @@ public class NotchSettings
     public bool EnableHoverExpand { get; set; } = true;
     public bool EnableCursorBypass { get; set; } = true;
     public bool EnableAnimations { get; set; } = true;
-    public bool ShowCameraIndicator { get; set; } = true;
+    public bool ShowCameraIndicator { get; set; } = false;
 
     public double AnimationSpeed { get; set; } = 1.0; 
     public bool EnableBounceEffect { get; set; } = true;

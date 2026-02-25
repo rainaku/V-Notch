@@ -159,6 +159,11 @@ public partial class MainWindow
         MediaBackground2.BeginAnimation(OpacityProperty, null);
         PaginationDots.BeginAnimation(OpacityProperty, null);
 
+        // Reset blur animations
+        ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+
         AnimationThumbnailTranslate.X = 0;
         AnimationThumbnailTranslate.Y = 0;
         MediaBackground.Opacity = 0;
@@ -212,6 +217,11 @@ public partial class MainWindow
         var springSlide = MakeAnim(10, 0, _dur400, _easeExpOut6);
 
         var glowAnim = MakeAnim(0.15, _dur200);
+
+        // Blur animations: compact content blurs out, expanded content blurs in
+        var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
+        var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
+        ExpandedContentBlur.Radius = 24;
 
 
 
@@ -284,6 +294,14 @@ public partial class MainWindow
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
 
+            // Ensure blur is fully cleared after expand completes
+            ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            ExpandedContentBlur.Radius = 0;
+            CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            CollapsedContentBlur.Radius = 0;
+            MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            MusicCompactContentBlur.Radius = 0;
+
             AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
             AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
             AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
@@ -308,9 +326,16 @@ public partial class MainWindow
         CollapsedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutAnim);
 
+        // Blur out compact content
+        CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
+        MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
+
         ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
         PaginationDots.BeginAnimation(OpacityProperty, fadeInAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
+
+        // Blur in expanded content (from blurry to clear)
+        ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurInAnim);
 
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
         AnimateCornerRadius(_cornerRadiusExpanded, TimeSpan.FromMilliseconds(400));
@@ -328,12 +353,18 @@ public partial class MainWindow
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         SecondaryContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
+        ResetCalendarScroll();
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         PaginationDots.BeginAnimation(OpacityProperty, null);
         AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
         AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+
+        // Reset blur animations
+        ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
         AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
         AnimationThumbnailTranslate.X = 0;
@@ -392,6 +423,13 @@ public partial class MainWindow
         var springShow = MakeAnim(0.8, 1, _dur400, _easeMenuSpring);
 
         var glowAnim = MakeAnim(0, _dur150);
+
+        // Blur animations: expanded content blurs out, compact content blurs in
+        var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
+        var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
+        // Set starting blur for content that will blur in
+        CollapsedContentBlur.Radius = 24;
+        MusicCompactContentBlur.Radius = 24;
 
         if (_isMusicCompactMode && ThumbnailImage.Source != null)
         {
@@ -455,6 +493,14 @@ public partial class MainWindow
 
             contentToShow.RenderTransform = null;
 
+            // Clean up blur state for all content panels
+            ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            ExpandedContentBlur.Radius = 0;
+            CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            CollapsedContentBlur.Radius = 0;
+            MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            MusicCompactContentBlur.Radius = 0;
+
             if (_isMusicCompactMode)
             {
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
@@ -490,6 +536,9 @@ public partial class MainWindow
         PaginationDots.BeginAnimation(OpacityProperty, fadeOutAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, slideOutAnim);
 
+        // Blur out expanded content
+        ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
+
         if (SecondaryContent.Visibility == Visibility.Visible)
         {
             SecondaryContent.BeginAnimation(OpacityProperty, fadeOutAnim);
@@ -501,6 +550,10 @@ public partial class MainWindow
         contentToShow.BeginAnimation(OpacityProperty, fadeInAnim);
         showScale.BeginAnimation(ScaleTransform.ScaleXProperty, springShow);
         showScale.BeginAnimation(ScaleTransform.ScaleYProperty, springShow);
+
+        // Blur in compact content (from blurry to clear)
+        var compactBlurTarget = _isMusicCompactMode ? MusicCompactContentBlur : CollapsedContentBlur;
+        compactBlurTarget.BeginAnimation(BlurEffect.RadiusProperty, blurInAnim);
 
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
         AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(400));
@@ -619,6 +672,14 @@ public partial class MainWindow
         fadeOutControls.Completed += (s, e) => MediaControls.Visibility = Visibility.Collapsed;
         MediaControls.BeginAnimation(OpacityProperty, fadeOutControls);
 
+        var fadeOutBattery = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
+        fadeOutBattery.Completed += (s, e) => BatterySection.Visibility = Visibility.Collapsed;
+        BatterySection.BeginAnimation(OpacityProperty, fadeOutBattery);
+
+        var fadeOutGreeting = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
+        fadeOutGreeting.Completed += (s, e) => GreetingSection.Visibility = Visibility.Collapsed;
+        GreetingSection.BeginAnimation(OpacityProperty, fadeOutGreeting);
+
         double startWidth = MediaWidgetContainer.ActualWidth;
         double finalWidth = ExpandedContent.ActualWidth;
 
@@ -725,6 +786,14 @@ public partial class MainWindow
         CalendarWidget.Visibility = Visibility.Visible;
         var fadeInCalendar = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(120));
         CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
+
+        BatterySection.Visibility = Visibility.Visible;
+        var fadeInBattery = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
+        BatterySection.BeginAnimation(OpacityProperty, fadeInBattery);
+
+        GreetingSection.Visibility = Visibility.Visible;
+        var fadeInGreeting = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(140));
+        GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
     }
 
     private void MediaWidgetContainer_SizeChanged(object sender, SizeChangedEventArgs e)

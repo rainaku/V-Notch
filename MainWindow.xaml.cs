@@ -149,9 +149,20 @@ public partial class MainWindow : Window
     }
 
     private bool _calendarInitialized = false;
-    private readonly TextBlock[] _calendarDayNames = new TextBlock[3];
-    private readonly Border[] _calendarDayBorders = new Border[3];
-    private readonly TextBlock[] _calendarDayNumbers = new TextBlock[3];
+    private readonly TextBlock[] _calendarDayNames = new TextBlock[11];
+    private readonly Border[] _calendarDayBorders = new Border[11];
+    private readonly TextBlock[] _calendarDayNumbers = new TextBlock[11];
+
+    // Calendar scroll state
+    private const int CalendarTotalDays = 11;   // 5 trước + hôm nay + 5 sau
+    private const int CalendarVisibleDays = 3;  // Chỉ hiện tối đa 3 ngày
+    private const double CalendarCellWidth = 30.0; // px mỗi cell (name+border)
+    private double _calendarScrollX = 0.0;      // Vị trí translate hiện tại
+    private int _currentCalendarCenterIdx = 5;  // Index ngày đang nằm giữa (0-10)
+    private double _calendarScrollAccumulator = 0; // Tích lũy delta scroll
+    private DateTime _lastCalendarScrollTime = DateTime.MinValue;
+    private DateTime _lastCalendarUpdate = DateTime.Now;
+    private bool _isCalendarScrolling = false;
 
     #endregion
 
@@ -548,13 +559,14 @@ public partial class MainWindow : Window
         WeekDaysPanel.Children.Clear();
         WeekNumbers.Children.Clear();
 
-        for (int i = 0; i < 3; i++)
+        // Tạo 11 ngày: 5 trước + hôm nay (idx 5) + 5 sau
+        for (int i = 0; i < CalendarTotalDays; i++)
         {
             _calendarDayNames[i] = new TextBlock
             {
                 Style = (Style)FindResource("SmallText"),
                 FontSize = 9,
-                Width = 26,
+                Width = CalendarCellWidth,
                 TextAlignment = TextAlignment.Center,
                 FontWeight = FontWeights.Bold
             };
@@ -570,18 +582,28 @@ public partial class MainWindow : Window
 
             _calendarDayBorders[i] = new Border
             {
-                Width = 22,
-                Height = 22,
-                CornerRadius = new CornerRadius(11),
-                Margin = new Thickness(2, 0, 2, 0),
+                Width = 24,
+                Height = 24,
+                CornerRadius = new CornerRadius(12),
+                Margin = new Thickness((CalendarCellWidth - 24) / 2, 0, (CalendarCellWidth - 24) / 2, 0),
                 Child = _calendarDayNumbers[i]
             };
             WeekNumbers.Children.Add(_calendarDayBorders[i]);
         }
 
-        EventText.Style = (Style)FindResource("TitleText");
-        EventText.FontSize = 10;
-        EventText.Margin = new Thickness(3, 6, 0, 0);
+        // EventText now handled by XAML layout for better separation
+        // EventText.Style = (Style)FindResource("TitleText");
+        // EventText.FontSize = 10;
+        // EventText.Margin = new Thickness(12, 8, 0, 0);
+
+        // Đặt translate ban đầu: hôm nay (index 5) ở giữa viewport 3 ngày
+        // Viewport = 90px (3x30px). Index 5 nằm giữa thì index 4 ở [0,30], 5 ở [30,60], 6 ở [60,90]
+        // Index 4 bắt đầu tại 4 * 30 = 120. Translate = 0 - 120 = -120.
+        // Công thức tổng quát: TranslateX = (1 * CellWidth) - (CenterIdx * CellWidth)
+        _currentCalendarCenterIdx = 5;
+        _calendarScrollX = (1 * CalendarCellWidth) - (_currentCalendarCenterIdx * CalendarCellWidth);
+        CalendarStripTranslate.X = _calendarScrollX;
+        CalendarHighlightTranslate.X = _currentCalendarCenterIdx * CalendarCellWidth + (CalendarCellWidth - 24) / 2.0;
 
         _calendarInitialized = true;
     }
@@ -591,37 +613,231 @@ public partial class MainWindow : Window
         if (!_calendarInitialized) InitializeCalendar();
 
         var now = e.Now;
-        MonthText.Text = now.ToString("MMM");
-        DayText.Text = now.Day.ToString();
+        _lastCalendarUpdate = now;
 
         var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
-        for (int i = -1; i <= 1; i++)
+        // 11 ngày: offset -5 đến +5, idx 0..10, hôm nay = idx 5
+        for (int i = -5; i <= 5; i++)
         {
-            int idx = i + 1;
+            int idx = i + 5;
             var date = now.AddDays(i);
 
             _calendarDayNames[idx].Text = dayNames[(int)date.DayOfWeek];
             _calendarDayNumbers[idx].Text = date.Day.ToString();
-
-            if (i == 0) 
-            {
-                _calendarDayBorders[idx].Background = _brushWhite;
-                _calendarDayNumbers[idx].Foreground = _brushBlack;
-            }
-            else
-            {
-                _calendarDayBorders[idx].Background = _brushTransparent;
-                _calendarDayNumbers[idx].Foreground = _brushWhite;
-            }
         }
 
+        UpdateCalendarHighlight();
         EventText.Text = "Enjoy your day!";
+    }
+
+    private void UpdateCalendarHighlight()
+    {
+        if (!_calendarInitialized) return;
+
+        // Đọc giá trị X ĐANG hiển thị (có thể là mid-animation)
+        double currentX = (double)CalendarStripTranslate.GetValue(System.Windows.Media.TranslateTransform.XProperty);
+
+        // Tính toán index nào đang nằm ở giữa viewport 90px (center = 45px)
+        // CenterCellIdx = (45 - currentX - 15) / 30 = (30 - currentX) / 30
+        int centerIdx = (int)Math.Round((30.0 - currentX) / 30.0);
+        centerIdx = Math.Max(0, Math.Min(CalendarTotalDays - 1, centerIdx));
+
+        // Cập nhật MonthText dựa trên ngày đang được highlight
+        var highlightedDate = _lastCalendarUpdate.AddDays(centerIdx - 5);
+        MonthText.Text = highlightedDate.ToString("MMM");
+
+        // Vị trí đích của highlight trong CalendarDayStrip (Grid)
+        // Mỗi ngày chiếm 30px, highlight 24px -> căn giữa tại i*30 + 3
+        double targetHighlightX = centerIdx * CalendarCellWidth + (CalendarCellWidth - 24) / 2.0;
+
+        // 1. Animation Di chuyển Highlight (Bouncy move)
+        // Sử dụng ElasticEase để tạo độ nảy khi "hạ cánh" xuống ngày mới
+        var moveAnim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            To = targetHighlightX,
+            Duration = new Duration(TimeSpan.FromMilliseconds(600)),
+            EasingFunction = new System.Windows.Media.Animation.ElasticEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut, Oscillations = 1, Springiness = 5 }
+        };
+        Timeline.SetDesiredFrameRate(moveAnim, 144);
+        CalendarHighlightTranslate.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, moveAnim);
+
+        // 2. Animation Bouncy Pulse (Hiệu ứng nảy khối)
+        // Thay vì co dãn dẹt (liquid stretch), ta làm vòng nảy lên đồng nhất như jello
+        var pulseAnim = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames
+        {
+            Duration = new Duration(TimeSpan.FromMilliseconds(600))
+        };
+        // Phóng lớn khi bắt đầu nhảy
+        pulseAnim.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(1.25, System.Windows.Media.Animation.KeyTime.FromPercent(0.3), _easePowerOut3));
+        // Co lại và nảy nhẹ khi về đích
+        pulseAnim.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(1.0, System.Windows.Media.Animation.KeyTime.FromPercent(1.0), new System.Windows.Media.Animation.ElasticEase { Oscillations = 1, Springiness = 4 }));
+
+        Timeline.SetDesiredFrameRate(pulseAnim, 144);
+        CalendarHighlightScale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, pulseAnim);
+        CalendarHighlightScale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, pulseAnim);
+
+        // 3. Cập nhật Foreground của text
+        for (int i = 0; i < CalendarTotalDays; i++)
+        {
+            // Chỉ đổi màu chữ khi cell đó là tiêu điểm
+            _calendarDayNumbers[i].Foreground = (i == centerIdx) ? _brushBlack : _brushWhite;
+            _calendarDayBorders[i].Background = _brushTransparent; // Luôn transparent vì đã có CalendarMainHighlight
+        }
     }
 
     private void UpdateCalendarInfo()
     {
         // Now handled by CalendarModule
+    }
+
+    #endregion
+
+    #region Calendar Hover & Scroll
+
+    private void CalendarWidget_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        // Scale up với bouncy spring effect
+        var scaleUp = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            To = 1.06,
+            Duration = new Duration(TimeSpan.FromMilliseconds(500)),
+            EasingFunction = _easeSoftSpring
+        };
+        Timeline.SetDesiredFrameRate(scaleUp, 144);
+        CalendarWidgetScale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, scaleUp);
+        var scaleUpY = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            To = 1.06,
+            Duration = new Duration(TimeSpan.FromMilliseconds(500)),
+            EasingFunction = _easeSoftSpring
+        };
+        Timeline.SetDesiredFrameRate(scaleUpY, 144);
+        CalendarWidgetScale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, scaleUpY);
+    }
+
+    private void CalendarWidget_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        // Scale về 1.0
+        var scaleDown = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            To = 1.0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(350)),
+            EasingFunction = _easeQuadOut
+        };
+        Timeline.SetDesiredFrameRate(scaleDown, 144);
+        CalendarWidgetScale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, scaleDown);
+        var scaleDownY = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            To = 1.0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(350)),
+            EasingFunction = _easeQuadOut
+        };
+        Timeline.SetDesiredFrameRate(scaleDownY, 144);
+        CalendarWidgetScale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, scaleDownY);
+    }
+
+    private void CalendarWidget_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        if (!_calendarInitialized) return;
+
+        // Tích lũy delta
+        _calendarScrollAccumulator += e.Delta;
+
+        if (Math.Abs(_calendarScrollAccumulator) < 120)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        // 1 notch = nhảy 1 ngày
+        int direction = _calendarScrollAccumulator > 0 ? -1 : 1; // Lăn lên (delta > 0) -> tương lai (idx tăng) -> strip dịch trái (X giảm)
+        _calendarScrollAccumulator = 0;
+
+        // Cooldown
+        if ((DateTime.Now - _lastCalendarScrollTime).TotalMilliseconds < 100)
+        {
+            e.Handled = true;
+            return;
+        }
+        _lastCalendarScrollTime = DateTime.Now;
+
+        // Cập nhật index và tính toán đích đến chính xác (Snap)
+        int newIdx = _currentCalendarCenterIdx + direction;
+        newIdx = Math.Max(0, Math.Min(CalendarTotalDays - 1, newIdx));
+        
+        if (newIdx == _currentCalendarCenterIdx) 
+        {
+            e.Handled = true;
+            return;
+        }
+
+        _currentCalendarCenterIdx = newIdx;
+        double newX = (1 * CalendarCellWidth) - (_currentCalendarCenterIdx * CalendarCellWidth);
+        _calendarScrollX = newX;
+
+        // Animation di chuyển dải lịch mượt mà về vị trí Snap
+        _isCalendarScrolling = true;
+        System.Windows.Media.CompositionTarget.Rendering += OnCalendarRendering;
+
+        double currentX = (double)CalendarStripTranslate.GetValue(System.Windows.Media.TranslateTransform.XProperty);
+
+        var scrollAnim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            From = currentX,
+            To = newX,
+            Duration = new Duration(TimeSpan.FromMilliseconds(400)),
+            EasingFunction = _easeExpOut6
+        };
+        scrollAnim.Completed += (s, ev) => 
+        {
+            _isCalendarScrolling = false;
+            System.Windows.Media.CompositionTarget.Rendering -= OnCalendarRendering;
+            UpdateCalendarHighlight();
+        };
+        Timeline.SetDesiredFrameRate(scrollAnim, 144);
+        CalendarStripTranslate.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, scrollAnim);
+
+        e.Handled = true;
+    }
+
+    private void OnCalendarRendering(object? sender, EventArgs e)
+    {
+        if (_isCalendarScrolling)
+        {
+            UpdateCalendarHighlight();
+        }
+    }
+
+    public void ResetCalendarScroll()
+    {
+        if (!_calendarInitialized) return;
+
+        _currentCalendarCenterIdx = 5; // Reset về hôm nay
+        double targetX = (1 * CalendarCellWidth) - (_currentCalendarCenterIdx * CalendarCellWidth);
+        
+        if (Math.Abs(_calendarScrollX - targetX) < 0.1) return;
+
+        _calendarScrollX = targetX;
+        _calendarScrollAccumulator = 0;
+
+        _isCalendarScrolling = true;
+        System.Windows.Media.CompositionTarget.Rendering += OnCalendarRendering;
+
+        var scrollAnim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            To = targetX,
+            Duration = new Duration(TimeSpan.FromMilliseconds(600)),
+            EasingFunction = _easeExpOut6
+        };
+        scrollAnim.Completed += (s, ev) => 
+        {
+            _isCalendarScrolling = false;
+            System.Windows.Media.CompositionTarget.Rendering -= OnCalendarRendering;
+            UpdateCalendarHighlight();
+        };
+        Timeline.SetDesiredFrameRate(scrollAnim, 144);
+        CalendarStripTranslate.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, scrollAnim);
     }
 
     #endregion

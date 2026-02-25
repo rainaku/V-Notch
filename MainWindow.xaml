@@ -237,10 +237,14 @@
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center">
+                        <StackPanel.Effect>
+                            <BlurEffect x:Name="CollapsedContentBlur" Radius="0" RenderingBias="Performance"/>
+                        </StackPanel.Effect>
                         <Ellipse x:Name="CameraIndicator"
                                  Width="8" Height="8"
                                  Fill="#2a2a2a"
-                                 Margin="0,6,0,0"/>
+                                 Margin="0,6,0,0"
+                                 Visibility="Collapsed"/>
                     </StackPanel>
 
                     <Grid x:Name="MusicCompactContent"
@@ -249,6 +253,9 @@
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Top"
                           Margin="8,4">
+                        <Grid.Effect>
+                            <BlurEffect x:Name="MusicCompactContentBlur" Radius="0" RenderingBias="Performance"/>
+                        </Grid.Effect>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -326,6 +333,9 @@
                           Visibility="Collapsed"
                           Margin="16,12"
                           Background="{StaticResource NotchGradient}">
+                        <Grid.Effect>
+                            <BlurEffect x:Name="ExpandedContentBlur" Radius="0" RenderingBias="Performance"/>
+                        </Grid.Effect>
 
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -336,18 +346,18 @@
                         <Grid x:Name="MediaWidgetContainer" Grid.Column="0" Margin="0,0,8,0" SizeChanged="MediaWidgetContainer_SizeChanged">
 
                             <Border x:Name="MediaBackground"
-                                    Width="200" Height="140"
+                                    Width="240" Height="180"
                                     HorizontalAlignment="Left"
                                     VerticalAlignment="Bottom"
                                     Opacity="0"
-                                    Margin="-40,-10,-10,-40"
+                                    Margin="-60,-30,-20,-60"
                                     IsHitTestVisible="False">
                                 <Border.OpacityMask>
-                                    <RadialGradientBrush GradientOrigin="0.5,0.6" Center="0.5,0.6" RadiusX="0.55" RadiusY="0.55">
-                                        <GradientStop Color="#FFFFFFFF" Offset="0"/>
-                                        <GradientStop Color="#99FFFFFF" Offset="0.4"/>
-                                        <GradientStop Color="#33FFFFFF" Offset="0.75"/>
-                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                    <RadialGradientBrush GradientOrigin="0.5,0.55" Center="0.5,0.55" RadiusX="0.5" RadiusY="0.5">
+                                        <GradientStop Color="#CCFFFFFF" Offset="0"/>
+                                        <GradientStop Color="#66FFFFFF" Offset="0.35"/>
+                                        <GradientStop Color="#22FFFFFF" Offset="0.6"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="0.85"/>
                                     </RadialGradientBrush>
                                 </Border.OpacityMask>
                                 <Grid>
@@ -357,18 +367,18 @@
                             </Border>
 
                             <Border x:Name="MediaBackground2"
-                                    Width="160" Height="120"
+                                    Width="200" Height="160"
                                     HorizontalAlignment="Left"
                                     VerticalAlignment="Top"
                                     Opacity="0"
-                                    Margin="0,10,-10,-10"
+                                    Margin="-20,-20,-20,-30"
                                     IsHitTestVisible="False">
                                 <Border.OpacityMask>
-                                    <RadialGradientBrush GradientOrigin="0.4,0.4" Center="0.4,0.4" RadiusX="0.55" RadiusY="0.55">
-                                        <GradientStop Color="#CCFFFFFF" Offset="0"/>
-                                        <GradientStop Color="#66FFFFFF" Offset="0.45"/>
-                                        <GradientStop Color="#1AFFFFFF" Offset="0.8"/>
-                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                    <RadialGradientBrush GradientOrigin="0.4,0.4" Center="0.4,0.4" RadiusX="0.5" RadiusY="0.5">
+                                        <GradientStop Color="#99FFFFFF" Offset="0"/>
+                                        <GradientStop Color="#44FFFFFF" Offset="0.35"/>
+                                        <GradientStop Color="#11FFFFFF" Offset="0.65"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="0.85"/>
                                     </RadialGradientBrush>
                                 </Border.OpacityMask>
                                 <Grid>
@@ -795,9 +805,15 @@
                                 </Grid>
 
                                 <Grid x:Name="ProgressSection" Grid.Row="2" Margin="0,4,0,0" Visibility="Visible">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
                                     <TextBlock x:Name="CurrentTimeText" 
-                                               HorizontalAlignment="Left"
-                                               Margin="0,0,0,0"
+                                               Grid.Column="0"
+                                               Margin="0,0,6,0"
                                                Text="0:00" 
                                                Style="{StaticResource SmallText}"
                                                VerticalAlignment="Center">
@@ -807,7 +823,7 @@
                                     </TextBlock>
 
                                     <Grid x:Name="ProgressBarContainer" 
-                                          Margin="22,0"
+                                          Grid.Column="1"
                                           Height="12"
                                           Background="Transparent"
                                           Cursor="Hand"
@@ -846,8 +862,8 @@
                                     </Grid>
 
                                     <TextBlock x:Name="RemainingTimeText" 
-                                               HorizontalAlignment="Right"
-                                               Margin="0,0,0,0"
+                                               Grid.Column="2"
+                                               Margin="6,0,0,0"
                                                Text="0:00" 
                                                Style="{StaticResource SmallText}"
                                                VerticalAlignment="Center">
@@ -866,7 +882,7 @@
                                     Orientation="Horizontal"
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Center"
-                                    Margin="12,0">
+                                    Margin="12,18,12,0">
 
                             <Border x:Name="PrevButton"
                                     Background="Transparent"
@@ -972,92 +988,150 @@
                             </Border>
                         </StackPanel>
 
-                        <Border x:Name="CalendarWidget"
-                                Grid.Column="2" 
-                                Background="{StaticResource CardGradient}"
-                                CornerRadius="16"
-                                Padding="12"
-                                Margin="8,0,0,0">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
+                        <Grid Grid.Column="2" Margin="8,6,0,0" VerticalAlignment="Center">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                                <Border Grid.Row="0" 
-                                        HorizontalAlignment="Right" 
-                                        Cursor="Hand"
-                                        Background="Transparent"
-                                        MouseLeftButtonDown="Battery_Click"
-                                        Margin="0,0,11,8">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock x:Name="BatteryPercent" 
-                                                   Text="100%" 
-                                                   Style="{StaticResource TitleText}"
-                                                   FontSize="12"
-                                                   VerticalAlignment="Center"/>
-                                        <Border x:Name="BatteryIcon"
-                                                Width="34" Height="16"
-                                                BorderBrush="#666666"
-                                                BorderThickness="1.5"
-                                                CornerRadius="4"
-                                                Margin="6,0,0,0">
-                                            <Grid>
-                                                <Border x:Name="BatteryFill"
-                                                        Background="{StaticResource BatteryGreen}"
-                                                        CornerRadius="2"
-                                                        HorizontalAlignment="Left"
-                                                        Margin="2"
-                                                        Width="26"/>
-                                            </Grid>
-                                        </Border>
+                            <!-- Battery: Nằm sát phía trên Card -->
+                            <Border x:Name="BatterySection" Grid.Row="0" 
+                                    HorizontalAlignment="Right" 
+                                    Cursor="Hand"
+                                    Background="Transparent"
+                                    MouseLeftButtonDown="Battery_Click"
+                                    Margin="0,0,15,4">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="BatteryPercent" 
+                                               Text="100%" 
+                                               Style="{StaticResource TitleText}"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"/>
+                                    <Border x:Name="BatteryIcon"
+                                            Width="34" Height="16"
+                                            BorderBrush="#666666"
+                                            BorderThickness="1.5"
+                                            CornerRadius="4"
+                                            Margin="6,0,0,0">
+                                        <Grid>
+                                            <Border x:Name="BatteryFill"
+                                                    Background="{StaticResource BatteryGreen}"
+                                                    CornerRadius="2"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="2"
+                                                    Width="26"/>
+                                        </Grid>
+                                    </Border>
+                                    <Border Width="3" Height="7" 
+                                            Background="#666666" 
+                                            CornerRadius="0,2,2,0"
+                                            Margin="0,0,0,0"/>
+                                </StackPanel>
+                            </Border>
 
-                                        <Border Width="3" Height="7" 
-                                                Background="#666666" 
-                                                CornerRadius="0,2,2,0"
-                                                Margin="0,0,0,0"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <Grid Grid.Row="1">
+                            <!-- Calendar Card: Thu gọn Padding -->
+                            <Border x:Name="CalendarWidget"
+                                    Grid.Row="1" 
+                                    Background="{StaticResource CardGradient}"
+                                    CornerRadius="16"
+                                    Padding="10,8"
+                                    RenderTransformOrigin="0.5,0.5"
+                                    MouseEnter="CalendarWidget_MouseEnter"
+                                    MouseLeave="CalendarWidget_MouseLeave"
+                                    MouseWheel="CalendarWidget_MouseWheel">
+                                <Border.RenderTransform>
+                                    <ScaleTransform x:Name="CalendarWidgetScale" ScaleX="1" ScaleY="1"/>
+                                </Border.RenderTransform>
+                                <Grid VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                        <TextBlock x:Name="MonthText"
-                                                   Text="Dec"
-                                                   Style="{StaticResource TitleText}"
-                                                   FontSize="15"/>
-                                        <TextBlock x:Name="DayText"
-                                                   Text="14"
-                                                   Style="{StaticResource TitleText}"
-                                                   FontSize="18"
-                                                   Margin="0,2,0,0"
-                                                   HorizontalAlignment="Center"/>
-                                    </StackPanel>
+                                    <!-- Tên tháng -->
+                                    <TextBlock x:Name="MonthText"
+                                               Grid.Column="0"
+                                               Text="Dec"
+                                               Style="{StaticResource TitleText}"
+                                               FontSize="15"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    <TextBlock x:Name="DayText"
+                                               Grid.Column="0"
+                                               Text="14"
+                                               Style="{StaticResource TitleText}"
+                                               FontSize="18"
+                                               HorizontalAlignment="Center"
+                                               Visibility="Collapsed"/>
 
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <StackPanel x:Name="WeekDaysPanel" 
-                                                    Orientation="Horizontal" 
-                                                    Margin="0,0,0,4">
+                                    <Grid Grid.Column="1" VerticalAlignment="Center">
+                                        <Grid.OpacityMask>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="Transparent" Offset="0"/>
+                                                <GradientStop Color="Black" Offset="0.12"/>
+                                                <GradientStop Color="Black" Offset="0.88"/>
+                                                <GradientStop Color="Transparent" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Grid.OpacityMask>
 
-                                        </StackPanel>
-                                        <StackPanel x:Name="WeekNumbers" 
-                                                    Orientation="Horizontal">
+                                        <Canvas x:Name="CalendarStripClip"
+                                                Width="90"
+                                                Height="48"
+                                                ClipToBounds="True">
+                                            <Grid x:Name="CalendarDayStrip" HorizontalAlignment="Left">
+                                                <Grid.RenderTransform>
+                                                    <TranslateTransform x:Name="CalendarStripTranslate" X="0"/>
+                                                </Grid.RenderTransform>
 
-                                        </StackPanel>
-                                        <TextBlock x:Name="EventText"
-                                                   Text="Enjoy your day!"
-                                                   Style="{StaticResource SubtitleText}"
-                                                   Margin="0,6,0,0"
-                                                   FontSize="10"
-                                                   FontWeight="SemiBold"/>
-                                    </StackPanel>
+                                                <Border x:Name="CalendarMainHighlight"
+                                                        Width="24" Height="24"
+                                                        Background="White"
+                                                        CornerRadius="12"
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Top"
+                                                        Margin="0,17,0,0">
+                                                    <Border.RenderTransform>
+                                                        <TransformGroup>
+                                                            <ScaleTransform x:Name="CalendarHighlightScale" ScaleX="1" ScaleY="1"/>
+                                                            <TranslateTransform x:Name="CalendarHighlightTranslate" X="0"/>
+                                                        </TransformGroup>
+                                                    </Border.RenderTransform>
+                                                </Border>
+
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel x:Name="WeekDaysPanel" Orientation="Horizontal" Margin="0,0,0,4"/>
+                                                    <StackPanel x:Name="WeekNumbers" Orientation="Horizontal"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Canvas>
+                                    </Grid>
                                 </Grid>
+                            </Border>
+
+                           
+                            <Grid x:Name="GreetingSection" Grid.Row="2" Margin="10,-6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <!-- Dummy TextBlock ẩn để đẩy EventText sang đúng vị trí cột lịch -->
+                                <TextBlock Text="{Binding Text, ElementName=MonthText}"
+                                           Style="{StaticResource TitleText}"
+                                           FontSize="15"
+                                           Margin="0,0,22,0"
+                                           Visibility="Hidden"/>
+                                
+                                <TextBlock x:Name="EventText"
+                                           Grid.Column="1"
+                                           Text="Enjoy your day!"
+                                           Style="{StaticResource SubtitleText}"
+                                           FontSize="10"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"/>
                             </Grid>
-                        </Border>
+                        </Grid>
                     </Grid>
 
                     <Grid x:Name="SecondaryContent" 
