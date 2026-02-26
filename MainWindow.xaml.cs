@@ -202,8 +202,7 @@ public partial class MainWindow : Window
             Interval = TimeSpan.FromMilliseconds(1000)
         };
         _progressTimer.Tick += ProgressTimer_Tick;
-
-        GlobalMouseHook.MouseLeftButtonDown += GlobalMouseHook_MouseLeftButtonDown;
+        InputMonitorService.MouseActionTriggered += GlobalMouseHook_MouseLeftButtonDown;
 
 
         _hoverCollapseTimer = new DispatcherTimer
@@ -448,12 +447,10 @@ public partial class MainWindow : Window
         {
             if (_isSecondaryView)
             {
-
                 if (e.ClickCount == 2) CollapseNotch();
             }
             else
             {
-
                 CollapseNotch();
             }
         }

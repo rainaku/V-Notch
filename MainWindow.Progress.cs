@@ -14,7 +14,7 @@ public partial class MainWindow
 {
     private bool _isDraggingProgress = false; 
     private bool _isProgressBarExpanded = false;
-    private bool _isReleasingMouseCapture = false; // Block false MouseLeave from ReleaseMouseCapture()
+    private bool _isReleasingMouseCapture = false; 
     private int _lastDisplayedSecond = -1;
     private TimeSpan _dragSeekPosition = TimeSpan.Zero; 
     
@@ -159,7 +159,7 @@ public partial class MainWindow
 
     private DateTime _lastOutsideClickTime = DateTime.MinValue;
 
-    private void GlobalMouseHook_MouseLeftButtonDown(object? sender, GlobalMouseHook.POINT pt)
+    private void GlobalMouseHook_MouseLeftButtonDown(object? sender, InputMonitorService.POINT pt)
     {
         Dispatcher.Invoke(() =>
         {
@@ -495,7 +495,7 @@ public partial class MainWindow
 
         // Sau khi tất cả Input-priority events (bao gồm MouseLeave defer) được xử lý xong,
         // mới quyết định collapse hay giữ trạng thái hover dựa trên IsMouseOver thực tế.
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (System.Action)(() =>
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (System.Action)(() =>
         {
             _isReleasingMouseCapture = false;
 
@@ -592,35 +592,12 @@ public partial class MainWindow
 
     private void ProgressBar_MouseEnter(object sender, MouseEventArgs e)
     {
-        // LOCKED: Tạm thời tắt tính năng hover scale
-        // if (_progressHoverTimer == null)
-        // {
-        //     _progressHoverTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        //     _progressHoverTimer.Tick += (s, _) =>
-        //     {
-        //         _progressHoverTimer.Stop();
-        //         if (ProgressBarContainer.IsMouseOver && !_isProgressBarExpanded)
-        //         {
-        //             _isProgressBarExpanded = true;
-        //             AnimateProgressBarHover(true);
-        //         }
-        //     };
-        // }
-        // _progressHoverTimer.Stop();
-        // _progressHoverTimer.Start();
+ 
     }
 
     private void ProgressBar_MouseLeave(object sender, MouseEventArgs e)
     {
-        _progressHoverTimer?.Stop();
-
-        // LOCKED: Tạm thời tắt hover scale collapse
-        // if (_isDraggingProgress || _isClickSeekPending || _isReleasingMouseCapture) return;
-        // if (_isProgressBarExpanded)
-        // {
-        //     _isProgressBarExpanded = false;
-        //     AnimateProgressBarHover(false);
-        // }
+       
     }
 
     #endregion
@@ -649,11 +626,11 @@ public partial class MainWindow
 
         if (isExpanded)
         {
-            GlobalMouseHook.Start();
+            InputMonitorService.Start();
         }
         else
         {
-            GlobalMouseHook.Stop();
+            InputMonitorService.Stop();
         }
     }
 

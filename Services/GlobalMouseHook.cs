@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace VNotch.Services;
 
-public static class GlobalMouseHook
+public static class InputMonitorService
 {
     private const int WH_MOUSE_LL = 14;
     private const int WM_LBUTTONDOWN = 0x0201;
@@ -31,7 +31,7 @@ public static class GlobalMouseHook
     private static LowLevelMouseProc? _proc;
     private static IntPtr _hookID = IntPtr.Zero;
 
-    public static event EventHandler<POINT>? MouseLeftButtonDown;
+    public static event EventHandler<POINT>? MouseActionTriggered;
 
     public static void Start()
     {
@@ -49,12 +49,8 @@ public static class GlobalMouseHook
 
     private static IntPtr SetHook(LowLevelMouseProc proc)
     {
-        using (Process curProcess = Process.GetCurrentProcess())
-        using (ProcessModule? curModule = curProcess.MainModule)
-        {
-            if (curModule == null) return IntPtr.Zero;
-            return SetWindowsHookEx(WH_MOUSE_LL, proc, GetModuleHandle(curModule.ModuleName!), 0);
-        }
+        var hModule = GetModuleHandle(Process.GetCurrentProcess().MainModule?.ModuleName!);
+        return SetWindowsHookEx(WH_MOUSE_LL, proc, hModule, 0);
     }
 
     private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -62,7 +58,7 @@ public static class GlobalMouseHook
         if (nCode >= 0 && wParam == (IntPtr)WM_LBUTTONDOWN)
         {
             MSLLHOOKSTRUCT hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
-            MouseLeftButtonDown?.Invoke(null, hookStruct.pt);
+            MouseActionTriggered?.Invoke(null, hookStruct.pt);
         }
         return CallNextHookEx(_hookID, nCode, wParam, lParam);
     }

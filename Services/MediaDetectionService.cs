@@ -784,34 +784,38 @@ public class MediaDetectionService : IMediaDetectionService
 
             GlobalSystemMediaTransportControlsSession? session = null;
             string? spotifyGroundTruth = null;
+            string osCurrentId = _sessionManager.GetCurrentSession()?.SourceAppUserModelId ?? "";
 
             if (_activeDisplaySession != null && !forceRefresh)
             {
                 try
                 {
-                    var playback = _activeDisplaySession.GetPlaybackInfo();
-                    if (playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                    if (string.IsNullOrEmpty(osCurrentId) || osCurrentId == _activeDisplaySession.SourceAppUserModelId)
                     {
-                        var props = await _activeDisplaySession.TryGetMediaPropertiesAsync();
-                        if (props != null && !string.IsNullOrEmpty(props.Title))
+                        var playback = _activeDisplaySession.GetPlaybackInfo();
+                        if (playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
                         {
-
-                            if (_activeDisplaySession.SourceAppUserModelId.Contains("Spotify", StringComparison.OrdinalIgnoreCase))
+                            var props = await _activeDisplaySession.TryGetMediaPropertiesAsync();
+                            if (props != null && !string.IsNullOrEmpty(props.Title))
                             {
-                                spotifyGroundTruth = GetSpotifyWindowTitle();
-                                if (string.IsNullOrEmpty(spotifyGroundTruth) || !spotifyGroundTruth.Contains(props.Title, StringComparison.OrdinalIgnoreCase))
-                                {
 
-                                    session = null;
+                                if (_activeDisplaySession.SourceAppUserModelId.Contains("Spotify", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    spotifyGroundTruth = GetSpotifyWindowTitle();
+                                    if (string.IsNullOrEmpty(spotifyGroundTruth) || !spotifyGroundTruth.Contains(props.Title, StringComparison.OrdinalIgnoreCase))
+                                    {
+
+                                        session = null;
+                                    }
+                                    else
+                                    {
+                                        session = _activeDisplaySession;
+                                    }
                                 }
                                 else
                                 {
                                     session = _activeDisplaySession;
                                 }
-                            }
-                            else
-                            {
-                                session = _activeDisplaySession;
                             }
                         }
                     }
@@ -874,9 +878,15 @@ public class MediaDetectionService : IMediaDetectionService
                             else if (isYouTube) score += 350;
                             else if (isBrowser) score += 100; 
 
+                            if (osCurrentId == sourceApp)
+                            {
+                                score += 1000; // Boost OS current session
+                            }
+
                             if (isActive)
                             {
                                 score += 500; 
+                                if (osCurrentId == sourceApp) score += 1000; // Extra boost if both current and active!
                                 _sessionLastPlayingTimes[sourceApp] = DateTime.Now;
                             }
 
@@ -892,7 +902,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 if (!string.IsNullOrEmpty(props.Artist) && props.Artist != "YouTube" && props.Artist != "Browser") score += 200;
                             }
 
-                            if (score > bestScore && (isActive || isPrevActive))
+                            if (score > bestScore && (isActive || isPrevActive || osCurrentId == sourceApp))
                             {
                                 bestScore = score;
                                 bestSession = s;
@@ -918,7 +928,9 @@ public class MediaDetectionService : IMediaDetectionService
 
                     double holdTime = currentIsPremium ? 4.0 : 1.5;
 
-                    if ((DateTime.Now - _pendingSessionStartTime).TotalSeconds < holdTime)
+                    bool isOsCurrent = !string.IsNullOrEmpty(osCurrentId) && bestId == osCurrentId;
+
+                    if (!isOsCurrent && (DateTime.Now - _pendingSessionStartTime).TotalSeconds < holdTime)
                     {
                         bestSession = _activeDisplaySession;
                     }

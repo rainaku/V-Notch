@@ -12,14 +12,20 @@
     <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <ReadyToRun>true</ReadyToRun>
+    <ReadyToRun>false</ReadyToRun>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     
     <Version>1.4</Version>
+    <Authors>rainaku</Authors>
     <Company>V-Notch</Company>
     <Product>V-Notch</Product>
-    <Description>MacOS Notch for Windows</Description>
+    <Copyright>Copyright © 2024 rainaku</Copyright>
+    <PackageId>V-Notch</PackageId>
+    <PackageProjectUrl>https://github.com/rainaku/V-Notch</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rainaku/V-Notch</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Description>MacOS Notch for Windows - A beautiful and functional notch for your desktop</Description>
     <ApplicationIcon>logo.ico</ApplicationIcon>
     
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -28,6 +34,7 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="1.1.0" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
