@@ -147,7 +147,11 @@
             <Grid x:Name="NotchShadowWrapper" 
                   HorizontalAlignment="Center" 
                   VerticalAlignment="Top"
+                  RenderTransformOrigin="0.5,0"
                   Effect="{StaticResource NotchShadow}">
+                <Grid.RenderTransform>
+                    <ScaleTransform x:Name="NotchShadowScale" ScaleX="1" ScaleY="1"/>
+                </Grid.RenderTransform>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -167,11 +171,19 @@
                         CornerRadius="{Binding CornerRadius, ElementName=NotchBorder}"
                         Width="{Binding Width, ElementName=NotchBorder}"
                         Height="{Binding Height, ElementName=NotchBorder}"/>
+
+                <Path Grid.Column="2" 
+                      Data="M 0,10 L 0,0 L 11,0 Q 1,0 1,10 Z" 
+                      Fill="Black" 
+                      Width="11" Height="10" 
+                      Margin="-1,0,0,0"
+                      VerticalAlignment="Top"/>
             </Grid>
 
             <Grid x:Name="NotchWrapper" 
                   HorizontalAlignment="Center" 
                   VerticalAlignment="Top"
+                  RenderTransformOrigin="0.5,0"
                   Cursor="Hand"
                   MouseLeftButtonDown="NotchBorder_MouseLeftButtonDown"
                   MouseEnter="NotchWrapper_MouseEnter"
@@ -182,6 +194,9 @@
                   DragOver="NotchWrapper_DragOver"
                   DragLeave="NotchWrapper_DragLeave"
                   Drop="NotchWrapper_DragDrop">
+                <Grid.RenderTransform>
+                    <ScaleTransform x:Name="NotchScale" ScaleX="1" ScaleY="1"/>
+                </Grid.RenderTransform>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -200,11 +215,7 @@
                 <Border x:Name="NotchBorder"
                         Grid.Column="1"
                         Background="Transparent"
-                        CornerRadius="0,0,20,20"
-                        RenderTransformOrigin="0.5,0">
-                    <Border.RenderTransform>
-                        <ScaleTransform x:Name="NotchScale" ScaleX="1" ScaleY="1"/>
-                    </Border.RenderTransform>
+                        CornerRadius="0,0,20,20">
 
                 <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True" Background="Transparent">
                     <Grid SnapsToDevicePixels="True" UseLayoutRounding="True">
@@ -1344,7 +1355,7 @@
 
             <Path x:Name="RightEar" 
                   Grid.Column="2" 
-                  Data="M 0,0 L 11,0 Q 1,0 1,10 Z" 
+                  Data="M 0,10 L 0,0 L 11,0 Q 1,0 1,10 Z" 
                   Fill="{StaticResource NotchGradient}" 
                   Width="11" Height="10" 
                   Margin="-1,0,0,0"

@@ -147,6 +147,11 @@ public partial class MainWindow
         NotchScale.ScaleX = 1.0;
         NotchScale.ScaleY = 1.0;
 
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        NotchShadowScale.ScaleX = 1.0;
+        NotchShadowScale.ScaleY = 1.0;
+
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
@@ -573,6 +578,7 @@ public partial class MainWindow
 
         var animX = MakeAnim(targetScale, duration, easing);
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
     }
 
     private void AnimateThumbnailHover(bool isHovered)
@@ -1084,6 +1090,8 @@ public partial class MainWindow
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceX);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceX);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);
     }
 
     private void AnimateProgressBarHover(bool isHovered)
