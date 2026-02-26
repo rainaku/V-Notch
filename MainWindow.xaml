@@ -176,7 +176,12 @@
                   MouseLeftButtonDown="NotchBorder_MouseLeftButtonDown"
                   MouseEnter="NotchWrapper_MouseEnter"
                   MouseLeave="NotchWrapper_MouseLeave"
-                  MouseWheel="NotchWrapper_MouseWheel">
+                  MouseWheel="NotchWrapper_MouseWheel"
+                  AllowDrop="True"
+                  DragEnter="NotchWrapper_DragEnter"
+                  DragOver="NotchWrapper_DragOver"
+                  DragLeave="NotchWrapper_DragLeave"
+                  Drop="NotchWrapper_DragDrop">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -1164,6 +1169,17 @@
                                     </StackPanel>
                                 </Border>
 
+                                <Border x:Name="CameraErrorOverlay" Background="#60000000" Visibility="Collapsed">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10">
+                                        <Path Data="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 17c-.77 1.333.192 3 1.732 3z" 
+                                              Stroke="White" StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Cannot detect camera device" Style="{StaticResource SmallText}" FontSize="9"
+                                                   Foreground="White" HorizontalAlignment="Center" Margin="0,4,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
+                                        <TextBlock Text="click to try again" Style="{StaticResource SmallText}" FontSize="8"
+                                                   Foreground="#99FFFFFF" HorizontalAlignment="Center" FontStyle="Italic"/>
+                                    </StackPanel>
+                                </Border>
+
                                 <Border x:Name="CameraLiveIndicator" 
                                         Background="#FF3B30" 
                                         HorizontalAlignment="Left" 
@@ -1277,7 +1293,7 @@
                                         HorizontalAlignment="Stretch" 
                                         VerticalAlignment="Stretch"
                                         Background="Transparent">
-                                    <Border x:Name="SelectionRect" Background="#40007AFF" BorderBrush="#007AFF" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                    <Border x:Name="SelectionRect" Background="#24FFFFFF" BorderBrush="#99FFFFFF" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top" CornerRadius="3"/>
                                 </Canvas>
                             </Grid>
                         </Border>

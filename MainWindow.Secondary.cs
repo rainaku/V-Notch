@@ -31,8 +31,8 @@ public partial class MainWindow
 
     private static readonly SolidColorBrush _brushShelfItemBg = CreateFrozenBrush(37, 37, 37);
     private static readonly SolidColorBrush _brushShelfItemBorder = CreateFrozenBrush(51, 51, 51);
-    private static readonly SolidColorBrush _brushShelfSelectedBg = CreateFrozenBrush(0, 122, 255, 64); 
-    private static readonly SolidColorBrush _brushShelfSelectedBorder = CreateFrozenBrush(0, 122, 255); 
+    private static readonly SolidColorBrush _brushShelfSelectedBg     = CreateFrozenBrush(255, 255, 255, 40);  // white ~16%
+    private static readonly SolidColorBrush _brushShelfSelectedBorder = CreateFrozenBrush(255, 255, 255, 140); // white ~55%
 
     private Point _selectionStart;
     private bool _isSelecting = false;
@@ -77,9 +77,12 @@ public partial class MainWindow
 
         NotchBorder.IsHitTestVisible = false;
 
-        var durTotal = new Duration(TimeSpan.FromMilliseconds(450));
-        var durFast = new Duration(TimeSpan.FromMilliseconds(200));
+        var durOut  = new Duration(TimeSpan.FromMilliseconds(180));
+        var durIn   = new Duration(TimeSpan.FromMilliseconds(480));
+        var inDelay = TimeSpan.FromMilliseconds(50);
+        const int fps = 144;
 
+        // ── PRIMARY EXIT: slide up + scale down + fade out ──
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
         var primaryTranslate = new TranslateTransform(0, 0);
@@ -88,34 +91,54 @@ public partial class MainWindow
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeOut = MakeAnim(1, 0, durFast, _easeQuadOut);
-        var slideOut = MakeAnim(0, -10, durTotal, _easeExpOut7);
+        var fadeOut    = MakeAnim(1, 0,    durOut, _easeQuadIn);
+        var slideUp    = MakeAnim(0, -16,  durOut, _easeQuadIn);
+        var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
+        var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
+        Timeline.SetDesiredFrameRate(slideUp,    fps);
+        Timeline.SetDesiredFrameRate(scaleDownX, fps);
+        Timeline.SetDesiredFrameRate(scaleDownY, fps);
+
+        // Blur-out to create depth illusion
+        var expandedBlur = ExpandedContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+        ExpandedContent.Effect = expandedBlur;
+        var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
 
         fadeOut.Completed += (s, e) =>
         {
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
+            ExpandedContent.Effect = null;
+            expandedBlur.Radius = 0;
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOut);
-        primaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
+        primaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideUp);
+        primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDownX);
+        primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
+        expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-
-
+        // ── SECONDARY ENTER: bouncy spring from below + fade in (144fps) ──
         SecondaryContent.Visibility = Visibility.Visible;
         SecondaryContent.Opacity = 0;
         EnableKeyboardInput();
 
-        var secondaryGroup = new TransformGroup();
-        var secondaryTranslate = new TranslateTransform(0, 15);
+        var secondaryGroup     = new TransformGroup();
+        var secondaryScale     = new ScaleTransform(0.93, 0.93);
+        var secondaryTranslate = new TranslateTransform(0, 26);
+        secondaryGroup.Children.Add(secondaryScale);
         secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeIn = MakeAnim(0, 1, durTotal, _easePowerOut3);
-
-        var springScale = MakeAnim(1.08, 1, durTotal, _easeMenuSpring);
-        var springSlide = MakeAnim(15, 0, durTotal, _easeExpOut7);
+        var fadeIn       = MakeAnim(0, 1,    durIn, _easeExpOut6,   inDelay);
+        var springSlide  = MakeAnim(26, 0,   durIn, _easeExpOut7,   inDelay);
+        var springScaleX = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
+        var springScaleY = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
+        Timeline.SetDesiredFrameRate(fadeIn,       fps);
+        Timeline.SetDesiredFrameRate(springSlide,  fps);
+        Timeline.SetDesiredFrameRate(springScaleX, fps);
+        Timeline.SetDesiredFrameRate(springScaleY, fps);
 
         UpdatePaginationDots();
 
@@ -123,14 +146,15 @@ public partial class MainWindow
         {
             _isAnimating = false;
             NotchBorder.IsHitTestVisible = true;
-
             SecondaryContent.Opacity = 1;
             SecondaryContent.BeginAnimation(OpacityProperty, null);
-
+            SecondaryContent.RenderTransform = null;
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeIn);
         secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
+        secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
+        secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
     }
 
     private void SwitchToPrimaryView()
@@ -141,44 +165,69 @@ public partial class MainWindow
 
         NotchBorder.IsHitTestVisible = false;
 
-        var durTotal = new Duration(TimeSpan.FromMilliseconds(450));
-        var durFast = new Duration(TimeSpan.FromMilliseconds(200));
+        var durOut  = new Duration(TimeSpan.FromMilliseconds(180));
+        var durIn   = new Duration(TimeSpan.FromMilliseconds(480));
+        var inDelay = TimeSpan.FromMilliseconds(50);
+        const int fps = 144;
 
-        var secondaryGroup = new TransformGroup();
-        var secondaryScale = new ScaleTransform(1, 1);
+        // ── SECONDARY EXIT: slide down + scale down + fade out ──
+        var secondaryGroup     = new TransformGroup();
+        var secondaryScale     = new ScaleTransform(1, 1);
         var secondaryTranslate = new TranslateTransform(0, 0);
         secondaryGroup.Children.Add(secondaryScale);
         secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeOut = MakeAnim(1, 0, durFast, _easeQuadOut);
-        var slideOut = MakeAnim(0, 10, durTotal, _easeExpOut7);
+        var fadeOut    = MakeAnim(1, 0,    durOut, _easeQuadIn);
+        var slideDown  = MakeAnim(0, 16,   durOut, _easeQuadIn);
+        var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
+        var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
+        Timeline.SetDesiredFrameRate(slideDown,  fps);
+        Timeline.SetDesiredFrameRate(scaleDownX, fps);
+        Timeline.SetDesiredFrameRate(scaleDownY, fps);
+
+        // Blur-out shelf content for depth
+        var secondaryBlur = SecondaryContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+        SecondaryContent.Effect = secondaryBlur;
+        var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
 
         fadeOut.Completed += (s, e) =>
         {
             SecondaryContent.Visibility = Visibility.Collapsed;
             SecondaryContent.RenderTransform = null;
+            SecondaryContent.Effect = null;
+            secondaryBlur.Radius = 0;
             DisableKeyboardInput();
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeOut);
-        secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
+        secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideDown);
+        secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDownX);
+        secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
+        secondaryBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-
-
+        // ── PRIMARY ENTER: bouncy spring from above + fade in (144fps) ──
         ExpandedContent.Visibility = Visibility.Visible;
         ExpandedContent.Opacity = 0;
+        ExpandedContent.Effect = null;
 
-        var primaryGroup = new TransformGroup();
-        var primaryTranslate = new TranslateTransform(0, -10);
+        var primaryGroup     = new TransformGroup();
+        var primaryScale     = new ScaleTransform(0.93, 0.93);
+        var primaryTranslate = new TranslateTransform(0, -26);
+        primaryGroup.Children.Add(primaryScale);
         primaryGroup.Children.Add(primaryTranslate);
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeIn = MakeAnim(0, 1, durTotal, _easePowerOut3);
-        var springScale = MakeAnim(0.92, 1, durTotal, _easeMenuSpring);
-        var springSlide = MakeAnim(-10, 0, durTotal, _easeExpOut7);
+        var fadeIn       = MakeAnim(0, 1,     durIn, _easeExpOut6,    inDelay);
+        var springSlide  = MakeAnim(-26, 0,   durIn, _easeExpOut7,    inDelay);
+        var springScaleX = MakeAnim(0.93, 1,  durIn, _easeSoftSpring, inDelay);
+        var springScaleY = MakeAnim(0.93, 1,  durIn, _easeSoftSpring, inDelay);
+        Timeline.SetDesiredFrameRate(fadeIn,       fps);
+        Timeline.SetDesiredFrameRate(springSlide,  fps);
+        Timeline.SetDesiredFrameRate(springScaleX, fps);
+        Timeline.SetDesiredFrameRate(springScaleY, fps);
 
         UpdatePaginationDots();
 
@@ -186,15 +235,145 @@ public partial class MainWindow
         {
             _isAnimating = false;
             NotchBorder.IsHitTestVisible = true;
-
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
-
+            ExpandedContent.RenderTransform = null;
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeIn);
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
+        primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
+        primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
     }
+
+    #region Drag-to-Open
+
+    // True khi notch được mở tự động do drag (để biết cần đóng lại nếu drag rời đi)
+    private bool _dragAutoExpanded = false;
+
+    private System.Windows.Threading.DispatcherTimer? _dragWaitTimer;
+    private System.Windows.Threading.DispatcherTimer? _dragCollapseTimer;
+
+    private void NotchWrapper_DragEnter(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+        e.Effects = DragDropEffects.Copy;
+        e.Handled = true;
+
+        // Huỷ bất kỳ pending collapse nào
+        _dragCollapseTimer?.Stop();
+
+        if (!_isExpanded && !_isAnimating)
+        {
+            // Notch đang thu gọn → mở ra và sau đó switch sang shelf
+            _dragAutoExpanded = true;
+            ExpandNotch();
+            StartDragWaitForShelf();
+        }
+        else if (_isExpanded && _isAnimating)
+        {
+            // Đang animate expand do drag trước đó hay click → chờ xong rồi switch
+            StartDragWaitForShelf();
+        }
+        else if (_isExpanded && !_isSecondaryView && !_isAnimating)
+        {
+            // Đã mở nhưng chưa ở shelf → switch luôn
+            SwitchToSecondaryView();
+        }
+        // Nếu đã ở secondary view rồi → không cần làm gì
+    }
+
+    private void NotchWrapper_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            e.Effects = DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    private void NotchWrapper_DragLeave(object sender, DragEventArgs e)
+    {
+        if (!_dragAutoExpanded) return;
+
+        // Debounce: DragLeave bắn nhiều lần khi chuột đi qua child elements
+        // Chờ 150ms, nếu DragEnter không bắn lại thì thực sự là đã rời
+        _dragCollapseTimer?.Stop();
+        _dragCollapseTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(150)
+        };
+        _dragCollapseTimer.Tick += (s, args) =>
+        {
+            _dragCollapseTimer?.Stop();
+            AutoCollapseAfterDrag();
+        };
+        _dragCollapseTimer.Start();
+    }
+
+    private void NotchWrapper_DragDrop(object sender, DragEventArgs e)
+    {
+        // User đã drop → giữ nguyên trạng thái mở, xóa cờ auto-expand
+        _dragWaitTimer?.Stop();
+        _dragCollapseTimer?.Stop();
+        _dragAutoExpanded = false;
+    }
+
+    /// <summary>Dùng timer poll 40ms để chờ expand hoàn tất rồi switch sang shelf.</summary>
+    private void StartDragWaitForShelf()
+    {
+        _dragWaitTimer?.Stop();
+        _dragWaitTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(40)
+        };
+        _dragWaitTimer.Tick += (s, args) =>
+        {
+            if (_isExpanded && !_isAnimating)
+            {
+                _dragWaitTimer?.Stop();
+                if (!_isSecondaryView) SwitchToSecondaryView();
+            }
+        };
+        _dragWaitTimer.Start();
+    }
+
+    /// <summary>Khi drag rời notch mà không drop: switch lại Primary rồi collapse.</summary>
+    private void AutoCollapseAfterDrag()
+    {
+        _dragAutoExpanded = false;
+        _dragWaitTimer?.Stop();
+
+        if (!_isExpanded) return;
+
+        if (_isSecondaryView && !_isAnimating)
+        {
+            // Switch về primary trước, sau đó collapse
+            SwitchToPrimaryView();
+
+            var collapseWait = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(40)
+            };
+            collapseWait.Tick += (s2, args2) =>
+            {
+                if (!_isSecondaryView && !_isAnimating)
+                {
+                    collapseWait.Stop();
+                    CollapseNotch();
+                }
+                else if (!_isAnimating && !_isSecondaryView)
+                {
+                    collapseWait.Stop();
+                }
+            };
+            collapseWait.Start();
+        }
+        else if (!_isAnimating)
+        {
+            CollapseNotch();
+        }
+    }
+
+    #endregion
 
     #region File Shelf Logic
 
@@ -204,8 +383,8 @@ public partial class MainWindow
         {
             e.Effects = DragDropEffects.Copy;
             FileShelf.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#2A2A2A")!;
-            FileShelfDashedBorder.Stroke = (SolidColorBrush)new BrushConverter().ConvertFrom("#007AFF")!; 
-            FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 2, 1 }; 
+            FileShelfDashedBorder.Stroke = (SolidColorBrush)new BrushConverter().ConvertFrom("#99FFFFFF")!;
+            FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 2, 1 };
         }
     }
 
@@ -233,17 +412,158 @@ public partial class MainWindow
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            foreach (string file in files)
+            // Lọc file chưa có trong shelf
+            var newFiles = files.Where(f => !_shelfFiles.Contains(f)).ToArray();
+            if (newFiles.Length > 0)
+                AddFilesToShelfSequential(newFiles);
+        }
+    }
+
+    // Queue tuần tự để tránh lag spike khi drop nhiều file
+    private readonly Queue<string> _pendingShelfFiles = new Queue<string>();
+    private bool _isAddingSequential = false;
+
+    private void AddFilesToShelfSequential(string[] filePaths)
+    {
+        foreach (var f in filePaths)
+            _pendingShelfFiles.Enqueue(f);
+
+        if (!_isAddingSequential)
+            ProcessNextPendingFile();
+    }
+
+    private void ProcessNextPendingFile()
+    {
+        if (_pendingShelfFiles.Count == 0)
+        {
+            _isAddingSequential = false;
+            return;
+        }
+
+        _isAddingSequential = true;
+        var filePath = _pendingShelfFiles.Dequeue();
+
+        if (!_shelfFiles.Contains(filePath))
+        {
+            _shelfFiles.Add(filePath);
+            ShelfPlaceholder.Visibility = Visibility.Collapsed;
+            WatchShelfDirectory(filePath);
+
+            // Rebuild toàn bộ để đảm bảo layout đúng (an toàn, không bỏ sót file nào)
+            RefreshShelfLayout();
+
+            // Animate pop-in cho item CUỐI CÙNG vừa được thêm
+            if (ShelfItemsContainer.Children.Count > 0)
             {
-                AddFileToShelf(file);
+                var lastItem = ShelfItemsContainer.Children[ShelfItemsContainer.Children.Count - 1] as FrameworkElement;
+                if (lastItem != null)
+                {
+                    lastItem.Opacity = 0;
+                    lastItem.RenderTransformOrigin = new Point(0.5, 0.5);
+                    var st = new ScaleTransform(0.75, 0.75);
+                    lastItem.RenderTransform = st;
+
+                    var fadeIn  = new DoubleAnimation(0, 1,    new Duration(TimeSpan.FromMilliseconds(200))) { EasingFunction = _easeExpOut6 };
+                    var scaleIn = new DoubleAnimation(0.75, 1, new Duration(TimeSpan.FromMilliseconds(280))) { EasingFunction = _easeMenuSpring };
+                    Timeline.SetDesiredFrameRate(fadeIn,  120);
+                    Timeline.SetDesiredFrameRate(scaleIn, 120);
+
+                    fadeIn.Completed += (s2, e2) =>
+                    {
+                        lastItem.Opacity = 1;
+                        lastItem.BeginAnimation(OpacityProperty, null);
+                        // KHÔNG được set null vì MouseEnter/Leave cần ScaleTransform để animate
+                        lastItem.RenderTransform = new ScaleTransform(1, 1);
+                    };
+
+                    lastItem.BeginAnimation(OpacityProperty, fadeIn);
+                    st.BeginAnimation(ScaleTransform.ScaleXProperty, scaleIn);
+                    st.BeginAnimation(ScaleTransform.ScaleYProperty, scaleIn);
+
+                    // Thêm progress bar vào item
+                    AnimateShelfItemProgress(lastItem);
+                }
             }
         }
+
+        // Delay 90ms trước khi xử lý file tiếp theo
+        var timer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(90)
+        };
+        timer.Tick += (s, args) =>
+        {
+            timer.Stop();
+            ProcessNextPendingFile();
+        };
+        timer.Start();
+    }
+
+    /// <summary>Overlay mini progress bar lên shelf item, tự fade out sau khi đầy.</summary>
+    private void AnimateShelfItemProgress(FrameworkElement item)
+    {
+        if (item is not Border border) return;
+
+        var progressBar = new Border
+        {
+            Height = 2,
+            CornerRadius = new CornerRadius(1),
+            Background = new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(4, 0, 4, 3),
+            Width = 0,
+            IsHitTestVisible = false
+        };
+
+        var originalChild = border.Child;
+        var overlay = new Grid();
+        if (originalChild != null)
+        {
+            border.Child = null;
+            overlay.Children.Add(originalChild);
+        }
+        overlay.Children.Add(progressBar);
+        border.Child = overlay;
+
+        void StartProgress()
+        {
+            double targetW = Math.Max(8, border.ActualWidth - 8);
+            var grow = new DoubleAnimation(0, targetW, new Duration(TimeSpan.FromMilliseconds(320)))
+            {
+                EasingFunction = _easeExpOut6
+            };
+            Timeline.SetDesiredFrameRate(grow, 120);
+            grow.Completed += (_, _) =>
+            {
+                var fade = new DoubleAnimation(1, 0, new Duration(TimeSpan.FromMilliseconds(280)))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(100)
+                };
+                fade.Completed += (_, _) =>
+                {
+                    // Restore original structure để tránh nested overlay tích lũy
+                    overlay.Children.Remove(progressBar);
+                    if (overlay.Children.Count == 1 && overlay.Children[0] is UIElement only)
+                    {
+                        overlay.Children.Remove(only);
+                        border.Child = only;
+                    }
+                };
+                progressBar.BeginAnimation(OpacityProperty, fade);
+            };
+            progressBar.BeginAnimation(WidthProperty, grow);
+        }
+
+        if (border.IsLoaded)
+            StartProgress();
+        else
+            border.Loaded += (_, _) => StartProgress();
     }
 
     private void AddFileToShelf(string filePath)
     {
         if (_shelfFiles.Contains(filePath)) return;
-
         _shelfFiles.Add(filePath);
         ShelfPlaceholder.Visibility = Visibility.Collapsed;
         WatchShelfDirectory(filePath);
@@ -262,8 +582,8 @@ public partial class MainWindow
             if (_selectedFiles.Contains(file))
             {
                 var border = (Border)item;
-                border.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#40007AFF")!;
-                border.BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom("#007AFF")!;
+                border.Background  = _brushShelfSelectedBg;
+                border.BorderBrush = _brushShelfSelectedBorder;
             }
             ShelfItemsContainer.Children.Add(item);
         }
@@ -328,6 +648,13 @@ public partial class MainWindow
 
         border.Child = stack;
 
+        AttachShelfItemEvents(border, filePath);
+        return border;
+    }
+
+
+    private void AttachShelfItemEvents(Border border, string filePath)
+    {
         border.MouseEnter += (s, e) =>
         {
             if (!_selectedFiles.Contains(filePath))
@@ -335,8 +662,8 @@ public partial class MainWindow
                 border.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#303030")!;
                 border.BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom("#555555")!;
             }
-            if (!_isSweepSelecting)
-                AnimateButtonScale((ScaleTransform)border.RenderTransform!, 1.05);
+            if (!_isSweepSelecting && border.RenderTransform is ScaleTransform st)
+                AnimateButtonScale(st, 1.05);
         };
         border.MouseLeave += (s, e) =>
         {
@@ -345,8 +672,8 @@ public partial class MainWindow
                 border.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#252525")!;
                 border.BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom("#333333")!;
             }
-            if (!_isSweepSelecting)
-                AnimateButtonScale((ScaleTransform)border.RenderTransform!, 1.0);
+            if (!_isSweepSelecting && border.RenderTransform is ScaleTransform st)
+                AnimateButtonScale(st, 1.0);
         };
 
         var menu = new ContextMenu();
@@ -358,7 +685,7 @@ public partial class MainWindow
         border.MouseLeftButtonDown += (s, e) =>
         {
             _dragStartPoint = e.GetPosition(null);
-            _selectionStart = e.GetPosition(FileShelfGrid); 
+            _selectionStart = e.GetPosition(FileShelfGrid);
             _didDragOutFromShelf = false;
             _isSweepSelecting = false;
             _sweepStartFile = filePath;
@@ -375,13 +702,11 @@ public partial class MainWindow
 
             if (isCtrl)
             {
-
                 if (_selectedFiles.Contains(filePath)) _selectedFiles.Remove(filePath);
                 else _selectedFiles.Add(filePath);
             }
             else
             {
-
                 if (!_wasSelectedOnMouseDown)
                 {
                     _selectedFiles.Clear();
@@ -400,7 +725,6 @@ public partial class MainWindow
         {
             if (_didDragOutFromShelf || _isSweepSelecting || _isSelecting)
             {
-
                 _isSelecting = false;
                 _isSweepSelecting = false;
                 _sweepStartFile = null;
@@ -410,8 +734,8 @@ public partial class MainWindow
 
                 foreach (var child in ShelfItemsContainer.Children)
                 {
-                    if (child is Border b)
-                        AnimateButtonScale((ScaleTransform)b.RenderTransform!, 1.0);
+                    if (child is Border b && b.RenderTransform is ScaleTransform st)
+                        AnimateButtonScale(st, 1.0);
                 }
                 return;
             }
@@ -443,7 +767,6 @@ public partial class MainWindow
                 if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
                     Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
                 {
-
                     if (_wasSelectedOnMouseDown)
                     {
                         if (border.IsMouseCaptured) border.ReleaseMouseCapture();
@@ -473,7 +796,7 @@ public partial class MainWindow
                     if (isInsideShelf)
                     {
                         _isSelecting = true;
-                        _isSweepSelecting = true; 
+                        _isSweepSelecting = true;
                         SelectionCanvas.Visibility = Visibility.Visible;
 
                         bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
@@ -484,7 +807,6 @@ public partial class MainWindow
                     }
                     else
                     {
-
                         if (border.IsMouseCaptured) border.ReleaseMouseCapture();
                         _didDragOutFromShelf = true;
                         var data = new DataObject(DataFormats.FileDrop, new[] { filePath });
@@ -499,8 +821,6 @@ public partial class MainWindow
                 e.Handled = true;
             }
         };
-
-        return border;
     }
 
     private HashSet<string> _selectionInitialState = new HashSet<string>();
@@ -677,22 +997,93 @@ public partial class MainWindow
             e.Handled = true;
         }
 
-        else if (e.Key == Key.Delete && _isSecondaryView && _selectedFiles.Count > 0)
+        else if (e.Key == Key.Delete && _isSecondaryView && _selectedFiles.Count > 0 && !_isAnimating)
         {
+            _isAnimating = true;
             var filesToRemove = _selectedFiles.ToList();
-            foreach (var file in filesToRemove)
+            
+            AnimateFileDeletion(filesToRemove, () => 
             {
-                _shelfFiles.Remove(file);
-                _selectedFiles.Remove(file);
-                UnwatchShelfDirectory(file);
-            }
+                foreach (var file in filesToRemove)
+                {
+                    _shelfFiles.Remove(file);
+                    _selectedFiles.Remove(file);
+                    UnwatchShelfDirectory(file);
+                }
 
-            RefreshShelfLayout();
-            if (_shelfFiles.Count == 0)
-            {
-                ShelfPlaceholder.Visibility = Visibility.Visible;
-            }
+                RefreshShelfLayout();
+                if (_shelfFiles.Count == 0)
+                {
+                    ShelfPlaceholder.Visibility = Visibility.Visible;
+                }
+                _isAnimating = false;
+            });
             e.Handled = true;
+        }
+    }
+
+    private void AnimateFileDeletion(IEnumerable<string> filePaths, Action onCompletion)
+    {
+        var targets = new List<FrameworkElement>();
+        foreach (var path in filePaths)
+        {
+            foreach (var child in ShelfItemsContainer.Children)
+            {
+                if (child is Border b && (string)b.Tag == path)
+                {
+                    targets.Add(b);
+                    break;
+                }
+            }
+        }
+
+        if (targets.Count == 0)
+        {
+            onCompletion();
+            return;
+        }
+
+        var dur = new Duration(TimeSpan.FromMilliseconds(320));
+        var easeBack = new BackEase { EasingMode = EasingMode.EaseIn, Amplitude = 0.6 };
+        easeBack.Freeze();
+
+        int completed = 0;
+        int total = targets.Count;
+
+        foreach (var target in targets)
+        {
+            // Sử dụng TransformGroup để kết hợp Scale và Translate
+            var st = new ScaleTransform(1, 1);
+            var tt = new TranslateTransform(0, 0);
+            var group = new TransformGroup();
+            group.Children.Add(st);
+            group.Children.Add(tt);
+
+            target.RenderTransform = group;
+            target.RenderTransformOrigin = new Point(0.5, 0.5);
+
+            var fadeOut = new DoubleAnimation(1, 0, dur) { EasingFunction = _easeExpOut6 };
+            var scaleDown = new DoubleAnimation(1, 0, dur) { EasingFunction = easeBack };
+            var slideUp = new DoubleAnimation(0, -25, dur) { EasingFunction = _easeExpOut6 };
+
+            // Đặt fps cao cho mượt
+            Timeline.SetDesiredFrameRate(fadeOut, 144);
+            Timeline.SetDesiredFrameRate(scaleDown, 144);
+            Timeline.SetDesiredFrameRate(slideUp, 144);
+
+            scaleDown.Completed += (s, e) =>
+            {
+                completed++;
+                if (completed == total)
+                {
+                    onCompletion();
+                }
+            };
+
+            target.BeginAnimation(OpacityProperty, fadeOut);
+            st.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);
+            st.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDown);
+            tt.BeginAnimation(TranslateTransform.YProperty, slideUp);
         }
     }
 
@@ -784,15 +1175,22 @@ public partial class MainWindow
 
     private void RemoveFileFromShelf(string filePath, Border item)
     {
-        _shelfFiles.Remove(filePath);
-        _selectedFiles.Remove(filePath);
-        UnwatchShelfDirectory(filePath);
-        RefreshShelfLayout();
+        if (_isAnimating) return;
+        _isAnimating = true;
 
-        if (_shelfFiles.Count == 0)
+        AnimateFileDeletion(new[] { filePath }, () => 
         {
-            ShelfPlaceholder.Visibility = Visibility.Visible;
-        }
+            _shelfFiles.Remove(filePath);
+            _selectedFiles.Remove(filePath);
+            UnwatchShelfDirectory(filePath);
+            RefreshShelfLayout();
+
+            if (_shelfFiles.Count == 0)
+            {
+                ShelfPlaceholder.Visibility = Visibility.Visible;
+            }
+            _isAnimating = false;
+        });
     }
 
     private void WatchShelfDirectory(string filePath)
@@ -836,15 +1234,18 @@ public partial class MainWindow
     {
         Dispatcher.BeginInvoke(() =>
         {
-            if (!_shelfFiles.Contains(e.FullPath)) return;
+            if (!_shelfFiles.Contains(e.FullPath) || _isAddingSequential) return;
 
-            _shelfFiles.Remove(e.FullPath);
-            _selectedFiles.Remove(e.FullPath);
-            UnwatchShelfDirectory(e.FullPath);
-            RefreshShelfLayout();
+            AnimateFileDeletion(new[] { e.FullPath }, () => 
+            {
+                _shelfFiles.Remove(e.FullPath);
+                _selectedFiles.Remove(e.FullPath);
+                UnwatchShelfDirectory(e.FullPath);
+                RefreshShelfLayout();
 
-            if (_shelfFiles.Count == 0)
-                ShelfPlaceholder.Visibility = Visibility.Visible;
+                if (_shelfFiles.Count == 0)
+                    ShelfPlaceholder.Visibility = Visibility.Visible;
+            });
         });
     }
 
@@ -1057,6 +1458,7 @@ public partial class MainWindow
         {
             _isCameraActive = true;
             CameraOverlay.Visibility = Visibility.Collapsed;
+            CameraErrorOverlay.Visibility = Visibility.Collapsed;
             CameraLiveIndicator.Visibility = Visibility.Visible;
 
             _mediaCapture = new MediaCapture();
@@ -1066,7 +1468,7 @@ public partial class MainWindow
 
             if (selectedGroup == null)
             {
-                throw new Exception("Không tìm thấy camera khả dụng.");
+                throw new Exception("Cannot detect camera device");
             }
 
             var settings = new MediaCaptureInitializationSettings
@@ -1081,7 +1483,7 @@ public partial class MainWindow
             var colorSource = _mediaCapture.FrameSources.Values.FirstOrDefault(s => s.Info.SourceKind == MediaFrameSourceKind.Color);
             if (colorSource == null)
             {
-                throw new Exception("Không tìm thấy nguồn video màu.");
+                throw new Exception("Cannot detect color source");
             }
 
             _frameReader = await _mediaCapture.CreateFrameReaderAsync(colorSource, MediaEncodingSubtypes.Bgra8);
@@ -1091,6 +1493,8 @@ public partial class MainWindow
         catch (Exception ex)
         {
             StopCameraPreview();
+            CameraOverlay.Visibility = Visibility.Collapsed;
+            CameraErrorOverlay.Visibility = Visibility.Visible;
             Console.WriteLine("Camera error: " + ex.Message);
         }
     }
@@ -1141,6 +1545,7 @@ public partial class MainWindow
     {
         _isCameraActive = false;
         CameraOverlay.Visibility = Visibility.Visible;
+        CameraErrorOverlay.Visibility = Visibility.Collapsed;
         CameraLiveIndicator.Visibility = Visibility.Collapsed;
 
         if (_frameReader != null)

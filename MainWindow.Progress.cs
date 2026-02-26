@@ -13,6 +13,8 @@ namespace VNotch;
 public partial class MainWindow
 {
     private bool _isDraggingProgress = false; 
+    private bool _isProgressBarExpanded = false;
+    private bool _isReleasingMouseCapture = false; // Block false MouseLeave from ReleaseMouseCapture()
     private int _lastDisplayedSecond = -1;
     private TimeSpan _dragSeekPosition = TimeSpan.Zero; 
     
@@ -478,11 +480,33 @@ public partial class MainWindow
 
         bool wasDragging = _isDraggingProgress;
         bool wasClickSeek = _isClickSeekPending;
+        bool prevExpanded = _isProgressBarExpanded;
+        MusicViz.IsBuffering = false;
 
         _isDraggingProgress = false;
         _isClickSeekPending = false;
-        MusicViz.IsBuffering = false;
+
+        // Block bất kỳ MouseLeave nào do ReleaseMouseCapture() gây ra.
+        // WPF có thể defer MouseLeave đến sau khi MouseUp handler trả về,
+        // nên kiểm tra flag trong MouseLeave có thể không đủ. Flag này chận tất cả các collapse
+        // trong suốt quá trình release, riêng Dispatcher.BeginInvoke rồi mới quyết định.
+        _isReleasingMouseCapture = true;
         ProgressBarContainer.ReleaseMouseCapture();
+
+        // Sau khi tất cả Input-priority events (bao gồm MouseLeave defer) được xử lý xong,
+        // mới quyết định collapse hay giữ trạng thái hover dựa trên IsMouseOver thực tế.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (System.Action)(() =>
+        {
+            _isReleasingMouseCapture = false;
+
+            if (prevExpanded && !ProgressBarContainer.IsMouseOver)
+            {
+                // Mouse đã rời khỏi container → collapse về default
+                _isProgressBarExpanded = false;
+                AnimateProgressBarHover(false);
+            }
+            // Nếu mouse vẫn ở trên container → giữ nguyên hover state
+        }));
 
         if (wasDragging || wasClickSeek)
         {
@@ -565,41 +589,38 @@ public partial class MainWindow
     }
 
     private DispatcherTimer? _progressHoverTimer;
-    private bool _isProgressBarExpanded = false;
 
     private void ProgressBar_MouseEnter(object sender, MouseEventArgs e)
     {
-        // Start 1-second hover timer to expand progress bar
-        if (_progressHoverTimer == null)
-        {
-            _progressHoverTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(1)
-            };
-            _progressHoverTimer.Tick += (s, _) =>
-            {
-                _progressHoverTimer.Stop();
-                if (ProgressBarContainer.IsMouseOver && !_isProgressBarExpanded)
-                {
-                    _isProgressBarExpanded = true;
-                    AnimateProgressBarHover(true);
-                }
-            };
-        }
-
-        _progressHoverTimer.Stop();
-        _progressHoverTimer.Start();
+        // LOCKED: Tạm thời tắt tính năng hover scale
+        // if (_progressHoverTimer == null)
+        // {
+        //     _progressHoverTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        //     _progressHoverTimer.Tick += (s, _) =>
+        //     {
+        //         _progressHoverTimer.Stop();
+        //         if (ProgressBarContainer.IsMouseOver && !_isProgressBarExpanded)
+        //         {
+        //             _isProgressBarExpanded = true;
+        //             AnimateProgressBarHover(true);
+        //         }
+        //     };
+        // }
+        // _progressHoverTimer.Stop();
+        // _progressHoverTimer.Start();
     }
 
     private void ProgressBar_MouseLeave(object sender, MouseEventArgs e)
     {
         _progressHoverTimer?.Stop();
 
-        if (_isProgressBarExpanded)
-        {
-            _isProgressBarExpanded = false;
-            AnimateProgressBarHover(false);
-        }
+        // LOCKED: Tạm thời tắt hover scale collapse
+        // if (_isDraggingProgress || _isClickSeekPending || _isReleasingMouseCapture) return;
+        // if (_isProgressBarExpanded)
+        // {
+        //     _isProgressBarExpanded = false;
+        //     AnimateProgressBarHover(false);
+        // }
     }
 
     #endregion
