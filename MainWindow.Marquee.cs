@@ -26,38 +26,40 @@ public partial class MainWindow
     private void StartMarqueeAnimation(TranslateTransform transform, double distance, double durationPerPixel = 40)
     {
         transform.BeginAnimation(TranslateTransform.XProperty, null);
+        transform.X = 0;
 
-        var totalDuration = TimeSpan.FromMilliseconds(distance * durationPerPixel);
-        var pauseDuration = TimeSpan.FromSeconds(2);
-
-        var storyboard = new Storyboard
+        if (distance <= 1)
         {
-            RepeatBehavior = RepeatBehavior.Forever,
-            AutoReverse = true
-        };
+            return;
+        }
 
-        var anim = new DoubleAnimation
-        {
-            From = 0,
-            To = -distance,
-            Duration = new Duration(totalDuration),
-            BeginTime = pauseDuration,
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
-        };
+        // Linear ping-pong marquee: smoother than AutoReverse with discrete jumps.
+        const double pauseMs = 900;
+        const double minTravelMs = 2200;
+        const double maxTravelMs = 14000;
+        var travelMs = Math.Clamp(distance * durationPerPixel, minTravelMs, maxTravelMs);
+
+        var t0 = TimeSpan.Zero;
+        var t1 = t0 + TimeSpan.FromMilliseconds(pauseMs);
+        var t2 = t1 + TimeSpan.FromMilliseconds(travelMs);
+        var t3 = t2 + TimeSpan.FromMilliseconds(pauseMs);
+        var t4 = t3 + TimeSpan.FromMilliseconds(travelMs);
+        var t5 = t4 + TimeSpan.FromMilliseconds(pauseMs);
 
         var keyAnim = new DoubleAnimationUsingKeyFrames
         {
-            RepeatBehavior = RepeatBehavior.Forever,
-            AutoReverse = true
+            RepeatBehavior = RepeatBehavior.Forever
         };
-        Timeline.SetDesiredFrameRate(keyAnim, 144);
+        Timeline.SetDesiredFrameRate(keyAnim, 120);
 
-        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(0)));
-        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, TimeSpan.FromSeconds(2))); 
-        keyAnim.KeyFrames.Add(new SplineDoubleKeyFrame(-distance, TimeSpan.FromSeconds(2) + totalDuration, new KeySpline(0.4, 0, 0.6, 1)));
-        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(-distance, TimeSpan.FromSeconds(4) + totalDuration)); 
+        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, t0));
+        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, t1));
+        keyAnim.KeyFrames.Add(new LinearDoubleKeyFrame(-distance, t2));
+        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(-distance, t3));
+        keyAnim.KeyFrames.Add(new LinearDoubleKeyFrame(0, t4));
+        keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, t5));
 
-        transform.BeginAnimation(TranslateTransform.XProperty, keyAnim);
+        transform.BeginAnimation(TranslateTransform.XProperty, keyAnim, HandoffBehavior.SnapshotAndReplace);
     }
 
     #endregion
