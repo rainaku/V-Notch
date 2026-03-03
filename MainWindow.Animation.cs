@@ -1142,7 +1142,6 @@ public partial class MainWindow
     {
         double margin = isHovered ? 0 : 22;
         double scaleY = isHovered ? 1.8 : 1.0;
-        double blurRadius = isHovered ? 8 : 0;
         double bgOpacity = isHovered ? 0.4 : 1.0;
         
         var duration = isHovered ? _dur400 : _dur350;
@@ -1158,11 +1157,6 @@ public partial class MainWindow
         // Scale animation
         var scaleAnim = MakeAnim(scaleY, duration, easing);
         ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
-
-        // Blur animation
-        var blurAnim = MakeAnim(blurRadius, duration, _easeQuadOut);
-        CurrentTimeBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
-        RemainingTimeBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
 
         // Subtly fade background to focus on the bar
         var bgFadeAnim = MakeAnim(bgOpacity, duration, _easeQuadOut);

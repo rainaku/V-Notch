@@ -59,7 +59,7 @@
         <Style x:Key="TitleText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
             <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
@@ -268,9 +268,6 @@
                           VerticalAlignment="Top"
                           Margin="8,4"
                           RenderOptions.ClearTypeHint="Enabled">
-                        <Grid.Effect>
-                            <BlurEffect x:Name="MusicCompactContentBlur" Radius="0" RenderingBias="Performance"/>
-                        </Grid.Effect>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -293,6 +290,9 @@
                                 RenderTransformOrigin="0,0"
                                 MouseEnter="CompactThumbnailBorder_MouseEnter"
                                 MouseLeave="CompactThumbnailBorder_MouseLeave">
+                            <Border.Effect>
+                                <BlurEffect x:Name="MusicCompactContentBlur" Radius="0" RenderingBias="Performance"/>
+                            </Border.Effect>
                             <Border.RenderTransform>
                                 <TransformGroup>
                                     <ScaleTransform x:Name="CompactThumbnailScale" ScaleX="1" ScaleY="1"/>
@@ -349,10 +349,6 @@
                           Margin="16,12"
                           Background="{StaticResource NotchGradient}"
                           RenderOptions.ClearTypeHint="Enabled">
-                        <Grid.Effect>
-                            <BlurEffect x:Name="ExpandedContentBlur" Radius="0" RenderingBias="Performance"/>
-                        </Grid.Effect>
-
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -368,6 +364,9 @@
                                     Opacity="0"
                                     Margin="-60,-30,-20,-60"
                                     IsHitTestVisible="False">
+                                <Border.Effect>
+                                    <BlurEffect x:Name="ExpandedContentBlur" Radius="0" RenderingBias="Performance"/>
+                                </Border.Effect>
                                 <Border.OpacityMask>
                                     <RadialGradientBrush GradientOrigin="0.5,0.55" Center="0.5,0.55" RadiusX="0.5" RadiusY="0.5">
                                         <GradientStop Color="#CCFFFFFF" Offset="0"/>
@@ -418,6 +417,9 @@
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                                    <StackPanel.RenderTransform>
+                                        <TranslateTransform Y="6"/>
+                                    </StackPanel.RenderTransform>
 
                                     <Grid Margin="0,0,6,0">
 
@@ -513,14 +515,14 @@
                                         <TextBlock Text="{Binding Text, ElementName=MediaAppName}" 
                                                    Style="{StaticResource SubtitleText}"
                                                    FontSize="10"
-                                                   FontWeight="Bold"
+                                                   FontWeight="Regular"
                                                    Foreground="#80000000"
                                                    Margin="0,1,0,0" />
                                         <TextBlock x:Name="MediaAppName" 
                                                    Text="Now Playing" 
                                                    Style="{StaticResource SubtitleText}"
                                                    FontSize="10"
-                                                   FontWeight="Bold"
+                                                   FontWeight="Regular"
                                                    Foreground="White" />
                                      </Grid>
 
@@ -580,7 +582,7 @@
                                                 </LinearGradientBrush>
                                             </StackPanel.OpacityMask>
 
-                                            <Canvas x:Name="TitleScrollContainer" Height="18" Width="250" ClipToBounds="True">
+                                            <Canvas x:Name="TitleScrollContainer" Height="20" Width="250" ClipToBounds="True">
                                                 <Grid x:Name="TitleMorphContainer" Canvas.Left="0" Canvas.Top="0">
 
                                                     <Grid Opacity="{Binding Opacity, ElementName=TrackTitle}">
@@ -593,14 +595,16 @@
                                                         <!-- Shadow layer -->
                                                         <TextBlock Text="{Binding Text, ElementName=TrackTitle}"
                                                                    Style="{StaticResource TitleText}"
-                                                                   FontWeight="SemiBold"
+                                                                   FontSize="14"
+                                                                   FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
                                                         <!-- Main layer -->
                                                         <TextBlock x:Name="TrackTitle" 
                                                                    Text="No media playing"
                                                                    Style="{StaticResource TitleText}"
-                                                                   FontWeight="SemiBold" />
+                                                                   FontSize="14"
+                                                                   FontWeight="Bold" />
                                                     </Grid>
 
                                                     <Grid Opacity="{Binding Opacity, ElementName=TrackTitleNext}">
@@ -613,19 +617,21 @@
                                                         <!-- Shadow layer -->
                                                         <TextBlock Text="{Binding Text, ElementName=TrackTitleNext}"
                                                                    Style="{StaticResource TitleText}"
-                                                                   FontWeight="SemiBold"
+                                                                   FontSize="14"
+                                                                   FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
                                                         <!-- Main layer -->
                                                         <TextBlock x:Name="TrackTitleNext" 
                                                                    Text=""
                                                                    Style="{StaticResource TitleText}"
-                                                                   FontWeight="SemiBold" />
+                                                                   FontSize="14"
+                                                                   FontWeight="Bold" />
                                                     </Grid>
                                                 </Grid>
                                             </Canvas>
 
-                                            <Canvas x:Name="ArtistScrollContainer" Height="16" Width="250" ClipToBounds="True" Margin="0,5,0,0">
+                                            <Canvas x:Name="ArtistScrollContainer" Height="16" Width="250" ClipToBounds="True" Margin="0,2,0,0">
                                                 <Grid x:Name="ArtistMorphContainer" Canvas.Left="0" Canvas.Top="0">
 
                                                     <Grid Opacity="{Binding Opacity, ElementName=TrackArtist}">
@@ -835,11 +841,7 @@
                                                Margin="0,0,6,0"
                                                Text="0:00" 
                                                Style="{StaticResource SmallText}"
-                                               VerticalAlignment="Center">
-                                        <TextBlock.Effect>
-                                            <BlurEffect x:Name="CurrentTimeBlur" Radius="0"/>
-                                        </TextBlock.Effect>
-                                    </TextBlock>
+                                               VerticalAlignment="Center"/>
 
                                     <Grid x:Name="ProgressBarContainer" 
                                           Grid.Column="1"
@@ -885,11 +887,7 @@
                                                Margin="6,0,0,0"
                                                Text="0:00" 
                                                Style="{StaticResource SmallText}"
-                                               VerticalAlignment="Center">
-                                        <TextBlock.Effect>
-                                            <BlurEffect x:Name="RemainingTimeBlur" Radius="0"/>
-                                        </TextBlock.Effect>
-                                    </TextBlock>
+                                               VerticalAlignment="Center"/>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -1062,7 +1060,10 @@
                                     MouseLeave="CalendarWidget_MouseLeave"
                                     MouseWheel="CalendarWidget_MouseWheel">
                                 <Border.RenderTransform>
-                                    <ScaleTransform x:Name="CalendarWidgetScale" ScaleX="1" ScaleY="1"/>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="CalendarWidgetScale" ScaleX="1" ScaleY="1"/>
+                                        <TranslateTransform x:Name="CalendarWidgetTranslate" Y="0"/>
+                                    </TransformGroup>
                                 </Border.RenderTransform>
                                 <Grid VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -1178,7 +1179,7 @@
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                         <Path Data="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" 
                                               Fill="White" Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="Camera" Style="{StaticResource SmallText}" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Camera" Style="{StaticResource SmallText}" FontWeight="Regular" Foreground="White" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1201,7 +1202,7 @@
                                         Padding="4,2" 
                                         CornerRadius="4"
                                         Visibility="Collapsed">
-                                    <TextBlock Text="LIVE" Style="{StaticResource SmallText}" FontSize="8" FontWeight="Bold" Foreground="White"/>
+                                    <TextBlock Text="LIVE" Style="{StaticResource SmallText}" FontSize="8" FontWeight="SemiBold" Foreground="White"/>
                                 </Border>
                             </Grid>
                         </Border>
