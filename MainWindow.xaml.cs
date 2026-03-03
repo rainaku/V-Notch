@@ -116,6 +116,8 @@ public partial class MainWindow : Window
 
     private bool _isAnimating = false;
     private bool _isExpanded = false;
+    private bool _isStartupLayoutReady = false;
+    private bool _pendingStartupClickToggle = false;
     private double _collapsedWidth;
     private double _collapsedHeight;
     private double _expandedWidth = 480;
@@ -277,6 +279,14 @@ public partial class MainWindow : Window
         _calendarModule.Start();
         
         PlayAppearAnimation();
+
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            UpdateLayout();
+            UpdateNotchClip();
+            _isStartupLayoutReady = true;
+            _pendingStartupClickToggle = false;
+        }), DispatcherPriority.ContextIdle);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -441,13 +451,45 @@ public partial class MainWindow : Window
 
     private void NotchBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_isAnimating) return;
+        if (_isAnimating)
+        {
+            e.Handled = true;
+            return;
+        }
 
+        if (!_isStartupLayoutReady)
+        {
+            if (!_pendingStartupClickToggle)
+            {
+                _pendingStartupClickToggle = true;
+                int clickCount = e.ClickCount;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    UpdateLayout();
+                    UpdateNotchClip();
+                    _isStartupLayoutReady = true;
+                    _pendingStartupClickToggle = false;
+
+                    if (_isAnimating) return;
+                    ToggleNotchFromClick(clickCount);
+                }), DispatcherPriority.Render);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        ToggleNotchFromClick(e.ClickCount);
+        e.Handled = true;
+    }
+
+    private void ToggleNotchFromClick(int clickCount)
+    {
         if (_isExpanded)
         {
             if (_isSecondaryView)
             {
-                if (e.ClickCount == 2) CollapseNotch();
+                if (clickCount == 2) CollapseNotch();
             }
             else
             {
@@ -458,8 +500,6 @@ public partial class MainWindow : Window
         {
             ExpandNotch();
         }
-
-        e.Handled = true;
     }
 
     private void NotchWrapper_MouseEnter(object sender, MouseEventArgs e)
@@ -893,23 +933,6 @@ public partial class MainWindow : Window
     private void ResetPosition_Click(object sender, RoutedEventArgs e)
     {
         ResetPosition();
-    }
-
-    private void Settings_Click(object sender, RoutedEventArgs e)
-    {
-        if (_isExpanded)
-        {
-            CollapseNotch();
-        }
-
-        var settingsWindow = new SettingsWindow(_settings, _settingsService);
-        settingsWindow.SettingsChanged += (s, newSettings) =>
-        {
-            _settings = newSettings;
-            ApplySettings();
-            _notchManager.UpdateSettings(_settings);
-        };
-        settingsWindow.ShowDialog();
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e)

@@ -62,6 +62,7 @@ public class ProgressEngine
     private DateTime _firstSnapshotTime = DateTime.MinValue;
     private bool _isInitialWarmup = true;
     private readonly TimeSpan _initialWarmupDuration = TimeSpan.FromSeconds(4);
+    private DateTime _lastSnapshotTimestampUtc = DateTime.MinValue;
 
     private readonly object _lock = new object();
 
@@ -80,6 +81,20 @@ public class ProgressEngine
 
             bool isNowPlaying = snapshot.IsPlaying;
             DateTime now = DateTime.UtcNow;
+            DateTime snapshotTsUtc = snapshot.Timestamp.Kind == DateTimeKind.Utc
+                ? snapshot.Timestamp
+                : snapshot.Timestamp.ToUniversalTime();
+
+            // Ignore out-of-order snapshots to prevent startup rewind/jitter.
+            if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
+                snapshotTsUtc < _lastSnapshotTimestampUtc - TimeSpan.FromMilliseconds(250))
+            {
+                return;
+            }
+            if (snapshotTsUtc > _lastSnapshotTimestampUtc)
+            {
+                _lastSnapshotTimestampUtc = snapshotTsUtc;
+            }
 
             if (_firstSnapshotTime == DateTime.MinValue && isNowPlaying)
             {
@@ -87,9 +102,7 @@ public class ProgressEngine
                 _isInitialWarmup = true;
             }
 
-            TimeSpan staleness = now - (snapshot.Timestamp.Kind == DateTimeKind.Utc 
-                ? snapshot.Timestamp 
-                : snapshot.Timestamp.ToUniversalTime());
+            TimeSpan staleness = now - snapshotTsUtc;
 
             if (staleness < TimeSpan.Zero || staleness > TimeSpan.FromMinutes(5)) 
                 staleness = TimeSpan.Zero;
@@ -130,6 +143,19 @@ public class ProgressEngine
 
             if (_state == ProgressState.Seeking)
                 _state = ProgressState.Playing;
+
+            // Reject unexpected backward jumps before seek detection.
+            // Real track changes should call Reset() from the caller.
+            if (observedPos < _lastDisplayedPosition - _backwardsTolerance)
+            {
+                bool likelyRestartAtTrackEnd =
+                    _duration.TotalSeconds > 0 &&
+                    _lastDisplayedPosition.TotalSeconds > (_duration.TotalSeconds * 0.8) &&
+                    observedPos.TotalSeconds < Math.Min(5.0, _duration.TotalSeconds * 0.2);
+
+                if (!likelyRestartAtTrackEnd)
+                    return;
+            }
 
             // Seek detection
             TimeSpan seekThreshold = TimeSpan.FromMilliseconds(Math.Max(2000, _duration.TotalMilliseconds * 0.01));
@@ -214,6 +240,7 @@ public class ProgressEngine
             _isIndeterminate = false;
             _firstSnapshotTime = DateTime.MinValue;
             _isInitialWarmup = true;
+            _lastSnapshotTimestampUtc = DateTime.MinValue;
         }
     }
 

@@ -45,3 +45,5 @@ task.md
 *.md
 !README.md
 fix_xaml.py
+/artifacts
+r.ps1

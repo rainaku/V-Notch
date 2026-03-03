@@ -105,21 +105,35 @@ public partial class MainWindow
 
     #region Notch Expand/Collapse
 
-    private (double X, double Y) ComputeThumbnailExpandTarget()
+    private bool TryComputeThumbnailExpandTarget(out (double X, double Y) target)
     {
+        target = default;
         try
         {
+            if (ThumbnailBorder == null || InnerClipBorder == null) return false;
+            if (!ThumbnailBorder.IsLoaded || !InnerClipBorder.IsLoaded) return false;
+            if (ThumbnailBorder.ActualWidth <= 0 || ThumbnailBorder.ActualHeight <= 0) return false;
+            if (InnerClipBorder.ActualWidth <= 0 || InnerClipBorder.ActualHeight <= 0) return false;
 
             var thumbPos = ThumbnailBorder.TransformToAncestor(InnerClipBorder).Transform(new Point(0, 0));
 
             double targetX = thumbPos.X - 8;
             double targetY = thumbPos.Y - 4;
-            return (targetX, targetY);
+            if (double.IsNaN(targetX) || double.IsInfinity(targetX) ||
+                double.IsNaN(targetY) || double.IsInfinity(targetY))
+            {
+                return false;
+            }
+
+            // Sanity guard to avoid first-run transform glitches.
+            if (Math.Abs(targetX) > 2000 || Math.Abs(targetY) > 2000) return false;
+
+            target = (targetX, targetY);
+            return true;
         }
         catch
         {
-
-            return (20, 48);
+            return false;
         }
     }
 
@@ -195,10 +209,14 @@ public partial class MainWindow
 
             this.UpdateLayout();
 
-            _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
+            if (TryComputeThumbnailExpandTarget(out var target))
+            {
+                _cachedThumbnailExpandTarget = target;
+            }
 
             NotchBorder.Width = oldW;
             NotchBorder.Height = oldH;
+            this.UpdateLayout();
         }
 
         NotchBorder.IsHitTestVisible = false;
@@ -232,55 +250,69 @@ public partial class MainWindow
 
         if (_isMusicCompactMode && CompactThumbnail.Source != null)
         {
-
-            AnimationThumbnailImage.Source = CompactThumbnail.Source;
-            AnimationThumbnailBorder.Visibility = Visibility.Visible;
-            AnimationThumbnailBorder.Width = 22;
-            AnimationThumbnailBorder.Height = 22;
-            AnimationThumbnailClip.Rect = new Rect(0, 0, 22, 22);
-            AnimationThumbnailTranslate.X = 0;
-            AnimationThumbnailTranslate.Y = 0;
-
-            var (targetX, targetY) = _cachedThumbnailExpandTarget ?? (20, 48);
-
-            var thumbDelay = TimeSpan.FromMilliseconds(40);
-            var thumbDur = _dur600;
-            var thumbEase = _easeThumbSpring;
-            var thumbFps = 144;
-
-            if (_cachedThumbWidthExpand == null || _cachedThumbWidthExpand.Duration != thumbDur)
+            if (!_cachedThumbnailExpandTarget.HasValue &&
+                TryComputeThumbnailExpandTarget(out var measuredTarget))
             {
-                _cachedThumbWidthExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
-                _cachedThumbHeightExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
-                Timeline.SetDesiredFrameRate(_cachedThumbWidthExpand, thumbFps);
-                Timeline.SetDesiredFrameRate(_cachedThumbHeightExpand, thumbFps);
-                
-                _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), thumbDur)
-                {
-                    EasingFunction = thumbEase,
-                    BeginTime = thumbDelay
-                };
-                Timeline.SetDesiredFrameRate(_cachedThumbRectExpand, thumbFps);
-
-                _cachedThumbWidthExpand.Freeze();
-                _cachedThumbHeightExpand.Freeze();
-                _cachedThumbRectExpand.Freeze();
+                _cachedThumbnailExpandTarget = measuredTarget;
             }
 
-            var thumbTranslateXAnim = MakeAnim(0, targetX, thumbDur, thumbEase, thumbDelay);
-            var thumbTranslateYAnim = MakeAnim(0, targetY, thumbDur, thumbEase, thumbDelay);
-            Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
-            Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
+            var cachedExpandTarget = _cachedThumbnailExpandTarget;
+            if (!cachedExpandTarget.HasValue)
+            {
+                // First run/layout-not-ready: skip morph to avoid wrong target then snap.
+                AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                AnimationThumbnailImage.Source = CompactThumbnail.Source;
+                AnimationThumbnailBorder.Visibility = Visibility.Visible;
+                AnimationThumbnailBorder.Width = 22;
+                AnimationThumbnailBorder.Height = 22;
+                AnimationThumbnailClip.Rect = new Rect(0, 0, 22, 22);
+                AnimationThumbnailTranslate.X = 0;
+                AnimationThumbnailTranslate.Y = 0;
 
-            AnimationThumbnailBorder.BeginAnimation(WidthProperty, _cachedThumbWidthExpand);
-            AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightExpand);
-            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
-            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+                var (targetX, targetY) = cachedExpandTarget.Value;
 
-            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectExpand);
+                var thumbDelay = TimeSpan.FromMilliseconds(40);
+                var thumbDur = _dur600;
+                var thumbEase = _easeThumbSpring;
+                var thumbFps = 144;
 
-            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
-            if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
+                if (_cachedThumbWidthExpand == null || _cachedThumbWidthExpand.Duration != thumbDur)
+                {
+                    _cachedThumbWidthExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
+                    _cachedThumbHeightExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
+                    Timeline.SetDesiredFrameRate(_cachedThumbWidthExpand, thumbFps);
+                    Timeline.SetDesiredFrameRate(_cachedThumbHeightExpand, thumbFps);
+
+                    _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), thumbDur)
+                    {
+                        EasingFunction = thumbEase,
+                        BeginTime = thumbDelay
+                    };
+                    Timeline.SetDesiredFrameRate(_cachedThumbRectExpand, thumbFps);
+
+                    _cachedThumbWidthExpand.Freeze();
+                    _cachedThumbHeightExpand.Freeze();
+                    _cachedThumbRectExpand.Freeze();
+                }
+
+                var thumbTranslateXAnim = MakeAnim(0, targetX, thumbDur, thumbEase, thumbDelay);
+                var thumbTranslateYAnim = MakeAnim(0, targetY, thumbDur, thumbEase, thumbDelay);
+                Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
+                Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
+
+                AnimationThumbnailBorder.BeginAnimation(WidthProperty, _cachedThumbWidthExpand);
+                AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightExpand);
+                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
+                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+
+                AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectExpand);
+
+                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
+                if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
+            }
         }
 
         heightAnim.Completed += (s, e) =>
@@ -317,7 +349,10 @@ public partial class MainWindow
 
             if (_isMusicCompactMode)
             {
-                _cachedThumbnailExpandTarget = ComputeThumbnailExpandTarget();
+                if (TryComputeThumbnailExpandTarget(out var updatedTarget))
+                {
+                    _cachedThumbnailExpandTarget = updatedTarget;
+                }
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             }
@@ -438,55 +473,64 @@ public partial class MainWindow
 
         if (_isMusicCompactMode && ThumbnailImage.Source != null)
         {
-            var (startX, startY) = _cachedThumbnailExpandTarget ?? ComputeThumbnailExpandTarget();
-            _cachedThumbnailExpandTarget = (startX, startY);
-
-            AnimationThumbnailImage.Source = ThumbnailImage.Source;
-            AnimationThumbnailBorder.Visibility = Visibility.Visible;
-            AnimationThumbnailBorder.Width = 50;
-            AnimationThumbnailBorder.Height = 50;
-            AnimationThumbnailClip.Rect = new Rect(0, 0, 50, 50);
-            AnimationThumbnailTranslate.X = startX;
-            AnimationThumbnailTranslate.Y = startY;
-
-            var thumbDelay = TimeSpan.FromMilliseconds(30);
-            var thumbDur = _dur500;
-            var thumbEase = _easeThumbSpring;
-            var thumbFps = 144;
-
-            if (_cachedThumbWidthCollapse == null || _cachedThumbWidthCollapse.Duration != thumbDur)
+            if (!_cachedThumbnailExpandTarget.HasValue &&
+                TryComputeThumbnailExpandTarget(out var measuredTarget))
             {
-                _cachedThumbWidthCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
-                _cachedThumbHeightCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
-                Timeline.SetDesiredFrameRate(_cachedThumbWidthCollapse, thumbFps);
-                Timeline.SetDesiredFrameRate(_cachedThumbHeightCollapse, thumbFps);
-
-                _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), thumbDur)
-                {
-                    EasingFunction = thumbEase,
-                    BeginTime = thumbDelay
-                };
-                Timeline.SetDesiredFrameRate(_cachedThumbRectCollapse, thumbFps);
-
-                _cachedThumbWidthCollapse.Freeze();
-                _cachedThumbHeightCollapse.Freeze();
-                _cachedThumbRectCollapse.Freeze();
+                _cachedThumbnailExpandTarget = measuredTarget;
             }
 
-            var thumbTranslateXAnim = MakeAnim(startX, 0, thumbDur, thumbEase, thumbDelay);
-            var thumbTranslateYAnim = MakeAnim(startY, 0, thumbDur, thumbEase, thumbDelay);
-            Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
-            Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
+            var cachedExpandTarget = _cachedThumbnailExpandTarget;
+            if (cachedExpandTarget.HasValue)
+            {
+                var (startX, startY) = cachedExpandTarget.Value;
 
-            AnimationThumbnailBorder.BeginAnimation(WidthProperty, _cachedThumbWidthCollapse);
-            AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightCollapse);
-            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
-            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+                AnimationThumbnailImage.Source = ThumbnailImage.Source;
+                AnimationThumbnailBorder.Visibility = Visibility.Visible;
+                AnimationThumbnailBorder.Width = 50;
+                AnimationThumbnailBorder.Height = 50;
+                AnimationThumbnailClip.Rect = new Rect(0, 0, 50, 50);
+                AnimationThumbnailTranslate.X = startX;
+                AnimationThumbnailTranslate.Y = startY;
 
-            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
+                var thumbDelay = TimeSpan.FromMilliseconds(30);
+                var thumbDur = _dur500;
+                var thumbEase = _easeThumbSpring;
+                var thumbFps = 144;
 
-            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
-            if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
+                if (_cachedThumbWidthCollapse == null || _cachedThumbWidthCollapse.Duration != thumbDur)
+                {
+                    _cachedThumbWidthCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
+                    _cachedThumbHeightCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
+                    Timeline.SetDesiredFrameRate(_cachedThumbWidthCollapse, thumbFps);
+                    Timeline.SetDesiredFrameRate(_cachedThumbHeightCollapse, thumbFps);
+
+                    _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), thumbDur)
+                    {
+                        EasingFunction = thumbEase,
+                        BeginTime = thumbDelay
+                    };
+                    Timeline.SetDesiredFrameRate(_cachedThumbRectCollapse, thumbFps);
+
+                    _cachedThumbWidthCollapse.Freeze();
+                    _cachedThumbHeightCollapse.Freeze();
+                    _cachedThumbRectCollapse.Freeze();
+                }
+
+                var thumbTranslateXAnim = MakeAnim(startX, 0, thumbDur, thumbEase, thumbDelay);
+                var thumbTranslateYAnim = MakeAnim(startY, 0, thumbDur, thumbEase, thumbDelay);
+                Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
+                Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
+
+                AnimationThumbnailBorder.BeginAnimation(WidthProperty, _cachedThumbWidthCollapse);
+                AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightCollapse);
+                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
+                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+
+                AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
+
+                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
+                if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
+            }
         }
 
         heightAnim.Completed += (s, e) =>

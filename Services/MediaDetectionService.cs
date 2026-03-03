@@ -27,6 +27,7 @@ public class MediaDetectionService : IMediaDetectionService
     private Task? _heartbeatTask;
     private DetectionMode _currentMode = DetectionMode.Idle;
     private long _lastEventTimeTicks;
+    private DateTime _startupProgressSyncUntilUtc = DateTime.MinValue;
 
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -137,6 +138,8 @@ public class MediaDetectionService : IMediaDetectionService
 
     public async void Start()
     {
+        _startupProgressSyncUntilUtc = DateTime.UtcNow.AddSeconds(5);
+
         try
         {
             _sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
@@ -157,11 +160,24 @@ public class MediaDetectionService : IMediaDetectionService
         _processingTask = Task.Run(() => ProcessingLoopAsync(ct), ct);
         _heartbeatTask = Task.Run(() => HeartbeatLoopAsync(ct), ct);
 
-        // Initial update after brief delay
+        // Bootstrap refreshes so progress can catch currently playing media immediately at startup.
+        _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
         _ = Task.Run(async () =>
         {
-            try { await Task.Delay(1500, ct); } catch { return; }
-            _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
+            int[] stagedDelaysMs = { 250, 900, 1800 };
+            foreach (int delayMs in stagedDelaysMs)
+            {
+                try
+                {
+                    await Task.Delay(delayMs, ct);
+                }
+                catch
+                {
+                    return;
+                }
+
+                _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
+            }
         }, ct);
     }
 
@@ -579,21 +595,27 @@ public class MediaDetectionService : IMediaDetectionService
                 _lastStableTrackSignature = currentSignature;
             }
 
-            bool metadataChanged = currentSignature != _lastTrackSignature;
+            bool metadataChanged = currentSignature != _lastPublishedSignature;
             bool playbackChanged = info.IsPlaying != _lastIsPlaying;
             bool sourceChanged = info.MediaSource != _lastSource;
             bool seekCapabilityChanged = info.IsSeekEnabled != _lastSeekEnabled;
 
             bool significantJump = Math.Abs((info.Position - _lastPosition).TotalSeconds) >= (info.IsThrottled ? 5.0 : 1.5);
             bool throttleChanged = info.IsThrottled != _lastIsThrottled;
+            bool inStartupSyncWindow = DateTime.UtcNow <= _startupProgressSyncUntilUtc;
+            bool startupTimelineSync = inStartupSyncWindow &&
+                                       info.IsPlaying &&
+                                       (info.Duration.TotalSeconds > 0 || info.Position.TotalSeconds > 0) &&
+                                       Math.Abs((info.Position - _lastPosition).TotalSeconds) >= 0.2;
 
-            if (forceRefresh || metadataChanged || playbackChanged || sourceChanged || (significantJump && !info.IsThrottled) || seekCapabilityChanged || throttleChanged)
+            if (forceRefresh || metadataChanged || playbackChanged || sourceChanged || (significantJump && !info.IsThrottled) || seekCapabilityChanged || throttleChanged || startupTimelineSync)
             {
-                if (string.IsNullOrEmpty(info.CurrentTrack) && !string.IsNullOrEmpty(_lastTrackSignature) && !forceRefresh)
+                if (string.IsNullOrEmpty(info.CurrentTrack) && !string.IsNullOrEmpty(_lastPublishedSignature) && !forceRefresh)
                 {
                     return;
                 }
 
+                _lastPublishedSignature = currentSignature;
                 _lastTrackSignature = currentSignature;
                 _lastIsPlaying = info.IsPlaying;
                 _lastSource = info.MediaSource;
@@ -748,6 +770,7 @@ public class MediaDetectionService : IMediaDetectionService
     private bool _lastIsThrottled = false;
     private bool _lastSeekEnabled = false;
     private TimeSpan _lastPosition = TimeSpan.Zero;
+    private string _lastPublishedSignature = "";
 
     private string GetSpotifyWindowTitle()
     {

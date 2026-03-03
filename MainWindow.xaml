@@ -135,8 +135,6 @@
                     <MenuItem x:Name="MenuToggle" Header="Ẩn Notch" Click="ToggleNotch_Click"/>
                     <MenuItem Header="Reset vị trí" Click="ResetPosition_Click"/>
                     <Separator/>
-                    <MenuItem Header="Cài đặt" Click="Settings_Click"/>
-                    <Separator/>
                     <MenuItem Header="Thoát" Click="Exit_Click"/>
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
@@ -1004,7 +1002,7 @@
                             </Border>
                         </StackPanel>
 
-                        <Grid Grid.Column="2" Margin="8,6,0,0" VerticalAlignment="Center">
+                        <Grid Grid.Column="2" Margin="8,6,0,0" VerticalAlignment="Center" Grid.IsSharedSizeScope="True">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -1061,7 +1059,7 @@
                                 </Border.RenderTransform>
                                 <Grid VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition SharedSizeGroup="MonthColumn" Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
@@ -1081,7 +1079,7 @@
                                                HorizontalAlignment="Center"
                                                Visibility="Collapsed"/>
 
-                                    <Grid Grid.Column="1" VerticalAlignment="Center">
+                                    <Grid Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
                                         <Grid.OpacityMask>
                                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                                 <GradientStop Color="Transparent" Offset="0"/>
@@ -1128,16 +1126,11 @@
                            
                             <Grid x:Name="GreetingSection" Grid.Row="2" Margin="10,-6,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition SharedSizeGroup="MonthColumn" Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 
-                                <!-- Dummy TextBlock ẩn để đẩy EventText sang đúng vị trí cột lịch -->
-                                <TextBlock Text="{Binding Text, ElementName=MonthText}"
-                                           Style="{StaticResource TitleText}"
-                                           FontSize="15"
-                                           Margin="0,0,22,0"
-                                           Visibility="Hidden"/>
+                                <Border Grid.Column="0" Margin="0,0,12,0"/> <!-- Match MonthText margin -->
                                 
                                 <TextBlock x:Name="EventText"
                                            Grid.Column="1"
@@ -1145,6 +1138,7 @@
                                            Style="{StaticResource SubtitleText}"
                                            FontSize="10"
                                            VerticalAlignment="Center"
+                                           HorizontalAlignment="Left"
                                            FontWeight="SemiBold"/>
                             </Grid>
                         </Grid>

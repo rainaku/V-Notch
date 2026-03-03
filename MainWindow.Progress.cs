@@ -25,8 +25,10 @@ public partial class MainWindow
     // This eliminates jitter from animation restarts and gives buttery smooth seeks.
     private double _progressDisplayRatio = 0;   // Current displayed ratio (what ScaleX is set to)
     private double _progressTargetRatio = 0;    // Where we want to be
+    private double _progressSpringTargetRatio = 0; // Smoothed target used by spring integration
     private double _progressVelocity = 0;       // Spring velocity (units/sec)
     private bool _isSeekSpringActive = false;    // True while a seek spring is in flight
+    private int _springSettleFrames = 0;
     private DateTime _seekSpringStartTime = DateTime.MinValue;
     private bool _isClickSeekPending = false;   // True between MouseDown and first MouseMove
     private Point _mouseDownPoint;              // For drag detection
@@ -39,13 +41,19 @@ public partial class MainWindow
     private readonly TranslateTransform _fpsBoostTarget = new(); // Dummy target for fps boost anim
     private readonly System.Diagnostics.Stopwatch _springStopwatch = new();
 
-    // Spring constants — tuned for fast, fluid 144fps animation
-    private const double SPRING_STIFFNESS = 220.0;   // Fast snappy response
-    private const double SPRING_DAMPING = 28.0;       // Smooth deceleration, no wobble
-    private const double SPRING_SETTLE_THRESHOLD = 0.0002; // Sub-pixel precision settle
-    private const double NORMAL_LERP_SPEED = 20.0;   // For normal playback (very fast catch-up)
-    private const double SEEK_DETECT_SECONDS = 1.2;   // Jump bigger than this = seek
-    private const double SEEK_DETECT_RATIO = 0.05;    // Jump bigger than this ratio = seek
+    // Spring constants tuned for stable, smooth seek motion.
+    private const double SPRING_STIFFNESS = 170.0;
+    private const double SPRING_DAMPING = 34.0;
+    private const double SPRING_SETTLE_THRESHOLD = 0.0012;
+    private const double SPRING_TARGET_FOLLOW_SPEED = 30.0;
+    private const double SPRING_MAX_VELOCITY = 4.2;
+    private const double SPRING_MAX_STEP_PER_FRAME = 0.055;
+    private const int SPRING_SETTLE_FRAMES_REQUIRED = 3;
+    private const int SPRING_TIMEOUT_MS = 1400;
+    private const double NORMAL_LERP_SPEED = 14.0;
+    private const double SEEK_DETECT_SECONDS = 0.9;
+    private const double SEEK_DETECT_RATIO = 0.035;
+    private const double SEEK_RETARGET_RESET_RATIO = 0.12;
 
     /// <summary>
     /// Start 144fps spring render loop using CompositionTarget.Rendering.
@@ -108,29 +116,61 @@ public partial class MainWindow
         // Precision dt from Stopwatch (sub-ms accuracy)
         double dt = _springStopwatch.Elapsed.TotalSeconds;
         _springStopwatch.Restart();
-        dt = Math.Clamp(dt, 0.001, 0.05);
+        dt = Math.Clamp(dt, 0.001, 0.033);
 
-        double error = _progressTargetRatio - _progressDisplayRatio;
+        // Smooth retarget to avoid jitter when timeline pushes frequent corrections.
+        double targetFollow = 1.0 - Math.Exp(-SPRING_TARGET_FOLLOW_SPEED * dt);
+        _progressSpringTargetRatio += (_progressTargetRatio - _progressSpringTargetRatio) * targetFollow;
+
+        double error = _progressSpringTargetRatio - _progressDisplayRatio;
 
         // Critically-damped spring: F = stiffness * error - damping * velocity
         double springForce = SPRING_STIFFNESS * error - SPRING_DAMPING * _progressVelocity;
         _progressVelocity += springForce * dt;
+        _progressVelocity = Math.Clamp(_progressVelocity, -SPRING_MAX_VELOCITY, SPRING_MAX_VELOCITY);
+
+        double prevDisplay = _progressDisplayRatio;
         _progressDisplayRatio += _progressVelocity * dt;
 
+        double step = _progressDisplayRatio - prevDisplay;
+        if (Math.Abs(step) > SPRING_MAX_STEP_PER_FRAME)
+        {
+            _progressDisplayRatio = prevDisplay + Math.Sign(step) * SPRING_MAX_STEP_PER_FRAME;
+        }
+
+        // Prevent overshoot flicker around target
+        if ((prevDisplay - _progressSpringTargetRatio) * (_progressDisplayRatio - _progressSpringTargetRatio) < 0)
+        {
+            _progressDisplayRatio = _progressSpringTargetRatio;
+            _progressVelocity = 0;
+        }
+
         // Settle check
-        if (Math.Abs(error) < SPRING_SETTLE_THRESHOLD && Math.Abs(_progressVelocity) < 0.005)
+        if (Math.Abs(_progressTargetRatio - _progressDisplayRatio) < SPRING_SETTLE_THRESHOLD &&
+            Math.Abs(_progressVelocity) < 0.004)
+        {
+            _springSettleFrames++;
+        }
+        else
+        {
+            _springSettleFrames = 0;
+        }
+
+        if (_springSettleFrames >= SPRING_SETTLE_FRAMES_REQUIRED)
         {
             _progressDisplayRatio = _progressTargetRatio;
             _progressVelocity = 0;
+            _springSettleFrames = 0;
             _isSeekSpringActive = false;
             StopSpringRenderLoop();
         }
 
-        // Safety timeout — force settle after 1.2s
-        if ((DateTime.Now - _seekSpringStartTime).TotalMilliseconds > 1200)
+        // Safety timeout — force settle after timeout
+        if ((DateTime.Now - _seekSpringStartTime).TotalMilliseconds > SPRING_TIMEOUT_MS)
         {
             _progressDisplayRatio = _progressTargetRatio;
             _progressVelocity = 0;
+            _springSettleFrames = 0;
             _isSeekSpringActive = false;
             StopSpringRenderLoop();
         }
@@ -209,6 +249,8 @@ public partial class MainWindow
 
     private string _lastSessionId = "";
     private string _lastProgressSignature = "";
+    private string _lastProgressTimelineKey = "";
+    private DateTimeOffset _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
 
     private void UpdateProgressTracking(MediaInfo info)
     {
@@ -231,11 +273,35 @@ public partial class MainWindow
         {
             if (_isDraggingProgress) return;
 
-            string sig = $"{info.SourceAppId}|{info.MediaSource}|{info.CurrentTrack}|{info.CurrentArtist}";
+            // Reset progress engine only when playback identity really changes.
+            // Source/artist can be refined asynchronously (e.g. Browser -> YouTube),
+            // and should not rewind the current progress timeline.
+            string sig = $"{info.SourceAppId}|{info.CurrentTrack}";
             if (sig != _lastProgressSignature)
             {
                 _lastProgressSignature = sig;
                 _progressEngine.Reset();
+                _progressVelocity = 0;
+                _springSettleFrames = 0;
+                _isSeekSpringActive = false;
+                StopSpringRenderLoop();
+            }
+
+            string timelineKey = $"{info.SourceAppId}|{info.CurrentTrack}";
+            if (timelineKey != _lastProgressTimelineKey)
+            {
+                _lastProgressTimelineKey = timelineKey;
+                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
+            }
+
+            // Ignore stale timeline snapshots (typically delayed metadata/thumbnail updates)
+            // so the progress doesn't jump backwards after startup.
+            if (_lastProgressTimelineUpdated != DateTimeOffset.MinValue &&
+                info.LastUpdated < _lastProgressTimelineUpdated - TimeSpan.FromMilliseconds(250))
+            {
+                UpdateProgressTimerState();
+                if (_isExpanded) RenderProgressBar();
+                return;
             }
 
             var snapshot = new ProgressSnapshot
@@ -251,6 +317,10 @@ public partial class MainWindow
             };
             
             _progressEngine.OnMediaSnapshot(snapshot);
+            if (info.LastUpdated > _lastProgressTimelineUpdated)
+            {
+                _lastProgressTimelineUpdated = info.LastUpdated;
+            }
 
             if (info.IsIndeterminate)
             {
@@ -280,6 +350,8 @@ public partial class MainWindow
             ProgressBarContainer.Cursor = Cursors.Arrow;
 
             _progressEngine.Reset();
+            _lastProgressTimelineKey = "";
+            _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
             ResetProgressUI();
             if (_isExpanded) RenderProgressBar();
         }
@@ -314,9 +386,12 @@ public partial class MainWindow
         ProgressBarScale.ScaleX = 0;
         _progressDisplayRatio = 0;
         _progressTargetRatio = 0;
+        _progressSpringTargetRatio = 0;
         _progressVelocity = 0;
+        _springSettleFrames = 0;
         _isSeekSpringActive = false;
         _seekSpringStartTime = DateTime.MinValue;
+        _lastRenderTime = DateTime.MinValue;
         _lastDisplayedSecond = -1;
         CurrentTimeText.Text = "0:00";
         RemainingTimeText.Text = "0:00";
@@ -340,9 +415,12 @@ public partial class MainWindow
             ProgressBarScale.ScaleX = 0;
             _progressDisplayRatio = 0;
             _progressTargetRatio = 0;
+            _progressSpringTargetRatio = 0;
             _progressVelocity = 0;
+            _springSettleFrames = 0;
             _isSeekSpringActive = false;
             StopSpringRenderLoop();
+            _lastRenderTime = DateTime.MinValue;
             _lastDisplayedSecond = -1;
             return;
         }
@@ -356,22 +434,30 @@ public partial class MainWindow
         }
 
         // Detect seek jump
-        double ratioDiff = Math.Abs(engineRatio - _progressTargetRatio);
+        double ratioDiff = Math.Abs(engineRatio - _progressDisplayRatio);
         double diffSeconds = ratioDiff * frame.Duration.TotalSeconds;
         bool isJump = diffSeconds > SEEK_DETECT_SECONDS || ratioDiff > SEEK_DETECT_RATIO;
 
+        // Always update target; spring (if active) will converge smoothly.
+        _progressTargetRatio = engineRatio;
+
         if (isJump)
         {
-            // Start spring — 120fps timer will handle the interpolation
-            _isSeekSpringActive = true;
-            _seekSpringStartTime = DateTime.Now;
-            _progressTargetRatio = engineRatio;
-            StartSpringRenderLoop();
-        }
-        else
-        {
-            // Update target for spring redirect or normal lerp
-            _progressTargetRatio = engineRatio;
+            // Start spring only on inactive->active transition to avoid restart jitter.
+            if (!_isSeekSpringActive)
+            {
+                _isSeekSpringActive = true;
+                _seekSpringStartTime = DateTime.Now;
+                _progressSpringTargetRatio = _progressDisplayRatio;
+                _progressVelocity = Math.Clamp(_progressVelocity, -1.2, 1.2);
+                _springSettleFrames = 0;
+                StartSpringRenderLoop();
+            }
+            else if (Math.Abs(_progressTargetRatio - _progressSpringTargetRatio) > SEEK_RETARGET_RESET_RATIO)
+            {
+                // Large retarget while springing -> extend timeout window.
+                _seekSpringStartTime = DateTime.Now;
+            }
         }
 
         // When spring is active, the 120fps timer handles ScaleX updates
@@ -437,6 +523,9 @@ public partial class MainWindow
 
         _dragSeekPosition = TimeSpan.FromSeconds(duration.TotalSeconds * ratio);
         _progressTargetRatio = ratio;
+        _progressSpringTargetRatio = _progressDisplayRatio;
+        _progressVelocity = 0;
+        _springSettleFrames = 0;
         _isSeekSpringActive = true;
         _seekSpringStartTime = DateTime.Now;
         StartSpringRenderLoop();
@@ -464,6 +553,7 @@ public partial class MainWindow
             _isDraggingProgress = true;
             _isSeekSpringActive = false;  // Stop spring, snap during drag
             _progressVelocity = 0;
+            _springSettleFrames = 0;
             StopSpringRenderLoop();
             MusicViz.IsBuffering = true;
         }
@@ -527,7 +617,9 @@ public partial class MainWindow
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         _progressDisplayRatio = ratio;
         _progressTargetRatio = ratio;
+        _progressSpringTargetRatio = ratio;
         _progressVelocity = 0;
+        _springSettleFrames = 0;
         ProgressBarScale.ScaleX = ratio;
 
         _dragSeekPosition = TimeSpan.FromSeconds(duration.TotalSeconds * ratio);
@@ -548,6 +640,9 @@ public partial class MainWindow
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
             _progressTargetRatio = targetRatio;
+            _progressSpringTargetRatio = _progressDisplayRatio;
+            _progressVelocity = 0;
+            _springSettleFrames = 0;
             _isSeekSpringActive = true;
             _seekSpringStartTime = DateTime.Now;
             StartSpringRenderLoop();
@@ -577,6 +672,9 @@ public partial class MainWindow
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
             _progressTargetRatio = targetRatio;
+            _progressSpringTargetRatio = _progressDisplayRatio;
+            _progressVelocity = 0;
+            _springSettleFrames = 0;
             _isSeekSpringActive = true;
             _seekSpringStartTime = DateTime.Now;
             StartSpringRenderLoop();
