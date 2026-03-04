@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
+using NAudio.CoreAudioApi;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -159,6 +160,12 @@ public class MediaDetectionService : IMediaDetectionService
     private GlobalSystemMediaTransportControlsSession? _currentSession;
     private GlobalSystemMediaTransportControlsSession? _activeDisplaySession; 
     private DateTime _lastSessionSwitchTime = DateTime.MinValue;
+    private string _lastMatchedVolumeSessionId = "";
+    private uint _lastMatchedVolumeProcessId;
+    private string _lastMatchedVolumeSourceAppId = "";
+    private string _cachedVolumeProcessSourceAppId = "";
+    private DateTime _cachedVolumeProcessIdsAtUtc = DateTime.MinValue;
+    private HashSet<uint> _cachedVolumeProcessIds = new();
 
     public async void Start()
     {
@@ -1988,25 +1995,6 @@ public class MediaDetectionService : IMediaDetectionService
                         }
                     }
 
-                    // Extra safety: only apply startup position boost for YouTube-like sources.
-                    bool shouldApplyInitialPositionBoost =
-                        isInitialOrBigChange &&
-                        chosenPosition.TotalSeconds > 5 &&
-                        (string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
-                         (string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) && IsLikelyYouTube(info)));
-                    if (shouldApplyInitialPositionBoost)
-                    {
-                        var playback = session?.GetPlaybackInfo();
-                        if (playback?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
-                        {
-                            // Assume it has been playing for at least a few seconds
-                            chosenPosition = chosenPosition + TimeSpan.FromSeconds(1.5);
-                            if (duration > TimeSpan.Zero && chosenPosition > duration)
-                            {
-                                chosenPosition = duration;
-                            }
-                        }
-                    }
 
                     var timelineUpdatedUtc = timeline.LastUpdatedTime.ToUniversalTime();
                     var nowUpdatedUtc = DateTimeOffset.UtcNow;
@@ -2023,7 +2011,13 @@ public class MediaDetectionService : IMediaDetectionService
                     {
                         double effectiveRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
                         TimeSpan compensation = TimeSpan.FromSeconds(timelineLatency.TotalSeconds * effectiveRate);
-                        TimeSpan maxCompensation = forceRefresh ? TimeSpan.FromSeconds(120) : TimeSpan.FromSeconds(45);
+                        bool isYouTubeTimeline = string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
+                                                 (string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) && IsLikelyYouTube(info));
+                        // YouTube SMTC can be very stale at startup (10-20s), allow higher
+                        // compensation during initial load; cap tightly during normal playback.
+                        TimeSpan maxCompensation = isYouTubeTimeline
+                            ? (isInitialOrBigChange ? TimeSpan.FromSeconds(25) : TimeSpan.FromSeconds(8))
+                            : (forceRefresh ? TimeSpan.FromSeconds(120) : TimeSpan.FromSeconds(45));
                         if (compensation > maxCompensation)
                         {
                             compensation = maxCompensation;
@@ -2983,6 +2977,264 @@ public class MediaDetectionService : IMediaDetectionService
         }
 
         return string.IsNullOrEmpty(title) ? platform : title;
+    }
+
+    public bool TryGetCurrentSessionVolume(out float volume, out bool isMuted)
+    {
+        float resolvedVolume = 0f;
+        bool resolvedMuted = false;
+
+        bool success = TryWithCurrentAudioSession(session =>
+        {
+            using var simpleVolume = session.SimpleAudioVolume;
+            resolvedVolume = Math.Clamp(simpleVolume.Volume, 0f, 1f);
+            resolvedMuted = simpleVolume.Mute;
+            return true;
+        });
+
+        volume = resolvedVolume;
+        isMuted = resolvedMuted;
+        return success;
+    }
+
+    public bool TrySetCurrentSessionVolume(float volume)
+    {
+        float target = Math.Clamp(volume, 0f, 1f);
+
+        return TryWithCurrentAudioSession(session =>
+        {
+            using var simpleVolume = session.SimpleAudioVolume;
+            simpleVolume.Volume = target;
+            if (target > 0.001f && simpleVolume.Mute)
+            {
+                simpleVolume.Mute = false;
+            }
+            return true;
+        });
+    }
+
+    public bool TryToggleCurrentSessionMute()
+    {
+        return TryWithCurrentAudioSession(session =>
+        {
+            using var simpleVolume = session.SimpleAudioVolume;
+            simpleVolume.Mute = !simpleVolume.Mute;
+            return true;
+        });
+    }
+
+    private bool TryWithCurrentAudioSession(Func<AudioSessionControl, bool> action)
+    {
+        string sourceAppId = GetActiveSourceAppId();
+        if (string.IsNullOrWhiteSpace(sourceAppId))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var deviceEnumerator = new MMDeviceEnumerator();
+            using var defaultDevice = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            var sessions = defaultDevice.AudioSessionManager.Sessions;
+            if (sessions == null || sessions.Count == 0)
+            {
+                return false;
+            }
+
+            var candidateProcessNames = GetProcessNameCandidates(sourceAppId);
+            var candidateProcessIds = GetCachedProcessIdsForSourceApp(sourceAppId, candidateProcessNames);
+            AudioSessionControl? targetSession = null;
+            double bestScore = double.MinValue;
+
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                var session = sessions[i];
+                if (session == null || session.IsSystemSoundsSession)
+                {
+                    continue;
+                }
+
+                uint processId = session.GetProcessID;
+                bool matchedByProcess = candidateProcessIds.Contains(processId);
+                bool matchedByMetadata = SessionMatchesSourceAppId(session, sourceAppId);
+                if (!matchedByProcess && !matchedByMetadata)
+                {
+                    continue;
+                }
+
+                double score = 0;
+                if (matchedByProcess) score += 1000;
+                if (matchedByMetadata) score += 200;
+
+                if (string.Equals(sourceAppId, _lastMatchedVolumeSourceAppId, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (processId != 0 && processId == _lastMatchedVolumeProcessId) score += 300;
+                    if (string.Equals(session.GetSessionIdentifier, _lastMatchedVolumeSessionId, StringComparison.OrdinalIgnoreCase)) score += 400;
+                }
+
+                try
+                {
+                    score += session.AudioMeterInformation.MasterPeakValue * 100;
+                }
+                catch { }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    targetSession = session;
+                }
+            }
+
+            if (targetSession == null)
+            {
+                return false;
+            }
+
+            _lastMatchedVolumeSourceAppId = sourceAppId;
+            _lastMatchedVolumeProcessId = targetSession.GetProcessID;
+            _lastMatchedVolumeSessionId = targetSession.GetSessionIdentifier ?? "";
+
+            return action(targetSession);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string GetActiveSourceAppId()
+    {
+        try
+        {
+            return _activeDisplaySession?.SourceAppUserModelId
+                ?? _currentSession?.SourceAppUserModelId
+                ?? _sessionManager?.GetCurrentSession()?.SourceAppUserModelId
+                ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static bool SessionMatchesSourceAppId(AudioSessionControl session, string sourceAppId)
+    {
+        if (string.IsNullOrWhiteSpace(sourceAppId))
+        {
+            return false;
+        }
+
+        return ContainsEitherWay(session.DisplayName, sourceAppId) ||
+               ContainsEitherWay(session.GetSessionIdentifier, sourceAppId) ||
+               ContainsEitherWay(session.GetSessionInstanceIdentifier, sourceAppId);
+    }
+
+    private static bool ContainsEitherWay(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        return left.Contains(right, StringComparison.OrdinalIgnoreCase) ||
+               right.Contains(left, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static HashSet<string> GetProcessNameCandidates(string sourceAppId)
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(sourceAppId))
+        {
+            return candidates;
+        }
+
+        foreach (Match match in Regex.Matches(sourceAppId, @"([A-Za-z0-9_\-]+)\.exe", RegexOptions.IgnoreCase))
+        {
+            string processName = match.Groups[1].Value.Trim();
+            if (!string.IsNullOrWhiteSpace(processName))
+            {
+                candidates.Add(processName);
+            }
+        }
+
+        AddProcessAliasIfContains(sourceAppId, candidates, "spotify", "Spotify");
+        AddProcessAliasIfContains(sourceAppId, candidates, "msedge", "msedge");
+        AddProcessAliasIfContains(sourceAppId, candidates, "edge", "msedge");
+        AddProcessAliasIfContains(sourceAppId, candidates, "chrome", "chrome");
+        AddProcessAliasIfContains(sourceAppId, candidates, "firefox", "firefox");
+        AddProcessAliasIfContains(sourceAppId, candidates, "opera", "opera");
+        AddProcessAliasIfContains(sourceAppId, candidates, "brave", "brave");
+        AddProcessAliasIfContains(sourceAppId, candidates, "vivaldi", "vivaldi");
+        AddProcessAliasIfContains(sourceAppId, candidates, "coccoc", "browser");
+        AddProcessAliasIfContains(sourceAppId, candidates, "arc", "arc");
+        AddProcessAliasIfContains(sourceAppId, candidates, "sidekick", "sidekick");
+        AddProcessAliasIfContains(sourceAppId, candidates, "applemusic", "AppleMusic");
+        AddProcessAliasIfContains(sourceAppId, candidates, "apple music", "AppleMusic");
+
+        return candidates;
+    }
+
+    private static void AddProcessAliasIfContains(string sourceAppId, ISet<string> candidates, string token, string processName)
+    {
+        if (sourceAppId.Contains(token, StringComparison.OrdinalIgnoreCase))
+        {
+            candidates.Add(processName);
+        }
+    }
+
+    private HashSet<uint> GetCachedProcessIdsForSourceApp(string sourceAppId, IEnumerable<string> processNames)
+    {
+        bool canUseCache =
+            string.Equals(sourceAppId, _cachedVolumeProcessSourceAppId, StringComparison.OrdinalIgnoreCase) &&
+            (DateTime.UtcNow - _cachedVolumeProcessIdsAtUtc).TotalMilliseconds < 1200;
+
+        if (canUseCache)
+        {
+            return _cachedVolumeProcessIds;
+        }
+
+        _cachedVolumeProcessSourceAppId = sourceAppId;
+        _cachedVolumeProcessIds = GetProcessIds(processNames);
+        _cachedVolumeProcessIdsAtUtc = DateTime.UtcNow;
+        return _cachedVolumeProcessIds;
+    }
+
+    private static HashSet<uint> GetProcessIds(IEnumerable<string> processNames)
+    {
+        var processIds = new HashSet<uint>();
+
+        foreach (string processName in processNames)
+        {
+            if (string.IsNullOrWhiteSpace(processName))
+            {
+                continue;
+            }
+
+            Process[] processes;
+            try
+            {
+                processes = Process.GetProcessesByName(processName);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var process in processes)
+            {
+                try
+                {
+                    processIds.Add((uint)process.Id);
+                }
+                catch { }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+        }
+
+        return processIds;
     }
 
     public void Dispose()

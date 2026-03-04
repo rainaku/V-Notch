@@ -190,10 +190,14 @@ public partial class MainWindow
             }
         }
 
-        if (_isExpanded && _isMusicExpanded && _volumeService != null && _volumeService.IsAvailable && !_isDraggingVolume)
+        if (_isExpanded && _isMusicExpanded && !_isDraggingVolume)
         {
-            _currentVolume = _volumeService.GetVolume();
-            VolumeBarScale.ScaleX = _currentVolume;
+            if (_mediaService.TryGetCurrentSessionVolume(out float volume, out bool isMuted))
+            {
+                _currentVolume = volume;
+                VolumeBarScale.ScaleX = _currentVolume;
+                UpdateVolumeIcon(_currentVolume, isMuted);
+            }
         }
     }
 

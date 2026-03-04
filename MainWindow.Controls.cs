@@ -179,10 +179,9 @@ public partial class MainWindow
     private void VolumeIcon_MouseDown(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (_volumeService.IsAvailable)
+        if (_mediaService.TryToggleCurrentSessionMute())
         {
-            _volumeService.ToggleMute();
-            SyncVolumeFromSystem();
+            SyncVolumeFromActiveSession();
         }
     }
 
@@ -238,13 +237,10 @@ public partial class MainWindow
         VolumeBarScale.ScaleX = newVolume;
         UpdateVolumeIcon(newVolume, false);
 
-        if (_volumeService.IsAvailable)
-        {
-            _volumeService.SetVolume(newVolume);
-        }
+        _mediaService.TrySetCurrentSessionVolume(newVolume);
     }
 
-    private void SyncVolumeFromSystem()
+    private void SyncVolumeFromActiveSession()
     {
         if (_isDraggingVolume) return;
 
@@ -252,11 +248,9 @@ public partial class MainWindow
         {
             if (_isDraggingVolume) return;
 
-            if (_volumeService.IsAvailable)
+            if (_mediaService.TryGetCurrentSessionVolume(out float volume, out bool isMuted))
             {
-                _currentVolume = _volumeService.GetVolume();
-                bool isMuted = _volumeService.GetMute();
-
+                _currentVolume = volume;
                 VolumeBarScale.ScaleX = _currentVolume;
                 UpdateVolumeIcon(_currentVolume, isMuted);
             }

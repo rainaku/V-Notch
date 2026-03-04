@@ -47,4 +47,19 @@ public interface IMediaDetectionService : IDisposable
     /// Seek relative to current position.
     /// </summary>
     Task SeekRelativeAsync(double seconds);
+
+    /// <summary>
+    /// Try get volume/mute state for the currently active media session.
+    /// </summary>
+    bool TryGetCurrentSessionVolume(out float volume, out bool isMuted);
+
+    /// <summary>
+    /// Try set volume for the currently active media session.
+    /// </summary>
+    bool TrySetCurrentSessionVolume(float volume);
+
+    /// <summary>
+    /// Try toggle mute for the currently active media session.
+    /// </summary>
+    bool TryToggleCurrentSessionMute();
 }

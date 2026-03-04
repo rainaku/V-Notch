@@ -131,7 +131,6 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _updateTimer;
     private readonly DispatcherTimer _zOrderWatchdogTimer;
     private readonly DispatcherTimer _zOrderFastTimer;
-    private readonly VolumeService _volumeService;
     private readonly DispatcherTimer _hoverCollapseTimer;
     private readonly DispatcherTimer _hoverThumbnailDelayTimer;
 
@@ -206,8 +205,7 @@ public partial class MainWindow : Window
 
     public MainWindow(
         ISettingsService settingsService,
-        IMediaDetectionService mediaService,
-        IVolumeService volumeService)
+        IMediaDetectionService mediaService)
     {
         InitializeComponent();
 
@@ -215,7 +213,6 @@ public partial class MainWindow : Window
         _settings = _settingsService.Load();
         _notchManager = new NotchManager(this, _settings);
         _mediaService = (MediaDetectionService)mediaService;
-        _volumeService = (VolumeService)volumeService;
 
         _batteryModule = new BatteryModule((IBatteryService)App.Services.GetService(typeof(IBatteryService))!);
         _batteryModule.BatteryUpdated += BatteryModule_BatteryUpdated;
@@ -789,7 +786,7 @@ public partial class MainWindow : Window
 
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {
-        if (_isMusicExpanded) SyncVolumeFromSystem();
+        if (_isMusicExpanded) SyncVolumeFromActiveSession();
         EnsureTopmost();
     }
 

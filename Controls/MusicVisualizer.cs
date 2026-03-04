@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
+using NAudio.Dmo;
 using NAudio.Wave;
 using NAudio.Dsp;
 
@@ -71,16 +72,26 @@ namespace VNotch.Controls
         private const double BarSpacingRatio = 0.05;
         private const double CornerRadiusRatio = 0.5; // Circle-like ends
 
-        // Smoothing tau (ms)
-        private const double TauPlaying = 60;
-        private const double TauDecay = 180;
+        // UI smoothing. Lower alpha = faster response.
+        private const double AlphaAttack = 0.38;
+        private const double AlphaRelease = 0.78;
+        private const double AlphaPauseRelease = 0.86;
         private const double TauOpacity = 200;
+        private const double CaptureRetryIntervalMs = 2500;
+        private const double NoAudioPulseAmplitude = 0.08;
+        private const double NoAudioPulseBase = 0.04;
+        private const double LegacyRhythmMinMix = 0.10;
+        private const double LegacyRhythmMaxMix = 0.28;
+        private const double AudioPresenceThreshold = 0.010;
+        private const double DownwardDropBoost = 0.22;
+        private const double MinReleaseAlpha = 0.50;
 
         #endregion
 
         private readonly DispatcherTimer _timer;
         private readonly Stopwatch _stopwatch = new Stopwatch();
         private double _lastTickSeconds;
+        private DateTime _lastCaptureRetryUtc = DateTime.MinValue;
         
         private readonly double[] _currentHeights = new double[BarCount];
         private double _currentOpacity = 0.2;
@@ -92,7 +103,11 @@ namespace VNotch.Controls
             _timer.Tick += OnTick;
             
             Loaded += (s, e) => UpdateTimerState();
-            Unloaded += (s, e) => _timer.Stop();
+            Unloaded += (s, e) =>
+            {
+                _timer.Stop();
+                StopAudioCapture();
+            };
             IsVisibleChanged += (s, e) => UpdateTimerState();
 
             // Initial heights
@@ -123,10 +138,15 @@ namespace VNotch.Controls
             if (oldState != _state)
             {
                 UpdateTimerState();
-                if (_state == VisualizerState.Playing && _capture == null)
+                if (_state == VisualizerState.Idle)
                 {
-                    StartAudioCapture();
+                    StopAudioCapture();
                 }
+            }
+
+            if (_state != VisualizerState.Idle)
+            {
+                EnsureAudioCaptureStarted(force: oldState != _state);
             }
         }
 
@@ -146,7 +166,7 @@ namespace VNotch.Controls
             {
                 VisualizerState.Playing => 16,  // ~60 FPS
                 VisualizerState.Seeking => 16,  // ~60 FPS
-                VisualizerState.Paused => 100,
+                VisualizerState.Paused => 16,   // smooth decay to resting state
                 _ => 1000
             };
 
@@ -162,6 +182,8 @@ namespace VNotch.Controls
 
         private void OnTick(object? sender, EventArgs e)
         {
+            EnsureAudioCaptureStarted();
+
             double totalSec = _stopwatch.Elapsed.TotalSeconds;
             double dt = totalSec - _lastTickSeconds;
             _lastTickSeconds = totalSec;
@@ -189,30 +211,74 @@ namespace VNotch.Controls
 
             string sid = TrackId ?? "";
 
-            // Calculate current volumes
-            float[] levels = GetLatestFftLevels();
-            bool isAudioActive = false;
-            foreach (var lvl in levels) { if (lvl > 0.05f) { isAudioActive = true; break; } }
+            // Read latest audio energy snapshot produced on audio thread.
+            float[] levels = GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent);
+            double audioEnergy = 0;
+            for (int i = 0; i < BarCount; i++) audioEnergy += Math.Clamp(levels[i], 0f, 1f);
+            audioEnergy = Math.Clamp(Math.Pow(audioEnergy / BarCount, 0.85), 0.0, 1.0);
+
+            bool hasAudibleEnergy = hasFreshAudio && audioEnergy > AudioPresenceThreshold;
+            bool canDriveFromAudio = hasAudibleEnergy &&
+                                     (_state == VisualizerState.Playing || _state == VisualizerState.Paused);
 
             for (int i = 0; i < BarCount; i++)
             {
                 double targetH;
 
-                if (_state == VisualizerState.Playing && isAudioActive)
+                if (canDriveFromAudio)
                 {
-                    // Actual audio reaction
-                    targetH = MinHeightRatio + levels[i] * (MaxHeightRatio - MinHeightRatio);
+                    double band = Math.Clamp(levels[i], 0.0, 1.0);
+                    double audioShaped = Math.Pow(band, 0.72);
+                    double rhythm = GetAudioReactiveRhythmAt(i, totalSec, sid, audioEnergy);
+                    double rhythmMixBase = LegacyRhythmMinMix + ((1.0 - audioEnergy) * (LegacyRhythmMaxMix - LegacyRhythmMinMix));
+                    double rhythmMix = rhythmMixBase * (1.0 - (beatAccent * 0.75));
+                    double normalized = (audioShaped * (1.0 - rhythmMix)) + (rhythm * rhythmMix);
+                    normalized = Math.Clamp(normalized + (beatAccent * GetBeatLiftWeight(i)), 0.0, 1.0);
+                    targetH = MapNormalizedToHeight(normalized);
+                }
+                else if (_state == VisualizerState.Playing)
+                {
+                    double normalized = GetNoAudioPulseAt(i, totalSec, sid);
+                    targetH = MapNormalizedToHeight(normalized);
+                }
+                else if (_state == VisualizerState.Seeking)
+                {
+                    double normalized = GetNoAudioPulseAt(i, totalSec, sid);
+                    targetH = MapNormalizedToHeight(normalized);
+                }
+                else if (_state == VisualizerState.Paused)
+                {
+                    targetH = MinHeightRatio;
                 }
                 else
                 {
-                    // Fallback to idle/animation if no audio detected or paused
-                    targetH = GetFallbackTargetHeightAt(i, totalSec, sid);
+                    targetH = MinHeightRatio;
                 }
 
-                double tau = (targetH > _currentHeights[i]) ? TauPlaying : TauDecay;
+                double dynamicRelease = Math.Max(0.64, AlphaRelease - (beatAccent * 0.08));
+                double alpha;
+                if (targetH > _currentHeights[i])
+                {
+                    alpha = AlphaAttack;
+                }
+                else
+                {
+                    if (_state == VisualizerState.Paused)
+                    {
+                        alpha = AlphaPauseRelease;
+                    }
+                    else
+                    {
+                        // Make "falling" motion clearer: bigger drops release faster.
+                        double fallRatio = Math.Clamp(
+                            (_currentHeights[i] - targetH) / (MaxHeightRatio - MinHeightRatio),
+                            0.0, 1.0);
+                        alpha = Math.Max(MinReleaseAlpha, dynamicRelease - (fallRatio * DownwardDropBoost));
+                    }
+                }
                 
                 double oldH = _currentHeights[i];
-                _currentHeights[i] += (targetH - _currentHeights[i]) * (1 - Math.Exp(-dt * 1000 / tau));
+                _currentHeights[i] = (_currentHeights[i] * alpha) + (targetH * (1 - alpha));
                 
                 if (Math.Abs(_currentHeights[i] - oldH) > 0.001) isSettled = false;
             }
@@ -220,26 +286,49 @@ namespace VNotch.Controls
             return isSettled;
         }
 
-        private double GetFallbackTargetHeightAt(int index, double t, string sid)
+        private double MapNormalizedToHeight(double normalized)
         {
-            if (_state == VisualizerState.Idle || _state == VisualizerState.Paused) return MinHeightRatio;
+            double clamped = Math.Clamp(normalized, 0.0, 1.0);
+            return MinHeightRatio + clamped * (MaxHeightRatio - MinHeightRatio);
+        }
 
+        private double GetNoAudioPulseAt(int index, double t, string sid)
+        {
             uint hash = GetDeterministicHash(sid + index);
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
-            double freq = 1.8 + (hash % 60) / 100.0;
-            
-            double val = Math.Sin(t * freq * Math.PI * 2 + phase) * 0.35;
-            val += Math.Sin(t * 0.9 * Math.PI * 2 + phase * 0.5) * 0.2;
-            
-            if (_state == VisualizerState.Seeking)
-                val += Math.Sin(t * 5.0 + phase) * 0.15;
+            double freq = 1.0 + (hash % 50) / 100.0;
+            double wave = 0.5 + 0.5 * Math.Sin((t * freq * Math.PI * 2) + phase);
+            return NoAudioPulseBase + (wave * NoAudioPulseAmplitude);
+        }
 
-            double noiseRate = 12.0;
+        private static double GetBeatLiftWeight(int barIndex)
+        {
+            return barIndex switch
+            {
+                0 => 0.16, // kick-focused
+                1 => 0.12,
+                2 => 0.08,
+                3 => 0.10, // snare/clap side
+                4 => 0.13,
+                _ => 0.08
+            };
+        }
+
+        private double GetAudioReactiveRhythmAt(int index, double t, string sid, double energy)
+        {
+            uint hash = GetDeterministicHash(sid + index);
+            double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
+            double baseFreq = 1.2 + (hash % 45) / 100.0;
+            double speed = 0.75 + (energy * 0.95);
+
+            double value = Math.Sin((t * baseFreq * speed * Math.PI * 2) + phase) * 0.35;
+            value += Math.Sin((t * (0.65 + (energy * 0.55)) * Math.PI * 2) + (phase * 0.5)) * 0.20;
+
+            double noiseRate = 5.0 + (energy * 5.5);
             uint noiseSeed = GetDeterministicHash(sid + index + (int)Math.Floor(t * noiseRate));
-            val += ((noiseSeed % 200) / 100.0 - 1.0) * 0.12;
+            value += (((noiseSeed % 200) / 100.0) - 1.0) * (0.03 + (energy * 0.05));
 
-            double result = 0.5 + val;
-            return Math.Clamp(result, MinHeightRatio, MaxHeightRatio);
+            return Math.Clamp(0.5 + value, 0.0, 1.0);
         }
 
         private uint GetDeterministicHash(string str)
@@ -248,6 +337,18 @@ namespace VNotch.Controls
             foreach (char c in str)
                 hash = (hash ^ (uint)c) * 16777619;
             return hash;
+        }
+
+        private void EnsureAudioCaptureStarted(bool force = false)
+        {
+            if (_state == VisualizerState.Idle) return;
+            if (_capture != null) return;
+
+            var now = DateTime.UtcNow;
+            if (!force && (now - _lastCaptureRetryUtc).TotalMilliseconds < CaptureRetryIntervalMs) return;
+
+            _lastCaptureRetryUtc = now;
+            StartAudioCapture();
         }
 
         protected override void OnRender(DrawingContext dc)
@@ -294,12 +395,49 @@ namespace VNotch.Controls
         
         private static WasapiLoopbackCapture? _capture;
         private static readonly object _lockObj = new object();
-        private const int FftLength = 1024;
-        private const int M = 10; // Log2(1024)
-        private static readonly float[] _audioBuffer = new float[FftLength];
-        private static int _audioBufferPos = 0;
+        private const int FftLength = 512;
+        private const int FftM = 9; // Log2(512)
+        private const double MinDb = -72.0;
+        private const double MaxDb = 0.0;
+        private const double CompressionPower = 0.6;
+        private const double SpectralPreGain = 12.0;
+        private const double RmsWindowSeconds = 0.020;
+        private const int FreshAudioTimeoutMs = 800;
+        private const double AgcFloor = 0.14;
+        private const double AgcRelease = 0.985;
+        private const double KickTransientThreshold = 0.05;
+        private const double SnareTransientThreshold = 0.04;
+        private const double KickTransientGain = 6.6;
+        private const double SnareTransientGain = 9.0;
+        private const double KickAccentDecay = 0.86;
+        private const double SnareAccentDecay = 0.84;
+        private const double BeatTransientThreshold = 0.035;
+        private const double BeatTransientGain = 8.0;
+        private const double BeatAccentDecay = 0.80;
+        private const double BeatRmsDeltaThreshold = 0.012;
+        private const double BassDominanceStart = 1.10;
+        private const double BassDominanceSpan = 1.00;
+        private const double MaxLowAttenuation = 0.34;
+        private const double MaxKickAttenuation = 0.42;
+
+        private static readonly float[] _fftInputBuffer = new float[FftLength];
+        private static int _fftInputPos = 0;
         private static readonly Complex[] _fftData = new Complex[FftLength];
-        private static readonly float[] _bands = new float[BarCount];
+        private static readonly float[] _displayTargets = new float[BarCount];
+        private static double _rmsSumSquares;
+        private static int _rmsSampleCount;
+        private static int _rmsWindowSamples = 882; // ~20ms at 44.1kHz
+        private static float _latestRmsNormalized;
+        private static int _sampleRate = 44100;
+        private static long _lastAudioFrameUtcTicks;
+        private static double _agcPeak = 0.35;
+        private static double _prevKickEnergy;
+        private static double _prevSnareEnergy;
+        private static double _kickAccent;
+        private static double _snareAccent;
+        private static double _prevRmsForBeat;
+        private static double _beatAccent;
+        private static float _latestBeatAccent;
 
         private static void StartAudioCapture()
         {
@@ -310,11 +448,10 @@ namespace VNotch.Controls
                 try
                 {
                     _capture = new WasapiLoopbackCapture();
+                    _sampleRate = _capture.WaveFormat.SampleRate;
+                    _rmsWindowSamples = Math.Max(64, (int)(_sampleRate * RmsWindowSeconds));
                     _capture.DataAvailable += OnAudioDataAvailable;
-                    _capture.RecordingStopped += (s, e) => 
-                    {
-                        lock (_lockObj) { _capture?.Dispose(); _capture = null; }
-                    };
+                    _capture.RecordingStopped += OnCaptureStopped;
                     _capture.StartRecording();
                 }
                 catch (Exception ex)
@@ -325,94 +462,286 @@ namespace VNotch.Controls
             }
         }
 
+        private static void StopAudioCapture()
+        {
+            WasapiLoopbackCapture? captureToDispose = null;
+            lock (_lockObj)
+            {
+                if (_capture == null) return;
+                captureToDispose = _capture;
+                _capture = null;
+                ResetAudioState();
+            }
+
+            try
+            {
+                captureToDispose.DataAvailable -= OnAudioDataAvailable;
+                captureToDispose.RecordingStopped -= OnCaptureStopped;
+                captureToDispose.StopRecording();
+            }
+            catch
+            {
+                // Ignore stop failures; we'll dispose anyway.
+            }
+            finally
+            {
+                captureToDispose.Dispose();
+            }
+        }
+
+        private static void OnCaptureStopped(object? sender, StoppedEventArgs e)
+        {
+            lock (_lockObj)
+            {
+                if (sender != null && ReferenceEquals(_capture, sender))
+                {
+                    _capture.DataAvailable -= OnAudioDataAvailable;
+                    _capture.RecordingStopped -= OnCaptureStopped;
+                    _capture.Dispose();
+                    _capture = null;
+                    ResetAudioState();
+                }
+            }
+        }
+
+        private static void ResetAudioState()
+        {
+            Array.Clear(_fftInputBuffer, 0, _fftInputBuffer.Length);
+            Array.Clear(_displayTargets, 0, _displayTargets.Length);
+            _fftInputPos = 0;
+            _rmsSumSquares = 0;
+            _rmsSampleCount = 0;
+            _latestRmsNormalized = 0;
+            _lastAudioFrameUtcTicks = 0;
+            _agcPeak = 0.35;
+            _prevKickEnergy = 0;
+            _prevSnareEnergy = 0;
+            _kickAccent = 0;
+            _snareAccent = 0;
+            _prevRmsForBeat = 0;
+            _beatAccent = 0;
+            _latestBeatAccent = 0;
+        }
+
         private static void OnAudioDataAvailable(object? sender, WaveInEventArgs e)
         {
             if (_capture == null) return;
 
             var waveFormat = _capture.WaveFormat;
             int bytesPerSample = waveFormat.BitsPerSample / 8;
-            int samplesRecorded = e.BytesRecorded / bytesPerSample;
-            int channels = waveFormat.Channels;
+            if (bytesPerSample <= 0)
+            {
+                bytesPerSample = waveFormat.Encoding is WaveFormatEncoding.IeeeFloat or WaveFormatEncoding.Extensible
+                    ? 4
+                    : 2;
+            }
+            int channels = Math.Max(1, waveFormat.Channels);
+            int bytesPerFrame = bytesPerSample * channels;
+            if (bytesPerFrame <= 0) return;
 
-            var waveBuffer = new WaveBuffer(e.Buffer);
+            int framesRecorded = e.BytesRecorded / bytesPerFrame;
+            if (framesRecorded <= 0) return;
 
             lock (_lockObj)
             {
-                for (int i = 0; i < samplesRecorded; i += channels)
+                for (int frame = 0; frame < framesRecorded; frame++)
                 {
-                    float sample = waveBuffer.FloatBuffer[i];
-                    if (channels > 1 && i + 1 < samplesRecorded)
+                    int frameOffset = frame * bytesPerFrame;
+                    double mixed = 0;
+
+                    for (int ch = 0; ch < channels; ch++)
                     {
-                        sample = (sample + waveBuffer.FloatBuffer[i + 1]) / 2f;
+                        int sampleOffset = frameOffset + (ch * bytesPerSample);
+                        mixed += ReadSampleAsFloat(e.Buffer, sampleOffset, waveFormat);
                     }
 
-                    _audioBuffer[_audioBufferPos++] = sample;
-
-                    if (_audioBufferPos >= FftLength)
-                    {
-                        PerformFft();
-                        _audioBufferPos = 0;
-                    }
+                    PushSample((float)(mixed / channels));
                 }
+
+                _lastAudioFrameUtcTicks = DateTime.UtcNow.Ticks;
             }
         }
 
-        private static void PerformFft()
+        private static void PushSample(float sample)
+        {
+            _fftInputBuffer[_fftInputPos++] = sample;
+            _rmsSumSquares += sample * sample;
+            _rmsSampleCount++;
+
+            if (_rmsSampleCount >= _rmsWindowSamples)
+            {
+                double rms = Math.Sqrt(_rmsSumSquares / Math.Max(1, _rmsSampleCount));
+                _latestRmsNormalized = (float)NormalizeAmplitude(rms);
+                _rmsSumSquares = 0;
+                _rmsSampleCount = 0;
+            }
+
+            if (_fftInputPos >= FftLength)
+            {
+                ComputeDisplayTargets();
+                _fftInputPos = 0;
+            }
+        }
+
+        private static void ComputeDisplayTargets()
         {
             for (int i = 0; i < FftLength; i++)
             {
                 // Apply Hamming window
                 double window = 0.54 - 0.46 * Math.Cos((2 * Math.PI * i) / (FftLength - 1));
-                _fftData[i].X = (float)(_audioBuffer[i] * window);
+                _fftData[i].X = (float)(_fftInputBuffer[i] * window);
                 _fftData[i].Y = 0;
             }
 
-            FastFourierTransform.FFT(true, M, _fftData);
+            FastFourierTransform.FFT(true, FftM, _fftData);
 
-            // Group into 5 frequency bands
-            int[] bandRanges = new int[]
-            {
-                1, 4,     // Bass
-                5, 12,    // Low Mids
-                13, 35,   // Mids
-                36, 100,  // High Mids
-                101, 300  // Highs
-            };
+            // Wide groups + focused percussion groups for stronger kick/snare motion.
+            double low = NormalizeAmplitude(ComputeBandEnergy(40, 250) * SpectralPreGain);
+            double mid = NormalizeAmplitude(ComputeBandEnergy(250, 2000) * SpectralPreGain);
+            double high = NormalizeAmplitude(ComputeBandEnergy(2000, 8000) * SpectralPreGain);
+            double kick = NormalizeAmplitude(ComputeBandEnergy(45, 130) * (SpectralPreGain * 1.35));
+            double snare = NormalizeAmplitude(ComputeBandEnergy(1400, 5000) * (SpectralPreGain * 1.25));
+            double rms = _latestRmsNormalized;
 
-            for (int i = 0; i < BarCount; i++)
-            {
-                int start = bandRanges[i * 2];
-                int end = bandRanges[i * 2 + 1];
-                
-                double maxVal = 0;
-                for (int j = start; j <= end; j++)
-                {
-                    double mag = Math.Sqrt(_fftData[j].X * _fftData[j].X + _fftData[j].Y * _fftData[j].Y);
-                    if (mag > maxVal) maxVal = mag;
-                }
+            double peak = Math.Max(
+                Math.Max(Math.Max(low, mid), Math.Max(high, rms)),
+                Math.Max(kick, snare));
+            _agcPeak = Math.Max(peak, _agcPeak * AgcRelease);
+            double agcScale = 1.0 / Math.Max(AgcFloor, _agcPeak);
 
-                // Logarithmic dB scale: maxVal typically ~100+ for loud signals
-                // log10(100) = 2. So 10*log10 => ~20
-                double db = 10 * Math.Log10(maxVal + 1);
-                
-                // Add simple EQ weight since high frequencies have lower amplitude
-                double eqWeight = 1.0 + (i * 0.5); 
-                
-                float normalized = (float)Math.Clamp((db * eqWeight) / 20.0, 0, 1);
-                
-                // Give it a bouncy easing
-                if (normalized > _bands[i])
-                    _bands[i] = _bands[i] * 0.4f + normalized * 0.6f; // Attack fast
-                else
-                    _bands[i] = _bands[i] * 0.85f + normalized * 0.15f; // Decay slowly
-            }
+            low = Math.Clamp(low * agcScale, 0.0, 1.0);
+            mid = Math.Clamp(mid * agcScale, 0.0, 1.0);
+            high = Math.Clamp(high * agcScale, 0.0, 1.0);
+            kick = Math.Clamp(kick * agcScale, 0.0, 1.0);
+            snare = Math.Clamp(snare * agcScale, 0.0, 1.0);
+            rms = Math.Clamp(rms * agcScale, 0.0, 1.0);
+
+            // Bass-heavy tracks: damp low/kick so visual stays balanced.
+            double nonBass = (mid * 0.7) + (high * 0.6) + 1e-5;
+            double bassDominance = low / nonBass;
+            double bassExcess = Math.Clamp((bassDominance - BassDominanceStart) / BassDominanceSpan, 0.0, 1.0);
+            double lowScale = 1.0 - (bassExcess * MaxLowAttenuation);
+            double kickScale = 1.0 - (bassExcess * MaxKickAttenuation);
+            low *= lowScale;
+            kick *= kickScale;
+
+            // Accent transients for percussion hits (fast rise, controlled decay).
+            double kickDelta = Math.Max(0.0, kick - _prevKickEnergy);
+            double snareDelta = Math.Max(0.0, snare - _prevSnareEnergy);
+            double rmsDelta = Math.Max(0.0, rms - _prevRmsForBeat);
+            _prevKickEnergy = kick;
+            _prevSnareEnergy = snare;
+            _prevRmsForBeat = rms;
+
+            double kickHit = Math.Clamp((kickDelta - KickTransientThreshold) * KickTransientGain, 0.0, 1.0);
+            double snareHit = Math.Clamp((snareDelta - SnareTransientThreshold) * SnareTransientGain, 0.0, 1.0);
+            double rmsHit = Math.Clamp((rmsDelta - BeatRmsDeltaThreshold) * 18.0, 0.0, 1.0);
+            _kickAccent = Math.Max(kickHit, _kickAccent * KickAccentDecay);
+            _snareAccent = Math.Max(snareHit, _snareAccent * SnareAccentDecay);
+            double beatDriver = (_kickAccent * 0.55) + (_snareAccent * 0.30) + (rmsHit * 0.35);
+            double beatHit = Math.Clamp((beatDriver - BeatTransientThreshold) * BeatTransientGain, 0.0, 1.0);
+            _beatAccent = Math.Max(beatHit, _beatAccent * BeatAccentDecay);
+            _latestBeatAccent = (float)_beatAccent;
+
+            _displayTargets[0] = (float)Math.Clamp((low * 0.60) + (kick * 0.24) + (rms * 0.24) + (_kickAccent * 0.34) + (_beatAccent * 0.12), 0.0, 1.0);
+            _displayTargets[1] = (float)Math.Clamp((low * 0.42) + (mid * 0.38) + (kick * 0.16) + (_kickAccent * 0.22) + (_beatAccent * 0.08), 0.0, 1.0);
+            _displayTargets[2] = (float)Math.Clamp((mid * 0.64) + (rms * 0.30) + (snare * 0.10) + (_snareAccent * 0.10) + (_beatAccent * 0.06), 0.0, 1.0);
+            _displayTargets[3] = (float)Math.Clamp((mid * 0.38) + (high * 0.50) + (snare * 0.24) + (_snareAccent * 0.30) + (_beatAccent * 0.10), 0.0, 1.0);
+            _displayTargets[4] = (float)Math.Clamp((high * 0.60) + (rms * 0.22) + (snare * 0.30) + (_snareAccent * 0.40) + (_beatAccent * 0.12), 0.0, 1.0);
         }
 
-        private static float[] GetLatestFftLevels()
+        private static double ComputeBandEnergy(int fromHz, int toHz)
+        {
+            int maxBin = (FftLength / 2) - 1;
+            if (_sampleRate <= 0 || maxBin <= 1) return 0;
+
+            int start = FrequencyToBin(fromHz);
+            int end = FrequencyToBin(toHz);
+            if (end < start) (start, end) = (end, start);
+
+            start = Math.Clamp(start, 1, maxBin);
+            end = Math.Clamp(end, start, maxBin);
+
+            double sumSquares = 0;
+            int count = 0;
+            for (int i = start; i <= end; i++)
+            {
+                double mag = Math.Sqrt((_fftData[i].X * _fftData[i].X) + (_fftData[i].Y * _fftData[i].Y));
+                double normalizedMag = mag / (FftLength * 0.5);
+                sumSquares += normalizedMag * normalizedMag;
+                count++;
+            }
+
+            return count > 0 ? Math.Sqrt(sumSquares / count) : 0;
+        }
+
+        private static int FrequencyToBin(int frequencyHz)
+        {
+            if (_sampleRate <= 0) return 1;
+            return (int)Math.Round((frequencyHz / (double)_sampleRate) * FftLength);
+        }
+
+        private static double NormalizeAmplitude(double amplitude)
+        {
+            double db = 20 * Math.Log10(Math.Max(amplitude, 1e-9));
+            double normalized = (db - MinDb) / (MaxDb - MinDb);
+            normalized = Math.Clamp(normalized, 0.0, 1.0);
+            return Math.Pow(normalized, CompressionPower);
+        }
+
+        private static float ReadSampleAsFloat(byte[] buffer, int offset, WaveFormat waveFormat)
+        {
+            bool isFloatLike = waveFormat.Encoding == WaveFormatEncoding.IeeeFloat;
+
+            if (waveFormat.Encoding == WaveFormatEncoding.Extensible &&
+                waveFormat is WaveFormatExtensible extensible)
+            {
+                isFloatLike = extensible.SubFormat == AudioMediaSubtypes.MEDIASUBTYPE_IEEE_FLOAT;
+            }
+
+            if (isFloatLike)
+            {
+                if (waveFormat.BitsPerSample == 64)
+                {
+                    return (float)BitConverter.ToDouble(buffer, offset);
+                }
+                return BitConverter.ToSingle(buffer, offset);
+            }
+
+            return waveFormat.BitsPerSample switch
+            {
+                8 => (buffer[offset] - 128) / 128f,
+                16 => BitConverter.ToInt16(buffer, offset) / 32768f,
+                24 => Read24BitSample(buffer, offset) / 8388608f,
+                32 => BitConverter.ToInt32(buffer, offset) / 2147483648f,
+                _ => 0f
+            };
+        }
+
+        private static int Read24BitSample(byte[] buffer, int offset)
+        {
+            int sample = buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16);
+            if ((sample & 0x800000) != 0) sample |= unchecked((int)0xFF000000);
+            return sample;
+        }
+
+        private static float[] GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent)
         {
             lock (_lockObj)
             {
-                return new float[] { _bands[0], _bands[1], _bands[2], _bands[3], _bands[4] };
+                long ticks = _lastAudioFrameUtcTicks;
+                hasFreshAudio = ticks != 0 &&
+                    (DateTime.UtcNow.Ticks - ticks) <= TimeSpan.FromMilliseconds(FreshAudioTimeoutMs).Ticks;
+                beatAccent = _latestBeatAccent;
+
+                return new[]
+                {
+                    _displayTargets[0],
+                    _displayTargets[1],
+                    _displayTargets[2],
+                    _displayTargets[3],
+                    _displayTargets[4]
+                };
             }
         }
 

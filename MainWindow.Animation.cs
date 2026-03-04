@@ -748,7 +748,7 @@ public partial class MainWindow
         InlinePauseIcon.Visibility = _isPlaying ? Visibility.Visible : Visibility.Collapsed;
         InlinePlayIcon.Visibility = _isPlaying ? Visibility.Collapsed : Visibility.Visible;
 
-        SyncVolumeFromSystem();
+        SyncVolumeFromActiveSession();
     }
 
     private void CollapseMusicWidget()

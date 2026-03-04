@@ -242,7 +242,7 @@ public class ProgressEngine
 
             // Reject unexpected small backward jumps (after seek detection).
             TimeSpan effectiveBackwardTolerance = snapshot.IsYouTube
-                ? TimeSpan.FromMilliseconds(650)
+                ? TimeSpan.FromMilliseconds(900)
                 : _backwardsTolerance;
             if (observedPos < predictedNow - effectiveBackwardTolerance)
             {
@@ -252,7 +252,7 @@ public class ProgressEngine
 
             // During warmup: sync more aggressively, allow larger drift
             TimeSpan effectiveDriftTolerance = inWarmup 
-                ? (snapshot.IsYouTube ? TimeSpan.FromMilliseconds(1200) : TimeSpan.FromSeconds(2))
+                ? (snapshot.IsYouTube ? TimeSpan.FromMilliseconds(800) : TimeSpan.FromSeconds(2))
                 : _driftTolerance;
 
             TimeSpan effectiveSyncInterval = inWarmup 
@@ -271,6 +271,8 @@ public class ProgressEngine
                     _anchorTimestamp = snapshotTsUtc;
                     _stopwatch.Restart();
                     _lastSyncTime = now;
+                    // Allow backward correction to take effect in GetUiFrame anti-backward guard
+                    _lastDisplayedPosition = observedPos;
 
                     if (inWarmup && Math.Abs(driftMs) < 3000) // nếu drift nhỏ dần → kết thúc warmup sớm
                     {
