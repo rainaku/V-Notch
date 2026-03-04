@@ -11,6 +11,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Runtime.CompilerServices;
+using System.Windows.Media;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -97,6 +98,7 @@ public class MediaDetectionService : IMediaDetectionService
     private string _soundCloudFetchIdentity = "";
     private int _soundCloudFetchGeneration = 0;
     private int _soundCloudFetchInFlight = 0;
+    private static readonly TimeSpan SoundCloudArtworkRetryInterval = TimeSpan.FromSeconds(1.1);
 
     private DateTime _simBaseWallTimeUtc = DateTime.MinValue;
     private TimeSpan _simBasePosition = TimeSpan.Zero;
@@ -383,7 +385,7 @@ public class MediaDetectionService : IMediaDetectionService
 
             bool needsFallback = !info.IsAnyMediaPlaying || (string.IsNullOrEmpty(info.CurrentTrack) && info.MediaSource == "Browser") || info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource);
 
-            if (needsFallback)
+            if (needsFallback && info.IsAnyMediaPlaying)
             {
                 windowTitles ??= GetAllWindowTitles();
 
@@ -602,13 +604,22 @@ public class MediaDetectionService : IMediaDetectionService
 
             if (string.IsNullOrEmpty(info.CurrentTrack))
             {
-                if (_emptyMetadataStartTime == DateTime.MinValue)
+                // Preserve brief metadata gaps only while media is still active.
+                if (info.IsAnyMediaPlaying)
                 {
-                    _emptyMetadataStartTime = DateTime.Now;
+                    if (_emptyMetadataStartTime == DateTime.MinValue)
+                    {
+                        _emptyMetadataStartTime = DateTime.Now;
+                    }
+                    if ((DateTime.Now - _emptyMetadataStartTime).TotalSeconds < 2.5 && !string.IsNullOrEmpty(_lastStableTrackSignature))
+                    {
+                        return;
+                    }
                 }
-                if ((DateTime.Now - _emptyMetadataStartTime).TotalSeconds < 2.5 && !string.IsNullOrEmpty(_lastStableTrackSignature))
+                else
                 {
-                    return;
+                    _emptyMetadataStartTime = DateTime.MinValue;
+                    _lastStableTrackSignature = "";
                 }
             }
             else
@@ -638,7 +649,8 @@ public class MediaDetectionService : IMediaDetectionService
 
             if (forceRefresh || metadataChanged || playbackChanged || sourceChanged || (significantJump && !info.IsThrottled) || seekCapabilityChanged || throttleChanged || startupTimelineSync)
             {
-                if (string.IsNullOrEmpty(info.CurrentTrack) && !string.IsNullOrEmpty(_lastPublishedSignature) && !forceRefresh)
+                bool shouldHoldEmptyTrack = string.IsNullOrEmpty(info.CurrentTrack) && info.IsAnyMediaPlaying;
+                if (shouldHoldEmptyTrack && !string.IsNullOrEmpty(_lastPublishedSignature) && !forceRefresh)
                 {
                     return;
                 }
@@ -817,7 +829,7 @@ public class MediaDetectionService : IMediaDetectionService
                 bool shouldRetryPlaceholder = (info.Thumbnail == null ||
                                               IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail) ||
                                               hasMismatchedThumbSource) &&
-                                              (DateTime.UtcNow - _lastSoundCloudArtworkAttemptTimeUtc).TotalSeconds >= 0.2;
+                                              (DateTime.UtcNow - _lastSoundCloudArtworkAttemptTimeUtc) >= SoundCloudArtworkRetryInterval;
                 bool sameTrackFetchRunning =
                     Volatile.Read(ref _soundCloudFetchInFlight) == 1 &&
                     string.Equals(_soundCloudFetchIdentity, soundCloudTrackIdentity, StringComparison.Ordinal);
@@ -847,13 +859,17 @@ public class MediaDetectionService : IMediaDetectionService
                         try
                         {
                             var artworkUrl = await TryGetSoundCloudArtworkUrlAsync(trackDuringFetch, artistDuringFetch, requireStrongMatch, token);
-                            if (string.IsNullOrEmpty(artworkUrl) || token.IsCancellationRequested)
+                            if (string.IsNullOrEmpty(artworkUrl) ||
+                                IsLikelySoundCloudPlaceholderArtworkUrl(artworkUrl) ||
+                                token.IsCancellationRequested)
                             {
                                 return;
                             }
 
                             var frameBitmap = await DownloadImageAsync(artworkUrl);
-                            if (frameBitmap == null || token.IsCancellationRequested)
+                            if (frameBitmap == null ||
+                                IsLikelySoundCloudPlaceholderThumbnail(frameBitmap) ||
+                                token.IsCancellationRequested)
                             {
                                 return;
                             }
@@ -1082,7 +1098,13 @@ public class MediaDetectionService : IMediaDetectionService
         }
 
         // Browser SMTC placeholder icons are usually small square assets.
-        return thumbnail.PixelWidth <= 320 || thumbnail.PixelHeight <= 320;
+        if (thumbnail.PixelWidth <= 320 || thumbnail.PixelHeight <= 320)
+        {
+            return true;
+        }
+
+        // SoundCloud default avatars can also be served as larger square images.
+        return HasLowEntropyMonochromeProfile(thumbnail);
     }
 
     private static bool IsLikelySoundCloudArtworkCandidate(BitmapImage? thumbnail)
@@ -1100,7 +1122,86 @@ public class MediaDetectionService : IMediaDetectionService
         }
 
         // Real SoundCloud covers are typically square and larger than placeholder icons.
-        return thumbnail.PixelWidth >= 360 && thumbnail.PixelHeight >= 360;
+        return thumbnail.PixelWidth >= 360 &&
+               thumbnail.PixelHeight >= 360 &&
+               !IsLikelySoundCloudPlaceholderThumbnail(thumbnail);
+    }
+
+    private static bool IsLikelySoundCloudPlaceholderArtworkUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return true;
+        }
+
+        string normalized = url.Replace("\\u0026", "&").Replace("\\/", "/").ToLowerInvariant();
+        return normalized.Contains("default_avatar", StringComparison.Ordinal) ||
+               normalized.Contains("/images/default_", StringComparison.Ordinal) ||
+               normalized.Contains("default-soundcloud", StringComparison.Ordinal);
+    }
+
+    private static bool HasLowEntropyMonochromeProfile(BitmapImage thumbnail)
+    {
+        try
+        {
+            int sampleSize = 24;
+            double scale = Math.Min(
+                1.0,
+                (double)sampleSize / Math.Max(thumbnail.PixelWidth, thumbnail.PixelHeight));
+
+            BitmapSource source = thumbnail;
+            if (scale < 1.0)
+            {
+                var transformed = new TransformedBitmap(thumbnail, new ScaleTransform(scale, scale));
+                transformed.Freeze();
+                source = transformed;
+            }
+
+            var formatted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+            formatted.Freeze();
+
+            int width = Math.Max(1, formatted.PixelWidth);
+            int height = Math.Max(1, formatted.PixelHeight);
+            int stride = width * 4;
+            byte[] pixels = new byte[stride * height];
+            formatted.CopyPixels(pixels, stride, 0);
+
+            var quantizedBins = new HashSet<int>();
+            double saturationSum = 0;
+            int nearGrayCount = 0;
+            int brightCount = 0;
+            int pixelCount = width * height;
+
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                byte b = pixels[i];
+                byte g = pixels[i + 1];
+                byte r = pixels[i + 2];
+
+                int max = Math.Max(r, Math.Max(g, b));
+                int min = Math.Min(r, Math.Min(g, b));
+                int delta = max - min;
+
+                if (delta <= 12) nearGrayCount++;
+                if (max >= 220 && min >= 220) brightCount++;
+
+                quantizedBins.Add(((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5));
+                saturationSum += max == 0 ? 0 : (double)delta / max;
+            }
+
+            double avgSaturation = saturationSum / pixelCount;
+            double grayRatio = (double)nearGrayCount / pixelCount;
+            double brightRatio = (double)brightCount / pixelCount;
+
+            return quantizedBins.Count <= 18 &&
+                   avgSaturation <= 0.08 &&
+                   grayRatio >= 0.84 &&
+                   brightRatio >= 0.02;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task TryGetMediaSessionInfoAsync(MediaInfo info, bool forceRefresh, Func<List<string>> windowTitleFactory)
@@ -2068,7 +2169,11 @@ public class MediaDetectionService : IMediaDetectionService
                 var direct = await TryGetSoundCloudOEmbedAsync(directTrackUrl, ct);
                 if (!string.IsNullOrWhiteSpace(direct.ThumbnailUrl))
                 {
-                    return NormalizeSoundCloudArtworkUrl(direct.ThumbnailUrl!);
+                    string normalizedDirectThumbnail = NormalizeSoundCloudArtworkUrl(direct.ThumbnailUrl!);
+                    if (!IsLikelySoundCloudPlaceholderArtworkUrl(normalizedDirectThumbnail))
+                    {
+                        return normalizedDirectThumbnail;
+                    }
                 }
             }
 
@@ -2205,6 +2310,11 @@ public class MediaDetectionService : IMediaDetectionService
             }
 
             string normalizedThumb = NormalizeSoundCloudArtworkUrl(result.ThumbnailUrl!);
+            if (IsLikelySoundCloudPlaceholderArtworkUrl(normalizedThumb))
+            {
+                return new SoundCloudCandidateProbe(index, null, false);
+            }
+
             bool isMatch = IsSoundCloudOEmbedMatch(
                 expectedTitle,
                 expectedArtist,
@@ -2471,6 +2581,11 @@ public class MediaDetectionService : IMediaDetectionService
     private static string NormalizeSoundCloudArtworkUrl(string url)
     {
         string normalized = url.Replace("\\u0026", "&").Replace("\\/", "/");
+        if (IsLikelySoundCloudPlaceholderArtworkUrl(normalized))
+        {
+            return normalized;
+        }
+
         return Regex.Replace(normalized, @"-(?:large|t\d+x\d+)\.", "-t500x500.", RegexOptions.IgnoreCase);
     }
 

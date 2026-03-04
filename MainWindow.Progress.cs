@@ -309,8 +309,9 @@ public partial class MainWindow
                 Position = info.Position,
                 Duration = info.Duration,
                 IsPlaying = info.IsPlaying,
-                // Treat only explicit YouTube as video-timestamp compensated source.
-                IsYouTube = info.MediaSource == "YouTube",
+                // Browser sessions can still be YouTube (source refinement is async),
+                // so include strong YouTube hints to keep progress compensation stable.
+                IsYouTube = IsLikelyYouTubeProgressSource(info),
                 PlaybackRate = info.PlaybackRate,
                 IsSeekEnabled = info.IsSeekEnabled,
                 IsIndeterminate = info.IsIndeterminate,
@@ -356,6 +357,28 @@ public partial class MainWindow
             ResetProgressUI();
             if (_isExpanded) RenderProgressBar();
         }
+    }
+
+    private static bool IsLikelyYouTubeProgressSource(MediaInfo info)
+    {
+        if (string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(info.YouTubeVideoId))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(info.SourceAppId) &&
+            info.SourceAppId.Contains("YouTube", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(info.CurrentArtist, "YouTube", StringComparison.OrdinalIgnoreCase);
     }
 
     private void HandleSessionTransition()
