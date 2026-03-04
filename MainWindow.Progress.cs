@@ -309,7 +309,8 @@ public partial class MainWindow
                 Position = info.Position,
                 Duration = info.Duration,
                 IsPlaying = info.IsPlaying,
-                IsYouTube = info.MediaSource == "YouTube" || info.MediaSource == "Browser",
+                // Treat only explicit YouTube as video-timestamp compensated source.
+                IsYouTube = info.MediaSource == "YouTube",
                 PlaybackRate = info.PlaybackRate,
                 IsSeekEnabled = info.IsSeekEnabled,
                 IsIndeterminate = info.IsIndeterminate,

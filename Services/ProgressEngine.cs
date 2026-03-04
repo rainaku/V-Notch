@@ -107,10 +107,24 @@ public class ProgressEngine
             if (staleness < TimeSpan.Zero || staleness > TimeSpan.FromMinutes(5)) 
                 staleness = TimeSpan.Zero;
 
+            bool startupWarmupActive = _isInitialWarmup &&
+                                       _firstSnapshotTime != DateTime.MinValue &&
+                                       (now - _firstSnapshotTime) < _initialWarmupDuration;
+
             TimeSpan actualCurrentPos = snapshot.Position;
             if (isNowPlaying)
             {
-                actualCurrentPos += TimeSpan.FromSeconds(staleness.TotalSeconds * _playbackRate);
+                // Compensate delayed timeline timestamps.
+                // Keep YouTube allowance wider, but tightly cap non-YouTube sources
+                // to avoid position oscillation when browser session metadata is stale.
+                var stalenessCap = snapshot.IsYouTube
+                    ? TimeSpan.FromSeconds(2)
+                    : (startupWarmupActive ? TimeSpan.FromSeconds(8) : TimeSpan.FromSeconds(2.5));
+                var effectiveStaleness = staleness > stalenessCap ? stalenessCap : staleness;
+                if (effectiveStaleness > TimeSpan.FromMilliseconds(60))
+                {
+                    actualCurrentPos += TimeSpan.FromSeconds(effectiveStaleness.TotalSeconds * _playbackRate);
+                }
             }
 
             if (!isNowPlaying)
@@ -124,6 +138,7 @@ public class ProgressEngine
 
             // Initial warmup: accept large drift and aggressively sync
             bool inWarmup = _isInitialWarmup && (now - _firstSnapshotTime) < _initialWarmupDuration;
+            bool allowWarmupBackwardsRecovery = !snapshot.IsYouTube && inWarmup;
 
             if (_state != ProgressState.Playing && _state != ProgressState.Seeking)
             {
@@ -153,7 +168,7 @@ public class ProgressEngine
                     _lastDisplayedPosition.TotalSeconds > (_duration.TotalSeconds * 0.8) &&
                     observedPos.TotalSeconds < Math.Min(5.0, _duration.TotalSeconds * 0.2);
 
-                if (!likelyRestartAtTrackEnd)
+                if (!likelyRestartAtTrackEnd && !allowWarmupBackwardsRecovery)
                     return;
             }
 
@@ -172,15 +187,15 @@ public class ProgressEngine
 
             // During warmup: sync more aggressively, allow larger drift
             TimeSpan effectiveDriftTolerance = inWarmup 
-                ? TimeSpan.FromSeconds(5)   // chấp nhận drift lớn trong 4s đầu
+                ? (snapshot.IsYouTube ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(2))
                 : _driftTolerance;
 
             TimeSpan effectiveSyncInterval = inWarmup 
-                ? TimeSpan.FromMilliseconds(600) 
+                ? (snapshot.IsYouTube ? TimeSpan.FromMilliseconds(600) : TimeSpan.FromMilliseconds(300))
                 : _minSyncInterval;
 
             // Anti-backwards
-            if (observedPos < _lastDisplayedPosition - _backwardsTolerance)
+            if (observedPos < _lastDisplayedPosition - _backwardsTolerance && !allowWarmupBackwardsRecovery)
                 return;
 
             // Drift correction

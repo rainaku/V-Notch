@@ -4,11 +4,13 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Media.Imaging;
 using System.Threading.Channels;
+using System.Globalization;
 using Windows.Media.Control;
 using Windows.Storage.Streams;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -48,6 +50,7 @@ public class MediaDetectionService : IMediaDetectionService
     private string _lastTrackSignature = "";
     private string _cachedSource = "";
     private BitmapImage? _cachedThumbnail;
+    private string _cachedThumbnailSource = "";
 
     private string _pendingSessionAppId = "";
     private DateTime _pendingSessionStartTime = DateTime.MinValue;
@@ -58,15 +61,29 @@ public class MediaDetectionService : IMediaDetectionService
     private static readonly string[] _platformKeywords = {
         "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x", "apple music", "apple", "music"
     };
+    private static readonly HashSet<string> _soundCloudReservedUsers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "search", "charts", "discover", "stream", "you", "terms", "privacy", "mobile", "upload", "signin",
+        "login", "settings", "jobs", "blog", "developers", "pages", "playlists", "stations", "likes", "messages",
+        "pro", "for-artists", "popular", "tracks", "explore", "featured"
+    };
+    private static readonly HashSet<string> _soundCloudReservedTrackSlugs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "sets", "tracks", "likes", "reposts", "spotlight", "albums", "following", "followers"
+    };
 
 
     private CancellationTokenSource? _thumbCts;
     private string _lastStableTrackSignature = "";
     private DateTime _emptyMetadataStartTime = DateTime.MinValue;
     private readonly Dictionary<string, DateTime> _sessionLastPlayingTimes = new();
+    private readonly Dictionary<string, DateTime> _sessionPlayStartTimes = new();
+    private readonly Dictionary<string, bool> _sessionPlayingStates = new();
     private readonly Dictionary<string, string> _sessionSourceOverrides = new();
     private readonly Dictionary<string, string> _trackSourceCache = new();
     private readonly string _cachePath;
+    private string _latestPlayingSessionKey = "";
+    private DateTime _latestPlayingSessionStartUtc = DateTime.MinValue;
 
     private DateTime _lastMetadataChangeTime = DateTime.MinValue;
     private string _lastTrackName = "";
@@ -75,6 +92,11 @@ public class MediaDetectionService : IMediaDetectionService
     private bool _isThrottled;
     private TimeSpan _recoveredDuration = TimeSpan.Zero;
     private BitmapImage? _recoveredThumbnail;
+    private string _lastSoundCloudArtworkIdentity = "";
+    private DateTime _lastSoundCloudArtworkAttemptTimeUtc = DateTime.MinValue;
+    private string _soundCloudFetchIdentity = "";
+    private int _soundCloudFetchGeneration = 0;
+    private int _soundCloudFetchInFlight = 0;
 
     private DateTime _simBaseWallTimeUtc = DateTime.MinValue;
     private TimeSpan _simBasePosition = TimeSpan.Zero;
@@ -164,7 +186,7 @@ public class MediaDetectionService : IMediaDetectionService
         _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
         _ = Task.Run(async () =>
         {
-            int[] stagedDelaysMs = { 250, 900, 1800 };
+            int[] stagedDelaysMs = { 120, 350, 800 };
             foreach (int delayMs in stagedDelaysMs)
             {
                 try
@@ -277,6 +299,7 @@ public class MediaDetectionService : IMediaDetectionService
                 }
 
                 bool forceRefresh = types.HasFlag(ChangeType.MediaProperties)
+                    || types.HasFlag(ChangeType.Playback)
                     || types.HasFlag(ChangeType.SessionChanged)
                     || types.HasFlag(ChangeType.ForceRefresh);
 
@@ -358,18 +381,6 @@ public class MediaDetectionService : IMediaDetectionService
                 return windowTitles;
             });
 
-            if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId) && _sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sOver))
-            {
-                info.MediaSource = sOver;
-                if (sOver == "YouTube") info.IsYouTubeRunning = true;
-            }
-
-            if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.CurrentTrack) && _trackSourceCache.TryGetValue(info.CurrentTrack, out var tOver))
-            {
-                info.MediaSource = tOver;
-                if (tOver == "YouTube") info.IsYouTubeRunning = true;
-            }
-
             bool needsFallback = !info.IsAnyMediaPlaying || (string.IsNullOrEmpty(info.CurrentTrack) && info.MediaSource == "Browser") || info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource);
 
             if (needsFallback)
@@ -424,7 +435,8 @@ public class MediaDetectionService : IMediaDetectionService
 
             var currentSignature = info.GetSignature();
 
-            bool isVideoSource = info.MediaSource is "YouTube" or "Browser";
+            bool isVideoSource = info.MediaSource == "YouTube" ||
+                                 (info.MediaSource == "Browser" && IsLikelyYouTube(info));
             if (isVideoSource && info.IsPlaying)
             {
 
@@ -575,6 +587,16 @@ public class MediaDetectionService : IMediaDetectionService
                 if (_isThrottled) _isThrottled = false;
             }
 
+            if (ShouldPreserveSoundCloudSourceDuringTrackSwitch(info))
+            {
+                info.MediaSource = "SoundCloud";
+                info.IsSoundCloudRunning = true;
+                if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
+                {
+                    _sessionSourceOverrides[info.SourceAppId] = "SoundCloud";
+                }
+            }
+
             info.IsThrottled = _isThrottled;
             currentSignature = info.GetSignature(); 
 
@@ -599,6 +621,12 @@ public class MediaDetectionService : IMediaDetectionService
             bool playbackChanged = info.IsPlaying != _lastIsPlaying;
             bool sourceChanged = info.MediaSource != _lastSource;
             bool seekCapabilityChanged = info.IsSeekEnabled != _lastSeekEnabled;
+            string prevPublishedTrackOnlyIdentity = _lastPublishedTrackOnlyIdentity;
+            bool isNewTrackForThumbnail = !string.IsNullOrEmpty(info.CurrentTrack) &&
+                                          !string.Equals(
+                                              BuildTrackIdentity(info.CurrentTrack, ""),
+                                              prevPublishedTrackOnlyIdentity,
+                                              StringComparison.Ordinal);
 
             bool significantJump = Math.Abs((info.Position - _lastPosition).TotalSeconds) >= (info.IsThrottled ? 5.0 : 1.5);
             bool throttleChanged = info.IsThrottled != _lastIsThrottled;
@@ -622,6 +650,9 @@ public class MediaDetectionService : IMediaDetectionService
                 _lastPosition = info.Position;
                 _lastSeekEnabled = info.IsSeekEnabled;
                 _lastIsThrottled = info.IsThrottled;
+                _lastPublishedTrackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
+                _lastPublishedTrackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
+                _lastPublishedSourceAppId = info.SourceAppId ?? "";
 
                 // Update detection mode for adaptive heartbeat
                 UpdateDetectionMode(info);
@@ -632,12 +663,31 @@ public class MediaDetectionService : IMediaDetectionService
                 {
                     await dispatcher.InvokeAsync(() => MediaChanged?.Invoke(this, info));
                 }
+
+                // New media/metadata detected: enforce one immediate full refresh pass
+                // so UI is finalized with the latest playing item metadata/source.
+                if (!forceRefresh && metadataChanged && !string.IsNullOrEmpty(info.CurrentTrack))
+                {
+                    _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
+                }
             }
 
-            bool isPotentialYouTube = info.MediaSource == "YouTube" || info.MediaSource == "Browser";
+            bool isPotentialYouTube = info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info));
+            bool hasSoundCloudSessionOverride = !string.IsNullOrEmpty(info.SourceAppId) &&
+                                                _sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sourceOverride) &&
+                                                string.Equals(sourceOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase);
+            bool shouldProbeSoundCloudFromBrowser = info.MediaSource == "Browser" &&
+                                                    !IsLikelyYouTube(info) &&
+                                                    !string.IsNullOrEmpty(info.CurrentTrack) &&
+                                                    (IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail) || hasSoundCloudSessionOverride);
+            bool isPotentialSoundCloud = info.MediaSource == "SoundCloud" || shouldProbeSoundCloudFromBrowser;
+            string soundCloudTrackIdentity = isPotentialSoundCloud
+                ? BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist)
+                : "";
 
-            bool needsFetch = (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
-            if (_isThrottled && _recoveredThumbnail != null) needsFetch = false;
+            bool forceFetchForTrackChange = isNewTrackForThumbnail;
+            bool needsFetch = forceFetchForTrackChange || (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
+            if (_isThrottled && _recoveredThumbnail != null && !forceFetchForTrackChange) needsFetch = false;
 
             if (isPotentialYouTube && !string.IsNullOrEmpty(info.CurrentTrack) && needsFetch)
             {
@@ -645,18 +695,20 @@ public class MediaDetectionService : IMediaDetectionService
                 _thumbCts?.Cancel();
                 _thumbCts = new CancellationTokenSource();
                 var token = _thumbCts.Token;
+                bool shouldForceThumbFetch = forceFetchForTrackChange;
 
                 string trackDuringFetch = info.CurrentTrack;
                 string artistDuringFetch = info.CurrentArtist;
+                string sourceAppDuringFetch = info.SourceAppId ?? "";
 
                 bool isBrowserIcon = info.Thumbnail != null && info.MediaSource == "Browser";
-                bool needsBetterThumb = info.Thumbnail == null || info.Thumbnail.PixelWidth < 120 || isBrowserIcon;
+                bool needsBetterThumb = shouldForceThumbFetch || info.Thumbnail == null || info.Thumbnail.PixelWidth < 120 || isBrowserIcon;
 
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        string? videoId = info.YouTubeVideoId;
+                        string? videoId = shouldForceThumbFetch ? null : info.YouTubeVideoId;
                         int retryCount = 0;
 
                         while (retryCount < 3 && !token.IsCancellationRequested)
@@ -669,17 +721,18 @@ public class MediaDetectionService : IMediaDetectionService
                                     videoId = result.Id;
 
                                     bool highConfidence = result.TitleMatches(trackDuringFetch) || info.MediaSource == "YouTube";
-                                    if (highConfidence && info.MediaSource == "Browser")
+                                    if (highConfidence)
                                     {
                                         info.MediaSource = "YouTube";
                                         info.IsYouTubeRunning = true;
 
-                                        if (!string.IsNullOrEmpty(info.SourceAppId))
+                                        if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
                                         {
                                             _sessionSourceOverrides[info.SourceAppId] = "YouTube";
                                         }
 
                                         _trackSourceCache[trackDuringFetch] = "YouTube";
+                                        _trackSourceCache[BuildTrackIdentity(trackDuringFetch, artistDuringFetch)] = "YouTube";
                                         SaveSourceCache();
                                     }
 
@@ -714,12 +767,12 @@ public class MediaDetectionService : IMediaDetectionService
 
                                     if (frameBitmap != null && !token.IsCancellationRequested)
                                     {
-
-                                        string currentSig = _lastTrackSignature;
-                                        if (currentSig.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
+                                        if (IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
                                         {
                                             frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
-                                            _recoveredThumbnail = frameBitmap; 
+                                            _recoveredThumbnail = frameBitmap;
+                                            _cachedThumbnail = frameBitmap;
+                                            _cachedThumbnailSource = "YouTube";
                                             info.Thumbnail = frameBitmap;
 
                                             var dispatcher = System.Windows.Application.Current?.Dispatcher;
@@ -727,7 +780,8 @@ public class MediaDetectionService : IMediaDetectionService
                                             {
                                                 await dispatcher.InvokeAsync(() =>
                                                 {
-                                                    if (!token.IsCancellationRequested && _lastTrackSignature.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
+                                                    if (!token.IsCancellationRequested &&
+                                                        IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
                                                     {
                                                         _lastTrackSignature = info.GetSignature();
                                                         MediaChanged?.Invoke(this, info);
@@ -742,9 +796,11 @@ public class MediaDetectionService : IMediaDetectionService
                             }
 
                             retryCount++;
-                            if (retryCount < 3 && !token.IsCancellationRequested && _lastTrackSignature.Contains(trackDuringFetch, StringComparison.OrdinalIgnoreCase))
+                            if (retryCount < 3 &&
+                                !token.IsCancellationRequested &&
+                                IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
                             {
-                                await Task.Delay(retryCount * 800, token);
+                                await Task.Delay(retryCount * 350, token);
                                 videoId = null;
                             }
                         }
@@ -753,10 +809,116 @@ public class MediaDetectionService : IMediaDetectionService
                     catch { }
                 }, token);
             }
+            else if (isPotentialSoundCloud && !string.IsNullOrEmpty(info.CurrentTrack))
+            {
+                bool isNewSoundCloudTrack = !string.IsNullOrEmpty(soundCloudTrackIdentity) &&
+                                            !string.Equals(soundCloudTrackIdentity, _lastSoundCloudArtworkIdentity, StringComparison.Ordinal);
+                bool hasMismatchedThumbSource = !string.Equals(_cachedThumbnailSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
+                bool shouldRetryPlaceholder = (info.Thumbnail == null ||
+                                              IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail) ||
+                                              hasMismatchedThumbSource) &&
+                                              (DateTime.UtcNow - _lastSoundCloudArtworkAttemptTimeUtc).TotalSeconds >= 0.2;
+                bool sameTrackFetchRunning =
+                    Volatile.Read(ref _soundCloudFetchInFlight) == 1 &&
+                    string.Equals(_soundCloudFetchIdentity, soundCloudTrackIdentity, StringComparison.Ordinal);
+
+                if (!isNewSoundCloudTrack && sameTrackFetchRunning)
+                {
+                    // Keep current fetch running for this track; avoid cancel/restart churn.
+                }
+                else if (isNewSoundCloudTrack || shouldRetryPlaceholder)
+                {
+                    _lastSoundCloudArtworkAttemptTimeUtc = DateTime.UtcNow;
+                    _lastSoundCloudArtworkIdentity = soundCloudTrackIdentity;
+                    _thumbCts?.Cancel();
+                    _thumbCts = new CancellationTokenSource();
+                    var token = _thumbCts.Token;
+                    int fetchGeneration = Interlocked.Increment(ref _soundCloudFetchGeneration);
+                    _soundCloudFetchIdentity = soundCloudTrackIdentity;
+                    Interlocked.Exchange(ref _soundCloudFetchInFlight, 1);
+
+                    string trackDuringFetch = info.CurrentTrack;
+                    string artistDuringFetch = info.CurrentArtist;
+                    string sourceAppDuringFetch = info.SourceAppId ?? "";
+                    bool requireStrongMatch = false;
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var artworkUrl = await TryGetSoundCloudArtworkUrlAsync(trackDuringFetch, artistDuringFetch, requireStrongMatch, token);
+                            if (string.IsNullOrEmpty(artworkUrl) || token.IsCancellationRequested)
+                            {
+                                return;
+                            }
+
+                            var frameBitmap = await DownloadImageAsync(artworkUrl);
+                            if (frameBitmap == null || token.IsCancellationRequested)
+                            {
+                                return;
+                            }
+
+                            if (!IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
+                            {
+                                return;
+                            }
+
+                            frameBitmap = CropToSquare(frameBitmap, "SoundCloud") ?? frameBitmap;
+                            _recoveredThumbnail = frameBitmap;
+                            _cachedThumbnail = frameBitmap;
+                            _cachedThumbnailSource = "SoundCloud";
+                            if (info.MediaSource == "Browser")
+                            {
+                                info.MediaSource = "SoundCloud";
+                                info.IsSoundCloudRunning = true;
+                                if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
+                                {
+                                    _sessionSourceOverrides[info.SourceAppId] = "SoundCloud";
+                                }
+
+                                string currentTrackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
+                                string currentTrackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
+                                if (!string.IsNullOrEmpty(currentTrackIdentity))
+                                {
+                                    _trackSourceCache[currentTrackIdentity] = "SoundCloud";
+                                    _trackSourceCache[currentTrackOnlyIdentity] = "SoundCloud";
+                                    SaveSourceCache();
+                                }
+                            }
+                            info.Thumbnail = frameBitmap;
+
+                            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                            if (dispatcher != null)
+                            {
+                                await dispatcher.InvokeAsync(() =>
+                                {
+                                    if (!token.IsCancellationRequested &&
+                                        IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
+                                    {
+                                        _lastTrackSignature = info.GetSignature();
+                                        MediaChanged?.Invoke(this, info);
+                                    }
+                                });
+                            }
+                        }
+                        catch (OperationCanceledException) { }
+                        catch { }
+                        finally
+                        {
+                            if (fetchGeneration == Volatile.Read(ref _soundCloudFetchGeneration))
+                            {
+                                Interlocked.Exchange(ref _soundCloudFetchInFlight, 0);
+                            }
+                        }
+                    }, token);
+                }
+            }
             else
             {
 
                 _thumbCts?.Cancel();
+                _soundCloudFetchIdentity = "";
+                Interlocked.Exchange(ref _soundCloudFetchInFlight, 0);
             }
         }
         finally
@@ -771,6 +933,9 @@ public class MediaDetectionService : IMediaDetectionService
     private bool _lastSeekEnabled = false;
     private TimeSpan _lastPosition = TimeSpan.Zero;
     private string _lastPublishedSignature = "";
+    private string _lastPublishedTrackIdentity = "";
+    private string _lastPublishedTrackOnlyIdentity = "";
+    private string _lastPublishedSourceAppId = "";
 
     private string GetSpotifyWindowTitle()
     {
@@ -797,6 +962,146 @@ public class MediaDetectionService : IMediaDetectionService
     private DateTime _lastSourceConfirmedTime = DateTime.MinValue;
     private string _stableSource = "";
     private string _stableArtist = "";
+    private string _stableSourceTrackIdentity = "";
+
+    private static string BuildTrackIdentity(string track, string artist)
+    {
+        return $"{track.Trim().ToLowerInvariant()}|{artist.Trim().ToLowerInvariant()}";
+    }
+
+    private bool IsStillSamePublishedTrack(string expectedTrack, string expectedArtist, string expectedSourceAppId)
+    {
+        if (!string.IsNullOrEmpty(expectedSourceAppId) &&
+            !string.Equals(_lastPublishedSourceAppId, expectedSourceAppId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string expectedIdentity = BuildTrackIdentity(expectedTrack, expectedArtist);
+        string expectedTrackOnly = BuildTrackIdentity(expectedTrack, "");
+        return string.Equals(_lastPublishedTrackIdentity, expectedIdentity, StringComparison.Ordinal) ||
+               string.Equals(_lastPublishedTrackOnlyIdentity, expectedTrackOnly, StringComparison.Ordinal);
+    }
+
+    private static string BuildSessionInstanceKey(GlobalSystemMediaTransportControlsSession session)
+    {
+        string sourceApp = session.SourceAppUserModelId ?? "";
+        // Runtime hash is stable for the object lifetime and distinguishes parallel sessions/tabs in same app.
+        int instanceHash = RuntimeHelpers.GetHashCode(session);
+        return $"{sourceApp}|{instanceHash}";
+    }
+
+    private static bool IsSessionPlayingStatus(GlobalSystemMediaTransportControlsSessionPlaybackStatus status)
+    {
+        return status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+    }
+
+    private static bool IsBrowserSourceApp(string sourceAppId)
+    {
+        return sourceAppId.Contains("Chrome", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Edge", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Firefox", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("MS-Edge", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Opera", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Brave", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Vivaldi", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Coccoc", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Arc", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Sidekick", StringComparison.OrdinalIgnoreCase) ||
+               sourceAppId.Contains("Browser", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string DetectPlatformHint(IEnumerable<string> windowTitles)
+    {
+        foreach (var title in windowTitles)
+        {
+            var lower = title.ToLower();
+            if (lower.Contains("soundcloud")) return "SoundCloud";
+            if (lower.Contains("youtube") && !lower.StartsWith("youtube -") && lower != "youtube") return "YouTube";
+            if (lower.Contains("apple music") || lower.Contains("music.apple.com")) return "Apple Music";
+            if (lower.Contains("facebook") && (lower.Contains("watch") || lower.Contains("video"))) return "Facebook";
+            if (lower.Contains("tiktok") && lower.Contains(" | ")) return "TikTok";
+            if (lower.Contains("instagram") && (lower.Contains("reel") || lower.Contains("video"))) return "Instagram";
+            if ((lower.Contains("twitter") || lower.Contains(" / x")) && (lower.Contains("video") || lower.Contains("watch"))) return "Twitter";
+        }
+
+        return "";
+    }
+
+    private static string NormalizeForLooseMatch(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        string folded = value.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(folded.Length);
+        bool lastWasSpace = false;
+
+        foreach (var ch in folded)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+                lastWasSpace = false;
+            }
+            else if (!lastWasSpace)
+            {
+                sb.Append(' ');
+                lastWasSpace = true;
+            }
+        }
+
+        if (sb.Length > 0 && sb[sb.Length - 1] == ' ')
+        {
+            sb.Length--;
+        }
+
+        return sb.ToString();
+    }
+
+    private static bool IsLikelySoundCloudPlaceholderThumbnail(BitmapImage? thumbnail)
+    {
+        if (thumbnail == null || thumbnail.PixelWidth <= 0 || thumbnail.PixelHeight <= 0)
+        {
+            return true;
+        }
+
+        double aspect = (double)thumbnail.PixelWidth / thumbnail.PixelHeight;
+        bool isSquare = Math.Abs(aspect - 1.0) < 0.06;
+        if (!isSquare)
+        {
+            return false;
+        }
+
+        // Browser SMTC placeholder icons are usually small square assets.
+        return thumbnail.PixelWidth <= 320 || thumbnail.PixelHeight <= 320;
+    }
+
+    private static bool IsLikelySoundCloudArtworkCandidate(BitmapImage? thumbnail)
+    {
+        if (thumbnail == null || thumbnail.PixelWidth <= 0 || thumbnail.PixelHeight <= 0)
+        {
+            return false;
+        }
+
+        double aspect = (double)thumbnail.PixelWidth / thumbnail.PixelHeight;
+        bool isSquare = Math.Abs(aspect - 1.0) < 0.08;
+        if (!isSquare)
+        {
+            return false;
+        }
+
+        // Real SoundCloud covers are typically square and larger than placeholder icons.
+        return thumbnail.PixelWidth >= 360 && thumbnail.PixelHeight >= 360;
+    }
 
     private async Task TryGetMediaSessionInfoAsync(MediaInfo info, bool forceRefresh, Func<List<string>> windowTitleFactory)
     {
@@ -848,10 +1153,11 @@ public class MediaDetectionService : IMediaDetectionService
 
             if (session == null)
             {
-
                 spotifyGroundTruth ??= GetSpotifyWindowTitle();
                 GlobalSystemMediaTransportControlsSession? bestSession = null;
                 int bestScore = -1;
+                bool hasAnyActiveSession = false;
+                GlobalSystemMediaTransportControlsSession? fallbackActiveSession = null;
 
                 try
                 {
@@ -862,17 +1168,59 @@ public class MediaDetectionService : IMediaDetectionService
                         try
                         {
                             var sourceApp = s.SourceAppUserModelId ?? "";
+                            var status = s.GetPlaybackInfo().PlaybackStatus;
+                            bool isActive = IsSessionPlayingStatus(status);
+                            if (!isActive) continue;
+
+                            hasAnyActiveSession = true;
+                            if (fallbackActiveSession == null)
+                            {
+                                fallbackActiveSession = s;
+                            }
+
+                            if (!string.IsNullOrEmpty(osCurrentId) &&
+                                string.Equals(sourceApp, osCurrentId, StringComparison.OrdinalIgnoreCase))
+                            {
+                                fallbackActiveSession = s;
+                                break;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    foreach (var s in sessions)
+                    {
+                        try
+                        {
+                            var sourceApp = s.SourceAppUserModelId ?? "";
+                            string sessionInstanceKey = BuildSessionInstanceKey(s);
                             var playbackInfo = s.GetPlaybackInfo();
                             var status = playbackInfo.PlaybackStatus;
+                            var nowUtc = DateTime.UtcNow;
 
-                            bool isActive = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ||
-                                           status == (GlobalSystemMediaTransportControlsSessionPlaybackStatus)4 || 
-                                           status == (GlobalSystemMediaTransportControlsSessionPlaybackStatus)5;   
+                            bool isActive = IsSessionPlayingStatus(status);
+                            bool isPrevActive = ReferenceEquals(_activeDisplaySession, s);
+                            bool wasPlaying = _sessionPlayingStates.TryGetValue(sessionInstanceKey, out var prevPlaying) && prevPlaying;
 
-                            bool isPrevActive = _activeDisplaySession != null && s.SourceAppUserModelId == _activeDisplaySession.SourceAppUserModelId;
+                            if (isActive && !wasPlaying)
+                            {
+                                _sessionPlayStartTimes[sessionInstanceKey] = nowUtc;
+                                _latestPlayingSessionKey = sessionInstanceKey;
+                                _latestPlayingSessionStartUtc = nowUtc;
+
+                                if (IsBrowserSourceApp(sourceApp))
+                                {
+                                    _sessionSourceOverrides.Remove(sourceApp);
+                                }
+
+                                _lastTrackSignature = "";
+                                _cachedThumbnail = null;
+                                _cachedThumbnailSource = "";
+                            }
+
+                            _sessionPlayingStates[sessionInstanceKey] = isActive;
 
                             int score = 0;
-
                             GlobalSystemMediaTransportControlsSessionMediaProperties? props = null;
                             for (int i = 0; i < 2; i++)
                             {
@@ -883,7 +1231,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                             if (props != null && !string.IsNullOrEmpty(props.Title))
                             {
-                                score += 50; 
+                                score += 50;
                                 if (!string.IsNullOrEmpty(props.Artist)) score += 20;
                                 if (props.Thumbnail != null) score += 10;
                             }
@@ -899,18 +1247,37 @@ public class MediaDetectionService : IMediaDetectionService
                             if (isSpotify) score += 400;
                             else if (isMusic) score += 400;
                             else if (isYouTube) score += 350;
-                            else if (isBrowser) score += 100; 
+                            else if (isBrowser) score += 100;
 
                             if (osCurrentId == sourceApp)
                             {
-                                score += 1000; // Boost OS current session
+                                score += 1000;
                             }
 
                             if (isActive)
                             {
-                                score += 500; 
-                                if (osCurrentId == sourceApp) score += 1000; // Extra boost if both current and active!
+                                score += 500;
+                                if (osCurrentId == sourceApp) score += 1000;
                                 _sessionLastPlayingTimes[sourceApp] = DateTime.Now;
+                            }
+
+                            if (isActive && _sessionPlayStartTimes.TryGetValue(sessionInstanceKey, out var playStartUtc))
+                            {
+                                var ageSeconds = (nowUtc - playStartUtc).TotalSeconds;
+                                if (ageSeconds >= 0 && ageSeconds < 45)
+                                {
+                                    score += (int)Math.Max(0, 2600 - (ageSeconds * 45));
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(_latestPlayingSessionKey) &&
+                                sessionInstanceKey == _latestPlayingSessionKey)
+                            {
+                                var latestAgeSeconds = (nowUtc - _latestPlayingSessionStartUtc).TotalSeconds;
+                                if (latestAgeSeconds >= 0 && latestAgeSeconds < 30)
+                                {
+                                    score += (int)Math.Max(0, 2200 - (latestAgeSeconds * 60));
+                                }
                             }
 
                             if (_sessionLastPlayingTimes.TryGetValue(sourceApp, out var lastPlaying))
@@ -919,13 +1286,31 @@ public class MediaDetectionService : IMediaDetectionService
                                 if (idleSeconds < 30) score += (int)((30 - idleSeconds) * 10);
                             }
 
+                            try
+                            {
+                                var timeline = s.GetTimelineProperties();
+                                if (timeline != null)
+                                {
+                                    var timelineAge = (DateTimeOffset.UtcNow - timeline.LastUpdatedTime).TotalSeconds;
+                                    if (timelineAge >= 0 && timelineAge < 20)
+                                    {
+                                        score += (int)Math.Max(0, 200 - (timelineAge * 8));
+                                    }
+                                }
+                            }
+                            catch { }
+
                             if (props != null && !string.IsNullOrEmpty(props.Title))
                             {
-                                score += 1500; 
+                                score += 1500;
                                 if (!string.IsNullOrEmpty(props.Artist) && props.Artist != "YouTube" && props.Artist != "Browser") score += 200;
                             }
 
-                            if (score > bestScore && (isActive || isPrevActive || osCurrentId == sourceApp))
+                            bool eligible = hasAnyActiveSession
+                                ? isActive
+                                : (isActive || isPrevActive || osCurrentId == sourceApp);
+
+                            if (score > bestScore && eligible)
                             {
                                 bestScore = score;
                                 bestSession = s;
@@ -936,9 +1321,22 @@ public class MediaDetectionService : IMediaDetectionService
                 }
                 catch { }
 
-                if (bestSession != null && _activeDisplaySession != null && bestSession.SourceAppUserModelId != _activeDisplaySession.SourceAppUserModelId)
+                if (hasAnyActiveSession && bestSession != null)
+                {
+                    try
+                    {
+                        if (!IsSessionPlayingStatus(bestSession.GetPlaybackInfo().PlaybackStatus))
+                        {
+                            bestSession = fallbackActiveSession ?? bestSession;
+                        }
+                    }
+                    catch { }
+                }
+
+                if (bestSession != null && _activeDisplaySession != null && !ReferenceEquals(bestSession, _activeDisplaySession))
                 {
                     string bestId = bestSession.SourceAppUserModelId ?? "";
+                    string bestSessionKey = BuildSessionInstanceKey(bestSession);
                     if (bestId != _pendingSessionAppId)
                     {
                         _pendingSessionAppId = bestId;
@@ -952,8 +1350,20 @@ public class MediaDetectionService : IMediaDetectionService
                     double holdTime = currentIsPremium ? 4.0 : 1.5;
 
                     bool isOsCurrent = !string.IsNullOrEmpty(osCurrentId) && bestId == osCurrentId;
+                    bool isRecentLatestPlayback = !string.IsNullOrEmpty(_latestPlayingSessionKey) &&
+                                                  bestSessionKey == _latestPlayingSessionKey &&
+                                                  (DateTime.UtcNow - _latestPlayingSessionStartUtc).TotalSeconds < 8;
+                    bool currentStillPlaying = false;
+                    try
+                    {
+                        currentStillPlaying = IsSessionPlayingStatus(_activeDisplaySession.GetPlaybackInfo().PlaybackStatus);
+                    }
+                    catch { }
 
-                    if (!isOsCurrent && (DateTime.Now - _pendingSessionStartTime).TotalSeconds < holdTime)
+                    if (!isRecentLatestPlayback &&
+                        !isOsCurrent &&
+                        currentStillPlaying &&
+                        (DateTime.Now - _pendingSessionStartTime).TotalSeconds < holdTime)
                     {
                         bestSession = _activeDisplaySession;
                     }
@@ -965,7 +1375,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                 if (bestSession != null)
                 {
-                    if (_activeDisplaySession == null || bestSession.SourceAppUserModelId != _activeDisplaySession.SourceAppUserModelId)
+                    if (!ReferenceEquals(_activeDisplaySession, bestSession))
                     {
                         _lastSessionSwitchTime = DateTime.Now;
                     }
@@ -973,11 +1383,29 @@ public class MediaDetectionService : IMediaDetectionService
                 }
                 else
                 {
-
-                    if (_activeDisplaySession != null && (DateTime.Now - _lastSessionSwitchTime).TotalSeconds < 3.0)
-                        session = _activeDisplaySession;
+                    if (hasAnyActiveSession && fallbackActiveSession != null)
+                    {
+                        session = fallbackActiveSession;
+                    }
                     else
-                        session = _sessionManager.GetCurrentSession();
+                    {
+                        bool currentStillPlaying = false;
+                        try
+                        {
+                            if (_activeDisplaySession != null)
+                            {
+                                currentStillPlaying = IsSessionPlayingStatus(_activeDisplaySession.GetPlaybackInfo().PlaybackStatus);
+                            }
+                        }
+                        catch { }
+
+                        if (_activeDisplaySession != null &&
+                            currentStillPlaying &&
+                            (DateTime.Now - _lastSessionSwitchTime).TotalSeconds < 3.0)
+                            session = _activeDisplaySession;
+                        else
+                            session = _sessionManager.GetCurrentSession();
+                    }
                 }
             }
 
@@ -1027,18 +1455,7 @@ public class MediaDetectionService : IMediaDetectionService
                     info.MediaSource = "YouTube";
                     info.IsYouTubeRunning = true;
                 }
-                else if (sessionSourceApp.Contains("Chrome", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Edge", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Firefox", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("MS-Edge", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Opera", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Brave", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Vivaldi", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Coccoc", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Arc", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Sidekick", StringComparison.OrdinalIgnoreCase) ||
-                         sessionSourceApp.Contains("Browser", StringComparison.OrdinalIgnoreCase))
+                else if (IsBrowserSourceApp(sessionSourceApp))
                 {
                     info.MediaSource = "Browser";
                 }
@@ -1055,11 +1472,6 @@ public class MediaDetectionService : IMediaDetectionService
                     info.MediaSource = "Browser";
                 }
 
-                if (info.MediaSource == "Browser" && _sessionSourceOverrides.TryGetValue(sessionSourceApp, out var overriden))
-                {
-                    info.MediaSource = overriden;
-                    if (overriden == "YouTube") info.IsYouTubeRunning = true;
-                }
             }
 
             var mediaProperties = await session.TryGetMediaPropertiesAsync();
@@ -1110,6 +1522,7 @@ public class MediaDetectionService : IMediaDetectionService
 
             var pbInfo = session.GetPlaybackInfo();
             info.IsPlaying = pbInfo != null && pbInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            info.PlaybackRate = pbInfo?.PlaybackRate ?? 1.0;
             info.IsAnyMediaPlaying = true;
 
             info.CurrentTrack = sessionTitle;
@@ -1165,10 +1578,12 @@ public class MediaDetectionService : IMediaDetectionService
             }
 
             var currentSignature = info.GetSignature();
+            bool trackChangedForThisPass = currentSignature != _lastTrackSignature;
 
-            if (currentSignature != _lastTrackSignature)
+            if (trackChangedForThisPass)
             {
                 _cachedThumbnail = null;
+                _cachedThumbnailSource = "";
             }
 
             if (info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource))
@@ -1176,24 +1591,91 @@ public class MediaDetectionService : IMediaDetectionService
 
                 bool isSameSession = _activeDisplaySession != null && session != null &&
                                    _activeDisplaySession.SourceAppUserModelId == session.SourceAppUserModelId;
+                string currentTrackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
+                string trackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
+                bool sameTrackAsStable = !string.IsNullOrEmpty(currentTrackIdentity) &&
+                                         currentTrackIdentity == _stableSourceTrackIdentity;
+                List<string>? hintedWindowTitles = null;
+                string hintedSource = "";
+                bool sourceFromBrowserOverride = false;
+                bool sourceFromTrackCache = false;
 
-                if (isSameSession && !string.IsNullOrEmpty(_stableSource) && _stableSource != "Browser" &&
-                    (DateTime.Now - _lastSourceConfirmedTime).TotalSeconds < 5.0)
+                if (!string.IsNullOrEmpty(sessionSourceApp) &&
+                    IsBrowserSourceApp(sessionSourceApp) &&
+                    _sessionSourceOverrides.TryGetValue(sessionSourceApp, out var sessionOverride) &&
+                    string.Equals(sessionOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase))
                 {
-                    info.MediaSource = _stableSource;
+                    info.MediaSource = "SoundCloud";
+                    info.IsSoundCloudRunning = true;
+                    sourceFromBrowserOverride = true;
                 }
-                else
+
+                if ((info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource)) &&
+                    !string.IsNullOrEmpty(info.CurrentTrack))
                 {
-                    var windowTitles = windowTitleFactory();
+                    bool hasCachedSource = _trackSourceCache.TryGetValue(currentTrackIdentity, out var cachedSource) ||
+                                           _trackSourceCache.TryGetValue(trackOnlyIdentity, out cachedSource);
+
+                    if (hasCachedSource && string.Equals(cachedSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
+                    {
+                        info.MediaSource = "SoundCloud";
+                        info.IsSoundCloudRunning = true;
+                        sourceFromTrackCache = true;
+                    }
+                }
+
+                if (isSameSession && !string.IsNullOrEmpty(_stableSource) && _stableSource != "Browser" && sameTrackAsStable)
+                {
+                    hintedWindowTitles = windowTitleFactory();
+                    hintedSource = DetectPlatformHint(hintedWindowTitles);
+                }
+
+                if (isSameSession && !string.IsNullOrEmpty(_stableSource) && _stableSource != "Browser" && sameTrackAsStable)
+                {
+                    bool canKeepStable = string.IsNullOrEmpty(hintedSource) ||
+                                         string.Equals(hintedSource, _stableSource, StringComparison.OrdinalIgnoreCase);
+                    if (canKeepStable)
+                    {
+                        info.MediaSource = _stableSource;
+                        if (_stableSource == "YouTube") info.IsYouTubeRunning = true;
+                    }
+                }
+
+                if (info.MediaSource == "Browser" ||
+                    string.IsNullOrEmpty(info.MediaSource) ||
+                    sourceFromBrowserOverride ||
+                    sourceFromTrackCache)
+                {
+                    var windowTitles = hintedWindowTitles ?? windowTitleFactory();
                     string trackTitleLower = info.CurrentTrack.ToLower();
+                    string trackTitleNormalized = NormalizeForLooseMatch(trackTitleLower);
                     bool hasTrack = !string.IsNullOrEmpty(trackTitleLower) && trackTitleLower != "browser" && trackTitleLower != "now playing";
 
                     foreach (var title in windowTitles)
                     {
                         var winTitleLower = title.ToLower();
+                        bool trackMatch = winTitleLower.Contains(trackTitleLower);
 
-                        if (hasTrack && !winTitleLower.Contains(trackTitleLower) && !winTitleLower.Contains("youtube"))
-                            continue;
+                        if (!trackMatch && !string.IsNullOrEmpty(trackTitleNormalized))
+                        {
+                            var winTitleNormalized = NormalizeForLooseMatch(winTitleLower);
+                            trackMatch = winTitleNormalized.Contains(trackTitleNormalized, StringComparison.Ordinal);
+                        }
+
+                        if (hasTrack && !trackMatch)
+                        {
+                            bool hasPlatformHint = winTitleLower.Contains("youtube") ||
+                                                   winTitleLower.Contains("soundcloud") ||
+                                                   winTitleLower.Contains("apple music") ||
+                                                   winTitleLower.Contains("music.apple.com") ||
+                                                   winTitleLower.Contains("facebook") ||
+                                                   winTitleLower.Contains("tiktok") ||
+                                                   winTitleLower.Contains("instagram") ||
+                                                   winTitleLower.Contains("twitter") ||
+                                                   winTitleLower.Contains(" / x");
+                            if (!hasPlatformHint)
+                                continue;
+                        }
 
                         if (winTitleLower.Contains("youtube") && !winTitleLower.StartsWith("youtube -") && winTitleLower != "youtube")
                         {
@@ -1201,7 +1683,7 @@ public class MediaDetectionService : IMediaDetectionService
                             info.IsYouTubeRunning = true;
                             break;
                         }
-                        else if (winTitleLower.Contains("soundcloud") && winTitleLower.Contains(" - "))
+                        else if (winTitleLower.Contains("soundcloud"))
                         {
                             info.MediaSource = "SoundCloud";
                             info.IsSoundCloudRunning = true;
@@ -1242,11 +1724,38 @@ public class MediaDetectionService : IMediaDetectionService
                 }
             }
 
+            if (!string.IsNullOrEmpty(sessionSourceApp) &&
+                IsBrowserSourceApp(sessionSourceApp) &&
+                !string.IsNullOrEmpty(info.MediaSource) &&
+                info.MediaSource != "Browser")
+            {
+                _sessionSourceOverrides[sessionSourceApp] = info.MediaSource;
+            }
+
             if (info.MediaSource != "Browser" && !string.IsNullOrEmpty(info.MediaSource))
             {
                 _stableSource = info.MediaSource;
                 _lastSourceConfirmedTime = DateTime.Now;
                 _cachedSource = info.MediaSource;
+                _stableSourceTrackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
+
+                if (!string.IsNullOrEmpty(info.CurrentTrack))
+                {
+                    string trackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
+                    bool cacheChanged = !_trackSourceCache.TryGetValue(_stableSourceTrackIdentity, out var cachedSource) ||
+                                        !string.Equals(cachedSource, info.MediaSource, StringComparison.Ordinal) ||
+                                        !_trackSourceCache.TryGetValue(trackOnlyIdentity, out var cachedTrackOnlySource) ||
+                                        !string.Equals(cachedTrackOnlySource, info.MediaSource, StringComparison.Ordinal);
+                    if (cacheChanged)
+                    {
+                        _trackSourceCache[_stableSourceTrackIdentity] = info.MediaSource;
+                        _trackSourceCache[trackOnlyIdentity] = info.MediaSource;
+                        if (info.MediaSource == "YouTube" || info.MediaSource == "SoundCloud")
+                        {
+                            SaveSourceCache();
+                        }
+                    }
+                }
             }
             else
             {
@@ -1270,22 +1779,47 @@ public class MediaDetectionService : IMediaDetectionService
                             var newBitmap = await ConvertToWpfBitmapAsync(stream);
                             if (newBitmap != null)
                             {
-
-                                double aspect = (double)newBitmap.PixelWidth / newBitmap.PixelHeight;
-                                bool isSquare = Math.Abs(aspect - 1.0) < 0.05; 
-
-                                bool isGenericIcon = info.MediaSource == "YouTube" || info.MediaSource == "SoundCloud" || info.MediaSource == "Browser";
-
-                                if (isSquare && isGenericIcon)
+                                bool isSoundCloudSource = string.Equals(info.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
+                                bool hasVerifiedSoundCloudThumb = string.Equals(_cachedThumbnailSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
+                                bool likelySoundCloudArtwork = IsLikelySoundCloudArtworkCandidate(newBitmap);
+                                bool skipSmtcThumbForFreshSoundCloudTrack = isSoundCloudSource &&
+                                                                            trackChangedForThisPass &&
+                                                                            !hasVerifiedSoundCloudThumb &&
+                                                                            !likelySoundCloudArtwork;
+                                if (skipSmtcThumbForFreshSoundCloudTrack)
                                 {
-
+                                    // Browser SMTC often serves stale thumbnail from previous tab (e.g., YouTube).
+                                    // Keep existing thumbnail and let SoundCloud fetch path provide fresh artwork.
+                                    info.Thumbnail = _cachedThumbnail;
                                 }
                                 else
                                 {
+                                    double aspect = (double)newBitmap.PixelWidth / newBitmap.PixelHeight;
+                                    bool isSquare = Math.Abs(aspect - 1.0) < 0.05;
 
-                                    newBitmap = CropToSquare(newBitmap, info.MediaSource) ?? newBitmap;
-                                    _cachedThumbnail = newBitmap;
-                                    info.Thumbnail = _cachedThumbnail;
+                                    bool isLikelySoundCloudPlaceholder =
+                                        info.MediaSource == "SoundCloud" &&
+                                        isSquare &&
+                                        (newBitmap.PixelWidth <= 320 || newBitmap.PixelHeight <= 320);
+                                    bool isGenericIcon = info.MediaSource == "YouTube" || info.MediaSource == "Browser" || isLikelySoundCloudPlaceholder;
+
+                                    if (!(isSquare && isGenericIcon))
+                                    {
+                                        newBitmap = CropToSquare(newBitmap, info.MediaSource) ?? newBitmap;
+                                        _cachedThumbnail = newBitmap;
+                                        if (string.Equals(info.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            if (likelySoundCloudArtwork)
+                                            {
+                                                _cachedThumbnailSource = "SoundCloud";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            _cachedThumbnailSource = info.MediaSource ?? "";
+                                        }
+                                        info.Thumbnail = _cachedThumbnail;
+                                    }
                                 }
                             }
                         }
@@ -1321,31 +1855,95 @@ public class MediaDetectionService : IMediaDetectionService
                         info.CurrentTrack != _lastTrackName;
 
                     TimeSpan chosenPosition;
+                    bool forceStartPosition = false;
 
                     if (isNewTrack && isNearlyEnd)
                     {
                         chosenPosition = TimeSpan.Zero;
                         info.IsIndeterminate = false;
+                        forceStartPosition = true;
                     }
                     else
                     {
                         chosenPosition = timeline.Position;
                     }
 
-                    // Extra safety: if position looks unreasonably old on initial load
-                    if (isInitialOrBigChange && chosenPosition.TotalSeconds > 5)
+                    bool isSoundCloudTrack = string.Equals(info.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
+                    if (isSoundCloudTrack && isNewTrack && info.IsPlaying)
+                    {
+                        TimeSpan timelineAge = DateTimeOffset.UtcNow - timeline.LastUpdatedTime.ToUniversalTime();
+                        if (timelineAge < TimeSpan.Zero) timelineAge = TimeSpan.Zero;
+
+                        bool suspiciousCarryOverPosition =
+                            chosenPosition.TotalSeconds > 20 &&
+                            (duration.TotalSeconds <= 0 ||
+                             chosenPosition.TotalSeconds > duration.TotalSeconds * 0.2);
+                        bool staleTimelineAtTrackStart = timelineAge > TimeSpan.FromMilliseconds(900);
+
+                        if (suspiciousCarryOverPosition || staleTimelineAtTrackStart)
+                        {
+                            chosenPosition = TimeSpan.Zero;
+                            forceStartPosition = true;
+                        }
+                    }
+
+                    // Extra safety: only apply startup position boost for YouTube-like sources.
+                    bool shouldApplyInitialPositionBoost =
+                        isInitialOrBigChange &&
+                        chosenPosition.TotalSeconds > 5 &&
+                        (string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
+                         (string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) && IsLikelyYouTube(info)));
+                    if (shouldApplyInitialPositionBoost)
                     {
                         var playback = session?.GetPlaybackInfo();
                         if (playback?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
                         {
                             // Assume it has been playing for at least a few seconds
                             chosenPosition = chosenPosition + TimeSpan.FromSeconds(1.5);
+                            if (duration > TimeSpan.Zero && chosenPosition > duration)
+                            {
+                                chosenPosition = duration;
+                            }
                         }
+                    }
+
+                    var timelineUpdatedUtc = timeline.LastUpdatedTime.ToUniversalTime();
+                    var nowUpdatedUtc = DateTimeOffset.UtcNow;
+                    var timelineLatency = nowUpdatedUtc - timelineUpdatedUtc;
+                    bool validTimelineTimestamp =
+                        timelineUpdatedUtc != DateTimeOffset.MinValue &&
+                        timelineUpdatedUtc <= nowUpdatedUtc + TimeSpan.FromSeconds(1) &&
+                        timelineLatency <= TimeSpan.FromMinutes(10);
+
+                    if (!forceStartPosition &&
+                        info.IsPlaying &&
+                        validTimelineTimestamp &&
+                        timelineLatency > TimeSpan.FromMilliseconds(120))
+                    {
+                        double effectiveRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
+                        TimeSpan compensation = TimeSpan.FromSeconds(timelineLatency.TotalSeconds * effectiveRate);
+                        TimeSpan maxCompensation = forceRefresh ? TimeSpan.FromSeconds(120) : TimeSpan.FromSeconds(45);
+                        if (compensation > maxCompensation)
+                        {
+                            compensation = maxCompensation;
+                        }
+
+                        chosenPosition += compensation;
+                    }
+
+                    if (chosenPosition < TimeSpan.Zero)
+                    {
+                        chosenPosition = TimeSpan.Zero;
+                    }
+                    if (duration > TimeSpan.Zero && chosenPosition > duration)
+                    {
+                        chosenPosition = duration;
                     }
 
                     info.Position = chosenPosition;
                     info.Duration = duration;
-                    info.LastUpdated = timeline.LastUpdatedTime;
+                    // Position above is normalized to "now", so UI prediction starts from current wall time.
+                    info.LastUpdated = nowUpdatedUtc;
 
                     if (info.Duration <= TimeSpan.Zero || info.Duration.TotalDays > 30)
                     {
@@ -1458,11 +2056,455 @@ public class MediaDetectionService : IMediaDetectionService
         return res?.Id;
     }
 
+    private readonly record struct SoundCloudCandidateProbe(int Index, string? ThumbnailUrl, bool IsMatch);
+
+    private async Task<string?> TryGetSoundCloudArtworkUrlAsync(string title, string artist = "", bool requireStrongMatch = false, CancellationToken ct = default)
+    {
+        try
+        {
+            var directTrackUrl = ExtractSoundCloudTrackUrl(title);
+            if (!string.IsNullOrEmpty(directTrackUrl))
+            {
+                var direct = await TryGetSoundCloudOEmbedAsync(directTrackUrl, ct);
+                if (!string.IsNullOrWhiteSpace(direct.ThumbnailUrl))
+                {
+                    return NormalizeSoundCloudArtworkUrl(direct.ThumbnailUrl!);
+                }
+            }
+
+            string cleanedTitle = SanitizeSearchText(title);
+            string cleanedArtist = SanitizeSearchText(artist);
+            string query = cleanedTitle;
+            if (!string.IsNullOrWhiteSpace(artist) &&
+                !artist.Equals("SoundCloud", StringComparison.OrdinalIgnoreCase) &&
+                !artist.Equals("Browser", StringComparison.OrdinalIgnoreCase))
+            {
+                query = $"{cleanedTitle} {cleanedArtist}".Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return null;
+            }
+
+            var combinedScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            string[] searchUrls =
+            {
+                $"https://m.soundcloud.com/search/sounds?q={Uri.EscapeDataString(query)}",
+                $"https://soundcloud.com/search/sounds?q={Uri.EscapeDataString(query)}"
+            };
+
+            // Query both endpoints concurrently to reduce first-artwork latency.
+            var searchTasks = new List<Task<string?>>(searchUrls.Length);
+            foreach (var searchUrl in searchUrls)
+            {
+                searchTasks.Add(GetStringWithTimeoutAsync(searchUrl, 1200, ct));
+            }
+
+            var searchHtmls = await Task.WhenAll(searchTasks);
+            foreach (var html in searchHtmls)
+            {
+                if (string.IsNullOrWhiteSpace(html))
+                {
+                    continue;
+                }
+
+                var found = ExtractSoundCloudTrackUrlsFromSearchHtml(html, title, artist);
+                foreach (var candidate in found)
+                {
+                    if (combinedScores.TryGetValue(candidate.Url, out int existing))
+                    {
+                        if (candidate.Score > existing)
+                        {
+                            combinedScores[candidate.Url] = candidate.Score;
+                        }
+                    }
+                    else
+                    {
+                        combinedScores[candidate.Url] = candidate.Score;
+                    }
+                }
+            }
+
+            if (combinedScores.Count == 0)
+            {
+                return null;
+            }
+
+            var candidates = new List<(string Url, int Score)>();
+            foreach (var item in combinedScores)
+            {
+                candidates.Add((item.Key, item.Value));
+            }
+            candidates.Sort((a, b) => b.Score.CompareTo(a.Score));
+
+            if (candidates.Count > 3)
+            {
+                candidates = candidates.GetRange(0, 3);
+            }
+
+            // Probe top candidates concurrently.
+            var probeTasks = new List<Task<SoundCloudCandidateProbe>>(candidates.Count);
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                var candidate = candidates[i];
+                probeTasks.Add(ProbeSoundCloudCandidateAsync(
+                    candidate.Url,
+                    candidate.Score,
+                    i,
+                    title,
+                    artist,
+                    requireStrongMatch,
+                    ct));
+            }
+
+            var probes = await Task.WhenAll(probeTasks);
+            Array.Sort(probes, static (a, b) => a.Index.CompareTo(b.Index));
+
+            string? fallbackThumbnail = null;
+            for (int i = 0; i < probes.Length; i++)
+            {
+                var probe = probes[i];
+                if (fallbackThumbnail == null && !string.IsNullOrWhiteSpace(probe.ThumbnailUrl))
+                {
+                    fallbackThumbnail = probe.ThumbnailUrl;
+                }
+
+                if (probe.IsMatch && !string.IsNullOrWhiteSpace(probe.ThumbnailUrl))
+                {
+                    return probe.ThumbnailUrl;
+                }
+            }
+
+            return requireStrongMatch ? null : fallbackThumbnail;
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch { }
+
+        return null;
+    }
+
+    private async Task<SoundCloudCandidateProbe> ProbeSoundCloudCandidateAsync(
+        string url,
+        int candidateScore,
+        int index,
+        string expectedTitle,
+        string expectedArtist,
+        bool requireStrongMatch,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await TryGetSoundCloudOEmbedAsync(url, ct);
+            if (string.IsNullOrWhiteSpace(result.ThumbnailUrl))
+            {
+                return new SoundCloudCandidateProbe(index, null, false);
+            }
+
+            string normalizedThumb = NormalizeSoundCloudArtworkUrl(result.ThumbnailUrl!);
+            bool isMatch = IsSoundCloudOEmbedMatch(
+                expectedTitle,
+                expectedArtist,
+                result.Title,
+                result.Author,
+                candidateScore,
+                requireStrongMatch);
+
+            return new SoundCloudCandidateProbe(index, normalizedThumb, isMatch);
+        }
+        catch
+        {
+            return new SoundCloudCandidateProbe(index, null, false);
+        }
+    }
+
+    private async Task<string?> GetStringWithTimeoutAsync(string url, int timeoutMs, CancellationToken ct)
+    {
+        try
+        {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(timeoutMs);
+            return await _httpClient.GetStringAsync(url, timeoutCts.Token);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? ExtractSoundCloudTrackUrl(string rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText))
+        {
+            return null;
+        }
+
+        var match = Regex.Match(
+            rawText,
+            @"https?://(?:www\.)?soundcloud\.com/(?<user>[^/\s?#]+)/(?<slug>[^/\s?#]+)",
+            RegexOptions.IgnoreCase);
+
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        return $"https://soundcloud.com/{match.Groups["user"].Value}/{match.Groups["slug"].Value}";
+    }
+
+    private static string SanitizeSearchText(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        string normalized = value.Replace('\u2013', '-').Replace('\u2014', '-').Trim();
+        normalized = normalized.Trim('[', ']', '(', ')', '"', '\'');
+        normalized = Regex.Replace(normalized, @"\s+", " ");
+        return normalized.Trim();
+    }
+
+    private static List<(string Url, int Score)> ExtractSoundCloudTrackUrlsFromSearchHtml(string html, string title, string artist)
+    {
+        var result = new List<(string Url, int Score)>();
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return result;
+        }
+
+        string normalizedTitle = NormalizeForLooseMatch(title.ToLowerInvariant());
+        string normalizedArtist = NormalizeForLooseMatch((artist ?? "").ToLowerInvariant());
+        var scoreMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        var pathMatches = Regex.Matches(html, @"href=""/(?<path>[^""?#]+)", RegexOptions.IgnoreCase);
+        foreach (Match match in pathMatches)
+        {
+            string path = match.Groups["path"].Value.Replace("\\/", "/").Trim('/');
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length != 2)
+            {
+                continue;
+            }
+
+            string user = segments[0];
+            string slug = segments[1];
+            AddSoundCloudCandidate(scoreMap, user, slug, normalizedTitle, normalizedArtist);
+        }
+
+        var absoluteMatches = Regex.Matches(
+            html,
+            @"https?://(?:www\.)?soundcloud\.com/(?<user>[^/\s""'?#]+)/(?<slug>[^/\s""'?#]+)",
+            RegexOptions.IgnoreCase);
+        foreach (Match match in absoluteMatches)
+        {
+            string user = match.Groups["user"].Value;
+            string slug = match.Groups["slug"].Value;
+            AddSoundCloudCandidate(scoreMap, user, slug, normalizedTitle, normalizedArtist);
+        }
+
+        var sorted = new List<KeyValuePair<string, int>>(scoreMap);
+        sorted.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+        foreach (var item in sorted)
+        {
+            result.Add((item.Key, item.Value));
+        }
+
+        return result;
+    }
+
+    private static void AddSoundCloudCandidate(
+        Dictionary<string, int> scoreMap,
+        string user,
+        string slug,
+        string normalizedTitle,
+        string normalizedArtist)
+    {
+        if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(slug))
+        {
+            return;
+        }
+
+        if (user.Contains('.') || slug.Length < 2)
+        {
+            return;
+        }
+
+        if (_soundCloudReservedUsers.Contains(user) || _soundCloudReservedTrackSlugs.Contains(slug))
+        {
+            return;
+        }
+
+        string url = $"https://soundcloud.com/{user}/{slug}";
+        int score = ScoreSoundCloudCandidate(user, slug, normalizedTitle, normalizedArtist);
+        if (scoreMap.TryGetValue(url, out int existing))
+        {
+            if (score > existing)
+            {
+                scoreMap[url] = score;
+            }
+        }
+        else
+        {
+            scoreMap[url] = score;
+        }
+    }
+
+    private static int ScoreSoundCloudCandidate(string user, string slug, string normalizedTitle, string normalizedArtist)
+    {
+        int score = 0;
+        string normalizedSlug = NormalizeForLooseMatch(slug.ToLowerInvariant());
+        string normalizedUser = NormalizeForLooseMatch(user.ToLowerInvariant());
+
+        if (!string.IsNullOrEmpty(normalizedTitle))
+        {
+            if (normalizedSlug.Contains(normalizedTitle) || normalizedTitle.Contains(normalizedSlug))
+            {
+                score += 5;
+            }
+            else
+            {
+                var titleTokens = normalizedTitle.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var token in titleTokens)
+                {
+                    if (token.Length >= 3 && normalizedSlug.Contains(token, StringComparison.Ordinal))
+                    {
+                        score += 1;
+                    }
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(normalizedArtist) &&
+            normalizedArtist != "soundcloud" &&
+            normalizedArtist != "browser")
+        {
+            if (normalizedUser.Contains(normalizedArtist) || normalizedArtist.Contains(normalizedUser))
+            {
+                score += 3;
+            }
+        }
+
+        return score;
+    }
+
+    private static bool IsSoundCloudOEmbedMatch(string expectedTitle, string expectedArtist, string? candidateTitle, string? candidateAuthor, int candidateScore, bool strictMode = false)
+    {
+        string normalizedExpectedTitle = NormalizeForLooseMatch(expectedTitle.ToLowerInvariant());
+        string normalizedExpectedArtist = NormalizeForLooseMatch((expectedArtist ?? "").ToLowerInvariant());
+        string normalizedCandidateTitle = NormalizeForLooseMatch((candidateTitle ?? "").ToLowerInvariant());
+        string normalizedCandidateAuthor = NormalizeForLooseMatch((candidateAuthor ?? "").ToLowerInvariant());
+        int titleOverlap = CountTokenOverlap(normalizedExpectedTitle, normalizedCandidateTitle);
+
+        bool titleMatches = !string.IsNullOrEmpty(normalizedExpectedTitle) &&
+                            !string.IsNullOrEmpty(normalizedCandidateTitle) &&
+                            (normalizedCandidateTitle.Contains(normalizedExpectedTitle) ||
+                             normalizedExpectedTitle.Contains(normalizedCandidateTitle));
+
+        bool artistMatches = string.IsNullOrEmpty(normalizedExpectedArtist) ||
+                             normalizedExpectedArtist == "soundcloud" ||
+                             normalizedExpectedArtist == "browser" ||
+                             (!string.IsNullOrEmpty(normalizedCandidateAuthor) &&
+                              (normalizedCandidateAuthor.Contains(normalizedExpectedArtist) ||
+                               normalizedExpectedArtist.Contains(normalizedCandidateAuthor)));
+
+        if (titleMatches && artistMatches)
+        {
+            return true;
+        }
+
+        if (titleMatches && titleOverlap >= 1)
+        {
+            return true;
+        }
+
+        if (strictMode)
+        {
+            return titleOverlap >= 2 && (artistMatches || candidateScore >= 2);
+        }
+
+        if (artistMatches && (titleOverlap >= 1 || candidateScore >= 2))
+        {
+            return true;
+        }
+
+        return candidateScore >= 3 && titleOverlap >= 1;
+    }
+
+    private static int CountTokenOverlap(string left, string right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return 0;
+        }
+
+        var rightTokens = new HashSet<string>(
+            right.Split(' ', StringSplitOptions.RemoveEmptyEntries),
+            StringComparer.Ordinal);
+
+        int overlap = 0;
+        foreach (var token in left.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (token.Length < 2)
+            {
+                continue;
+            }
+
+            if (rightTokens.Contains(token))
+            {
+                overlap++;
+            }
+        }
+
+        return overlap;
+    }
+
+    private static string NormalizeSoundCloudArtworkUrl(string url)
+    {
+        string normalized = url.Replace("\\u0026", "&").Replace("\\/", "/");
+        return Regex.Replace(normalized, @"-(?:large|t\d+x\d+)\.", "-t500x500.", RegexOptions.IgnoreCase);
+    }
+
+    private async Task<(string? ThumbnailUrl, string? Title, string? Author)> TryGetSoundCloudOEmbedAsync(string trackUrl, CancellationToken ct = default)
+    {
+        try
+        {
+            string requestUrl = $"https://soundcloud.com/oembed?format=json&url={Uri.EscapeDataString(trackUrl)}";
+            string? json = await GetStringWithTimeoutAsync(requestUrl, 1100, ct);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return (null, null, null);
+            }
+            using var doc = JsonDocument.Parse(json);
+
+            var root = doc.RootElement;
+            string? thumbnailUrl = root.TryGetProperty("thumbnail_url", out var thumbnailEl) ? thumbnailEl.GetString() : null;
+            string? oembedTitle = root.TryGetProperty("title", out var titleEl) ? titleEl.GetString() : null;
+            string? oembedAuthor = root.TryGetProperty("author_name", out var authorEl) ? authorEl.GetString() : null;
+
+            return (thumbnailUrl, oembedTitle, oembedAuthor);
+        }
+        catch
+        {
+            return (null, null, null);
+        }
+    }
+
     private async Task<BitmapImage?> DownloadImageAsync(string url)
     {
         try
         {
-            var bytes = await _httpClient.GetByteArrayAsync(url);
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(1800));
+            var bytes = await _httpClient.GetByteArrayAsync(url, timeoutCts.Token);
             using var ms = new MemoryStream(bytes);
 
             BitmapImage? bitmap = null;
@@ -1590,7 +2632,7 @@ public class MediaDetectionService : IMediaDetectionService
     private List<string> GetAllWindowTitles()
     {
         // Adaptive cache: shorter when throttled (need window titles), longer otherwise
-        var cacheDuration = _isThrottled ? 500 : 1500;
+        var cacheDuration = _isThrottled ? 300 : 700;
         if ((DateTime.Now - _lastWindowEnumTime).TotalMilliseconds < cacheDuration)
         {
             return _cachedWindowTitles;
@@ -1648,14 +2690,23 @@ public class MediaDetectionService : IMediaDetectionService
         if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId))
         {
             if (_sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sOver) && sOver == "YouTube")
-                return true;
-        }
+            {
+                if (string.IsNullOrEmpty(info.CurrentTrack))
+                {
+                    return true;
+                }
 
-        // Track persistent cache says YouTube
-        if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.CurrentTrack))
-        {
-            if (_trackSourceCache.TryGetValue(info.CurrentTrack, out var tOver) && tOver == "YouTube")
-                return true;
+                string trackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
+                string trackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
+                bool hasYouTubeTrackCache = (_trackSourceCache.TryGetValue(trackIdentity, out var cachedSource) &&
+                                             string.Equals(cachedSource, "YouTube", StringComparison.OrdinalIgnoreCase)) ||
+                                            (_trackSourceCache.TryGetValue(trackOnlyIdentity, out cachedSource) &&
+                                             string.Equals(cachedSource, "YouTube", StringComparison.OrdinalIgnoreCase));
+                if (hasYouTubeTrackCache)
+                {
+                    return true;
+                }
+            }
         }
 
         // Heuristic: SMTC metadata sometimes uses Artist="YouTube" for browser sessions
@@ -1664,6 +2715,53 @@ public class MediaDetectionService : IMediaDetectionService
             return true;
 
         return false;
+    }
+
+    private bool ShouldPreserveSoundCloudSourceDuringTrackSwitch(MediaInfo info)
+    {
+        if (!string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.Equals(_lastSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(info.CurrentTrack) ||
+            string.IsNullOrWhiteSpace(info.SourceAppId) ||
+            !IsBrowserSourceApp(info.SourceAppId))
+        {
+            return false;
+        }
+
+        if (!string.Equals(_lastPublishedSourceAppId, info.SourceAppId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Only hold source during brief transition after track metadata changes.
+        if ((DateTime.Now - _lastMetadataChangeTime).TotalSeconds > 3.0)
+        {
+            return false;
+        }
+
+        bool hasYouTubeHint = info.CurrentTrack.Contains("youtube", StringComparison.OrdinalIgnoreCase) ||
+                              info.CurrentArtist.Contains("youtube", StringComparison.OrdinalIgnoreCase);
+        if (hasYouTubeHint)
+        {
+            return false;
+        }
+
+        if (_sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sessionOverride) &&
+            !string.IsNullOrEmpty(sessionOverride) &&
+            !string.Equals(sessionOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private void ApplySimulatedTimeline(MediaInfo info, bool atEndStuck)
@@ -1906,3 +3004,5 @@ public enum DetectionMode
     EventDriven,
     ThrottledMedia
 }
+
+

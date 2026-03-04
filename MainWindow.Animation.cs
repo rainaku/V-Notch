@@ -197,28 +197,6 @@ public partial class MainWindow
         PaginationDots.Opacity = 0;
         UpdatePaginationDots();
 
-        if (!_cachedThumbnailExpandTarget.HasValue && _isMusicCompactMode)
-        {
-            double oldW = NotchBorder.Width;
-            double oldH = NotchBorder.Height;
-
-            NotchBorder.Width = _expandedWidth;
-            NotchBorder.Height = _expandedHeight;
-            ExpandedContent.Width = _expandedWidth - 32;
-            ExpandedContent.Height = _expandedHeight - 24;
-
-            this.UpdateLayout();
-
-            if (TryComputeThumbnailExpandTarget(out var target))
-            {
-                _cachedThumbnailExpandTarget = target;
-            }
-
-            NotchBorder.Width = oldW;
-            NotchBorder.Height = oldH;
-            this.UpdateLayout();
-        }
-
         NotchBorder.IsHitTestVisible = false;
         var animFps = 144;
 
@@ -250,16 +228,11 @@ public partial class MainWindow
 
         if (_isMusicCompactMode && CompactThumbnail.Source != null)
         {
-            if (!_cachedThumbnailExpandTarget.HasValue &&
-                TryComputeThumbnailExpandTarget(out var measuredTarget))
-            {
-                _cachedThumbnailExpandTarget = measuredTarget;
-            }
-
             var cachedExpandTarget = _cachedThumbnailExpandTarget;
             if (!cachedExpandTarget.HasValue)
             {
                 // First run/layout-not-ready: skip morph to avoid wrong target then snap.
+                // Cache will be updated from real expanded layout when animation completes.
                 AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
             }
             else

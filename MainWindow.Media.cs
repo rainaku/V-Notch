@@ -13,6 +13,7 @@ public partial class MainWindow
 {
     private string _lastAnimatedTrackSignature = "";
     private string _lastColorTrackSignature = "";
+    private string _lastRenderedMediaSource = "";
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
 
     private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
@@ -130,7 +131,8 @@ public partial class MainWindow
                 }
                 else if (isNewTrack)
                 {
-
+                    // Keep previous thumbnail while waiting for fresh artwork.
+                    // Show fallback only when there is no thumbnail at all.
                     if (ThumbnailImage.Source == null)
                     {
                         ThumbnailImage.Visibility = Visibility.Collapsed;
@@ -139,6 +141,11 @@ public partial class MainWindow
                     }
                     else
                     {
+                        if (CompactThumbnail.Source == null)
+                        {
+                            CompactThumbnail.Source = ThumbnailImage.Source;
+                        }
+
                         ThumbnailImage.Visibility = Visibility.Visible;
                         ThumbnailFallback.Visibility = Visibility.Collapsed;
                     }
@@ -146,16 +153,33 @@ public partial class MainWindow
             }
             else
             {
+                // Keep existing thumbnail during transient metadata gaps while media is still active.
+                if (info.IsAnyMediaPlaying)
+                {
+                    if (ThumbnailImage.Source != null)
+                    {
+                        ThumbnailImage.Visibility = Visibility.Visible;
+                        ThumbnailFallback.Visibility = Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        ThumbnailImage.Visibility = Visibility.Collapsed;
+                        ThumbnailFallback.Visibility = Visibility.Visible;
+                        ThumbnailFallback.Text = "🎵";
+                    }
+                }
+                else
+                {
+                    _lastAnimatedTrackSignature = "";
+                    _lastColorTrackSignature = "";
+                    ThumbnailImage.Visibility = Visibility.Collapsed;
+                    ThumbnailFallback.Visibility = Visibility.Visible;
+                    HideMediaBackground();
+                    ThumbnailFallback.Text = "🎵";
 
-                _lastAnimatedTrackSignature = "";
-                _lastColorTrackSignature = "";
-                ThumbnailImage.Visibility = Visibility.Collapsed;
-                ThumbnailFallback.Visibility = Visibility.Visible;
-                HideMediaBackground();
-                ThumbnailFallback.Text = "🎵";
-
-                ThumbnailImage.Source = null;
-                CompactThumbnail.Source = null;
+                    ThumbnailImage.Source = null;
+                    CompactThumbnail.Source = null;
+                }
             }
 
             if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds > 500 && _isPlaying != info.IsPlaying)
@@ -170,6 +194,7 @@ public partial class MainWindow
 
             MusicViz.TrackId = info?.GetSignature() ?? "";
             MusicViz.IsPlaying = info?.IsPlaying ?? false;
+            _lastRenderedMediaSource = info?.MediaSource ?? "";
         });
     }
 

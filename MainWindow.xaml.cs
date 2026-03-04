@@ -50,7 +50,27 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")]
     private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWinEventHook(
+        uint eventMin,
+        uint eventMax,
+        IntPtr hmodWinEventProc,
+        WinEventDelegate lpfnWinEventProc,
+        uint idProcess,
+        uint idThread,
+        uint dwFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
     private const uint GW_HWNDPREV = 3;
+    private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
     private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
     private const uint SWP_NOMOVE = 0x0002;
@@ -61,6 +81,7 @@ public partial class MainWindow : Window
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
+    private const int WS_EX_LAYERED = 0x00080000;
     private const int WM_WINDOWPOSCHANGING = 0x0046;
     private const int WM_ACTIVATE = 0x0006;
     private const int WM_ACTIVATEAPP = 0x001C;
@@ -91,6 +112,15 @@ public partial class MainWindow : Window
         public int Y;
     }
 
+    private delegate void WinEventDelegate(
+        IntPtr hWinEventHook,
+        uint eventType,
+        IntPtr hwnd,
+        int idObject,
+        int idChild,
+        uint idEventThread,
+        uint dwmsEventTime);
+
     #endregion
 
     #region Fields
@@ -99,6 +129,8 @@ public partial class MainWindow : Window
     private readonly NotchManager _notchManager;
     private readonly MediaDetectionService _mediaService;
     private readonly DispatcherTimer _updateTimer;
+    private readonly DispatcherTimer _zOrderWatchdogTimer;
+    private readonly DispatcherTimer _zOrderFastTimer;
     private readonly VolumeService _volumeService;
     private readonly DispatcherTimer _hoverCollapseTimer;
     private readonly DispatcherTimer _hoverThumbnailDelayTimer;
@@ -109,6 +141,11 @@ public partial class MainWindow : Window
     private bool _isNotchVisible = true;
     private IntPtr _hwnd;
     private HwndSource? _hwndSource;
+    private IntPtr _foregroundWinEventHook = IntPtr.Zero;
+    private WinEventDelegate? _foregroundWinEventProc;
+    private DateTime _zOrderBurstUntilUtc = DateTime.MinValue;
+    private DateTime _zOrderFastUntilUtc = DateTime.MinValue;
+    private DateTime _lastTopmostAssertUtc = DateTime.MinValue;
 
     private readonly BatteryModule _batteryModule;
     private readonly CalendarModule _calendarModule;
@@ -196,7 +233,16 @@ public partial class MainWindow : Window
         };
         _updateTimer.Tick += UpdateTimer_Tick;
 
-        // _zOrderTimer was removed to save CPU. Topmost is updated on change.
+        _zOrderWatchdogTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _zOrderWatchdogTimer.Tick += ZOrderWatchdogTimer_Tick;
+        _zOrderFastTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(16)
+        };
+        _zOrderFastTimer.Tick += ZOrderFastTimer_Tick;
 
         _progressTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
@@ -270,6 +316,7 @@ public partial class MainWindow : Window
         ApplySettings();
         ConfigureOverlayWindow();
         PositionAtTop();
+        StartZOrderWatchdog();
 
         _mediaService.Start();
         _updateTimer.Start();
@@ -347,6 +394,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _hwndSource?.RemoveHook(WndProc);
+        StopZOrderWatchdog();
         _mediaService?.Dispose();
         _notchManager?.Dispose();
         TrayIcon?.Dispose();
@@ -367,8 +415,9 @@ public partial class MainWindow : Window
         exStyle |= WS_EX_TOOLWINDOW;
         exStyle |= WS_EX_TOPMOST;
         exStyle |= WS_EX_NOACTIVATE;
+        exStyle |= WS_EX_LAYERED;
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
-        EnsureTopmost();
+        EnsureTopmost(force: true);
     }
 
     private void EnableKeyboardInput()
@@ -390,20 +439,207 @@ public partial class MainWindow : Window
 
     private void EnsureTopmost()
     {
-        if (_hwnd != IntPtr.Zero)
-        {
+        EnsureTopmost(force: false);
+    }
 
-            if (GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero)
-            {
-                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-            }
+    private void EnsureTopmost(bool force)
+    {
+        if (_hwnd == IntPtr.Zero || !_isNotchVisible)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (!force && (now - _lastTopmostAssertUtc) < TimeSpan.FromMilliseconds(80))
+        {
+            return;
+        }
+
+        if (force || GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero)
+        {
+            _lastTopmostAssertUtc = now;
+            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         }
     }
 
     private void UpdateZOrderTimerInterval()
     {
-        // No longer using _zOrderTimer. Z-order and Topmost will be ensured based on specific triggers.
+        // Keep for compatibility with animation call sites.
+    }
+
+    private void StartZOrderWatchdog()
+    {
+        if (_hwnd == IntPtr.Zero || _foregroundWinEventHook != IntPtr.Zero)
+        {
+            return;
+        }
+
+        _foregroundWinEventProc = ForegroundWindowChanged;
+        _foregroundWinEventHook = SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND,
+            EVENT_SYSTEM_FOREGROUND,
+            IntPtr.Zero,
+            _foregroundWinEventProc,
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+
+        TriggerZOrderBurst(TimeSpan.FromSeconds(2));
+        EnsureTopmost(force: true);
+        _zOrderWatchdogTimer.Start();
+    }
+
+    private void StopZOrderWatchdog()
+    {
+        _zOrderFastTimer.Stop();
+        _zOrderWatchdogTimer.Stop();
+
+        if (_foregroundWinEventHook != IntPtr.Zero)
+        {
+            UnhookWinEvent(_foregroundWinEventHook);
+            _foregroundWinEventHook = IntPtr.Zero;
+        }
+
+        _foregroundWinEventProc = null;
+    }
+
+    private void ForegroundWindowChanged(
+        IntPtr hWinEventHook,
+        uint eventType,
+        IntPtr hwnd,
+        int idObject,
+        int idChild,
+        uint idEventThread,
+        uint dwmsEventTime)
+    {
+        if (eventType != EVENT_SYSTEM_FOREGROUND || hwnd == IntPtr.Zero || hwnd == _hwnd)
+        {
+            return;
+        }
+
+        AssertTopmostNow();
+        var processName = TryGetProcessName(hwnd);
+        var isMyDockFinder = IsMyDockFinder(processName);
+
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            if (isMyDockFinder)
+            {
+                TriggerZOrderBurst(TimeSpan.FromSeconds(4), aggressive: true);
+            }
+            else
+            {
+                TriggerZOrderBurst(TimeSpan.FromMilliseconds(1200));
+            }
+
+            EnsureTopmost(force: true);
+        }), DispatcherPriority.Send);
+    }
+
+    private void ZOrderWatchdogTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_hwnd == IntPtr.Zero || !_isNotchVisible)
+        {
+            return;
+        }
+
+        var burstActive = DateTime.UtcNow <= _zOrderBurstUntilUtc;
+        var hasWindowAbove = GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero;
+
+        if (burstActive || hasWindowAbove)
+        {
+            EnsureTopmost(force: burstActive);
+        }
+    }
+
+    private void ZOrderFastTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_hwnd == IntPtr.Zero || !_isNotchVisible)
+        {
+            _zOrderFastTimer.Stop();
+            return;
+        }
+
+        if (DateTime.UtcNow > _zOrderFastUntilUtc)
+        {
+            _zOrderFastTimer.Stop();
+            return;
+        }
+
+        EnsureTopmost(force: true);
+    }
+
+    private void TriggerZOrderBurst(TimeSpan duration, bool aggressive = false)
+    {
+        var now = DateTime.UtcNow;
+        var until = now + duration;
+        if (until > _zOrderBurstUntilUtc)
+        {
+            _zOrderBurstUntilUtc = until;
+        }
+
+        if (aggressive)
+        {
+            var fastDuration = duration.TotalMilliseconds >= 800
+                ? TimeSpan.FromMilliseconds(800)
+                : duration;
+            var fastUntil = now + fastDuration;
+
+            if (fastUntil > _zOrderFastUntilUtc)
+            {
+                _zOrderFastUntilUtc = fastUntil;
+            }
+
+            if (!_zOrderFastTimer.IsEnabled)
+            {
+                _zOrderFastTimer.Start();
+            }
+        }
+    }
+
+    private void AssertTopmostNow()
+    {
+        if (_hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+
+    private static string TryGetProcessName(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return string.Empty;
+        }
+
+        _ = GetWindowThreadProcessId(hwnd, out var processId);
+        if (processId == 0)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return System.Diagnostics.Process.GetProcessById((int)processId).ProcessName;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static bool IsMyDockFinder(string processName)
+    {
+        return processName.Contains("mydockfinder", StringComparison.OrdinalIgnoreCase);
     }
 
     private void PositionAtTop()
@@ -440,6 +676,7 @@ public partial class MainWindow : Window
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;
         _cornerRadiusCollapsed = _settings.CornerRadius;
+        _cachedThumbnailExpandTarget = null;
 
         CameraIndicator.Visibility = _settings.ShowCameraIndicator ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -954,6 +1191,7 @@ public partial class MainWindow : Window
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
         _hwndSource?.RemoveHook(WndProc);
+        StopZOrderWatchdog();
 
         _mediaService.Dispose();
         _notchManager.Dispose();
