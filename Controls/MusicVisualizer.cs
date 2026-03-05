@@ -66,25 +66,26 @@ namespace VNotch.Controls
         #region Constants & Config
 
         private const int BarCount = 5;
-        private const double MinHeightRatio = 0.2;
-        private const double MaxHeightRatio = 0.9;
+        private const double MinHeightRatio = 0.12;
+        private const double MaxHeightRatio = 0.98;
         private const double BarWidthRatio = 0.10; // Percent of total width per bar
         private const double BarSpacingRatio = 0.05;
         private const double CornerRadiusRatio = 0.5; // Circle-like ends
 
         // UI smoothing. Lower alpha = faster response.
-        private const double AlphaAttack = 0.38;
-        private const double AlphaRelease = 0.78;
-        private const double AlphaPauseRelease = 0.86;
+        private const double AlphaAttack = 0.58;
+        private const double AlphaRelease = 0.90;
+        private const double AlphaPauseRelease = 0.93;
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
-        private const double NoAudioPulseAmplitude = 0.08;
-        private const double NoAudioPulseBase = 0.04;
-        private const double LegacyRhythmMinMix = 0.10;
-        private const double LegacyRhythmMaxMix = 0.28;
+        private const double NoAudioPulseAmplitude = 0.18;
+        private const double NoAudioPulseBase = 0.10;
+        private const double LegacyRhythmMinMix = 0.20;
+        private const double LegacyRhythmMaxMix = 0.42;
         private const double AudioPresenceThreshold = 0.010;
-        private const double DownwardDropBoost = 0.22;
-        private const double MinReleaseAlpha = 0.50;
+        private const double DownwardDropBoost = 0.08;
+        private const double MinReleaseAlpha = 0.74;
+        private const double MotionContrast = 1.30;
 
         #endregion
 
@@ -228,22 +229,23 @@ namespace VNotch.Controls
                 if (canDriveFromAudio)
                 {
                     double band = Math.Clamp(levels[i], 0.0, 1.0);
-                    double audioShaped = Math.Pow(band, 0.72);
+                    double audioShaped = Math.Pow(band, 0.90);
                     double rhythm = GetAudioReactiveRhythmAt(i, totalSec, sid, audioEnergy);
                     double rhythmMixBase = LegacyRhythmMinMix + ((1.0 - audioEnergy) * (LegacyRhythmMaxMix - LegacyRhythmMinMix));
-                    double rhythmMix = rhythmMixBase * (1.0 - (beatAccent * 0.75));
+                    double rhythmMix = rhythmMixBase * (1.0 - (beatAccent * 0.45));
                     double normalized = (audioShaped * (1.0 - rhythmMix)) + (rhythm * rhythmMix);
-                    normalized = Math.Clamp(normalized + (beatAccent * GetBeatLiftWeight(i)), 0.0, 1.0);
+                    normalized = Math.Clamp(normalized + (beatAccent * GetBeatLiftWeight(i) * 0.62), 0.0, 1.0);
+                    normalized = ApplyMotionContrast(normalized);
                     targetH = MapNormalizedToHeight(normalized);
                 }
                 else if (_state == VisualizerState.Playing)
                 {
-                    double normalized = GetNoAudioPulseAt(i, totalSec, sid);
+                    double normalized = ApplyMotionContrast(GetNoAudioPulseAt(i, totalSec, sid));
                     targetH = MapNormalizedToHeight(normalized);
                 }
                 else if (_state == VisualizerState.Seeking)
                 {
-                    double normalized = GetNoAudioPulseAt(i, totalSec, sid);
+                    double normalized = ApplyMotionContrast(GetNoAudioPulseAt(i, totalSec, sid));
                     targetH = MapNormalizedToHeight(normalized);
                 }
                 else if (_state == VisualizerState.Paused)
@@ -292,12 +294,20 @@ namespace VNotch.Controls
             return MinHeightRatio + clamped * (MaxHeightRatio - MinHeightRatio);
         }
 
+        private static double ApplyMotionContrast(double normalized)
+        {
+            double clamped = Math.Clamp(normalized, 0.0, 1.0);
+            return Math.Clamp(0.5 + ((clamped - 0.5) * MotionContrast), 0.0, 1.0);
+        }
+
         private double GetNoAudioPulseAt(int index, double t, string sid)
         {
             uint hash = GetDeterministicHash(sid + index);
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
-            double freq = 1.0 + (hash % 50) / 100.0;
-            double wave = 0.5 + 0.5 * Math.Sin((t * freq * Math.PI * 2) + phase);
+            double freq = 0.34 + (hash % 24) / 100.0;
+            double wavePrimary = 0.5 + 0.5 * Math.Sin((t * freq * Math.PI * 2) + phase);
+            double waveSecondary = 0.5 + 0.5 * Math.Sin((t * (freq * 1.45) * Math.PI * 2) + (phase * 0.37));
+            double wave = (wavePrimary * 0.76) + (waveSecondary * 0.24);
             return NoAudioPulseBase + (wave * NoAudioPulseAmplitude);
         }
 
@@ -318,15 +328,16 @@ namespace VNotch.Controls
         {
             uint hash = GetDeterministicHash(sid + index);
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
-            double baseFreq = 1.2 + (hash % 45) / 100.0;
-            double speed = 0.75 + (energy * 0.95);
+            double baseFreq = 0.52 + (hash % 28) / 100.0;
+            double speed = 0.52 + (energy * 0.32);
 
-            double value = Math.Sin((t * baseFreq * speed * Math.PI * 2) + phase) * 0.35;
-            value += Math.Sin((t * (0.65 + (energy * 0.55)) * Math.PI * 2) + (phase * 0.5)) * 0.20;
+            double value = Math.Sin((t * baseFreq * speed * Math.PI * 2) + phase) * 0.40;
+            value += Math.Sin((t * (0.30 + (energy * 0.22)) * Math.PI * 2) + (phase * 0.5)) * 0.20;
+            value += Math.Sin((t * (baseFreq * 0.42) * Math.PI * 2) + (phase * 1.7)) * 0.08;
 
-            double noiseRate = 5.0 + (energy * 5.5);
+            double noiseRate = 1.2 + (energy * 1.4);
             uint noiseSeed = GetDeterministicHash(sid + index + (int)Math.Floor(t * noiseRate));
-            value += (((noiseSeed % 200) / 100.0) - 1.0) * (0.03 + (energy * 0.05));
+            value += (((noiseSeed % 200) / 100.0) - 1.0) * (0.008 + (energy * 0.012));
 
             return Math.Clamp(0.5 + value, 0.0, 1.0);
         }
@@ -407,14 +418,14 @@ namespace VNotch.Controls
         private const double AgcRelease = 0.985;
         private const double KickTransientThreshold = 0.05;
         private const double SnareTransientThreshold = 0.04;
-        private const double KickTransientGain = 6.6;
-        private const double SnareTransientGain = 9.0;
-        private const double KickAccentDecay = 0.86;
-        private const double SnareAccentDecay = 0.84;
-        private const double BeatTransientThreshold = 0.035;
-        private const double BeatTransientGain = 8.0;
-        private const double BeatAccentDecay = 0.80;
-        private const double BeatRmsDeltaThreshold = 0.012;
+        private const double KickTransientGain = 4.4;
+        private const double SnareTransientGain = 5.8;
+        private const double KickAccentDecay = 0.92;
+        private const double SnareAccentDecay = 0.91;
+        private const double BeatTransientThreshold = 0.040;
+        private const double BeatTransientGain = 5.0;
+        private const double BeatAccentDecay = 0.92;
+        private const double BeatRmsDeltaThreshold = 0.016;
         private const double BassDominanceStart = 1.10;
         private const double BassDominanceSpan = 1.00;
         private const double MaxLowAttenuation = 0.34;
@@ -643,11 +654,11 @@ namespace VNotch.Controls
             _beatAccent = Math.Max(beatHit, _beatAccent * BeatAccentDecay);
             _latestBeatAccent = (float)_beatAccent;
 
-            _displayTargets[0] = (float)Math.Clamp((low * 0.60) + (kick * 0.24) + (rms * 0.24) + (_kickAccent * 0.34) + (_beatAccent * 0.12), 0.0, 1.0);
-            _displayTargets[1] = (float)Math.Clamp((low * 0.42) + (mid * 0.38) + (kick * 0.16) + (_kickAccent * 0.22) + (_beatAccent * 0.08), 0.0, 1.0);
-            _displayTargets[2] = (float)Math.Clamp((mid * 0.64) + (rms * 0.30) + (snare * 0.10) + (_snareAccent * 0.10) + (_beatAccent * 0.06), 0.0, 1.0);
-            _displayTargets[3] = (float)Math.Clamp((mid * 0.38) + (high * 0.50) + (snare * 0.24) + (_snareAccent * 0.30) + (_beatAccent * 0.10), 0.0, 1.0);
-            _displayTargets[4] = (float)Math.Clamp((high * 0.60) + (rms * 0.22) + (snare * 0.30) + (_snareAccent * 0.40) + (_beatAccent * 0.12), 0.0, 1.0);
+            _displayTargets[0] = (float)Math.Clamp((low * 0.60) + (kick * 0.24) + (rms * 0.24) + (_kickAccent * 0.24) + (_beatAccent * 0.08), 0.0, 1.0);
+            _displayTargets[1] = (float)Math.Clamp((low * 0.42) + (mid * 0.38) + (kick * 0.16) + (_kickAccent * 0.16) + (_beatAccent * 0.06), 0.0, 1.0);
+            _displayTargets[2] = (float)Math.Clamp((mid * 0.64) + (rms * 0.30) + (snare * 0.10) + (_snareAccent * 0.08) + (_beatAccent * 0.05), 0.0, 1.0);
+            _displayTargets[3] = (float)Math.Clamp((mid * 0.38) + (high * 0.50) + (snare * 0.24) + (_snareAccent * 0.22) + (_beatAccent * 0.08), 0.0, 1.0);
+            _displayTargets[4] = (float)Math.Clamp((high * 0.60) + (rms * 0.22) + (snare * 0.30) + (_snareAccent * 0.30) + (_beatAccent * 0.10), 0.0, 1.0);
         }
 
         private static double ComputeBandEnergy(int fromHz, int toHz)

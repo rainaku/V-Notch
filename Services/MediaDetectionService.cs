@@ -859,7 +859,8 @@ public class MediaDetectionService : IMediaDetectionService
                     string trackDuringFetch = info.CurrentTrack;
                     string artistDuringFetch = info.CurrentArtist;
                     string sourceAppDuringFetch = info.SourceAppId ?? "";
-                    bool requireStrongMatch = false;
+                    // SoundCloud metadata from browser sessions can be noisy; avoid loose artwork swaps.
+                    bool requireStrongMatch = true;
 
                     _ = Task.Run(async () =>
                     {
@@ -1144,7 +1145,8 @@ public class MediaDetectionService : IMediaDetectionService
         string normalized = url.Replace("\\u0026", "&").Replace("\\/", "/").ToLowerInvariant();
         return normalized.Contains("default_avatar", StringComparison.Ordinal) ||
                normalized.Contains("/images/default_", StringComparison.Ordinal) ||
-               normalized.Contains("default-soundcloud", StringComparison.Ordinal);
+               normalized.Contains("default-soundcloud", StringComparison.Ordinal) ||
+               normalized.Contains("/avatars-", StringComparison.Ordinal);
     }
 
     private static bool HasLowEntropyMonochromeProfile(BitmapImage thumbnail)
@@ -1892,8 +1894,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 bool likelySoundCloudArtwork = IsLikelySoundCloudArtworkCandidate(newBitmap);
                                 bool skipSmtcThumbForFreshSoundCloudTrack = isSoundCloudSource &&
                                                                             trackChangedForThisPass &&
-                                                                            !hasVerifiedSoundCloudThumb &&
-                                                                            !likelySoundCloudArtwork;
+                                                                            !hasVerifiedSoundCloudThumb;
                                 if (skipSmtcThumbForFreshSoundCloudTrack)
                                 {
                                     // Browser SMTC often serves stale thumbnail from previous tab (e.g., YouTube).
@@ -2264,22 +2265,16 @@ public class MediaDetectionService : IMediaDetectionService
             var probes = await Task.WhenAll(probeTasks);
             Array.Sort(probes, static (a, b) => a.Index.CompareTo(b.Index));
 
-            string? fallbackThumbnail = null;
             for (int i = 0; i < probes.Length; i++)
             {
                 var probe = probes[i];
-                if (fallbackThumbnail == null && !string.IsNullOrWhiteSpace(probe.ThumbnailUrl))
-                {
-                    fallbackThumbnail = probe.ThumbnailUrl;
-                }
-
                 if (probe.IsMatch && !string.IsNullOrWhiteSpace(probe.ThumbnailUrl))
                 {
                     return probe.ThumbnailUrl;
                 }
             }
 
-            return requireStrongMatch ? null : fallbackThumbnail;
+            return null;
         }
         catch (OperationCanceledException)
         {
