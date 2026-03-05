@@ -930,6 +930,10 @@ public partial class MainWindow : Window
         double targetHighlightX = GetCalendarHighlightXForIndex(centerIdx);
         double currentHighlightX = (double)CalendarHighlightTranslate.GetValue(TranslateTransform.XProperty);
 
+        CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CalendarHighlightTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+
         var moveAnim = new DoubleAnimation
         {
             From = currentHighlightX,
@@ -940,30 +944,32 @@ public partial class MainWindow : Window
         Timeline.SetDesiredFrameRate(moveAnim, 120);
         CalendarHighlightTranslate.BeginAnimation(TranslateTransform.XProperty, moveAnim, HandoffBehavior.SnapshotAndReplace);
 
-        CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-
         if (!pulse)
         {
             CalendarHighlightScale.ScaleX = 1.0;
             CalendarHighlightScale.ScaleY = 1.0;
+            CalendarHighlightTranslate.Y = 0.0;
             return;
         }
 
-        var pulseX = new DoubleAnimationUsingKeyFrames { Duration = duration };
-        pulseX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(0.0)));
-        pulseX.KeyFrames.Add(new EasingDoubleKeyFrame(1.08, KeyTime.FromPercent(0.35), _easeQuadOut));
-        pulseX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeQuadInOut));
-        Timeline.SetDesiredFrameRate(pulseX, 120);
+        // Smooth selection emphasis without offsetting the center point.
+        var squashX = new DoubleAnimationUsingKeyFrames { Duration = duration };
+        squashX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(0.0)));
+        squashX.KeyFrames.Add(new EasingDoubleKeyFrame(1.085, KeyTime.FromPercent(0.28), _easeSineInOut));
+        squashX.KeyFrames.Add(new EasingDoubleKeyFrame(0.975, KeyTime.FromPercent(0.62), _easeSineInOut));
+        squashX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
+        Timeline.SetDesiredFrameRate(squashX, 120);
 
-        var pulseY = new DoubleAnimationUsingKeyFrames { Duration = duration };
-        pulseY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(0.0)));
-        pulseY.KeyFrames.Add(new EasingDoubleKeyFrame(1.08, KeyTime.FromPercent(0.35), _easeQuadOut));
-        pulseY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeQuadInOut));
-        Timeline.SetDesiredFrameRate(pulseY, 120);
+        var squashY = new DoubleAnimationUsingKeyFrames { Duration = duration };
+        squashY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(0.0)));
+        squashY.KeyFrames.Add(new EasingDoubleKeyFrame(0.93, KeyTime.FromPercent(0.28), _easeSineInOut));
+        squashY.KeyFrames.Add(new EasingDoubleKeyFrame(1.02, KeyTime.FromPercent(0.62), _easeSineInOut));
+        squashY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
+        Timeline.SetDesiredFrameRate(squashY, 120);
 
-        CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseX, HandoffBehavior.SnapshotAndReplace);
-        CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseY, HandoffBehavior.SnapshotAndReplace);
+        CalendarHighlightTranslate.Y = 0.0;
+        CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleXProperty, squashX, HandoffBehavior.SnapshotAndReplace);
+        CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleYProperty, squashY, HandoffBehavior.SnapshotAndReplace);
     }
 
     private void UpdateCalendarHighlight(bool animate = true, bool pulse = false)
@@ -1013,7 +1019,7 @@ public partial class MainWindow : Window
     private void AnimateCalendarWidgetHover(bool isHovered)
     {
         // Slow down by ~50% and keep motion softer.
-        var duration = new Duration(TimeSpan.FromMilliseconds(isHovered ? 540 : 420));
+        var duration = new Duration(TimeSpan.FromMilliseconds(isHovered ? 350 : 420));
         double currentScaleX = (double)CalendarWidgetScale.GetValue(ScaleTransform.ScaleXProperty);
         double currentScaleY = (double)CalendarWidgetScale.GetValue(ScaleTransform.ScaleYProperty);
         double currentLiftY = (double)CalendarWidgetTranslate.GetValue(TranslateTransform.YProperty);
@@ -1067,7 +1073,6 @@ public partial class MainWindow : Window
         // Keep focus local to calendar column only; do not affect music block.
         AnimateOpacity(BatterySection, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateOpacity(GreetingSection, isFocused ? 0.62 : 1.0, duration, easing);
-        AnimateBlurRadius(CalendarBatteryContextBlur, isFocused ? 4.0 : 0.0, duration, easing);
         AnimateBlurRadius(CalendarGreetingContextBlur, isFocused ? 4.0 : 0.0, duration, easing);
     }
 
@@ -1106,16 +1111,19 @@ public partial class MainWindow : Window
         CalendarWidgetScale.ScaleY = 1.0;
         CalendarWidgetTranslate.Y = 0.0;
 
-        ResetCalendarContextElement(BatterySection, CalendarBatteryContextBlur);
+        ResetCalendarContextElement(BatterySection, null);
         ResetCalendarContextElement(GreetingSection, CalendarGreetingContextBlur);
     }
 
-    private static void ResetCalendarContextElement(UIElement element, BlurEffect effect)
+    private static void ResetCalendarContextElement(UIElement element, BlurEffect? effect)
     {
         element.BeginAnimation(UIElement.OpacityProperty, null);
         element.Opacity = 1.0;
-        effect.BeginAnimation(BlurEffect.RadiusProperty, null);
-        effect.Radius = 0.0;
+        if (effect != null)
+        {
+            effect.BeginAnimation(BlurEffect.RadiusProperty, null);
+            effect.Radius = 0.0;
+        }
     }
 
     private void CalendarWidget_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
