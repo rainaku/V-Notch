@@ -2013,10 +2013,14 @@ public class MediaDetectionService : IMediaDetectionService
                         TimeSpan compensation = TimeSpan.FromSeconds(timelineLatency.TotalSeconds * effectiveRate);
                         bool isYouTubeTimeline = string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
                                                  (string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) && IsLikelyYouTube(info));
-                        // YouTube SMTC can be very stale at startup (10-20s), allow higher
-                        // compensation during initial load; cap tightly during normal playback.
+                        bool inStartupSyncWindow = DateTime.UtcNow <= _startupProgressSyncUntilUtc;
+                        bool startupCatchupMode = inStartupSyncWindow && !isNewTrack;
+                        // When app opens while media is already playing, browser/YouTube timelines are
+                        // often much older than the current wall clock. Allow stronger startup catch-up.
                         TimeSpan maxCompensation = isYouTubeTimeline
-                            ? (isInitialOrBigChange ? TimeSpan.FromSeconds(25) : TimeSpan.FromSeconds(8))
+                            ? (startupCatchupMode
+                                ? TimeSpan.FromSeconds(90)
+                                : (isInitialOrBigChange ? TimeSpan.FromSeconds(25) : TimeSpan.FromSeconds(8)))
                             : (forceRefresh ? TimeSpan.FromSeconds(120) : TimeSpan.FromSeconds(45));
                         if (compensation > maxCompensation)
                         {
