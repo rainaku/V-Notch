@@ -367,6 +367,7 @@ public partial class MainWindow
         SecondaryContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
         ResetCalendarScroll();
+        ResetCalendarHoverFocusVisualState();
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         PaginationDots.BeginAnimation(OpacityProperty, null);
         AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
@@ -683,6 +684,7 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
 
         _musicWidgetSmallWidth = MediaWidgetContainer.ActualWidth;
+        ResetCalendarHoverFocusVisualState();
 
         var expandDuration = new Duration(TimeSpan.FromMilliseconds(500));
         var contentDelay = TimeSpan.FromMilliseconds(150);
@@ -759,6 +761,7 @@ public partial class MainWindow
 
         _progressTimer?.Stop();
         UpdateZOrderTimerInterval();
+        ResetCalendarHoverFocusVisualState();
 
         var collapseDuration = new Duration(TimeSpan.FromMilliseconds(400));
         var contentDelay = TimeSpan.FromMilliseconds(80);

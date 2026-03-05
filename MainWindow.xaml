@@ -1027,7 +1027,11 @@
                                     Cursor="Hand"
                                     Background="Transparent"
                                     MouseLeftButtonDown="Battery_Click"
-                                    Margin="0,0,15,4">
+                                    Margin="0,0,15,4"
+                                    CacheMode="BitmapCache">
+                                <Border.Effect>
+                                    <BlurEffect x:Name="CalendarBatteryContextBlur" Radius="0" RenderingBias="Performance"/>
+                                </Border.Effect>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock x:Name="BatteryPercent" 
                                                Text="100%" 
@@ -1141,7 +1145,10 @@
                             </Border>
 
                            
-                            <Grid x:Name="GreetingSection" Grid.Row="2" Margin="10,-6,0,0">
+                            <Grid x:Name="GreetingSection" Grid.Row="2" Margin="10,-6,0,0" CacheMode="BitmapCache">
+                                <Grid.Effect>
+                                    <BlurEffect x:Name="CalendarGreetingContextBlur" Radius="0" RenderingBias="Performance"/>
+                                </Grid.Effect>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition SharedSizeGroup="MonthColumn" Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
@@ -1154,6 +1161,7 @@
                                            Text="Enjoy your day!"
                                            Style="{StaticResource SmallText}"
                                            FontSize="10"
+                                           Margin="6,0,0,0"
                                            VerticalAlignment="Center"
                                            HorizontalAlignment="Left"
                                            Foreground="#99FFFFFF"/>

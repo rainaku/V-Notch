@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
@@ -999,38 +1000,122 @@ public partial class MainWindow : Window
 
     private void CalendarWidget_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        var duration = new Duration(TimeSpan.FromMilliseconds(260));
-        var easing = (IEasingFunction)_easeExpOut6;
-
-        var scaleAnimX = new DoubleAnimation { To = 1.045, Duration = duration, EasingFunction = easing };
-        var scaleAnimY = new DoubleAnimation { To = 1.045, Duration = duration, EasingFunction = easing };
-        var liftAnim = new DoubleAnimation { To = -1.5, Duration = duration, EasingFunction = easing };
-
-        Timeline.SetDesiredFrameRate(scaleAnimX, 120);
-        Timeline.SetDesiredFrameRate(scaleAnimY, 120);
-        Timeline.SetDesiredFrameRate(liftAnim, 120);
-
-        CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimX, HandoffBehavior.SnapshotAndReplace);
-        CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimY, HandoffBehavior.SnapshotAndReplace);
-        CalendarWidgetTranslate.BeginAnimation(TranslateTransform.YProperty, liftAnim, HandoffBehavior.SnapshotAndReplace);
+        AnimateCalendarWidgetHover(isHovered: true);
+        AnimateCalendarContextFocus(isFocused: true);
     }
 
     private void CalendarWidget_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        var duration = new Duration(TimeSpan.FromMilliseconds(220));
-        var easing = (IEasingFunction)_easeQuadOut;
+        AnimateCalendarWidgetHover(isHovered: false);
+        AnimateCalendarContextFocus(isFocused: false);
+    }
 
-        var scaleAnimX = new DoubleAnimation { To = 1.0, Duration = duration, EasingFunction = easing };
-        var scaleAnimY = new DoubleAnimation { To = 1.0, Duration = duration, EasingFunction = easing };
-        var liftAnim = new DoubleAnimation { To = 0, Duration = duration, EasingFunction = easing };
+    private void AnimateCalendarWidgetHover(bool isHovered)
+    {
+        // Slow down by ~50% and keep motion softer.
+        var duration = new Duration(TimeSpan.FromMilliseconds(isHovered ? 540 : 420));
+        double currentScaleX = (double)CalendarWidgetScale.GetValue(ScaleTransform.ScaleXProperty);
+        double currentScaleY = (double)CalendarWidgetScale.GetValue(ScaleTransform.ScaleYProperty);
+        double currentLiftY = (double)CalendarWidgetTranslate.GetValue(TranslateTransform.YProperty);
 
-        Timeline.SetDesiredFrameRate(scaleAnimX, 120);
-        Timeline.SetDesiredFrameRate(scaleAnimY, 120);
+        var scaleXAnim = new DoubleAnimationUsingKeyFrames { Duration = duration };
+        var scaleYAnim = new DoubleAnimationUsingKeyFrames { Duration = duration };
+        var liftAnim = new DoubleAnimationUsingKeyFrames { Duration = duration };
+
+        scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentScaleX, KeyTime.FromPercent(0.0)));
+        scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentScaleY, KeyTime.FromPercent(0.0)));
+        liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentLiftY, KeyTime.FromPercent(0.0)));
+
+        if (isHovered)
+        {
+            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.135, KeyTime.FromPercent(0.40), _easeSineInOut));
+            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.955, KeyTime.FromPercent(0.40), _easeSineInOut));
+            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.095, KeyTime.FromPercent(0.72), _easeSineInOut));
+            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.085, KeyTime.FromPercent(0.72), _easeSineInOut));
+            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.105, KeyTime.FromPercent(1.0), _easeSineInOut));
+            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.105, KeyTime.FromPercent(1.0), _easeSineInOut));
+
+            liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(-3.7, KeyTime.FromPercent(0.48), _easeSineInOut));
+            liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(-3.1, KeyTime.FromPercent(1.0), _easeSineInOut));
+        }
+        else
+        {
+            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.985, KeyTime.FromPercent(0.42), _easeSineInOut));
+            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.02, KeyTime.FromPercent(0.42), _easeSineInOut));
+            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
+            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
+
+            liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(-0.6, KeyTime.FromPercent(0.42), _easeSineInOut));
+            liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0), _easeSineInOut));
+        }
+
+        Timeline.SetDesiredFrameRate(scaleXAnim, 120);
+        Timeline.SetDesiredFrameRate(scaleYAnim, 120);
         Timeline.SetDesiredFrameRate(liftAnim, 120);
 
-        CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimX, HandoffBehavior.SnapshotAndReplace);
-        CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimY, HandoffBehavior.SnapshotAndReplace);
+        CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim, HandoffBehavior.SnapshotAndReplace);
+        CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim, HandoffBehavior.SnapshotAndReplace);
         CalendarWidgetTranslate.BeginAnimation(TranslateTransform.YProperty, liftAnim, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void AnimateCalendarContextFocus(bool isFocused)
+    {
+        // Match slower, smoother calendar hover timing.
+        var duration = new Duration(TimeSpan.FromMilliseconds(isFocused ? 450 : 360));
+        var easing = (IEasingFunction)_easeSineInOut;
+
+        // Keep focus local to calendar column only; do not affect music block.
+        AnimateOpacity(BatterySection, isFocused ? 0.62 : 1.0, duration, easing);
+        AnimateOpacity(GreetingSection, isFocused ? 0.62 : 1.0, duration, easing);
+        AnimateBlurRadius(CalendarBatteryContextBlur, isFocused ? 4.0 : 0.0, duration, easing);
+        AnimateBlurRadius(CalendarGreetingContextBlur, isFocused ? 4.0 : 0.0, duration, easing);
+    }
+
+    private static void AnimateOpacity(UIElement element, double to, Duration duration, IEasingFunction easing)
+    {
+        var anim = new DoubleAnimation
+        {
+            From = (double)element.GetValue(UIElement.OpacityProperty),
+            To = to,
+            Duration = duration,
+            EasingFunction = easing
+        };
+        Timeline.SetDesiredFrameRate(anim, 120);
+        element.BeginAnimation(UIElement.OpacityProperty, anim, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private static void AnimateBlurRadius(BlurEffect effect, double to, Duration duration, IEasingFunction easing)
+    {
+        var anim = new DoubleAnimation
+        {
+            From = (double)effect.GetValue(BlurEffect.RadiusProperty),
+            To = to,
+            Duration = duration,
+            EasingFunction = easing
+        };
+        Timeline.SetDesiredFrameRate(anim, 120);
+        effect.BeginAnimation(BlurEffect.RadiusProperty, anim, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void ResetCalendarHoverFocusVisualState()
+    {
+        CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CalendarWidgetTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        CalendarWidgetScale.ScaleX = 1.0;
+        CalendarWidgetScale.ScaleY = 1.0;
+        CalendarWidgetTranslate.Y = 0.0;
+
+        ResetCalendarContextElement(BatterySection, CalendarBatteryContextBlur);
+        ResetCalendarContextElement(GreetingSection, CalendarGreetingContextBlur);
+    }
+
+    private static void ResetCalendarContextElement(UIElement element, BlurEffect effect)
+    {
+        element.BeginAnimation(UIElement.OpacityProperty, null);
+        element.Opacity = 1.0;
+        effect.BeginAnimation(BlurEffect.RadiusProperty, null);
+        effect.Radius = 0.0;
     }
 
     private void CalendarWidget_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
