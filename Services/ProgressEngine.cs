@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -38,33 +37,32 @@ public struct UiProgressFrame
 public class ProgressEngine
 {
     private ProgressState _state = ProgressState.Idle;
-    
-    private TimeSpan _anchorPosition = TimeSpan.Zero;
-    private TimeSpan _duration = TimeSpan.Zero;
-    private DateTime _anchorTimestamp = DateTime.MinValue;
-    private Stopwatch _stopwatch = new Stopwatch();
-    
-    // For seek debounce and drift
-    private TimeSpan _lastDisplayedPosition = TimeSpan.Zero;
-    private DateTime _seekDebounceEndTime = DateTime.MinValue;
-    private DateTime _lastSyncTime = DateTime.MinValue;
-    
-    // Config
-    private readonly TimeSpan _driftTolerance = TimeSpan.FromMilliseconds(500); // 500-700ms
-    private readonly TimeSpan _minSyncInterval = TimeSpan.FromMilliseconds(1000); // 1-2s
-    private readonly TimeSpan _backwardsTolerance = TimeSpan.FromMilliseconds(250); // 250-500ms
-    private readonly TimeSpan _stabilizationWindow = TimeSpan.FromMilliseconds(500); // 300-800ms
-    private readonly TimeSpan _minStalenessCompensation = TimeSpan.FromMilliseconds(280);
-    private readonly TimeSpan _maxStalenessCompensation = TimeSpan.FromMilliseconds(1200);
-    
-    private double _playbackRate = 1.0;
-    private bool _isIndeterminate = false;
-    private bool _isSeekEnabled = false;
 
-    private DateTime _firstSnapshotTime = DateTime.MinValue;
-    private bool _isInitialWarmup = true;
-    private readonly TimeSpan _initialWarmupDuration = TimeSpan.FromSeconds(4);
+    // Canonical state for prediction:
+    // displayPosition = basePosition + (now - baseTime) * playbackRate
+    private TimeSpan _basePosition = TimeSpan.Zero;
+    private DateTime _baseTimeUtc = DateTime.MinValue;
+    private TimeSpan _duration = TimeSpan.Zero;
+    private bool _isPlaying;
+
+    private double _playbackRate = 1.0;
+    private bool _isIndeterminate;
+    private bool _isSeekEnabled;
+
+    private TimeSpan _lastDisplayedPosition = TimeSpan.Zero;
     private DateTime _lastSnapshotTimestampUtc = DateTime.MinValue;
+    private DateTime _seekDebounceEndUtc = DateTime.MinValue;
+    private DateTime _allowBackwardUntilUtc = DateTime.MinValue;
+
+    private static readonly TimeSpan SnapshotOutOfOrderTolerance = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan PauseBackstepTolerance = TimeSpan.FromMilliseconds(450);
+    private static readonly TimeSpan ResumeBackstepTolerance = TimeSpan.FromMilliseconds(350);
+    private static readonly TimeSpan IgnoreCorrectionThreshold = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan SmoothCorrectionThreshold = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan SmoothBackwardCap = TimeSpan.FromMilliseconds(120);
+    private static readonly TimeSpan AntiBackwardSlack = TimeSpan.FromMilliseconds(80);
+    private static readonly TimeSpan DurationChangeSeekWindow = TimeSpan.FromMilliseconds(650);
+    private static readonly TimeSpan UserSeekDebounceDuration = TimeSpan.FromMilliseconds(2500);
 
     private readonly object _lock = new object();
 
@@ -72,6 +70,23 @@ public class ProgressEngine
     {
         lock (_lock)
         {
+            DateTime nowUtc = DateTime.UtcNow;
+            DateTime snapshotTsUtc = snapshot.Timestamp.Kind == DateTimeKind.Utc
+                ? snapshot.Timestamp
+                : snapshot.Timestamp.ToUniversalTime();
+
+            if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
+                snapshotTsUtc < _lastSnapshotTimestampUtc - SnapshotOutOfOrderTolerance)
+            {
+                return;
+            }
+
+            if (snapshotTsUtc > _lastSnapshotTimestampUtc)
+            {
+                _lastSnapshotTimestampUtc = snapshotTsUtc;
+            }
+
+            TimeSpan previousDuration = _duration;
             if (snapshot.Duration.TotalSeconds > 0)
             {
                 _duration = snapshot.Duration;
@@ -93,200 +108,116 @@ public class ProgressEngine
             _isIndeterminate = snapshot.IsIndeterminate;
             _isSeekEnabled = snapshot.IsSeekEnabled;
 
-            bool isNowPlaying = snapshot.IsPlaying;
-            DateTime now = DateTime.UtcNow;
-            DateTime snapshotTsUtc = snapshot.Timestamp.Kind == DateTimeKind.Utc
-                ? snapshot.Timestamp
-                : snapshot.Timestamp.ToUniversalTime();
-
-            // Ignore out-of-order snapshots to prevent startup rewind/jitter.
-            if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
-                snapshotTsUtc < _lastSnapshotTimestampUtc - TimeSpan.FromMilliseconds(250))
+            bool durationChanged = DidDurationChange(previousDuration, _duration);
+            if (durationChanged && snapshot.IsPlaying)
             {
-                return;
-            }
-            if (snapshotTsUtc > _lastSnapshotTimestampUtc)
-            {
-                _lastSnapshotTimestampUtc = snapshotTsUtc;
-            }
+                TimeSpan predictedAtDurationChange = ClampPosition(PredictPosition(nowUtc));
+                bool likelyTrackRestart = snapshot.Position.TotalSeconds <=
+                    Math.Min(5.0, _duration.TotalSeconds > 0 ? _duration.TotalSeconds * 0.15 : 5.0);
+                bool predictedOutsideNewDuration =
+                    _duration.TotalSeconds > 0 &&
+                    predictedAtDurationChange > _duration + TimeSpan.FromSeconds(1);
 
-            if (_firstSnapshotTime == DateTime.MinValue && isNowPlaying)
-            {
-                _firstSnapshotTime = now;
-                _isInitialWarmup = true;
-            }
-
-            TimeSpan staleness = now - snapshotTsUtc;
-
-            if (staleness < TimeSpan.Zero || staleness > TimeSpan.FromMinutes(5)) 
-                staleness = TimeSpan.Zero;
-
-            bool startupWarmupActive = _isInitialWarmup &&
-                                       _firstSnapshotTime != DateTime.MinValue &&
-                                       (now - _firstSnapshotTime) < _initialWarmupDuration;
-
-            TimeSpan actualCurrentPos = snapshot.Position;
-            if (isNowPlaying && !snapshot.IsYouTube)
-            {
-                // MediaDetectionService already normalizes most snapshots to "now",
-                // so we only apply extra staleness compensation for non-YouTube sources
-                // and only when the snapshot is meaningfully old.
-                var stalenessCap = startupWarmupActive
-                    ? _maxStalenessCompensation
-                    : TimeSpan.FromMilliseconds(450);
-                var effectiveStaleness = staleness > stalenessCap ? stalenessCap : staleness;
-                if (effectiveStaleness > _minStalenessCompensation)
+                if (likelyTrackRestart || predictedOutsideNewDuration)
                 {
-                    actualCurrentPos += TimeSpan.FromSeconds(effectiveStaleness.TotalSeconds * _playbackRate);
+                    TimeSpan resetPos = ClampPosition(snapshot.Position);
+                    _basePosition = resetPos;
+                    _baseTimeUtc = nowUtc;
+                    _isPlaying = true;
+                    _state = ProgressState.Playing;
+                    _seekDebounceEndUtc = nowUtc + DurationChangeSeekWindow;
+                    _allowBackwardUntilUtc = nowUtc + DurationChangeSeekWindow;
+                    _lastDisplayedPosition = resetPos;
+                    return;
                 }
             }
 
-            if (!isNowPlaying)
+            if (!snapshot.IsPlaying)
             {
-                TimeSpan pausedPos = snapshot.Position;
+                TimeSpan pausedPos = ClampPosition(snapshot.Position);
 
-                // Prevent visible rewind on pause when the arriving snapshot is stale.
-                if (_state == ProgressState.Playing || _state == ProgressState.Seeking)
+                if (_isPlaying || _state == ProgressState.Playing || _state == ProgressState.Seeking)
                 {
-                    TimeSpan predictedPauseNow = GetPredictedPosition();
-                    TimeSpan maxAllowedBackstep = TimeSpan.FromMilliseconds(450);
-                    if (pausedPos < predictedPauseNow - maxAllowedBackstep)
+                    TimeSpan predictedPauseNow = ClampPosition(PredictPosition(nowUtc));
+                    if (pausedPos < predictedPauseNow - PauseBackstepTolerance)
                     {
                         pausedPos = predictedPauseNow;
                     }
                 }
 
-                if (_duration > TimeSpan.Zero && pausedPos > _duration)
-                {
-                    pausedPos = _duration;
-                }
-                if (pausedPos < TimeSpan.Zero)
-                {
-                    pausedPos = TimeSpan.Zero;
-                }
-
+                _isPlaying = false;
                 _state = ProgressState.Paused;
-                _stopwatch.Stop();
-                _anchorPosition = pausedPos;
+                _basePosition = pausedPos;
+                _baseTimeUtc = nowUtc;
                 _lastDisplayedPosition = pausedPos;
-                _anchorTimestamp = snapshotTsUtc;
-                _lastSyncTime = now;
                 return;
             }
 
-            // Initial warmup: accept large drift and aggressively sync
-            bool inWarmup = _isInitialWarmup && (now - _firstSnapshotTime) < _initialWarmupDuration;
-            bool allowWarmupBackwardsRecovery = !snapshot.IsYouTube && inWarmup;
-
-            if (_state != ProgressState.Playing && _state != ProgressState.Seeking)
+            if (!_isPlaying || (_state != ProgressState.Playing && _state != ProgressState.Seeking))
             {
-                TimeSpan startPos = actualCurrentPos;
-                if (_state == ProgressState.Paused)
+                TimeSpan startPos = ClampPosition(snapshot.Position);
+                if (_state == ProgressState.Paused && startPos < _basePosition - ResumeBackstepTolerance)
                 {
-                    // Resume snapshots can lag behind the paused anchor; avoid rewind on play.
-                    TimeSpan maxResumeBackstep = TimeSpan.FromMilliseconds(350);
-                    if (startPos < _anchorPosition - maxResumeBackstep)
-                    {
-                        startPos = _anchorPosition;
-                    }
+                    startPos = _basePosition;
                 }
 
+                _isPlaying = true;
                 _state = ProgressState.Playing;
-                _anchorPosition = startPos;
-                _anchorTimestamp = snapshotTsUtc;
-                _stopwatch.Restart();
-                _lastSyncTime = now;
+                _basePosition = startPos;
+                _baseTimeUtc = nowUtc;
                 _lastDisplayedPosition = startPos;
                 return;
             }
 
-            TimeSpan observedPos = actualCurrentPos;
-
-            if (now < _seekDebounceEndTime)
+            if (nowUtc < _seekDebounceEndUtc)
+            {
                 return;
+            }
 
             if (_state == ProgressState.Seeking)
-                _state = ProgressState.Playing;
-
-            // Seek detection
-            TimeSpan seekThreshold = TimeSpan.FromMilliseconds(Math.Max(2000, _duration.TotalMilliseconds * 0.01));
-            TimeSpan predictedNow = GetPredictedPosition();
-            bool likelyRestartAtTrackEnd =
-                _duration.TotalSeconds > 0 &&
-                _lastDisplayedPosition.TotalSeconds > (_duration.TotalSeconds * 0.8) &&
-                observedPos.TotalSeconds < Math.Min(5.0, _duration.TotalSeconds * 0.2);
-            bool freshBackwardSnapshot = staleness <=
-                (snapshot.IsYouTube ? TimeSpan.FromMilliseconds(420) : TimeSpan.FromMilliseconds(650));
-            bool largeBackwardSeekLike = (predictedNow - observedPos).TotalMilliseconds >
-                Math.Max(seekThreshold.TotalMilliseconds, snapshot.IsYouTube ? 7000 : 3500);
-
-            double jumpMs = (observedPos - _lastDisplayedPosition).TotalMilliseconds;
-            if (Math.Abs(jumpMs) > seekThreshold.TotalMilliseconds)
             {
-                bool backwardJump = jumpMs < 0;
-                if (backwardJump &&
-                    !likelyRestartAtTrackEnd &&
-                    !(freshBackwardSnapshot && largeBackwardSeekLike))
-                {
-                    return;
-                }
+                _state = ProgressState.Playing;
+            }
 
-                _anchorPosition = observedPos;
-                _anchorTimestamp = snapshotTsUtc;
-                _stopwatch.Restart();
-                _seekDebounceEndTime = now + _stabilizationWindow;
-                _lastSyncTime = now;
-                _lastDisplayedPosition = observedPos;
+            TimeSpan observedPos = ClampPosition(snapshot.Position);
+            TimeSpan predictedNow = ClampPosition(PredictPosition(nowUtc));
+            TimeSpan diff = observedPos - predictedNow;
+            double absDiffSeconds = Math.Abs(diff.TotalSeconds);
+
+            // Anti-jitter:
+            // < 0.3s: ignore update
+            // < 2.0s: smooth correction
+            // >= 2.0s: snap immediately (seek-like jump)
+            if (absDiffSeconds < IgnoreCorrectionThreshold.TotalSeconds)
+            {
                 return;
             }
 
-            // Reject unexpected small backward jumps (after seek detection).
-            TimeSpan effectiveBackwardTolerance = snapshot.IsYouTube
-                ? TimeSpan.FromMilliseconds(900)
-                : _backwardsTolerance;
-            if (observedPos < predictedNow - effectiveBackwardTolerance)
+            if (absDiffSeconds < SmoothCorrectionThreshold.TotalSeconds)
             {
-                if (!likelyRestartAtTrackEnd && !allowWarmupBackwardsRecovery)
-                    return;
-            }
+                const double correctionFactor = 0.35;
+                double correctedSeconds = predictedNow.TotalSeconds + (diff.TotalSeconds * correctionFactor);
 
-            // During warmup: sync more aggressively, allow larger drift
-            TimeSpan effectiveDriftTolerance = inWarmup 
-                ? (snapshot.IsYouTube ? TimeSpan.FromMilliseconds(800) : TimeSpan.FromSeconds(2))
-                : _driftTolerance;
-
-            TimeSpan effectiveSyncInterval = inWarmup 
-                ? (snapshot.IsYouTube ? TimeSpan.FromMilliseconds(300) : TimeSpan.FromMilliseconds(300))
-                : _minSyncInterval;
-
-            // Drift correction
-            if (now - _lastSyncTime >= effectiveSyncInterval)
-            {
-                TimeSpan predicted = predictedNow;
-                double driftMs = (observedPos - predicted).TotalMilliseconds;
-
-                if (Math.Abs(driftMs) > effectiveDriftTolerance.TotalMilliseconds)
+                if (diff < TimeSpan.Zero)
                 {
-                    _anchorPosition = observedPos;
-                    _anchorTimestamp = snapshotTsUtc;
-                    _stopwatch.Restart();
-                    _lastSyncTime = now;
-                    // Allow backward correction to take effect in GetUiFrame anti-backward guard
-                    _lastDisplayedPosition = observedPos;
-
-                    if (inWarmup && Math.Abs(driftMs) < 3000) // nếu drift nhỏ dần → kết thúc warmup sớm
+                    double minAllowedBackward = predictedNow.TotalSeconds - SmoothBackwardCap.TotalSeconds;
+                    if (correctedSeconds < minAllowedBackward)
                     {
-                        if ((now - _firstSnapshotTime).TotalSeconds > 1.5)
-                            _isInitialWarmup = false;
+                        correctedSeconds = minAllowedBackward;
                     }
                 }
+
+                _basePosition = ClampPosition(TimeSpan.FromSeconds(correctedSeconds));
+                _baseTimeUtc = nowUtc;
+                return;
             }
 
-            // Kết thúc warmup nếu đã qua thời gian hoặc drift ổn định
-            if (inWarmup && (now - _firstSnapshotTime) >= _initialWarmupDuration)
-            {
-                _isInitialWarmup = false;
-            }
+            _basePosition = observedPos;
+            _baseTimeUtc = nowUtc;
+            _state = ProgressState.Playing;
+            _allowBackwardUntilUtc = nowUtc + TimeSpan.FromMilliseconds(900);
+            _seekDebounceEndUtc = nowUtc + TimeSpan.FromMilliseconds(600);
+            _lastDisplayedPosition = observedPos;
         }
     }
 
@@ -294,13 +225,16 @@ public class ProgressEngine
     {
         lock (_lock)
         {
+            DateTime nowUtc = DateTime.UtcNow;
+            TimeSpan clampedPos = ClampPosition(position);
+
             _state = ProgressState.Seeking;
-            _anchorPosition = position;
-            _stopwatch.Restart();
-            DateTime now = DateTime.UtcNow;
-            _anchorTimestamp = now;
-            _seekDebounceEndTime = now + TimeSpan.FromMilliseconds(2500); // Add a larger debounce for user manual seek
-            _lastDisplayedPosition = position;
+            _isPlaying = true;
+            _basePosition = clampedPos;
+            _baseTimeUtc = nowUtc;
+            _seekDebounceEndUtc = nowUtc + UserSeekDebounceDuration;
+            _allowBackwardUntilUtc = nowUtc + TimeSpan.FromMilliseconds(900);
+            _lastDisplayedPosition = clampedPos;
         }
     }
 
@@ -309,16 +243,17 @@ public class ProgressEngine
         lock (_lock)
         {
             _state = ProgressState.Idle;
-            _stopwatch.Stop();
-            _stopwatch.Reset();
-            _anchorPosition = TimeSpan.Zero;
+            _basePosition = TimeSpan.Zero;
+            _baseTimeUtc = DateTime.MinValue;
             _duration = TimeSpan.Zero;
-            _lastDisplayedPosition = TimeSpan.Zero;
-            _seekDebounceEndTime = DateTime.MinValue;
+            _isPlaying = false;
+            _playbackRate = 1.0;
             _isIndeterminate = false;
-            _firstSnapshotTime = DateTime.MinValue;
-            _isInitialWarmup = true;
+            _isSeekEnabled = false;
+            _lastDisplayedPosition = TimeSpan.Zero;
             _lastSnapshotTimestampUtc = DateTime.MinValue;
+            _seekDebounceEndUtc = DateTime.MinValue;
+            _allowBackwardUntilUtc = DateTime.MinValue;
         }
     }
 
@@ -326,25 +261,21 @@ public class ProgressEngine
     {
         lock (_lock)
         {
-            TimeSpan pos = GetPredictedPosition();
+            DateTime nowUtc = DateTime.UtcNow;
+            TimeSpan pos = ClampPosition(PredictPosition(nowUtc));
 
-            pos = TimeSpan.FromSeconds(Math.Max(0, pos.TotalSeconds));
-
-            // Clamp max
-            if (_duration.TotalSeconds > 0 && pos > _duration)
-            {
-                pos = _duration;
-            }
-
-            // Anti-backward protection for UI display
-            if (_state == ProgressState.Playing && pos < _lastDisplayedPosition && pos.TotalSeconds > 0)
+            bool allowBackward = nowUtc <= _allowBackwardUntilUtc;
+            if (_state == ProgressState.Playing &&
+                !allowBackward &&
+                pos + AntiBackwardSlack < _lastDisplayedPosition &&
+                pos > TimeSpan.Zero)
             {
                 pos = _lastDisplayedPosition;
+                _basePosition = pos;
+                _baseTimeUtc = nowUtc;
             }
-            else
-            {
-                _lastDisplayedPosition = pos;
-            }
+
+            _lastDisplayedPosition = pos;
 
             return new UiProgressFrame
             {
@@ -356,13 +287,51 @@ public class ProgressEngine
         }
     }
 
-    private TimeSpan GetPredictedPosition()
+    private TimeSpan PredictPosition(DateTime nowUtc)
     {
-        if (_state == ProgressState.Playing || _state == ProgressState.Seeking)
+        if (!_isPlaying || (_state != ProgressState.Playing && _state != ProgressState.Seeking))
         {
-            // predicted = anchor + elapsed
-            return _anchorPosition + TimeSpan.FromMilliseconds(_stopwatch.ElapsedMilliseconds * _playbackRate);
+            return _basePosition;
         }
-        return _anchorPosition;
+
+        if (_baseTimeUtc == DateTime.MinValue)
+        {
+            return _basePosition;
+        }
+
+        TimeSpan elapsed = nowUtc - _baseTimeUtc;
+        if (elapsed < TimeSpan.Zero)
+        {
+            elapsed = TimeSpan.Zero;
+        }
+
+        return _basePosition + TimeSpan.FromSeconds(elapsed.TotalSeconds * _playbackRate);
+    }
+
+    private static bool DidDurationChange(TimeSpan previous, TimeSpan current)
+    {
+        if (previous <= TimeSpan.Zero || current <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        double diffSec = Math.Abs((current - previous).TotalSeconds);
+        double minMeaningfulDelta = Math.Max(1.0, previous.TotalSeconds * 0.02);
+        return diffSec >= minMeaningfulDelta;
+    }
+
+    private TimeSpan ClampPosition(TimeSpan pos)
+    {
+        if (pos < TimeSpan.Zero)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (_duration > TimeSpan.Zero && pos > _duration)
+        {
+            return _duration;
+        }
+
+        return pos;
     }
 }

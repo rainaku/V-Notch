@@ -51,9 +51,9 @@ public partial class MainWindow
     private const int SPRING_SETTLE_FRAMES_REQUIRED = 3;
     private const int SPRING_TIMEOUT_MS = 1400;
     private const double NORMAL_LERP_SPEED = 14.0;
-    private const double SEEK_DETECT_SECONDS = 0.9;
-    private const double SEEK_DETECT_RATIO = 0.035;
-    private const double SEEK_RETARGET_RESET_RATIO = 0.12;
+    private const double SOURCE_IGNORE_SECONDS = 0.30;
+    private const double SOURCE_SMOOTH_SECONDS = 2.0;
+    private const double DURATION_CHANGE_SECONDS = 1.0;
 
     /// <summary>
     /// Start 144fps spring render loop using CompositionTarget.Rendering.
@@ -264,6 +264,7 @@ public partial class MainWindow
             _lastSessionId = info.SourceAppId;
             HandleSessionTransition();
             _progressEngine.Reset();
+            _lastRenderedDuration = TimeSpan.Zero;
         }
 
         _currentMediaInfo = info;
@@ -288,6 +289,7 @@ public partial class MainWindow
                 _progressVelocity = 0;
                 _springSettleFrames = 0;
                 _isSeekSpringActive = false;
+                _lastRenderedDuration = TimeSpan.Zero;
                 StopSpringRenderLoop();
             }
 
@@ -358,6 +360,7 @@ public partial class MainWindow
             _progressEngine.Reset();
             _lastProgressTimelineKey = "";
             _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
+            _lastRenderedDuration = TimeSpan.Zero;
             ResetProgressUI();
             if (_isExpanded) RenderProgressBar();
         }
@@ -420,6 +423,7 @@ public partial class MainWindow
         _isSeekSpringActive = false;
         _seekSpringStartTime = DateTime.MinValue;
         _lastRenderTime = DateTime.MinValue;
+        _lastRenderedDuration = TimeSpan.Zero;
         _lastDisplayedSecond = -1;
         CurrentTimeText.Text = "0:00";
         RemainingTimeText.Text = "0:00";
@@ -428,6 +432,7 @@ public partial class MainWindow
     }
 
     private DateTime _lastRenderTime = DateTime.MinValue;
+    private TimeSpan _lastRenderedDuration = TimeSpan.Zero;
 
     private void RenderProgressBar()
     {
@@ -449,6 +454,7 @@ public partial class MainWindow
             _isSeekSpringActive = false;
             StopSpringRenderLoop();
             _lastRenderTime = DateTime.MinValue;
+            _lastRenderedDuration = TimeSpan.Zero;
             _lastDisplayedSecond = -1;
             return;
         }
@@ -461,50 +467,65 @@ public partial class MainWindow
             engineRatio = Math.Clamp(engineRatio, 0, 1);
         }
 
-        // Detect seek jump
-        double ratioDiff = Math.Abs(engineRatio - _progressDisplayRatio);
-        double diffSeconds = ratioDiff * frame.Duration.TotalSeconds;
-        bool isJump = diffSeconds > SEEK_DETECT_SECONDS || ratioDiff > SEEK_DETECT_RATIO;
+        bool durationChanged = _lastRenderedDuration.TotalSeconds > 0 &&
+                               frame.Duration.TotalSeconds > 0 &&
+                               Math.Abs((frame.Duration - _lastRenderedDuration).TotalSeconds) >= DURATION_CHANGE_SECONDS;
+        _lastRenderedDuration = frame.Duration;
 
-        // Always update target; spring (if active) will converge smoothly.
-        _progressTargetRatio = engineRatio;
-
-        if (isJump)
+        if (durationChanged)
         {
-            // Start spring only on inactive->active transition to avoid restart jitter.
-            if (!_isSeekSpringActive)
+            _isSeekSpringActive = false;
+            _springSettleFrames = 0;
+            _progressVelocity = 0;
+            StopSpringRenderLoop();
+
+            _progressDisplayRatio = engineRatio;
+            _progressTargetRatio = engineRatio;
+            _progressSpringTargetRatio = engineRatio;
+            ProgressBarScale.ScaleX = engineRatio;
+            _lastRenderTime = DateTime.Now;
+        }
+        else if (_isSeekSpringActive)
+        {
+            // Spring is reserved for direct user seek interactions.
+            _progressTargetRatio = engineRatio;
+            if (Math.Abs(_progressTargetRatio - _progressSpringTargetRatio) > 0.12)
             {
-                _isSeekSpringActive = true;
-                _seekSpringStartTime = DateTime.Now;
-                _progressSpringTargetRatio = _progressDisplayRatio;
-                _progressVelocity = Math.Clamp(_progressVelocity, -1.2, 1.2);
-                _springSettleFrames = 0;
-                StartSpringRenderLoop();
-            }
-            else if (Math.Abs(_progressTargetRatio - _progressSpringTargetRatio) > SEEK_RETARGET_RESET_RATIO)
-            {
-                // Large retarget while springing -> extend timeout window.
                 _seekSpringStartTime = DateTime.Now;
             }
         }
-
-        // When spring is active, the 120fps timer handles ScaleX updates
-        // Here we only handle normal playback lerp
-        if (!_isSeekSpringActive)
+        else
         {
             DateTime now = DateTime.Now;
             double dt = _lastRenderTime == DateTime.MinValue ? 0.016 : (now - _lastRenderTime).TotalSeconds;
             dt = Math.Clamp(dt, 0.001, 0.1);
             _lastRenderTime = now;
 
-            double error = _progressTargetRatio - _progressDisplayRatio;
-            _progressVelocity = 0;
-            double lerpFactor = 1.0 - Math.Exp(-NORMAL_LERP_SPEED * dt);
-            _progressDisplayRatio += error * lerpFactor;
+            double ratioDiff = Math.Abs(engineRatio - _progressDisplayRatio);
+            double diffSeconds = ratioDiff * frame.Duration.TotalSeconds;
+            _progressTargetRatio = engineRatio;
 
-            if (Math.Abs(error) < 0.0001)
+            if (diffSeconds >= SOURCE_SMOOTH_SECONDS)
             {
+                // Large jumps (seek/auto-next) should snap immediately.
                 _progressDisplayRatio = _progressTargetRatio;
+                _progressSpringTargetRatio = _progressTargetRatio;
+                _progressVelocity = 0;
+            }
+            else
+            {
+                // Small/medium drifts: apply a light correction without spring restarts.
+                double lerpSpeed = diffSeconds <= SOURCE_IGNORE_SECONDS
+                    ? NORMAL_LERP_SPEED
+                    : NORMAL_LERP_SPEED * 0.58;
+                double error = _progressTargetRatio - _progressDisplayRatio;
+                double lerpFactor = 1.0 - Math.Exp(-lerpSpeed * dt);
+                _progressDisplayRatio += error * lerpFactor;
+
+                if (Math.Abs(error) < 0.0001)
+                {
+                    _progressDisplayRatio = _progressTargetRatio;
+                }
             }
 
             _progressDisplayRatio = Math.Clamp(_progressDisplayRatio, 0, 1);
@@ -739,7 +760,7 @@ public partial class MainWindow
         bool hasTimeline = _currentMediaInfo != null && (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
         bool shouldRunProgress = isExpanded && hasTimeline;
 
-        _progressTimer.Interval = TimeSpan.FromMilliseconds(50);
+        _progressTimer.Interval = TimeSpan.FromMilliseconds(16);
 
         if (shouldRunProgress)
         {
