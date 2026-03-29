@@ -73,9 +73,9 @@ namespace VNotch.Controls
         private const double CornerRadiusRatio = 0.5; // Circle-like ends
 
         // UI smoothing. Lower alpha = faster response.
-        private const double AlphaAttack = 0.58;
-        private const double AlphaRelease = 0.90;
-        private const double AlphaPauseRelease = 0.93;
+        private const double AlphaAttack = 0.88;
+        private const double AlphaRelease = 0.96;
+        private const double AlphaPauseRelease = 0.98;
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
         private const double NoAudioPulseAmplitude = 0.18;
@@ -83,9 +83,11 @@ namespace VNotch.Controls
         private const double LegacyRhythmMinMix = 0.20;
         private const double LegacyRhythmMaxMix = 0.42;
         private const double AudioPresenceThreshold = 0.010;
-        private const double DownwardDropBoost = 0.08;
-        private const double MinReleaseAlpha = 0.74;
+        private const double DownwardDropBoost = 0.05;
+        private const double MinReleaseAlpha = 0.86;
         private const double MotionContrast = 1.30;
+        private const double RightBiasStrength = 1.00;
+        private const double RightBiasDeadzone = 0.05;
 
         #endregion
 
@@ -95,6 +97,8 @@ namespace VNotch.Controls
         private DateTime _lastCaptureRetryUtc = DateTime.MinValue;
         
         private readonly double[] _currentHeights = new double[BarCount];
+        private readonly double[] _sortedHeights = new double[BarCount];
+        private readonly double[] _drawHeights = new double[BarCount];
         private double _currentOpacity = 0.2;
         private VisualizerState _state = VisualizerState.Idle;
 
@@ -165,9 +169,9 @@ namespace VNotch.Controls
 
             double interval = _state switch
             {
-                VisualizerState.Playing => 16,  // ~60 FPS
-                VisualizerState.Seeking => 16,  // ~60 FPS
-                VisualizerState.Paused => 16,   // smooth decay to resting state
+                VisualizerState.Playing => 8,  // ~120 FPS
+                VisualizerState.Seeking => 8,  // ~120 FPS
+                VisualizerState.Paused => 8,   // smooth decay to resting state
                 _ => 1000
             };
 
@@ -362,6 +366,43 @@ namespace VNotch.Controls
             StartAudioCapture();
         }
 
+        private void PrepareDrawHeights()
+        {
+            if (RightBiasStrength <= 0)
+            {
+                Array.Copy(_currentHeights, _drawHeights, BarCount);
+                return;
+            }
+
+            Array.Copy(_currentHeights, _sortedHeights, BarCount);
+            for (int i = 0; i < BarCount - 1; i++)
+            {
+                for (int j = i + 1; j < BarCount; j++)
+                {
+                    if (_sortedHeights[j] > _sortedHeights[i])
+                    {
+                        double temp = _sortedHeights[i];
+                        _sortedHeights[i] = _sortedHeights[j];
+                        _sortedHeights[j] = temp;
+                    }
+                }
+            }
+
+            double max = _sortedHeights[0];
+            double min = _sortedHeights[BarCount - 1];
+            double spread = Math.Clamp(max - min, 0.0, 1.0);
+            double bias = RightBiasStrength;
+            if (spread < RightBiasDeadzone)
+            {
+                bias *= (spread / RightBiasDeadzone);
+            }
+
+            for (int i = 0; i < BarCount; i++)
+            {
+                _drawHeights[i] = (_currentHeights[i] * (1.0 - bias)) + (_sortedHeights[i] * bias);
+            }
+        }
+
         protected override void OnRender(DrawingContext dc)
         {
             double width = ActualWidth;
@@ -382,9 +423,11 @@ namespace VNotch.Controls
 
             dc.PushOpacity(_currentOpacity);
 
+            PrepareDrawHeights();
+
             for (int i = 0; i < BarCount; i++)
             {
-                double barHeight = _currentHeights[i] * height;
+                double barHeight = _drawHeights[i] * height;
                 double x = startX + i * (barWidth + spacing);
                 double y = centerY - barHeight / 2;
 
@@ -430,6 +473,18 @@ namespace VNotch.Controls
         private const double BassDominanceSpan = 1.00;
         private const double MaxLowAttenuation = 0.34;
         private const double MaxKickAttenuation = 0.42;
+        private const double SpectralContrastStart = 0.06;
+        private const double SpectralContrastSpan = 0.40;
+        private const double SpectralContrastStrength = 1.25;
+        private const double SpectralDominantBoost = 0.24;
+        private const double SpectralSubtractiveCut = 0.20;
+        private const double DynamicRangeExpansionPower = 1.12;
+        private const double DynamicRangeExpansionBlend = 0.22;
+        private const double BarContrastStart = 0.10;
+        private const double BarContrastSpan = 0.45;
+        private const double BarContrastStrength = 0.65;
+        private const double BarContrastBoost = 0.16;
+        private const double BarContrastCut = 0.12;
 
         private static readonly float[] _fftInputBuffer = new float[FftLength];
         private static int _fftInputPos = 0;
@@ -654,11 +709,15 @@ namespace VNotch.Controls
             _beatAccent = Math.Max(beatHit, _beatAccent * BeatAccentDecay);
             _latestBeatAccent = (float)_beatAccent;
 
+            ApplySpectralContrast(ref low, ref mid, ref high, ref kick, ref snare, ref rms);
+
             _displayTargets[0] = (float)Math.Clamp((low * 0.60) + (kick * 0.24) + (rms * 0.24) + (_kickAccent * 0.24) + (_beatAccent * 0.08), 0.0, 1.0);
             _displayTargets[1] = (float)Math.Clamp((low * 0.42) + (mid * 0.38) + (kick * 0.16) + (_kickAccent * 0.16) + (_beatAccent * 0.06), 0.0, 1.0);
             _displayTargets[2] = (float)Math.Clamp((mid * 0.64) + (rms * 0.30) + (snare * 0.10) + (_snareAccent * 0.08) + (_beatAccent * 0.05), 0.0, 1.0);
             _displayTargets[3] = (float)Math.Clamp((mid * 0.38) + (high * 0.50) + (snare * 0.24) + (_snareAccent * 0.22) + (_beatAccent * 0.08), 0.0, 1.0);
             _displayTargets[4] = (float)Math.Clamp((high * 0.60) + (rms * 0.22) + (snare * 0.30) + (_snareAccent * 0.30) + (_beatAccent * 0.10), 0.0, 1.0);
+
+            ApplyBarContrast(_displayTargets);
         }
 
         private static double ComputeBandEnergy(int fromHz, int toHz)
@@ -698,6 +757,104 @@ namespace VNotch.Controls
             double normalized = (db - MinDb) / (MaxDb - MinDb);
             normalized = Math.Clamp(normalized, 0.0, 1.0);
             return Math.Pow(normalized, CompressionPower);
+        }
+
+        private static void ApplySpectralContrast(ref double low, ref double mid, ref double high, ref double kick, ref double snare, ref double rms)
+        {
+            double max = Math.Max(low, Math.Max(mid, high));
+            double min = Math.Min(low, Math.Min(mid, high));
+            double spread = Math.Clamp(max - min, 0.0, 1.0);
+            double contrast = Math.Clamp((spread - SpectralContrastStart) / SpectralContrastSpan, 0.0, 1.0);
+
+            if (contrast <= 0.0001)
+            {
+                low = ExpandDynamicRange(low);
+                mid = ExpandDynamicRange(mid);
+                high = ExpandDynamicRange(high);
+                kick = ExpandDynamicRange(kick);
+                snare = ExpandDynamicRange(snare);
+                rms = ExpandDynamicRange(rms);
+                return;
+            }
+
+            double avg = (low + mid + high) / 3.0;
+
+            low = EnhanceBand(low, avg, contrast);
+            mid = EnhanceBand(mid, avg, contrast);
+            high = EnhanceBand(high, avg, contrast);
+
+            double lowDelta = low - avg;
+            double highDelta = high - avg;
+
+            kick = Math.Clamp(kick * (1.0 + (lowDelta * 0.70 * contrast)), 0.0, 1.0);
+            snare = Math.Clamp(snare * (1.0 + (highDelta * 0.70 * contrast)), 0.0, 1.0);
+
+            low = ExpandDynamicRange(low);
+            mid = ExpandDynamicRange(mid);
+            high = ExpandDynamicRange(high);
+            kick = ExpandDynamicRange(kick);
+            snare = ExpandDynamicRange(snare);
+            rms = ExpandDynamicRange(rms);
+        }
+
+        private static double EnhanceBand(double band, double avg, double contrast)
+        {
+            double delta = band - avg;
+            double enhanced = band + (delta * (SpectralContrastStrength * contrast));
+            if (delta >= 0)
+            {
+                enhanced *= 1.0 + (SpectralDominantBoost * contrast);
+            }
+            else
+            {
+                enhanced *= 1.0 - (SpectralSubtractiveCut * contrast);
+            }
+            return Math.Clamp(enhanced, 0.0, 1.0);
+        }
+
+        private static double ExpandDynamicRange(double value)
+        {
+            double clamped = Math.Clamp(value, 0.0, 1.0);
+            if (clamped <= 0) return 0;
+            double expanded = Math.Pow(clamped, DynamicRangeExpansionPower);
+            return (expanded * (1.0 - DynamicRangeExpansionBlend)) + (clamped * DynamicRangeExpansionBlend);
+        }
+
+        private static void ApplyBarContrast(float[] targets)
+        {
+            double max = 0.0;
+            double min = 1.0;
+            double sum = 0.0;
+
+            for (int i = 0; i < BarCount; i++)
+            {
+                double v = Math.Clamp(targets[i], 0.0, 1.0);
+                if (v > max) max = v;
+                if (v < min) min = v;
+                sum += v;
+            }
+
+            double spread = Math.Clamp(max - min, 0.0, 1.0);
+            double contrast = Math.Clamp((spread - BarContrastStart) / BarContrastSpan, 0.0, 1.0);
+            if (contrast <= 0.0001) return;
+
+            double avg = sum / BarCount;
+
+            for (int i = 0; i < BarCount; i++)
+            {
+                double v = Math.Clamp(targets[i], 0.0, 1.0);
+                double delta = v - avg;
+                double enhanced = v + (delta * (BarContrastStrength * contrast));
+                if (delta >= 0)
+                {
+                    enhanced *= 1.0 + (BarContrastBoost * contrast);
+                }
+                else
+                {
+                    enhanced *= 1.0 - (BarContrastCut * contrast);
+                }
+                targets[i] = (float)Math.Clamp(enhanced, 0.0, 1.0);
+            }
         }
 
         private static float ReadSampleAsFloat(byte[] buffer, int offset, WaveFormat waveFormat)

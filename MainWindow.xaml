@@ -346,7 +346,11 @@
                                               Width="20" Height="17"
                                               Margin="0,0,-4,0"
                                               VerticalAlignment="Center"
-                                              ActiveBrush="{StaticResource MusicVisualizerBrush}"/>
+                                              ActiveBrush="{StaticResource MusicVisualizerBrush}">
+                            <ctrl:MusicVisualizer.Effect>
+                                <BlurEffect Radius="1.6" RenderingBias="Performance"/>
+                            </ctrl:MusicVisualizer.Effect>
+                        </ctrl:MusicVisualizer>
 
                     </Grid>
 

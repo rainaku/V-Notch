@@ -50,6 +50,9 @@ public partial class App : Application
     {
         // Services — Singleton (shared state across app lifetime)
         services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<IMediaMetadataLookupService, MediaMetadataLookupService>();
+        services.AddSingleton<IMediaArtworkService, MediaArtworkService>();
+        services.AddSingleton<IWindowTitleScanner, WindowTitleScanner>();
         services.AddSingleton<IMediaDetectionService, MediaDetectionService>();
         services.AddSingleton<IVolumeService, VolumeService>();
         services.AddSingleton<IBatteryService, BatteryServiceImpl>();

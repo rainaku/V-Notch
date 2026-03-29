@@ -209,7 +209,6 @@ public partial class MainWindow : Window
         IMediaDetectionService mediaService)
     {
         InitializeComponent();
-
         _settingsService = (SettingsService)settingsService;
         _settings = _settingsService.Load();
         _notchManager = new NotchManager(this, _settings);
