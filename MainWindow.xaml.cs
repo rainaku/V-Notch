@@ -9,6 +9,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32;
 using VNotch.Services;
 using VNotch.Models;
@@ -68,17 +69,53 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT lpwndpl);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    private static extern int DwmGetWindowAttributeRect(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    private static extern int DwmGetWindowAttributeInt(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
     private const uint GW_HWNDPREV = 3;
     private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
     private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+    private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
 
     private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOSIZE = 0x0001;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_SHOWWINDOW = 0x0040;
+    private const int GWL_STYLE = -16;
     private const int GWL_EXSTYLE = -20;
+    private const int WS_CAPTION = 0x00C00000;
+    private const int WS_THICKFRAME = 0x00040000;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -93,6 +130,9 @@ public partial class MainWindow : Window
     private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     private const uint KEYEVENTF_KEYUP = 0x0002;
     private const int VK_LBUTTON = 0x01;
+    private const int SW_SHOWMAXIMIZED = 3;
+    private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    private const int DWMWA_CLOAKED = 14;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct WINDOWPOS
@@ -111,6 +151,35 @@ public partial class MainWindow : Window
     {
         public int X;
         public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWPLACEMENT
+    {
+        public int length;
+        public int flags;
+        public int showCmd;
+        public POINT ptMinPosition;
+        public POINT ptMaxPosition;
+        public RECT rcNormalPosition;
     }
 
     private delegate void WinEventDelegate(
@@ -139,6 +208,7 @@ public partial class MainWindow : Window
     private bool _isDraggingVolume = false;
     private NotchSettings _settings;
     private bool _isNotchVisible = true;
+    private bool _isHiddenByFullscreen = false;
     private IntPtr _hwnd;
     private HwndSource? _hwndSource;
     private IntPtr _foregroundWinEventHook = IntPtr.Zero;
@@ -146,6 +216,7 @@ public partial class MainWindow : Window
     private DateTime _zOrderBurstUntilUtc = DateTime.MinValue;
     private DateTime _zOrderFastUntilUtc = DateTime.MinValue;
     private DateTime _lastTopmostAssertUtc = DateTime.MinValue;
+    private DateTime _lastFullscreenCheckUtc = DateTime.MinValue;
 
     private readonly BatteryModule _batteryModule;
     private readonly CalendarModule _calendarModule;
@@ -314,6 +385,7 @@ public partial class MainWindow : Window
         ConfigureOverlayWindow();
         PositionAtTop();
         StartZOrderWatchdog();
+        UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
 
         _mediaService.Start();
         _updateTimer.Start();
@@ -321,7 +393,10 @@ public partial class MainWindow : Window
         _batteryModule.Start();
         _calendarModule.Start();
         
-        PlayAppearAnimation();
+        if (IsEffectivelyNotchVisible)
+        {
+            PlayAppearAnimation();
+        }
 
         Dispatcher.BeginInvoke(new Action(() =>
         {
@@ -348,8 +423,11 @@ public partial class MainWindow : Window
                 break;
 
             case WM_ACTIVATE:
-                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                if (IsEffectivelyNotchVisible)
+                {
+                    SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                }
                 break;
 
             case WM_ACTIVATEAPP:
@@ -434,6 +512,181 @@ public partial class MainWindow : Window
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
     }
 
+    private bool IsEffectivelyNotchVisible => _isNotchVisible && !_isHiddenByFullscreen;
+
+    private void ApplyNotchVisibilityState()
+    {
+        if (NotchContainer != null)
+        {
+            NotchContainer.Visibility = IsEffectivelyNotchVisible ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (MenuToggle != null)
+        {
+            MenuToggle.Header = _isNotchVisible ? "Ẩn Notch" : "Hiện Notch";
+        }
+    }
+
+    private void UpdateFullscreenAutoHideState(IntPtr foregroundHwnd = default, bool force = false)
+    {
+        if (_hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (!force && (now - _lastFullscreenCheckUtc) < TimeSpan.FromMilliseconds(120))
+        {
+            return;
+        }
+
+        _lastFullscreenCheckUtc = now;
+        var targetHwnd = foregroundHwnd == IntPtr.Zero ? GetForegroundWindow() : foregroundHwnd;
+        bool shouldHide = IsForegroundWindowFullscreen(targetHwnd);
+        if (shouldHide == _isHiddenByFullscreen)
+        {
+            return;
+        }
+
+        _isHiddenByFullscreen = shouldHide;
+        if (_isHiddenByFullscreen)
+        {
+            if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
+            {
+                CollapseAll();
+            }
+
+            _hoverCollapseTimer.Stop();
+            _hoverThumbnailDelayTimer.Stop();
+        }
+
+        ApplyNotchVisibilityState();
+
+        if (!_isHiddenByFullscreen && _isNotchVisible)
+        {
+            TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
+            EnsureTopmost(force: true);
+        }
+    }
+
+    private bool IsForegroundWindowFullscreen(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || hwnd == _hwnd)
+        {
+            return false;
+        }
+
+        if (!IsWindowVisible(hwnd) || IsIconic(hwnd) || IsWindowCloaked(hwnd))
+        {
+            return false;
+        }
+
+        if (!TryGetWindowBounds(hwnd, out var windowRect))
+        {
+            return false;
+        }
+
+        int width = windowRect.Right - windowRect.Left;
+        int height = windowRect.Bottom - windowRect.Top;
+        if (width < 200 || height < 120)
+        {
+            return false;
+        }
+
+        // Ignore shell/desktop windows to avoid false fullscreen detection.
+        var classNameBuilder = new StringBuilder(128);
+        if (GetClassName(hwnd, classNameBuilder, classNameBuilder.Capacity) > 0)
+        {
+            string className = classNameBuilder.ToString();
+            if (string.Equals(className, "Progman", StringComparison.Ordinal) ||
+                string.Equals(className, "WorkerW", StringComparison.Ordinal) ||
+                string.Equals(className, "Shell_TrayWnd", StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        IntPtr monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var monitorInfo = new MONITORINFO
+        {
+            cbSize = Marshal.SizeOf<MONITORINFO>()
+        };
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            return false;
+        }
+
+        var monitorRect = monitorInfo.rcMonitor;
+        const int fullscreenTolerancePx = 4;
+        bool coversMonitor = RectCoversArea(windowRect, monitorRect, fullscreenTolerancePx);
+        if (coversMonitor)
+        {
+            return true;
+        }
+
+        int style = GetWindowLong(hwnd, GWL_STYLE);
+        bool hasCaption = (style & WS_CAPTION) == WS_CAPTION;
+        bool hasResizeFrame = (style & WS_THICKFRAME) != 0;
+        bool isBorderless = !hasCaption && !hasResizeFrame;
+
+        var placement = new WINDOWPLACEMENT
+        {
+            length = Marshal.SizeOf<WINDOWPLACEMENT>()
+        };
+        bool isMaximized = GetWindowPlacement(hwnd, ref placement) && placement.showCmd == SW_SHOWMAXIMIZED;
+
+        const int workAreaTolerancePx = 6;
+        bool matchesWorkArea = RectMatchesArea(windowRect, monitorInfo.rcWork, workAreaTolerancePx);
+        bool isWindowedFullscreen = matchesWorkArea && (isBorderless || (isMaximized && !hasCaption));
+
+        return isWindowedFullscreen;
+    }
+
+    private static bool TryGetWindowBounds(IntPtr hwnd, out RECT rect)
+    {
+        if (DwmGetWindowAttributeRect(
+                hwnd,
+                DWMWA_EXTENDED_FRAME_BOUNDS,
+                out rect,
+                Marshal.SizeOf<RECT>()) == 0)
+        {
+            return true;
+        }
+
+        return GetWindowRect(hwnd, out rect);
+    }
+
+    private static bool IsWindowCloaked(IntPtr hwnd)
+    {
+        return DwmGetWindowAttributeInt(
+                   hwnd,
+                   DWMWA_CLOAKED,
+                   out int cloaked,
+                   sizeof(int)) == 0 &&
+               cloaked != 0;
+    }
+
+    private static bool RectCoversArea(RECT rect, RECT area, int tolerancePx)
+    {
+        return rect.Left <= area.Left + tolerancePx &&
+               rect.Top <= area.Top + tolerancePx &&
+               rect.Right >= area.Right - tolerancePx &&
+               rect.Bottom >= area.Bottom - tolerancePx;
+    }
+
+    private static bool RectMatchesArea(RECT rect, RECT area, int tolerancePx)
+    {
+        return Math.Abs(rect.Left - area.Left) <= tolerancePx &&
+               Math.Abs(rect.Top - area.Top) <= tolerancePx &&
+               Math.Abs(rect.Right - area.Right) <= tolerancePx &&
+               Math.Abs(rect.Bottom - area.Bottom) <= tolerancePx;
+    }
+
     private void EnsureTopmost()
     {
         EnsureTopmost(force: false);
@@ -441,7 +694,7 @@ public partial class MainWindow : Window
 
     private void EnsureTopmost(bool force)
     {
-        if (_hwnd == IntPtr.Zero || !_isNotchVisible)
+        if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
         {
             return;
         }
@@ -515,13 +768,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        AssertTopmostNow();
         var processName = TryGetProcessName(hwnd);
         var isMyDockFinder = IsMyDockFinder(processName);
 
         Dispatcher.BeginInvoke(new Action(() =>
         {
             if (_hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            UpdateFullscreenAutoHideState(hwnd, force: true);
+            if (!IsEffectivelyNotchVisible)
             {
                 return;
             }
@@ -541,7 +799,13 @@ public partial class MainWindow : Window
 
     private void ZOrderWatchdogTimer_Tick(object? sender, EventArgs e)
     {
-        if (_hwnd == IntPtr.Zero || !_isNotchVisible)
+        if (_hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        UpdateFullscreenAutoHideState();
+        if (!IsEffectivelyNotchVisible)
         {
             return;
         }
@@ -557,7 +821,7 @@ public partial class MainWindow : Window
 
     private void ZOrderFastTimer_Tick(object? sender, EventArgs e)
     {
-        if (_hwnd == IntPtr.Zero || !_isNotchVisible)
+        if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
         {
             _zOrderFastTimer.Stop();
             return;
@@ -602,7 +866,7 @@ public partial class MainWindow : Window
 
     private void AssertTopmostNow()
     {
-        if (_hwnd == IntPtr.Zero)
+        if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
         {
             return;
         }
@@ -1268,8 +1532,22 @@ public partial class MainWindow : Window
     private void ToggleNotch_Click(object sender, RoutedEventArgs e)
     {
         _isNotchVisible = !_isNotchVisible;
-        NotchContainer.Visibility = _isNotchVisible ? Visibility.Visible : Visibility.Collapsed;
-        MenuToggle.Header = _isNotchVisible ? "Ẩn Notch" : "Hiện Notch";
+        if (!_isNotchVisible && (_isExpanded || _isMusicExpanded) && !_isAnimating)
+        {
+            CollapseAll();
+        }
+
+        ApplyNotchVisibilityState();
+
+        if (_isNotchVisible)
+        {
+            UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
+            if (IsEffectivelyNotchVisible)
+            {
+                TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
+                EnsureTopmost(force: true);
+            }
+        }
     }
 
     private void ResetPosition_Click(object sender, RoutedEventArgs e)

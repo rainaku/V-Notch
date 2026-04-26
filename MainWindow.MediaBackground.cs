@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using VNotch.Models;
 using VNotch.Services;
 
@@ -14,6 +15,10 @@ public partial class MainWindow
     private Color _lastDominantColor = Colors.Transparent;
     private string? _lastTrackId = null;
     private bool _isFadingTrack = false;
+    private DispatcherTimer? _titleGradientTimer;
+    private double _titleGradientPhase = 0.0;
+    private Color _currentVibrantColor = Colors.White;
+    private bool _titleGradientRunning = false;
 
     private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
@@ -104,13 +109,6 @@ public partial class MainWindow
         if (currentRt == null || currentRt.IsFrozen)
             RemainingTimeText.Foreground = new SolidColorBrush(currentRt?.Color ?? Color.FromRgb(136, 136, 136));
 
-        var currentTitle = TrackTitle.Foreground as SolidColorBrush;
-        if (currentTitle == null || currentTitle.IsFrozen)
-            TrackTitle.Foreground = new SolidColorBrush(currentTitle?.Color ?? Colors.White);
-
-        var currentTitleNext = TrackTitleNext.Foreground as SolidColorBrush;
-        if (currentTitleNext == null || currentTitleNext.IsFrozen)
-            TrackTitleNext.Foreground = new SolidColorBrush(currentTitleNext?.Color ?? Colors.White);
 
         if (ProgressBar.Background is SolidColorBrush pbb && !pbb.IsFrozen)
             pbb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
@@ -121,11 +119,8 @@ public partial class MainWindow
         if (RemainingTimeText.Foreground is SolidColorBrush rtf && !rtf.IsFrozen)
             rtf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
-        if (TrackTitle.Foreground is SolidColorBrush ttf && !ttf.IsFrozen)
-            ttf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
-
-        if (TrackTitleNext.Foreground is SolidColorBrush ttnf && !ttnf.IsFrozen)
-            ttnf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        // Animate LinearGradientBrush for TrackTitle
+        AnimateTitleGradient(vibrantTargetColor);
 
         if (Resources["MusicVisualizerBrush"] is SolidColorBrush visualizerBrush && !visualizerBrush.IsFrozen)
         {
@@ -199,8 +194,8 @@ public partial class MainWindow
         }
 
         // Tăng sáng (Boost Lightness) - đảm bảo màu tối/chìm vẫn nhìn thấy rõ trên nền đen
-        l = Math.Max(l, 0.75); 
-        l = Math.Min(l, 0.90);
+        l = Math.Max(l, 0.65); 
+        l = Math.Min(l, 0.85);
 
         return HslToColor(h, s, l);
     }
@@ -286,8 +281,8 @@ public partial class MainWindow
         if (ProgressBar.Background is SolidColorBrush sb && !sb.IsFrozen) sb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
         if (CurrentTimeText.Foreground is SolidColorBrush st && !st.IsFrozen) st.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
-        if (TrackTitle.Foreground is SolidColorBrush ttf && !ttf.IsFrozen) ttf.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
-        if (TrackTitleNext.Foreground is SolidColorBrush ttnf && !ttnf.IsFrozen) ttnf.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+        // Reset title gradient to white
+        ResetTitleGradientToWhite();
 
         // Reset same colors for Media Controls
         if (VolumeIcon.Foreground is SolidColorBrush volIco && !volIco.IsFrozen) volIco.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
@@ -501,6 +496,134 @@ public partial class MainWindow
         catch
         {
             return Color.FromRgb(30, 30, 30);
+        }
+    }
+
+    #endregion
+
+    #region Title Gradient Animation
+
+    private void AnimateTitleGradient(Color vibrantColor)
+    {
+        _currentVibrantColor = vibrantColor;
+
+        // Create highlight color (much lighter version of vibrant for visibility)
+        var highlightColor = Color.FromRgb(
+            (byte)Math.Min(255, vibrantColor.R + (255 - vibrantColor.R) * 0.6),
+            (byte)Math.Min(255, vibrantColor.G + (255 - vibrantColor.G) * 0.6),
+            (byte)Math.Min(255, vibrantColor.B + (255 - vibrantColor.B) * 0.6));
+
+        var colorAnimMain = new ColorAnimation { To = vibrantColor, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
+        var colorAnimHighlight = new ColorAnimation { To = highlightColor, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
+
+        // For seamless repeat, stop 0 and stop 1 should be same
+        // We use 3 stops: [0: Vibrant, 0.5: Highlight, 1.0: Vibrant]
+        
+        // Animate TrackTitleGradient
+        if (Resources["TrackTitleGradient"] is LinearGradientBrush titleBrush)
+        {
+            titleBrush.GradientStops[0].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+            titleBrush.GradientStops[1].BeginAnimation(GradientStop.ColorProperty, colorAnimHighlight);
+            titleBrush.GradientStops[2].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+        }
+
+        // Animate TrackTitleNextGradient
+        if (Resources["TrackTitleNextGradient"] is LinearGradientBrush titleNextBrush)
+        {
+            titleNextBrush.GradientStops[0].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+            titleNextBrush.GradientStops[1].BeginAnimation(GradientStop.ColorProperty, colorAnimHighlight);
+            titleNextBrush.GradientStops[2].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+        }
+
+        // Start gradient shift animation
+        StartTitleGradientShift();
+    }
+
+    private void StartTitleGradientShift()
+    {
+        if (_titleGradientRunning) return;
+        _titleGradientRunning = true;
+
+        if (_titleGradientTimer == null)
+        {
+            _titleGradientTimer = new DispatcherTimer(DispatcherPriority.Render)
+            {
+                Interval = TimeSpan.FromMilliseconds(30)
+            };
+            _titleGradientTimer.Tick += TitleGradientTimer_Tick;
+        }
+        _titleGradientTimer.Start();
+    }
+
+    private void StopTitleGradientShift()
+    {
+        _titleGradientRunning = false;
+        _titleGradientTimer?.Stop();
+    }
+
+    private void TitleGradientTimer_Tick(object? sender, EventArgs e)
+    {
+        _titleGradientPhase += 0.012; // Speed of gradient flow
+        if (_titleGradientPhase > 2.0) _titleGradientPhase -= 2.0;
+
+        // Animate StartPoint and EndPoint to create flowing effect 
+        // With SpreadMethod="Repeat", the offset scroll works seamlessly
+        double offset = _titleGradientPhase;
+        var startPoint = new Point(offset, 0);
+        var endPoint = new Point(offset + 1, 0);
+
+        if (Resources["TrackTitleGradient"] is LinearGradientBrush titleBrush)
+        {
+            titleBrush.StartPoint = startPoint;
+            titleBrush.EndPoint = endPoint;
+        }
+
+        if (Resources["TrackTitleNextGradient"] is LinearGradientBrush titleNextBrush)
+        {
+            titleNextBrush.StartPoint = startPoint;
+            titleNextBrush.EndPoint = endPoint;
+        }
+
+
+    }
+
+    private void ResetTitleGradientToWhite()
+    {
+        StopTitleGradientShift();
+        _currentVibrantColor = Colors.White;
+
+        var whiteAnim = new ColorAnimation
+        {
+            To = Colors.White,
+            Duration = TimeSpan.FromMilliseconds(400)
+        };
+
+        if (Resources["TrackTitleGradient"] is LinearGradientBrush titleBrush)
+        {
+            foreach (var stop in titleBrush.GradientStops)
+                stop.BeginAnimation(GradientStop.ColorProperty, whiteAnim);
+        }
+
+        if (Resources["TrackTitleNextGradient"] is LinearGradientBrush titleNextBrush)
+        {
+            foreach (var stop in titleNextBrush.GradientStops)
+                stop.BeginAnimation(GradientStop.ColorProperty, whiteAnim);
+        }
+
+        // Reset gradient position
+        _titleGradientPhase = 0;
+        var resetPoint = new Point(0, 0);
+        var resetEndPoint = new Point(1, 0);
+
+        if (Resources["TrackTitleGradient"] is LinearGradientBrush tb2)
+        {
+            tb2.StartPoint = resetPoint;
+            tb2.EndPoint = resetEndPoint;
+        }
+        if (Resources["TrackTitleNextGradient"] is LinearGradientBrush tnb2)
+        {
+            tnb2.StartPoint = resetPoint;
+            tnb2.EndPoint = resetEndPoint;
         }
     }
 

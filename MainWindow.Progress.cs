@@ -501,9 +501,29 @@ public partial class MainWindow
             dt = Math.Clamp(dt, 0.001, 0.1);
             _lastRenderTime = now;
 
-            double ratioDiff = Math.Abs(engineRatio - _progressDisplayRatio);
-            double diffSeconds = ratioDiff * frame.Duration.TotalSeconds;
+            bool isRealtimeProgressing = frame.State == ProgressState.Playing || frame.State == ProgressState.Seeking;
+            double effectivePlaybackRate = 1.0;
+            if (_currentMediaInfo != null &&
+                !double.IsNaN(_currentMediaInfo.PlaybackRate) &&
+                !double.IsInfinity(_currentMediaInfo.PlaybackRate) &&
+                _currentMediaInfo.PlaybackRate > 0)
+            {
+                effectivePlaybackRate = Math.Clamp(_currentMediaInfo.PlaybackRate, 0.5, 3.0);
+            }
+
+            // Render layer runs realtime by interpolation, independent from source fetch cadence.
+            if (isRealtimeProgressing && frame.Duration.TotalSeconds > 0)
+            {
+                double advanceRatio = (dt * effectivePlaybackRate) / frame.Duration.TotalSeconds;
+                if (advanceRatio > 0)
+                {
+                    _progressDisplayRatio += advanceRatio;
+                }
+            }
+
             _progressTargetRatio = engineRatio;
+            double ratioDiff = Math.Abs(_progressTargetRatio - _progressDisplayRatio);
+            double diffSeconds = ratioDiff * frame.Duration.TotalSeconds;
 
             if (diffSeconds >= SOURCE_SMOOTH_SECONDS)
             {
@@ -514,17 +534,18 @@ public partial class MainWindow
             }
             else
             {
-                // Small/medium drifts: apply a light correction without spring restarts.
-                double lerpSpeed = diffSeconds <= SOURCE_IGNORE_SECONDS
-                    ? NORMAL_LERP_SPEED
-                    : NORMAL_LERP_SPEED * 0.58;
-                double error = _progressTargetRatio - _progressDisplayRatio;
-                double lerpFactor = 1.0 - Math.Exp(-lerpSpeed * dt);
-                _progressDisplayRatio += error * lerpFactor;
-
-                if (Math.Abs(error) < 0.0001)
+                // <0.3s: keep render prediction (avoid jitter)
+                // 0.3-2s: smooth correction
+                if (diffSeconds > SOURCE_IGNORE_SECONDS)
                 {
-                    _progressDisplayRatio = _progressTargetRatio;
+                    double error = _progressTargetRatio - _progressDisplayRatio;
+                    double correctionLerp = 1.0 - Math.Exp(-(NORMAL_LERP_SPEED * 0.55) * dt);
+                    _progressDisplayRatio += error * correctionLerp;
+
+                    if (Math.Abs(error) < 0.0001)
+                    {
+                        _progressDisplayRatio = _progressTargetRatio;
+                    }
                 }
             }
 

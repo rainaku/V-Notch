@@ -805,18 +805,27 @@ public partial class MainWindow
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
         MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
 
+        // Clear stale opacity animations & force Opacity=0 BEFORE making Visible to prevent flicker
+        MediaControls.BeginAnimation(OpacityProperty, null);
+        MediaControls.Opacity = 0;
         MediaControls.Visibility = Visibility.Visible;
         var fadeInControls = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, contentDelay);
         MediaControls.BeginAnimation(OpacityProperty, fadeInControls);
 
+        CalendarWidget.BeginAnimation(OpacityProperty, null);
+        CalendarWidget.Opacity = 0;
         CalendarWidget.Visibility = Visibility.Visible;
         var fadeInCalendar = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(120));
         CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
 
+        BatterySection.BeginAnimation(OpacityProperty, null);
+        BatterySection.Opacity = 0;
         BatterySection.Visibility = Visibility.Visible;
         var fadeInBattery = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
         BatterySection.BeginAnimation(OpacityProperty, fadeInBattery);
 
+        GreetingSection.BeginAnimation(OpacityProperty, null);
+        GreetingSection.Opacity = 0;
         GreetingSection.Visibility = Visibility.Visible;
         var fadeInGreeting = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(140));
         GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
