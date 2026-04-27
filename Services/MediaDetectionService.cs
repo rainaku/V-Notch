@@ -1974,31 +1974,25 @@ public class MediaDetectionService : IMediaDetectionService
                         timelineUpdatedUtc <= nowUpdatedUtc + TimeSpan.FromSeconds(1) &&
                         timelineLatency <= TimeSpan.FromMinutes(10);
 
-                    if (!forceStartPosition &&
-                        info.IsPlaying &&
-                        validTimelineTimestamp &&
-                        timelineLatency > TimeSpan.FromMilliseconds(120))
-                    {
-                        double effectiveRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
-                        TimeSpan compensation = TimeSpan.FromSeconds(timelineLatency.TotalSeconds * effectiveRate);
-                        bool isYouTubeTimeline = string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
-                                                 (string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) && IsLikelyYouTube(info));
-                        bool inStartupSyncWindow = DateTime.UtcNow <= _startupProgressSyncUntilUtc;
-                        bool startupCatchupMode = inStartupSyncWindow && !isNewTrack;
-                        // When app opens while media is already playing, browser/YouTube timelines are
-                        // often much older than the current wall clock. Allow stronger startup catch-up.
-                        TimeSpan maxCompensation = isYouTubeTimeline
-                            ? (startupCatchupMode
-                                ? TimeSpan.FromSeconds(90)
-                                : (isInitialOrBigChange ? TimeSpan.FromSeconds(25) : TimeSpan.FromSeconds(8)))
-                            : (forceRefresh ? TimeSpan.FromSeconds(120) : TimeSpan.FromSeconds(45));
-                        if (compensation > maxCompensation)
-                        {
-                            compensation = maxCompensation;
-                        }
-
-                        chosenPosition += compensation;
-                    }
+                    // CRITICAL FIX: Remove position compensation entirely.
+                    // ProgressEngine will handle prediction from the original timeline timestamp.
+                    // This eliminates double-compensation and provides accurate sync.
+                    // 
+                    // OLD APPROACH (WRONG):
+                    // - Compensate position here: position += latency
+                    // - Use current time as timestamp
+                    // - ProgressEngine predicts from current time
+                    // Result: Single compensation, but loses original timeline time
+                    //
+                    // NEW APPROACH (CORRECT):
+                    // - Keep raw position from timeline
+                    // - Use original timeline timestamp
+                    // - ProgressEngine predicts from original time
+                    // Result: Accurate prediction with proper time reference
+                    
+                    // Note: Removed the compensation block that was adding latency to position.
+                    // ProgressEngine's PredictPosition() will naturally account for elapsed time
+                    // since the timeline was captured.
 
                     if (chosenPosition < TimeSpan.Zero)
                     {
@@ -2011,8 +2005,8 @@ public class MediaDetectionService : IMediaDetectionService
 
                     info.Position = chosenPosition;
                     info.Duration = duration;
-                    // Position above is normalized to "now", so UI prediction starts from current wall time.
-                    info.LastUpdated = nowUpdatedUtc;
+                    // Use original timeline timestamp for accurate prediction
+                    info.LastUpdated = timelineUpdatedUtc;
 
                     if (info.Duration <= TimeSpan.Zero || info.Duration.TotalDays > 30)
                     {

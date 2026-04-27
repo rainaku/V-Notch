@@ -24,6 +24,7 @@ public struct ProgressSnapshot
     public bool IsSeekEnabled;
     public bool IsIndeterminate;
     public DateTime Timestamp;
+    public long SequenceNumber;  // Monotonic sequence for strict ordering
 }
 
 public struct UiProgressFrame
@@ -32,6 +33,7 @@ public struct UiProgressFrame
     public TimeSpan Duration;
     public bool ShowIndeterminate;
     public ProgressState State;
+    public bool DurationJustChanged;  // NEW: Signals UI that duration changed significantly
 }
 
 public class ProgressEngine
@@ -48,19 +50,25 @@ public class ProgressEngine
     private double _playbackRate = 1.0;
     private bool _isIndeterminate;
     private bool _isSeekEnabled;
+    private bool _durationJustChanged = false;  // Flag to signal UI about duration changes
 
-    private TimeSpan _lastDisplayedPosition = TimeSpan.Zero;
+
     private DateTime _lastSnapshotTimestampUtc = DateTime.MinValue;
+    private long _lastSnapshotSequence = -1;  // Track sequence for strict monotonic ordering
     private DateTime _seekDebounceEndUtc = DateTime.MinValue;
     private DateTime _allowBackwardUntilUtc = DateTime.MinValue;
 
-    private static readonly TimeSpan SnapshotOutOfOrderTolerance = TimeSpan.FromMilliseconds(250);
+    // Reduced tolerance from 250ms to 50ms for stricter out-of-order rejection.
+    // This prevents stale snapshots from causing progress jumps during session transitions.
+    private static readonly TimeSpan SnapshotOutOfOrderTolerance = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan PauseBackstepTolerance = TimeSpan.FromMilliseconds(450);
     private static readonly TimeSpan ResumeBackstepTolerance = TimeSpan.FromMilliseconds(350);
-    private static readonly TimeSpan IgnoreCorrectionThreshold = TimeSpan.FromMilliseconds(300);
+    // IMPROVED: Reduced from 300ms to 150ms - with accurate timestamps from Phase 1 fix,
+    // we can afford tighter tolerance for better responsiveness
+    private static readonly TimeSpan IgnoreCorrectionThreshold = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan SmoothCorrectionThreshold = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SmoothBackwardCap = TimeSpan.FromMilliseconds(120);
-    private static readonly TimeSpan AntiBackwardSlack = TimeSpan.FromMilliseconds(80);
+
     private static readonly TimeSpan DurationChangeSeekWindow = TimeSpan.FromMilliseconds(650);
     private static readonly TimeSpan UserSeekDebounceDuration = TimeSpan.FromMilliseconds(2500);
 
@@ -75,15 +83,39 @@ public class ProgressEngine
                 ? snapshot.Timestamp
                 : snapshot.Timestamp.ToUniversalTime();
 
-            if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
-                snapshotTsUtc < _lastSnapshotTimestampUtc - SnapshotOutOfOrderTolerance)
+            // DEBUG: Log snapshot details
+            System.Diagnostics.Debug.WriteLine($"[ENGINE] Snapshot: pos={snapshot.Position.TotalSeconds:F3}s, " +
+                $"ts={snapshotTsUtc:HH:mm:ss.fff}, " +
+                $"now={nowUtc:HH:mm:ss.fff}, " +
+                $"latency={(nowUtc - snapshotTsUtc).TotalMilliseconds:F0}ms, " +
+                $"isPlaying={snapshot.IsPlaying}");
+
+            // Strict monotonic ordering using sequence numbers.
+            // Reject any snapshot with a sequence number we've already processed.
+            if (snapshot.SequenceNumber > 0 && snapshot.SequenceNumber <= _lastSnapshotSequence)
             {
+                // Already processed this or a newer snapshot - reject immediately
                 return;
             }
 
+            // Timestamp-based validation as fallback (for backwards compatibility).
+            // Reduced tolerance to 50ms to prevent stale snapshots from causing jumps.
+            if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
+                snapshotTsUtc < _lastSnapshotTimestampUtc - SnapshotOutOfOrderTolerance)
+            {
+                // Snapshot is too old - reject to prevent progress jumping backwards
+                return;
+            }
+
+            // Update tracking - accept this snapshot
             if (snapshotTsUtc > _lastSnapshotTimestampUtc)
             {
                 _lastSnapshotTimestampUtc = snapshotTsUtc;
+            }
+            
+            if (snapshot.SequenceNumber > _lastSnapshotSequence)
+            {
+                _lastSnapshotSequence = snapshot.SequenceNumber;
             }
 
             TimeSpan previousDuration = _duration;
@@ -92,6 +124,12 @@ public class ProgressEngine
                 _duration = snapshot.Duration;
             }
 
+            // Always update these properties, even during seek debounce.
+            // They represent media capabilities/state, not position.
+            _isIndeterminate = snapshot.IsIndeterminate;
+            _isSeekEnabled = snapshot.IsSeekEnabled;
+
+            // Process playback rate - always update, even during debounce
             var reportedRate = snapshot.PlaybackRate;
             if (double.IsNaN(reportedRate) || double.IsInfinity(reportedRate) || reportedRate <= 0)
             {
@@ -105,10 +143,12 @@ public class ProgressEngine
             }
 
             _playbackRate = Math.Abs(reportedRate - 1.0) <= 0.035 ? 1.0 : reportedRate;
-            _isIndeterminate = snapshot.IsIndeterminate;
-            _isSeekEnabled = snapshot.IsSeekEnabled;
 
+            // Centralized duration change detection - single source of truth.
+            // This prevents conflicts between ProgressEngine and UI layer.
             bool durationChanged = DidDurationChange(previousDuration, _duration);
+            _durationJustChanged = durationChanged;  // Signal UI layer
+            
             if (durationChanged && snapshot.IsPlaying)
             {
                 TimeSpan predictedAtDurationChange = ClampPosition(PredictPosition(nowUtc));
@@ -127,11 +167,12 @@ public class ProgressEngine
                     _state = ProgressState.Playing;
                     _seekDebounceEndUtc = nowUtc + DurationChangeSeekWindow;
                     _allowBackwardUntilUtc = nowUtc + DurationChangeSeekWindow;
-                    _lastDisplayedPosition = resetPos;
                     return;
                 }
             }
 
+            // Handle pause state changes - ALWAYS process these, even during seek debounce.
+            // Critical: User may seek then immediately pause, we must respect that.
             if (!snapshot.IsPlaying)
             {
                 TimeSpan pausedPos = ClampPosition(snapshot.Position);
@@ -149,10 +190,13 @@ public class ProgressEngine
                 _state = ProgressState.Paused;
                 _basePosition = pausedPos;
                 _baseTimeUtc = nowUtc;
-                _lastDisplayedPosition = pausedPos;
+                // Clear seek debounce when pausing - user action takes priority
+                _seekDebounceEndUtc = DateTime.MinValue;
                 return;
             }
 
+            // Handle play/resume state changes - ALWAYS process these, even during seek debounce.
+            // Critical: User may seek then immediately play, we must respect that.
             if (!_isPlaying || (_state != ProgressState.Playing && _state != ProgressState.Seeking))
             {
                 TimeSpan startPos = ClampPosition(snapshot.Position);
@@ -165,12 +209,16 @@ public class ProgressEngine
                 _state = ProgressState.Playing;
                 _basePosition = startPos;
                 _baseTimeUtc = nowUtc;
-                _lastDisplayedPosition = startPos;
+                // Don't clear seek debounce here - we want to debounce position updates after resume
                 return;
             }
 
+            // Seek debounce - ONLY applies to position updates while playing.
+            // State changes (pause/play) and property updates (rate/indeterminate/seekEnabled) 
+            // are processed above and bypass this check.
             if (nowUtc < _seekDebounceEndUtc)
             {
+                // Skip position updates during debounce to prevent jitter after user seek
                 return;
             }
 
@@ -185,8 +233,8 @@ public class ProgressEngine
             double absDiffSeconds = Math.Abs(diff.TotalSeconds);
 
             // Anti-jitter:
-            // < 0.3s: ignore update
-            // < 2.0s: smooth correction
+            // < 0.15s: ignore update (reduced from 0.3s for better accuracy)
+            // < 2.0s: smooth correction (increased factor from 0.35 to 0.55 for faster convergence)
             // >= 2.0s: snap immediately (seek-like jump)
             if (absDiffSeconds < IgnoreCorrectionThreshold.TotalSeconds)
             {
@@ -195,7 +243,8 @@ public class ProgressEngine
 
             if (absDiffSeconds < SmoothCorrectionThreshold.TotalSeconds)
             {
-                const double correctionFactor = 0.35;
+                // IMPROVED: Increased from 0.35 to 0.55 for faster convergence with less jitter
+                const double correctionFactor = 0.55;
                 double correctedSeconds = predictedNow.TotalSeconds + (diff.TotalSeconds * correctionFactor);
 
                 if (diff < TimeSpan.Zero)
@@ -217,7 +266,6 @@ public class ProgressEngine
             _state = ProgressState.Playing;
             _allowBackwardUntilUtc = nowUtc + TimeSpan.FromMilliseconds(900);
             _seekDebounceEndUtc = nowUtc + TimeSpan.FromMilliseconds(600);
-            _lastDisplayedPosition = observedPos;
         }
     }
 
@@ -234,7 +282,6 @@ public class ProgressEngine
             _baseTimeUtc = nowUtc;
             _seekDebounceEndUtc = nowUtc + UserSeekDebounceDuration;
             _allowBackwardUntilUtc = nowUtc + TimeSpan.FromMilliseconds(900);
-            _lastDisplayedPosition = clampedPos;
         }
     }
 
@@ -250,8 +297,9 @@ public class ProgressEngine
             _playbackRate = 1.0;
             _isIndeterminate = false;
             _isSeekEnabled = false;
-            _lastDisplayedPosition = TimeSpan.Zero;
+            _durationJustChanged = false;  // Clear duration change flag
             _lastSnapshotTimestampUtc = DateTime.MinValue;
+            _lastSnapshotSequence = -1;  // Reset sequence tracking
             _seekDebounceEndUtc = DateTime.MinValue;
             _allowBackwardUntilUtc = DateTime.MinValue;
         }
@@ -264,25 +312,17 @@ public class ProgressEngine
             DateTime nowUtc = DateTime.UtcNow;
             TimeSpan pos = ClampPosition(PredictPosition(nowUtc));
 
-            bool allowBackward = nowUtc <= _allowBackwardUntilUtc;
-            if (_state == ProgressState.Playing &&
-                !allowBackward &&
-                pos + AntiBackwardSlack < _lastDisplayedPosition &&
-                pos > TimeSpan.Zero)
-            {
-                pos = _lastDisplayedPosition;
-                _basePosition = pos;
-                _baseTimeUtc = nowUtc;
-            }
-
-            _lastDisplayedPosition = pos;
+            // Capture and clear the duration changed flag
+            bool durationChanged = _durationJustChanged;
+            _durationJustChanged = false;  // Clear after reading (one-shot flag)
 
             return new UiProgressFrame
             {
                 Position = pos,
                 Duration = _duration,
                 ShowIndeterminate = _isIndeterminate || (_duration.TotalSeconds <= 0 && pos.TotalSeconds > 0 && !_isSeekEnabled),
-                State = _state
+                State = _state,
+                DurationJustChanged = durationChanged
             };
         }
     }
@@ -308,15 +348,31 @@ public class ProgressEngine
         return _basePosition + TimeSpan.FromSeconds(elapsed.TotalSeconds * _playbackRate);
     }
 
+    /// <summary>
+    /// Centralized duration change detection - single source of truth.
+    /// Uses adaptive threshold: minimum 1 second OR 2% of previous duration.
+    /// This prevents false positives from minor metadata corrections while catching real track changes.
+    /// </summary>
+    /// <param name="previous">Previous duration</param>
+    /// <param name="current">Current duration</param>
+    /// <returns>True if duration changed significantly</returns>
     private static bool DidDurationChange(TimeSpan previous, TimeSpan current)
     {
+        // Ignore changes when either duration is invalid
         if (previous <= TimeSpan.Zero || current <= TimeSpan.Zero)
         {
             return false;
         }
 
         double diffSec = Math.Abs((current - previous).TotalSeconds);
+        
+        // Adaptive threshold: 1 second minimum, or 2% of duration for longer tracks
+        // Examples:
+        // - 30s track: threshold = 1s (3.3%)
+        // - 180s track: threshold = 3.6s (2%)
+        // - 3600s track: threshold = 72s (2%)
         double minMeaningfulDelta = Math.Max(1.0, previous.TotalSeconds * 0.02);
+        
         return diffSec >= minMeaningfulDelta;
     }
 
