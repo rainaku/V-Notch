@@ -31,8 +31,8 @@ public partial class MainWindow
 
     private static readonly SolidColorBrush _brushShelfItemBg = CreateFrozenBrush(37, 37, 37);
     private static readonly SolidColorBrush _brushShelfItemBorder = CreateFrozenBrush(51, 51, 51);
-    private static readonly SolidColorBrush _brushShelfSelectedBg     = CreateFrozenBrush(255, 255, 255, 40);  // white ~16%
-    private static readonly SolidColorBrush _brushShelfSelectedBorder = CreateFrozenBrush(255, 255, 255, 140); // white ~55%
+    private static readonly SolidColorBrush _brushShelfSelectedBg     = CreateFrozenBrush(255, 255, 255, 40);  
+    private static readonly SolidColorBrush _brushShelfSelectedBorder = CreateFrozenBrush(255, 255, 255, 140); 
 
     private Point _selectionStart;
     private bool _isSelecting = false;
@@ -86,7 +86,7 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(50);
         const int fps = 144;
 
-        // ── PRIMARY EXIT: slide up + scale down + fade out ──
+        
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
         var primaryTranslate = new TranslateTransform(0, 0);
@@ -103,7 +103,7 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
-        // Blur-out to create depth illusion
+        
         var expandedBlur = ExpandedContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         ExpandedContent.Effect = expandedBlur;
         var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
@@ -122,7 +122,7 @@ public partial class MainWindow
         primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
         expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        // ── SECONDARY ENTER: bouncy spring from below + fade in (144fps) ──
+        
         SecondaryContent.Visibility = Visibility.Visible;
         SecondaryContent.Opacity = 0;
         EnableKeyboardInput();
@@ -184,7 +184,7 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(50);
         const int fps = 144;
 
-        // ── SECONDARY EXIT: slide down + scale down + fade out ──
+        
         var secondaryGroup     = new TransformGroup();
         var secondaryScale     = new ScaleTransform(1, 1);
         var secondaryTranslate = new TranslateTransform(0, 0);
@@ -201,7 +201,7 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
-        // Blur-out shelf content for depth
+        
         var secondaryBlur = SecondaryContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         SecondaryContent.Effect = secondaryBlur;
         var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
@@ -221,7 +221,7 @@ public partial class MainWindow
         secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
         secondaryBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        // ── PRIMARY ENTER: bouncy spring from above + fade in (144fps) ──
+        
         ExpandedContent.Visibility = Visibility.Visible;
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
@@ -262,7 +262,7 @@ public partial class MainWindow
 
     #region Drag-to-Open
 
-    // True khi notch được mở tự động do drag (để biết cần đóng lại nếu drag rời đi)
+    
     private bool _dragAutoExpanded = false;
 
     private System.Windows.Threading.DispatcherTimer? _dragWaitTimer;
@@ -274,27 +274,27 @@ public partial class MainWindow
         e.Effects = DragDropEffects.Copy;
         e.Handled = true;
 
-        // Huỷ bất kỳ pending collapse nào
+        
         _dragCollapseTimer?.Stop();
 
         if (!_isExpanded && !_isAnimating)
         {
-            // Notch đang thu gọn → mở ra và sau đó switch sang shelf
+            
             _dragAutoExpanded = true;
             ExpandNotch();
             StartDragWaitForShelf();
         }
         else if (_isExpanded && _isAnimating)
         {
-            // Đang animate expand do drag trước đó hay click → chờ xong rồi switch
+            
             StartDragWaitForShelf();
         }
         else if (_isExpanded && !_isSecondaryView && !_isAnimating)
         {
-            // Đã mở nhưng chưa ở shelf → switch luôn
+            
             SwitchToSecondaryView();
         }
-        // Nếu đã ở secondary view rồi → không cần làm gì
+        
     }
 
     private void NotchWrapper_DragOver(object sender, DragEventArgs e)
@@ -308,8 +308,8 @@ public partial class MainWindow
     {
         if (!_dragAutoExpanded) return;
 
-        // Debounce: DragLeave bắn nhiều lần khi chuột đi qua child elements
-        // Chờ 150ms, nếu DragEnter không bắn lại thì thực sự là đã rời
+        
+        
         _dragCollapseTimer?.Stop();
         _dragCollapseTimer = new System.Windows.Threading.DispatcherTimer
         {
@@ -325,13 +325,13 @@ public partial class MainWindow
 
     private void NotchWrapper_DragDrop(object sender, DragEventArgs e)
     {
-        // User đã drop → giữ nguyên trạng thái mở, xóa cờ auto-expand
+        
         _dragWaitTimer?.Stop();
         _dragCollapseTimer?.Stop();
         _dragAutoExpanded = false;
     }
 
-    /// <summary>Dùng timer poll 40ms để chờ expand hoàn tất rồi switch sang shelf.</summary>
+    
     private void StartDragWaitForShelf()
     {
         _dragWaitTimer?.Stop();
@@ -350,7 +350,7 @@ public partial class MainWindow
         _dragWaitTimer.Start();
     }
 
-    /// <summary>Khi drag rời notch mà không drop: switch lại Primary rồi collapse.</summary>
+    
     private void AutoCollapseAfterDrag()
     {
         _dragAutoExpanded = false;
@@ -360,7 +360,7 @@ public partial class MainWindow
 
         if (_isSecondaryView && !_isAnimating)
         {
-            // Switch về primary trước, sau đó collapse
+            
             SwitchToPrimaryView();
 
             var collapseWait = new System.Windows.Threading.DispatcherTimer
@@ -426,14 +426,14 @@ public partial class MainWindow
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            // Lọc file chưa có trong shelf
+            
             var newFiles = files.Where(f => !_shelfFiles.Contains(f)).ToArray();
             if (newFiles.Length > 0)
                 AddFilesToShelfSequential(newFiles);
         }
     }
 
-    // Queue tuần tự để tránh lag spike khi drop nhiều file
+    
     private readonly Queue<string> _pendingShelfFiles = new Queue<string>();
     private bool _isAddingSequential = false;
 
@@ -463,10 +463,10 @@ public partial class MainWindow
             ShelfPlaceholder.Visibility = Visibility.Collapsed;
             WatchShelfDirectory(filePath);
 
-            // Rebuild toàn bộ để đảm bảo layout đúng (an toàn, không bỏ sót file nào)
+            
             RefreshShelfLayout();
 
-            // Animate pop-in cho item CUỐI CÙNG vừa được thêm
+            
             if (ShelfItemsContainer.Children.Count > 0)
             {
                 var lastItem = ShelfItemsContainer.Children[ShelfItemsContainer.Children.Count - 1] as FrameworkElement;
@@ -486,7 +486,7 @@ public partial class MainWindow
                     {
                         lastItem.Opacity = 1;
                         lastItem.BeginAnimation(OpacityProperty, null);
-                        // KHÔNG được set null vì MouseEnter/Leave cần ScaleTransform để animate
+                        
                         lastItem.RenderTransform = new ScaleTransform(1, 1);
                     };
 
@@ -494,13 +494,13 @@ public partial class MainWindow
                     st.BeginAnimation(ScaleTransform.ScaleXProperty, scaleIn);
                     st.BeginAnimation(ScaleTransform.ScaleYProperty, scaleIn);
 
-                    // Thêm progress bar vào item
+                    
                     AnimateShelfItemProgress(lastItem);
                 }
             }
         }
 
-        // Delay 90ms trước khi xử lý file tiếp theo
+        
         var timer = new System.Windows.Threading.DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(90)
@@ -513,7 +513,7 @@ public partial class MainWindow
         timer.Start();
     }
 
-    /// <summary>Overlay mini progress bar lên shelf item, tự fade out sau khi đầy.</summary>
+    
     private void AnimateShelfItemProgress(FrameworkElement item)
     {
         if (item is not Border border) return;
@@ -556,7 +556,7 @@ public partial class MainWindow
                 };
                 fade.Completed += (_, _) =>
                 {
-                    // Restore original structure để tránh nested overlay tích lũy
+                    
                     overlay.Children.Remove(progressBar);
                     if (overlay.Children.Count == 1 && overlay.Children[0] is UIElement only)
                     {
@@ -1066,7 +1066,7 @@ public partial class MainWindow
 
         foreach (var target in targets)
         {
-            // Sử dụng TransformGroup để kết hợp Scale và Translate
+            
             var st = new ScaleTransform(1, 1);
             var tt = new TranslateTransform(0, 0);
             var group = new TransformGroup();
@@ -1080,7 +1080,7 @@ public partial class MainWindow
             var scaleDown = new DoubleAnimation(1, 0, dur) { EasingFunction = easeBack };
             var slideUp = new DoubleAnimation(0, -25, dur) { EasingFunction = _easeExpOut6 };
 
-            // Đặt fps cao cho mượt
+            
             Timeline.SetDesiredFrameRate(fadeOut, 144);
             Timeline.SetDesiredFrameRate(scaleDown, 144);
             Timeline.SetDesiredFrameRate(slideUp, 144);

@@ -263,13 +263,13 @@ public partial class MainWindow : Window
     private readonly Border[] _calendarDayBorders = new Border[11];
     private readonly TextBlock[] _calendarDayNumbers = new TextBlock[11];
 
-    // Calendar scroll state
-    private const int CalendarTotalDays = 11;   // 5 trước + hôm nay + 5 sau
-    private const int CalendarVisibleDays = 3;  // Chỉ hiện tối đa 3 ngày
-    private const double CalendarCellWidth = 30.0; // px mỗi cell (name+border)
-    private double _calendarScrollX = 0.0;      // Vị trí translate hiện tại
-    private int _currentCalendarCenterIdx = 5;  // Index ngày đang nằm giữa (0-10)
-    private double _calendarScrollAccumulator = 0; // Tích lũy delta scroll
+    
+    private const int CalendarTotalDays = 11;   
+    private const int CalendarVisibleDays = 3;  
+    private const double CalendarCellWidth = 30.0; 
+    private double _calendarScrollX = 0.0;      
+    private int _currentCalendarCenterIdx = 5;  
+    private double _calendarScrollAccumulator = 0; 
     private DateTime _lastCalendarScrollTime = DateTime.MinValue;
     private DateTime _lastCalendarUpdate = DateTime.Now;
 
@@ -593,7 +593,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        // Ignore shell/desktop windows to avoid false fullscreen detection.
+        
         var classNameBuilder = new StringBuilder(128);
         if (GetClassName(hwnd, classNameBuilder, classNameBuilder.Capacity) > 0)
         {
@@ -715,7 +715,7 @@ public partial class MainWindow : Window
 
     private void UpdateZOrderTimerInterval()
     {
-        // Keep for compatibility with animation call sites.
+        
     }
 
     private void StartZOrderWatchdog()
@@ -1080,7 +1080,7 @@ public partial class MainWindow : Window
 
     private void UpdateBatteryInfo()
     {
-        // Now handled by BatteryModule
+        
     }
 
 
@@ -1093,7 +1093,7 @@ public partial class MainWindow : Window
         WeekDaysPanel.Children.Clear();
         WeekNumbers.Children.Clear();
 
-        // Tạo 11 ngày: 5 trước + hôm nay (idx 5) + 5 sau
+        
         for (int i = 0; i < CalendarTotalDays; i++)
         {
             _calendarDayNames[i] = new TextBlock
@@ -1125,15 +1125,15 @@ public partial class MainWindow : Window
             WeekNumbers.Children.Add(_calendarDayBorders[i]);
         }
 
-        // EventText now handled by XAML layout for better separation
-        // EventText.Style = (Style)FindResource("TitleText");
-        // EventText.FontSize = 10;
-        // EventText.Margin = new Thickness(12, 8, 0, 0);
+        
+        
+        
+        
 
-        // Đặt translate ban đầu: hôm nay (index 5) ở giữa viewport 3 ngày
-        // Viewport = 90px (3x30px). Index 5 nằm giữa thì index 4 ở [0,30], 5 ở [30,60], 6 ở [60,90]
-        // Index 4 bắt đầu tại 4 * 30 = 120. Translate = 0 - 120 = -120.
-        // Công thức tổng quát: TranslateX = (1 * CellWidth) - (CenterIdx * CellWidth)
+        
+        
+        
+        
         _currentCalendarCenterIdx = 5;
         _calendarScrollX = (1 * CalendarCellWidth) - (_currentCalendarCenterIdx * CalendarCellWidth);
         CalendarStripTranslate.X = _calendarScrollX;
@@ -1151,7 +1151,7 @@ public partial class MainWindow : Window
 
         var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
-        // 11 ngày: offset -5 đến +5, idx 0..10, hôm nay = idx 5
+        
         for (int i = -5; i <= 5; i++)
         {
             int idx = i + 5;
@@ -1215,7 +1215,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Smooth selection emphasis without offsetting the center point.
+        
         var squashX = new DoubleAnimationUsingKeyFrames { Duration = duration };
         squashX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(0.0)));
         squashX.KeyFrames.Add(new EasingDoubleKeyFrame(1.085, KeyTime.FromPercent(0.28), _easeSineInOut));
@@ -1260,7 +1260,7 @@ public partial class MainWindow : Window
 
     private void UpdateCalendarInfo()
     {
-        // Now handled by CalendarModule
+        
     }
 
     #endregion
@@ -1281,7 +1281,7 @@ public partial class MainWindow : Window
 
     private void AnimateCalendarWidgetHover(bool isHovered)
     {
-        // Slow down by ~50% and keep motion softer.
+        
         var duration = new Duration(TimeSpan.FromMilliseconds(isHovered ? 350 : 420));
         double currentScaleX = (double)CalendarWidgetScale.GetValue(ScaleTransform.ScaleXProperty);
         double currentScaleY = (double)CalendarWidgetScale.GetValue(ScaleTransform.ScaleYProperty);
@@ -1329,11 +1329,11 @@ public partial class MainWindow : Window
 
     private void AnimateCalendarContextFocus(bool isFocused)
     {
-        // Match slower, smoother calendar hover timing.
+        
         var duration = new Duration(TimeSpan.FromMilliseconds(isFocused ? 450 : 360));
         var easing = (IEasingFunction)_easeSineInOut;
 
-        // Keep focus local to calendar column only; do not affect music block.
+        
         AnimateOpacity(BatterySection, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateOpacity(GreetingSection, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateBlurRadius(CalendarGreetingContextBlur, isFocused ? 4.0 : 0.0, duration, easing);
@@ -1393,9 +1393,9 @@ public partial class MainWindow : Window
     {
         if (!_calendarInitialized) return;
 
-        // Tích lũy delta để hỗ trợ cả chuột notch lẫn touchpad mịn.
+        
         _calendarScrollAccumulator += e.Delta;
-        int direction = _calendarScrollAccumulator > 0 ? -1 : 1; // Lăn lên -> tương lai (idx tăng)
+        int direction = _calendarScrollAccumulator > 0 ? -1 : 1; 
         int stepCount = (int)(Math.Abs(_calendarScrollAccumulator) / 120.0);
         if (stepCount == 0 && Math.Abs(_calendarScrollAccumulator) >= 72)
         {
@@ -1409,7 +1409,7 @@ public partial class MainWindow : Window
 
         _calendarScrollAccumulator -= Math.Sign(_calendarScrollAccumulator) * stepCount * 120.0;
 
-        // Cooldown ngắn để tránh flood animation nhưng vẫn giữ cảm giác tức thì.
+        
         if ((DateTime.Now - _lastCalendarScrollTime).TotalMilliseconds < 70)
         {
             e.Handled = true;
@@ -1457,7 +1457,7 @@ public partial class MainWindow : Window
     {
         if (!_calendarInitialized) return;
 
-        _currentCalendarCenterIdx = 5; // Reset về hôm nay
+        _currentCalendarCenterIdx = 5; 
         double targetX = (1 * CalendarCellWidth) - (_currentCalendarCenterIdx * CalendarCellWidth);
         
         if (Math.Abs(_calendarScrollX - targetX) < 0.1) return;

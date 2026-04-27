@@ -23,7 +23,7 @@ public class MediaDetectionService : IMediaDetectionService
     private readonly IMediaArtworkService _artworkService;
     private readonly IWindowTitleScanner _windowTitleScanner;
 
-    // Event-driven architecture - replaces DispatcherTimer polling
+    
     private readonly Channel<ChangeType> _changeChannel;
     private CancellationTokenSource? _bgCts;
     private Task? _processingTask;
@@ -154,13 +154,13 @@ public class MediaDetectionService : IMediaDetectionService
 #endif
         }
 
-        // Start background processing loops
+        
         _bgCts = new CancellationTokenSource();
         var ct = _bgCts.Token;
         _processingTask = Task.Run(() => ProcessingLoopAsync(ct), ct);
         _heartbeatTask = Task.Run(() => HeartbeatLoopAsync(ct), ct);
 
-        // Bootstrap refreshes so progress can catch currently playing media immediately at startup.
+        
         _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
         _ = Task.Run(async () =>
         {
@@ -268,7 +268,7 @@ public class MediaDetectionService : IMediaDetectionService
         {
             try
             {
-                // Debounce: wait 50ms, then drain all queued events
+                
                 await Task.Delay(50, ct);
                 var types = change;
                 while (_changeChannel.Reader.TryRead(out var extra))
@@ -308,25 +308,33 @@ public class MediaDetectionService : IMediaDetectionService
                 _ => TimeSpan.FromSeconds(3)
             };
 
+            System.Diagnostics.Debug.WriteLine($"[HEARTBEAT] Mode: {_currentMode}, Interval: {interval.TotalSeconds:F1}s");
+
             try
             {
                 await Task.Delay(interval, ct);
             }
             catch (OperationCanceledException) { break; }
 
-            // Safety: if truly idle and no events for a while, skip
+            
             var lastEvtTicks = Interlocked.Read(ref _lastEventTimeTicks);
             if (_currentMode == DetectionMode.Idle
                 && lastEvtTicks > 0
                 && (DateTime.UtcNow - new DateTime(lastEvtTicks)).TotalSeconds > 10)
+            {
+                System.Diagnostics.Debug.WriteLine($"[HEARTBEAT] SKIPPED: Idle mode, no events for {(DateTime.UtcNow - new DateTime(lastEvtTicks)).TotalSeconds:F1}s");
                 continue;
+            }
 
+            System.Diagnostics.Debug.WriteLine($"[HEARTBEAT] Sending heartbeat");
             _changeChannel.Writer.TryWrite(ChangeType.Heartbeat);
         }
     }
 
     private void UpdateDetectionMode(MediaInfo info)
     {
+        var oldMode = _currentMode;
+        
         if (!info.IsAnyMediaPlaying || string.IsNullOrEmpty(info.CurrentTrack))
         {
             _currentMode = DetectionMode.Idle;
@@ -338,6 +346,12 @@ public class MediaDetectionService : IMediaDetectionService
         else
         {
             _currentMode = DetectionMode.EventDriven;
+        }
+        
+        if (oldMode != _currentMode)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DETECTION] Mode changed: {oldMode} -> {_currentMode} " +
+                $"(IsPlaying: {info.IsAnyMediaPlaying}, Track: '{info.CurrentTrack}', Throttled: {info.IsThrottled})");
         }
     }
 
@@ -580,7 +594,7 @@ public class MediaDetectionService : IMediaDetectionService
 
             if (string.IsNullOrEmpty(info.CurrentTrack))
             {
-                // Preserve brief metadata gaps only while media is still active.
+                
                 if (info.IsAnyMediaPlaying)
                 {
                     if (_emptyMetadataStartTime == DateTime.MinValue)
@@ -642,18 +656,24 @@ public class MediaDetectionService : IMediaDetectionService
                 _lastPublishedTrackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
                 _lastPublishedSourceAppId = info.SourceAppId ?? "";
 
-                // Update detection mode for adaptive heartbeat
+                
                 UpdateDetectionMode(info);
 
-                // Marshal event to UI thread
+                
                 var dispatcher = System.Windows.Application.Current?.Dispatcher;
                 if (dispatcher != null)
                 {
+                    System.Diagnostics.Debug.WriteLine($"[MEDIA] Firing MediaChanged event: Track='{info.CurrentTrack}', " +
+                        $"Pos={info.Position.TotalSeconds:F1}s, IsPlaying={info.IsPlaying}");
                     await dispatcher.InvokeAsync(() => MediaChanged?.Invoke(this, info));
                 }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MEDIA] WARNING: No dispatcher, cannot fire MediaChanged event!");
+                }
 
-                // New media/metadata detected: enforce one immediate full refresh pass
-                // so UI is finalized with the latest playing item metadata/source.
+                
+                
                 if (!forceRefresh && metadataChanged && !string.IsNullOrEmpty(info.CurrentTrack))
                 {
                     _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
@@ -812,7 +832,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                 if (!isNewSoundCloudTrack && sameTrackFetchRunning)
                 {
-                    // Keep current fetch running for this track; avoid cancel/restart churn.
+                    
                 }
                 else if (isNewSoundCloudTrack || shouldRetryPlaceholder)
                 {
@@ -828,7 +848,7 @@ public class MediaDetectionService : IMediaDetectionService
                     string trackDuringFetch = info.CurrentTrack;
                     string artistDuringFetch = info.CurrentArtist;
                     string sourceAppDuringFetch = info.SourceAppId ?? "";
-                    // SoundCloud metadata from browser sessions can be noisy; avoid loose artwork swaps.
+                    
                     bool requireStrongMatch = true;
 
                     _ = Task.Run(async () =>
@@ -979,7 +999,7 @@ public class MediaDetectionService : IMediaDetectionService
     private static string BuildSessionInstanceKey(GlobalSystemMediaTransportControlsSession session)
     {
         string sourceApp = session.SourceAppUserModelId ?? "";
-        // Runtime hash is stable for the object lifetime and distinguishes parallel sessions/tabs in same app.
+        
         int instanceHash = RuntimeHelpers.GetHashCode(session);
         return $"{sourceApp}|{instanceHash}";
     }
@@ -1074,13 +1094,13 @@ public class MediaDetectionService : IMediaDetectionService
             return false;
         }
 
-        // Browser SMTC placeholder icons are usually small square assets.
+        
         if (thumbnail.PixelWidth <= 320 || thumbnail.PixelHeight <= 320)
         {
             return true;
         }
 
-        // SoundCloud default avatars can also be served as larger square images.
+        
         return HasLowEntropyMonochromeProfile(thumbnail);
     }
 
@@ -1098,7 +1118,7 @@ public class MediaDetectionService : IMediaDetectionService
             return false;
         }
 
-        // Real SoundCloud covers are typically square and larger than placeholder icons.
+        
         return thumbnail.PixelWidth >= 360 &&
                thumbnail.PixelHeight >= 360 &&
                !IsLikelySoundCloudPlaceholderThumbnail(thumbnail);
@@ -1439,8 +1459,37 @@ public class MediaDetectionService : IMediaDetectionService
                     }
                     catch { }
 
+                    
+                    
+                    bool hasFreshTimeline = false;
+                    try
+                    {
+                        var bestTimeline = bestSession.GetTimelineProperties();
+                        if (bestTimeline != null)
+                        {
+                            var timelineAge = (DateTimeOffset.UtcNow - bestTimeline.LastUpdatedTime).TotalSeconds;
+                            hasFreshTimeline = timelineAge >= 0 && timelineAge < 2.0;
+                            
+                            
+                            var currentTimeline = _activeDisplaySession.GetTimelineProperties();
+                            if (currentTimeline != null && hasFreshTimeline)
+                            {
+                                var currentTimelineAge = (DateTimeOffset.UtcNow - currentTimeline.LastUpdatedTime).TotalSeconds;
+                                
+                                if (currentTimelineAge - timelineAge > 3.0)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"[DETECTION] Switching session due to fresh timeline: " +
+                                        $"New={timelineAge:F1}s old, Current={currentTimelineAge:F1}s old");
+                                    hasFreshTimeline = true;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
                     if (!isRecentLatestPlayback &&
                         !isOsCurrent &&
+                        !hasFreshTimeline &&  
                         currentStillPlaying &&
                         (DateTime.Now - _pendingSessionStartTime).TotalSeconds < holdTime)
                     {
@@ -1478,12 +1527,11 @@ public class MediaDetectionService : IMediaDetectionService
                         }
                         catch { }
 
-                        if (_activeDisplaySession != null &&
-                            currentStillPlaying &&
-                            (DateTime.Now - _lastSessionSwitchTime).TotalSeconds < 3.0)
-                            session = _activeDisplaySession;
-                        else
-                            session = _sessionManager.GetCurrentSession();
+                        
+                        
+                        
+                        
+                        session = _sessionManager.GetCurrentSession();
                     }
                 }
             }
@@ -1607,7 +1655,7 @@ public class MediaDetectionService : IMediaDetectionService
             info.CurrentTrack = sessionTitle;
             info.CurrentArtist = sessionArtist;
 
-            // Timeline properties read once later (avoid duplicate GetTimelineProperties call)
+            
 
             if (isJunkTitle)
             {
@@ -1866,8 +1914,8 @@ public class MediaDetectionService : IMediaDetectionService
                                                                             !hasVerifiedSoundCloudThumb;
                                 if (skipSmtcThumbForFreshSoundCloudTrack)
                                 {
-                                    // Browser SMTC often serves stale thumbnail from previous tab (e.g., YouTube).
-                                    // Keep existing thumbnail and let SoundCloud fetch path provide fresh artwork.
+                                    
+                                    
                                     info.Thumbnail = _cachedThumbnail;
                                 }
                                 else
@@ -1911,14 +1959,14 @@ public class MediaDetectionService : IMediaDetectionService
                 var timeline = session?.GetTimelineProperties();
                 if (timeline != null)
                 {
-                    // Try to get fresher position on initial load or after big change
+                    
                     bool isInitialOrBigChange = forceRefresh ||
                                                _lastTrackSignature == "" ||
                                                (DateTime.Now - _lastMetadataChangeTime).TotalSeconds < 4.0;
 
                     if (isInitialOrBigChange)
                     {
-                        // Wait a tiny bit and try again to get fresher timeline
+                        
                         await Task.Delay(120);
                         timeline = session?.GetTimelineProperties() ?? timeline;
                     }
@@ -1974,25 +2022,25 @@ public class MediaDetectionService : IMediaDetectionService
                         timelineUpdatedUtc <= nowUpdatedUtc + TimeSpan.FromSeconds(1) &&
                         timelineLatency <= TimeSpan.FromMinutes(10);
 
-                    // CRITICAL FIX: Remove position compensation entirely.
-                    // ProgressEngine will handle prediction from the original timeline timestamp.
-                    // This eliminates double-compensation and provides accurate sync.
-                    // 
-                    // OLD APPROACH (WRONG):
-                    // - Compensate position here: position += latency
-                    // - Use current time as timestamp
-                    // - ProgressEngine predicts from current time
-                    // Result: Single compensation, but loses original timeline time
-                    //
-                    // NEW APPROACH (CORRECT):
-                    // - Keep raw position from timeline
-                    // - Use original timeline timestamp
-                    // - ProgressEngine predicts from original time
-                    // Result: Accurate prediction with proper time reference
                     
-                    // Note: Removed the compensation block that was adding latency to position.
-                    // ProgressEngine's PredictPosition() will naturally account for elapsed time
-                    // since the timeline was captured.
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
 
                     if (chosenPosition < TimeSpan.Zero)
                     {
@@ -2005,7 +2053,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                     info.Position = chosenPosition;
                     info.Duration = duration;
-                    // Use original timeline timestamp for accurate prediction
+                    
                     info.LastUpdated = timelineUpdatedUtc;
 
                     if (info.Duration <= TimeSpan.Zero || info.Duration.TotalDays > 30)
@@ -2081,7 +2129,7 @@ public class MediaDetectionService : IMediaDetectionService
     {
         if (info.MediaSource == "YouTube") return true;
 
-        // If Browser but we already learned/overrode it is YouTube
+        
         if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId))
         {
             if (_sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sOver) && sOver == "YouTube")
@@ -2104,7 +2152,7 @@ public class MediaDetectionService : IMediaDetectionService
             }
         }
 
-        // Heuristic: SMTC metadata sometimes uses Artist="YouTube" for browser sessions
+        
         if (!string.IsNullOrEmpty(info.CurrentArtist) &&
             info.CurrentArtist.Equals("YouTube", StringComparison.OrdinalIgnoreCase))
             return true;
@@ -2136,7 +2184,7 @@ public class MediaDetectionService : IMediaDetectionService
             return false;
         }
 
-        // Only hold source during brief transition after track metadata changes.
+        
         if ((DateTime.Now - _lastMetadataChangeTime).TotalSeconds > 3.0)
         {
             return false;
@@ -2163,14 +2211,14 @@ public class MediaDetectionService : IMediaDetectionService
     {
         var nowUtc = DateTime.UtcNow;
 
-        // Reset base if track/source changed
+        
         var sig = info.GetSignature();
         if (_simSignature != sig || _simBaseWallTimeUtc == DateTime.MinValue)
         {
             _simSignature = sig;
             _simBaseWallTimeUtc = nowUtc;
 
-            // Prefer last observed position (more stable than a frozen SMTC position)
+            
             _simBasePosition = _lastObservedPosition != TimeSpan.Zero ? _lastObservedPosition : info.Position;
 
             _simBasePlaybackRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
@@ -2179,7 +2227,7 @@ public class MediaDetectionService : IMediaDetectionService
         var elapsed = nowUtc - _simBaseWallTimeUtc;
         var sim = _simBasePosition + TimeSpan.FromSeconds(elapsed.TotalSeconds * _simBasePlaybackRate);
 
-        // If we're "stuck at end", duration is likely stale -> avoid clamping to it.
+        
         if (!atEndStuck && info.Duration > TimeSpan.Zero && sim > info.Duration)
             sim = info.Duration;
 
@@ -2188,7 +2236,7 @@ public class MediaDetectionService : IMediaDetectionService
         info.IsThrottled = true;
         _isThrottled = true;
 
-        // Keep cache duration/thumbnail if we have them (avoid 3:15/3:15 end-stuck visuals)
+        
         if (atEndStuck)
         {
             if (_recoveredDuration > TimeSpan.Zero) info.Duration = _recoveredDuration;
@@ -2225,15 +2273,15 @@ public class MediaDetectionService : IMediaDetectionService
     {
         var title = windowTitle;
 
-        // 1. Common Prefix Removals (Notifications, Play symbol, dynamic timestamps)
-        // Remove prefixes like "(1) ", "(99+) ", "▶ ", "⏸ "
+        
+        
         title = Regex.Replace(title, @"^\(\d+\+?\)\s*", "");
         title = Regex.Replace(title, @"^[▶⏸▶️⏸️\s]*", "");
 
-        // Remove SoundCloud/Generic dynamic prefix (e.g. "1:23 | ", "▶ 1:23:45 | ")
+        
         title = Regex.Replace(title, @"^[▶⏸\s\d:]+\|", "").Trim();
 
-        // 2. Suffix Removals (Platform branding)
+        
         var separators = new[] {
             " - YouTube", " – YouTube", " - SoundCloud", " | Facebook",
             " - TikTok", " / X", " | TikTok", " • Instagram",
@@ -2254,7 +2302,7 @@ public class MediaDetectionService : IMediaDetectionService
 
         title = title.Trim();
 
-        // 3. Final cleanup: Remove trailing " - " or " | " if any
+        
         title = Regex.Replace(title, @"\s+[\-\|–•]\s*$", "");
 
         if (title.Length > 60)

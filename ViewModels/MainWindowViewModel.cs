@@ -6,11 +6,11 @@ using VNotch.Services;
 
 namespace VNotch.ViewModels;
 
-/// <summary>
-/// Main ViewModel for the Notch window.
-/// Holds observable state and commands — no System.Windows references.
-/// Animation orchestration stays in View code-behind.
-/// </summary>
+
+
+
+
+
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly IMediaDetectionService _mediaService;
@@ -24,10 +24,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isMusicCompactMode;
 
-    /// <summary>
-    /// Callback set by View to report whether the notch is currently expanded.
-    /// Used by progress tracking to decide whether to render.
-    /// </summary>
+    
+    
+    
+    
     public Func<bool>? IsExpandedCheck { get; set; }
 
     [ObservableProperty]
@@ -143,40 +143,40 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     #endregion
 
-    /// <summary>
-    /// Fired when a new track is detected (signature changed) to trigger UI animations.
-    /// </summary>
+    
+    
+    
     public event EventHandler<MediaInfo>? NewTrackDetected;
 
-    /// <summary>
-    /// Fired on every media info update from the service.
-    /// View code-behind subscribes to handle UI-specific updates.
-    /// </summary>
+    
+    
+    
+    
     public event EventHandler<MediaInfo>? MediaInfoUpdated;
 
-    /// <summary>
-    /// Fired when play/pause state toggled by user command, to trigger icon animation.
-    /// </summary>
+    
+    
+    
     public event EventHandler<bool>? PlayPauseToggled;
 
-    /// <summary>
-    /// Fired when settings changed, to trigger visual refresh.
-    /// </summary>
+    
+    
+    
     public event EventHandler<NotchSettings>? SettingsApplied;
 
-    /// <summary>
-    /// Fired when session transitions, for opacity animation.
-    /// </summary>
+    
+    
+    
     public event EventHandler? SessionTransitioned;
 
-    /// <summary>
-    /// Fired when next track action triggered, for skip animation.
-    /// </summary>
+    
+    
+    
     public event EventHandler? NextTrackTriggered;
 
-    /// <summary>
-    /// Fired when previous track action triggered, for skip animation.
-    /// </summary>
+    
+    
+    
     public event EventHandler? PreviousTrackTriggered;
 
     private DateTime _lastMediaActionTime = DateTime.MinValue;
@@ -225,10 +225,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
-            // Update media source icon
+            
             MediaSourceIcon = hasRealTrack ? (info.MediaSource ?? "") : "";
 
-            // Update track info
+            
             if (hasRealTrack)
             {
                 MediaSourceName = info.MediaSource ?? "Now Playing";
@@ -257,7 +257,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 MediaSourceName = "Now Playing";
             }
 
-            // Detect new track
+            
             string currentSig = info.GetSignature();
             bool isNewTrack = currentSig != _lastAnimatedTrackSignature;
 
@@ -279,24 +279,24 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 HasThumbnail = false;
             }
 
-            // Update play state
+            
             if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds > 500 && IsPlaying != info.IsPlaying)
             {
                 IsPlaying = info.IsPlaying;
                 PlayPauseToggled?.Invoke(this, IsPlaying);
             }
 
-            // Update progress tracking
+            
             UpdateProgressTracking(info);
 
-            // Update music compact mode
+            
             bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
             if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
             CollapsedWidth = shouldBeCompact ? 180 : Settings.Width;
             IsMusicCompactMode = shouldBeCompact;
 
-            // Forward to view for UI-specific handling
+            
             MediaInfoUpdated?.Invoke(this, info!);
         });
     }
@@ -380,9 +380,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>
-    /// Called from progress timer tick (in code-behind) to update progress bar.
-    /// </summary>
+    
+    
+    
     public void RenderProgressBar()
     {
         if (_isDraggingProgress || CurrentMediaInfo == null) return;

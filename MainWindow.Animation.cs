@@ -125,7 +125,7 @@ public partial class MainWindow
                 return false;
             }
 
-            // Sanity guard to avoid first-run transform glitches.
+            
             if (Math.Abs(targetX) > 2000 || Math.Abs(targetY) > 2000) return false;
 
             target = (targetX, targetY);
@@ -155,7 +155,7 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // Reset hover scales to prevent stretching inner components
+        
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         NotchScale.ScaleX = 1.0;
@@ -178,7 +178,7 @@ public partial class MainWindow
         MediaBackground2.BeginAnimation(OpacityProperty, null);
         PaginationDots.BeginAnimation(OpacityProperty, null);
 
-        // Reset blur animations
+        
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -204,7 +204,7 @@ public partial class MainWindow
         var heightAnim = MakeAnim(_expandedHeight, _dur600, _easeExpOut6, animFps);
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
 
-        // Dimensions already set above if first run, but ensure set here for safety
+        
         ExpandedContent.Width = _expandedWidth - 32;
         ExpandedContent.Height = _expandedHeight - 24;
 
@@ -219,7 +219,7 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0.15, _dur200);
 
-        // Blur animations: compact content blurs out, expanded content blurs in
+        
         var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
         var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
         ExpandedContentBlur.Radius = 24;
@@ -231,8 +231,8 @@ public partial class MainWindow
             var cachedExpandTarget = _cachedThumbnailExpandTarget;
             if (!cachedExpandTarget.HasValue)
             {
-                // First run/layout-not-ready: skip morph to avoid wrong target then snap.
-                // Cache will be updated from real expanded layout when animation completes.
+                
+                
                 AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
             }
             else
@@ -304,7 +304,7 @@ public partial class MainWindow
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
 
-            // Ensure blur is fully cleared after expand completes
+            
             ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             ExpandedContentBlur.Radius = 0;
             CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -339,7 +339,7 @@ public partial class MainWindow
         CollapsedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutAnim);
 
-        // Blur out compact content
+        
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
@@ -347,7 +347,7 @@ public partial class MainWindow
         PaginationDots.BeginAnimation(OpacityProperty, fadeInAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
 
-        // Blur in expanded content (from blurry to clear)
+        
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurInAnim);
 
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
@@ -375,7 +375,7 @@ public partial class MainWindow
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
 
-        // Reset blur animations
+        
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -438,10 +438,10 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0, _dur150);
 
-        // Blur animations: expanded content blurs out, compact content blurs in
+        
         var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
         var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
-        // Set starting blur for content that will blur in
+        
         CollapsedContentBlur.Radius = 24;
         MusicCompactContentBlur.Radius = 24;
 
@@ -516,7 +516,7 @@ public partial class MainWindow
 
             contentToShow.RenderTransform = null;
 
-            // Clean up blur state for all content panels
+            
             ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             ExpandedContentBlur.Radius = 0;
             CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -540,7 +540,7 @@ public partial class MainWindow
                 AnimationThumbnailTranslate.X = 0;
                 AnimationThumbnailTranslate.Y = 0;
 
-                // Reset compact hover state
+                
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
                 CompactThumbnailScale.ScaleX = 1.0;
@@ -559,7 +559,7 @@ public partial class MainWindow
         PaginationDots.BeginAnimation(OpacityProperty, fadeOutAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, slideOutAnim);
 
-        // Blur out expanded content
+        
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
         if (SecondaryContent.Visibility == Visibility.Visible)
@@ -574,7 +574,7 @@ public partial class MainWindow
         showScale.BeginAnimation(ScaleTransform.ScaleXProperty, springShow);
         showScale.BeginAnimation(ScaleTransform.ScaleYProperty, springShow);
 
-        // Blur in compact content (from blurry to clear)
+        
         var compactBlurTarget = _isMusicCompactMode ? MusicCompactContentBlur : CollapsedContentBlur;
         compactBlurTarget.BeginAnimation(BlurEffect.RadiusProperty, blurInAnim);
 
@@ -611,17 +611,17 @@ public partial class MainWindow
         var easing = isHovered ? (IEasingFunction)_easeThumbSpring : _easeExpOut6;
         var animFps = 144;
 
-        // Notch height (Expands to show title)
+        
         var heightAnim = MakeAnim(notchHeight, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
-        // Thumbnail scale (Anchored at 0,0 grows right and down)
+        
         var thumbScaleAnimX = MakeAnim(thumbScale, duration, easing, animFps);
         var thumbScaleAnimY = MakeAnim(thumbScale, duration, easing, animFps);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, thumbScaleAnimX);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, thumbScaleAnimY);
 
-        // Info fade
+        
         if (isHovered)
         {
             CompactHoverInfo.Visibility = Visibility.Visible;
@@ -635,7 +635,7 @@ public partial class MainWindow
         }
         CompactHoverInfo.BeginAnimation(OpacityProperty, fadeAnim);
 
-        // Corner radius adjust
+        
         double radius = isHovered ? 24 : _cornerRadiusCollapsed;
         AnimateCornerRadius(radius, duration.TimeSpan);
     }
@@ -648,18 +648,18 @@ public partial class MainWindow
         CompactTitleMarquee.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         
         double textWidth = CompactTitleMarquee.DesiredSize.Width;
-        // Chiều rộng container bằng chiều rộng Notch trừ đi Margin (4+4=8)
+        
         double containerWidth = _collapsedWidth - 8; 
         
         if (textWidth > containerWidth && containerWidth > 0)
         {
-            // Bật hiệu ứng fade khi text dài và phải marquee
+            
             CompactHoverInfo.OpacityMask = CompactMarqueeFadeBrush;
             StartMarqueeAnimation(CompactTitleMarqueeTranslate, textWidth - containerWidth + 20);
         }
         else
         {
-            // Tắt hiệu ứng fade khi text ngắn để hiển thị rõ 100%
+            
             CompactHoverInfo.OpacityMask = null;
             
             CompactTitleMarqueeTranslate.BeginAnimation(TranslateTransform.XProperty, null);
@@ -805,7 +805,7 @@ public partial class MainWindow
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
         MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
 
-        // Clear stale opacity animations & force Opacity=0 BEFORE making Visible to prevent flicker
+        
         MediaControls.BeginAnimation(OpacityProperty, null);
         MediaControls.Opacity = 0;
         MediaControls.Visibility = Visibility.Visible;
@@ -1105,8 +1105,8 @@ public partial class MainWindow
         var durPeak = TimeSpan.FromMilliseconds(150);
         var durEnd = TimeSpan.FromMilliseconds(800);
 
-        // Bouncy scale effect (Squash and Stretch)
-        // We must return to 1.0 to avoid permanent stretching
+        
+        
         var bounceX = new DoubleAnimationUsingKeyFrames();
         bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.12, KeyTime.FromTimeSpan(durPeak), _easeQuadOut));
         bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(durEnd), _easeSoftSpring));
@@ -1132,18 +1132,18 @@ public partial class MainWindow
         var duration = isHovered ? _dur400 : _dur350;
         var easing = isHovered ? (IEasingFunction)_easeExpOut6 : _easeQuadOut;
 
-        // Margin animation (Expansion)
+        
         var marginAnim = new ThicknessAnimation(ProgressBarContainer.Margin, new Thickness(margin, 0, margin, 0), duration)
         {
             EasingFunction = easing
         };
         ProgressBarContainer.BeginAnimation(MarginProperty, marginAnim);
 
-        // Scale animation
+        
         var scaleAnim = MakeAnim(scaleY, duration, easing);
         ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
 
-        // Subtly fade background to focus on the bar
+        
         var bgFadeAnim = MakeAnim(bgOpacity, duration, _easeQuadOut);
         ProgressBarBg.BeginAnimation(OpacityProperty, bgFadeAnim);
     }

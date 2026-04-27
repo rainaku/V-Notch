@@ -2,9 +2,9 @@ using System.Windows.Threading;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// WPF implementation of IDispatcherService using the application dispatcher.
-/// </summary>
+
+
+
 public class DispatcherService : IDispatcherService
 {
     private readonly Dispatcher _dispatcher;

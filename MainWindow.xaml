@@ -617,14 +617,14 @@
                                                                 <TranslateTransform x:Name="TitleMorphTranslate" Y="0"/>
                                                             </TransformGroup>
                                                         </Grid.RenderTransform>
-                                                        <!-- Shadow layer -->
+                                                        
                                                         <TextBlock Text="{Binding Text, ElementName=TrackTitle}"
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
-                                                        <!-- Main layer -->
+                                                        
                                                         <TextBlock x:Name="TrackTitle" 
                                                                    Text="No media playing"
                                                                    Style="{StaticResource TitleText}"
@@ -640,14 +640,14 @@
                                                                 <TranslateTransform x:Name="TitleMorphTranslateNext" Y="0"/>
                                                             </TransformGroup>
                                                         </Grid.RenderTransform>
-                                                        <!-- Shadow layer -->
+                                                        
                                                         <TextBlock Text="{Binding Text, ElementName=TrackTitleNext}"
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
-                                                        <!-- Main layer -->
+                                                        
                                                         <TextBlock x:Name="TrackTitleNext" 
                                                                    Text=""
                                                                    Style="{StaticResource TitleText}"
@@ -668,13 +668,13 @@
                                                                 <TranslateTransform x:Name="ArtistMorphTranslate" Y="0"/>
                                                             </TransformGroup>
                                                         </Grid.RenderTransform>
-                                                        <!-- Shadow layer -->
+                                                        
                                                         <TextBlock Text="{Binding Text, ElementName=TrackArtist}"
                                                                    Style="{StaticResource SubtitleText}"
                                                                    FontWeight="Regular"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
-                                                        <!-- Main layer -->
+                                                        
                                                         <TextBlock x:Name="TrackArtist" 
                                                                     Text="Open Spotify or YouTube"
                                                                      Style="{StaticResource SubtitleText}"
@@ -689,13 +689,13 @@
                                                                 <TranslateTransform x:Name="ArtistMorphTranslateNext" Y="0"/>
                                                             </TransformGroup>
                                                         </Grid.RenderTransform>
-                                                        <!-- Shadow layer -->
+                                                        
                                                         <TextBlock Text="{Binding Text, ElementName=TrackArtistNext}"
                                                                    Style="{StaticResource SubtitleText}"
                                                                    FontWeight="Regular"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
-                                                        <!-- Main layer -->
+                                                        
                                                          <TextBlock x:Name="TrackArtistNext" 
                                                                     Text=""
                                                                      Style="{StaticResource SubtitleText}"
@@ -1039,7 +1039,7 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Battery: Nằm sát phía trên Card -->
+                            
                             <Border x:Name="BatterySection" Grid.Row="0" 
                                     HorizontalAlignment="Right" 
                                     Cursor="Hand"
@@ -1076,7 +1076,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Calendar Card: Thu gọn Padding -->
+                            
                             <Border x:Name="CalendarWidget"
                                     Grid.Row="1" 
                                     Background="{StaticResource CardGradient}"
@@ -1098,7 +1098,7 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Tên tháng -->
+                                    
                                     <TextBlock x:Name="MonthText"
                                                Grid.Column="0"
                                                Text="Dec"
@@ -1169,7 +1169,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 
-                                <Border Grid.Column="0" Margin="0,0,12,0"/> <!-- Match MonthText margin -->
+                                <Border Grid.Column="0" Margin="0,0,12,0"/> 
                                 
                                 <TextBlock x:Name="EventText"
                                            Grid.Column="1"

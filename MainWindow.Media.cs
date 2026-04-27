@@ -122,7 +122,7 @@ public partial class MainWindow
                     ThumbnailImage.Visibility = Visibility.Visible;
                     ThumbnailFallback.Visibility = Visibility.Collapsed;
 
-                    // Only update dominant color on track change, not during seek
+                    
                     if (isNewTrack || _lastColorTrackSignature != currentSig)
                     {
                         _lastColorTrackSignature = currentSig;
@@ -131,8 +131,8 @@ public partial class MainWindow
                 }
                 else if (isNewTrack)
                 {
-                    // Keep previous thumbnail while waiting for fresh artwork.
-                    // Show fallback only when there is no thumbnail at all.
+                    
+                    
                     if (ThumbnailImage.Source == null)
                     {
                         ThumbnailImage.Visibility = Visibility.Collapsed;
@@ -153,7 +153,7 @@ public partial class MainWindow
             }
             else
             {
-                // Keep existing thumbnail during transient metadata gaps while media is still active.
+                
                 if (info.IsAnyMediaPlaying)
                 {
                     if (ThumbnailImage.Source != null)

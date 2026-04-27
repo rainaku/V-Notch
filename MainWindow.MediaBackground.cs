@@ -30,7 +30,7 @@ public partial class MainWindow
 
         var dominantColor = GetDominantColor(info.Thumbnail);
 
-        // Track change detection
+        
         string currentTrackId = info.GetSignature();
         bool isNewTrack = _lastTrackId != null && _lastTrackId != currentTrackId;
         _lastTrackId = currentTrackId;
@@ -67,7 +67,7 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(500),
             EasingFunction = _easeQuadOut
         };
-        // Note: Image blurred masks handle their own visual cross-fading via Image source.
+        
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh)) ? 0.9 : 0;
 
         var opacityAnim = new DoubleAnimation
@@ -119,7 +119,7 @@ public partial class MainWindow
         if (RemainingTimeText.Foreground is SolidColorBrush rtf && !rtf.IsFrozen)
             rtf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
-        // Animate LinearGradientBrush for TrackTitle
+        
         AnimateTitleGradient(vibrantTargetColor);
 
         if (Resources["MusicVisualizerBrush"] is SolidColorBrush visualizerBrush && !visualizerBrush.IsFrozen)
@@ -127,7 +127,7 @@ public partial class MainWindow
             visualizerBrush.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
         }
 
-        // Apply same color to Media Controls
+        
         var currentVolIcon = VolumeIcon.Foreground as SolidColorBrush;
         if (currentVolIcon == null || currentVolIcon.IsFrozen) VolumeIcon.Foreground = new SolidColorBrush(currentVolIcon?.Color ?? Color.FromRgb(136, 136, 136));
         ((SolidColorBrush)VolumeIcon.Foreground).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
@@ -188,12 +188,12 @@ public partial class MainWindow
             else if (max == g) h = ((b - r) / d + 2) / 6.0;
             else h = ((r - g) / d + 4) / 6.0;
             
-            // Giữ lại sắc độ nhưng boost saturation lên để màu không bị quá nhạt
+            
             s = Math.Max(s, 0.45);
             s = Math.Min(s, 0.95);
         }
 
-        // Tăng sáng (Boost Lightness) - đảm bảo màu tối/chìm vẫn nhìn thấy rõ trên nền đen
+        
         l = Math.Max(l, 0.65); 
         l = Math.Min(l, 0.85);
 
@@ -281,10 +281,10 @@ public partial class MainWindow
         if (ProgressBar.Background is SolidColorBrush sb && !sb.IsFrozen) sb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
         if (CurrentTimeText.Foreground is SolidColorBrush st && !st.IsFrozen) st.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
-        // Reset title gradient to white
+        
         ResetTitleGradientToWhite();
 
-        // Reset same colors for Media Controls
+        
         if (VolumeIcon.Foreground is SolidColorBrush volIco && !volIco.IsFrozen) volIco.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (VolumeBarFront.Background is SolidColorBrush volBar && !volBar.IsFrozen) volBar.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
 
@@ -330,7 +330,7 @@ public partial class MainWindow
         try
         {
             var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-            // Higher resolution for better accuracy
+            
             int sampleSize = 32;
             double scaleX = (double)sampleSize / formattedBitmap.PixelWidth;
             double scaleY = (double)sampleSize / formattedBitmap.PixelHeight;
@@ -344,13 +344,13 @@ public partial class MainWindow
             byte[] pixelBuffer = new byte[height * stride];
             small.CopyPixels(pixelBuffer, stride, 0);
 
-            // 24 hue buckets for finer discrimination
+            
             const int BUCKET_COUNT = 24;
             double[] bucketWeight = new double[BUCKET_COUNT];
             double[] bucketR = new double[BUCKET_COUNT];
             double[] bucketG = new double[BUCKET_COUNT];
             double[] bucketB = new double[BUCKET_COUNT];
-            double[] bucketS = new double[BUCKET_COUNT]; // Track avg saturation per bucket
+            double[] bucketS = new double[BUCKET_COUNT]; 
             int[] bucketCount = new int[BUCKET_COUNT];
 
             double totalWeightAll = 0;
@@ -370,23 +370,23 @@ public partial class MainWindow
                     double g = pixelBuffer[i + 1] / 255.0;
                     double r = pixelBuffer[i + 2] / 255.0;
 
-                    // Spatial weight: center pixels matter more
+                    
                     double dx = (x - centerX) / centerX;
                     double dy = (y - centerY) / centerY;
                     double distNorm = Math.Sqrt(dx * dx + dy * dy) / 1.414;
-                    double spatialWeight = 1.0 - distNorm * 0.5; // Center=1.0, corner=0.5
+                    double spatialWeight = 1.0 - distNorm * 0.5; 
 
                     double max = Math.Max(r, Math.Max(g, b));
                     double min = Math.Min(r, Math.Min(g, b));
                     double l = (max + min) / 2.0;
 
-                    // Accumulate for fallback average
+                    
                     avgR += r * spatialWeight;
                     avgG += g * spatialWeight;
                     avgB += b * spatialWeight;
                     totalWeightAll += spatialWeight;
 
-                    // Skip very dark pixels
+                    
                     if (l < 0.08) { pixelIndex++; continue; }
 
                     double s = 0, h = 0;
@@ -400,16 +400,16 @@ public partial class MainWindow
                         h /= 6.0;
                     }
 
-                    // Weight: balance between frequency (area coverage) and vibrancy
-                    // Low-saturation pixels still count but with reduced weight
-                    double satWeight = 0.3 + 0.7 * s; // Even gray pixels get 0.3 weight
+                    
+                    
+                    double satWeight = 0.3 + 0.7 * s; 
                     double lumWeight = l;
                     if (l > 0.85) lumWeight = Math.Max(0.1, 1.0 - (l - 0.85) * 4);
-                    if (l < 0.2) lumWeight = l * 3; // Fade out very dark
+                    if (l < 0.2) lumWeight = l * 3; 
 
                     double weight = satWeight * lumWeight * spatialWeight;
 
-                    // Bonus for clearly chromatic pixels
+                    
                     if (s > 0.3 && l > 0.2 && l < 0.8) weight *= 1.5;
                     if (s > 0.5 && l > 0.3 && l < 0.75) weight *= 1.3;
 
@@ -430,8 +430,8 @@ public partial class MainWindow
                 }
             }
 
-            // Find best hue region using sliding window of 3 adjacent buckets
-            // This prevents splitting a color across bucket boundaries
+            
+            
             double bestScore = -1;
             int bestCenter = -1;
 
@@ -449,7 +449,7 @@ public partial class MainWindow
                     regionSatWeight += bucketWeight[idx] > 0 ? bucketWeight[idx] : 0;
                 }
 
-                // Score = coverage × (1 + avg_saturation_boost)
+                
                 double avgSat = regionSatWeight > 0 ? regionSat / regionSatWeight : 0;
                 double score = regionWeight * (1.0 + avgSat * 0.5);
 
@@ -462,7 +462,7 @@ public partial class MainWindow
 
             if (bestCenter >= 0 && bestScore > 0)
             {
-                // Merge the 3 adjacent buckets for the result
+                
                 double sumR = 0, sumG = 0, sumB = 0, sumW = 0;
                 for (int offset = -1; offset <= 1; offset++)
                 {
@@ -482,7 +482,7 @@ public partial class MainWindow
                 }
             }
 
-            // Fallback: spatial-weighted average
+            
             if (totalWeightAll > 0)
             {
                 return Color.FromRgb(
@@ -507,7 +507,7 @@ public partial class MainWindow
     {
         _currentVibrantColor = vibrantColor;
 
-        // Create highlight color (much lighter version of vibrant for visibility)
+        
         var highlightColor = Color.FromRgb(
             (byte)Math.Min(255, vibrantColor.R + (255 - vibrantColor.R) * 0.6),
             (byte)Math.Min(255, vibrantColor.G + (255 - vibrantColor.G) * 0.6),
@@ -516,10 +516,10 @@ public partial class MainWindow
         var colorAnimMain = new ColorAnimation { To = vibrantColor, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
         var colorAnimHighlight = new ColorAnimation { To = highlightColor, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
 
-        // For seamless repeat, stop 0 and stop 1 should be same
-        // We use 3 stops: [0: Vibrant, 0.5: Highlight, 1.0: Vibrant]
         
-        // Animate TrackTitleGradient
+        
+        
+        
         if (Resources["TrackTitleGradient"] is LinearGradientBrush titleBrush)
         {
             titleBrush.GradientStops[0].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
@@ -527,7 +527,7 @@ public partial class MainWindow
             titleBrush.GradientStops[2].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
         }
 
-        // Animate TrackTitleNextGradient
+        
         if (Resources["TrackTitleNextGradient"] is LinearGradientBrush titleNextBrush)
         {
             titleNextBrush.GradientStops[0].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
@@ -535,7 +535,7 @@ public partial class MainWindow
             titleNextBrush.GradientStops[2].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
         }
 
-        // Start gradient shift animation
+        
         StartTitleGradientShift();
     }
 
@@ -563,11 +563,11 @@ public partial class MainWindow
 
     private void TitleGradientTimer_Tick(object? sender, EventArgs e)
     {
-        _titleGradientPhase += 0.012; // Speed of gradient flow
+        _titleGradientPhase += 0.012; 
         if (_titleGradientPhase > 2.0) _titleGradientPhase -= 2.0;
 
-        // Animate StartPoint and EndPoint to create flowing effect 
-        // With SpreadMethod="Repeat", the offset scroll works seamlessly
+        
+        
         double offset = _titleGradientPhase;
         var startPoint = new Point(offset, 0);
         var endPoint = new Point(offset + 1, 0);
@@ -610,7 +610,7 @@ public partial class MainWindow
                 stop.BeginAnimation(GradientStop.ColorProperty, whiteAnim);
         }
 
-        // Reset gradient position
+        
         _titleGradientPhase = 0;
         var resetPoint = new Point(0, 0);
         var resetEndPoint = new Point(1, 0);

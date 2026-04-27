@@ -8,7 +8,7 @@ namespace VNotch.Services;
 
 public static class FastBlurService
 {
-    // Increased default downscale width for better quality, adjusted radius
+    
     public static async Task<BitmapSource?> GetBlurredImageAsync(BitmapSource source, int downscaleWidth = 100, int blurRadius = 8)
     {
         if (source == null) return null;
@@ -22,17 +22,17 @@ public static class FastBlurService
                 if (height < 1) height = 1;
 
                 var formattedBitmap = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
-                // 1. Downscale
+                
                 var smallBitmap = new TransformedBitmap(formattedBitmap, new ScaleTransform((double)width / formattedBitmap.PixelWidth, (double)height / formattedBitmap.PixelHeight));
                 
                 int stride = width * 4;
                 byte[] pixels = new byte[height * stride];
                 smallBitmap.CopyPixels(pixels, stride, 0);
 
-                // 2. Apply fast Gaussian-like blur (3 passes of separated Box Blur)
+                
                 byte[] target = new byte[pixels.Length];
                 
-                // 3 passes of box blur approximates a true Gaussian blur closely
+                
                 int passes = 3;
                 for (int i = 0; i < passes; i++)
                 {
@@ -40,7 +40,7 @@ public static class FastBlurService
                     BoxBlurVertical(target, pixels, width, height, blurRadius);
                 }
 
-                // Smooth creamy shadow tint, reduced intensity as requested (0.92f = 92% brightness)
+                
                 DarkenPixels(pixels, 0.92f);
 
                 var writeableBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
@@ -60,10 +60,10 @@ public static class FastBlurService
     {
         for (int i = 0; i < pixels.Length; i += 4)
         {
-            pixels[i] = (byte)(pixels[i] * factor);     // B
-            pixels[i + 1] = (byte)(pixels[i + 1] * factor); // G
-            pixels[i + 2] = (byte)(pixels[i + 2] * factor); // R
-            // a is i+3, ignored
+            pixels[i] = (byte)(pixels[i] * factor);     
+            pixels[i + 1] = (byte)(pixels[i + 1] * factor); 
+            pixels[i + 2] = (byte)(pixels[i + 2] * factor); 
+            
         }
     }
 

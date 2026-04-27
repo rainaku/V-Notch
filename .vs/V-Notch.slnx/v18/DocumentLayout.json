@@ -3,9 +3,6 @@
   "WorkspaceRootPath": "D:\\CodeShii\\V-Notch\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gauze\\AppData\\Local\\Temp\\.vsdbgsrc\\844cdfb98383489170ec9f70149968154cefe05b0b48fa04095332ffb6fb54ff\\Mutex.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\CodeShii\\V-Notch\\ViewModels\\MainWindowViewModel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:ViewModels\\MainWindowViewModel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -62,30 +59,19 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "Mutex.cs",
-              "DocumentMoniker": "C:\\Users\\gauze\\AppData\\Local\\Temp\\.vsdbgsrc\\844cdfb98383489170ec9f70149968154cefe05b0b48fa04095332ffb6fb54ff\\Mutex.cs",
-              "ToolTip": "C:\\Users\\gauze\\AppData\\Local\\Temp\\.vsdbgsrc\\844cdfb98383489170ec9f70149968154cefe05b0b48fa04095332ffb6fb54ff\\Mutex.cs [Read Only]",
-              "ViewState": "AgIAAFcAAAAAAAAAAAAWwGQAAAADAAAAAQAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-25T13:03:55.857Z",
-              "EditorCaption": " [Read Only]"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
               "Title": "MainWindowViewModel.cs",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\ViewModels\\MainWindowViewModel.cs",
               "RelativeDocumentMoniker": "ViewModels\\MainWindowViewModel.cs",
               "ToolTip": "D:\\CodeShii\\V-Notch\\ViewModels\\MainWindowViewModel.cs",
               "RelativeToolTip": "ViewModels\\MainWindowViewModel.cs",
-              "ViewState": "AgIAAJIAAACAyczMzMwXwAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-02-25T13:03:27.542Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 4,
               "Title": "MainWindow.Progress.cs",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\MainWindow.Progress.cs",
               "RelativeDocumentMoniker": "MainWindow.Progress.cs",
@@ -93,12 +79,11 @@
               "RelativeToolTip": "MainWindow.Progress.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-25T13:03:14.149Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:03:14.149Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 5,
               "Title": "MainWindow.MediaBackground.cs",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\MainWindow.MediaBackground.cs",
               "RelativeDocumentMoniker": "MainWindow.MediaBackground.cs",
@@ -106,12 +91,11 @@
               "RelativeToolTip": "MainWindow.MediaBackground.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-25T13:03:13.306Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:03:13.306Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 3,
               "Title": "MainWindow.Secondary.cs",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\MainWindow.Secondary.cs",
               "RelativeDocumentMoniker": "MainWindow.Secondary.cs",
@@ -119,12 +103,11 @@
               "RelativeToolTip": "MainWindow.Secondary.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-25T13:03:04.379Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:03:04.379Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 6,
               "Title": "App.xaml",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\App.xaml",
               "RelativeDocumentMoniker": "App.xaml",
@@ -132,12 +115,11 @@
               "RelativeToolTip": "App.xaml",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-02-25T13:03:01.965Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:03:01.965Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 7,
               "Title": "App.xaml.cs",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\App.xaml.cs",
               "RelativeDocumentMoniker": "App.xaml.cs",
@@ -145,12 +127,11 @@
               "RelativeToolTip": "App.xaml.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-25T13:03:00.168Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:03:00.168Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
+              "DocumentIndex": 8,
               "Title": "V-Notch.csproj",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\V-Notch.csproj",
               "RelativeDocumentMoniker": "V-Notch.csproj",
@@ -158,12 +139,11 @@
               "RelativeToolTip": "V-Notch.csproj",
               "ViewState": "AgIAACsAAACAZ2ZmZuYcwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
-              "WhenOpened": "2026-02-25T13:02:55.626Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:02:55.626Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 10,
+              "DocumentIndex": 9,
               "Title": "SettingsWindow.xaml",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\SettingsWindow.xaml",
               "RelativeDocumentMoniker": "SettingsWindow.xaml",
@@ -171,12 +151,11 @@
               "RelativeToolTip": "SettingsWindow.xaml",
               "ViewState": "AgIAAIoAAAAAKDMzMzMLwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-02-25T13:02:52.562Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:02:52.562Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 2,
               "Title": "MainWindow.xaml",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\MainWindow.xaml",
               "RelativeDocumentMoniker": "MainWindow.xaml",
@@ -184,12 +163,11 @@
               "RelativeToolTip": "MainWindow.xaml",
               "ViewState": "AgIAAF4AAAAAj5mZmRkWwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-02-25T13:02:45.771Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:02:45.771Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
               "Title": "MainWindow.xaml.cs",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\MainWindow.xaml.cs",
               "RelativeDocumentMoniker": "MainWindow.xaml.cs",
@@ -197,12 +175,11 @@
               "RelativeToolTip": "MainWindow.xaml.cs",
               "ViewState": "AgIAAM0AAAAAAwAAAIAZwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-25T13:02:42.921Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:02:42.921Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 11,
+              "DocumentIndex": 10,
               "Title": "SettingsWindow.xaml.cs",
               "DocumentMoniker": "D:\\CodeShii\\V-Notch\\SettingsWindow.xaml.cs",
               "RelativeDocumentMoniker": "SettingsWindow.xaml.cs",
@@ -210,8 +187,7 @@
               "RelativeToolTip": "SettingsWindow.xaml.cs",
               "ViewState": "AgIAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-25T13:02:50.571Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-25T13:02:50.571Z"
             }
           ]
         }

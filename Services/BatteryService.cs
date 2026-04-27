@@ -3,11 +3,11 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Static helper that wraps the Win32 power status API.
-/// Kept for backward compatibility during migration.
-/// New code should use IBatteryService via DI.
-/// </summary>
+
+
+
+
+
 public static class BatteryService
 {
     [DllImport("kernel32.dll")]

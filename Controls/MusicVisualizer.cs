@@ -68,11 +68,11 @@ namespace VNotch.Controls
         private const int BarCount = 5;
         private const double MinHeightRatio = 0.12;
         private const double MaxHeightRatio = 0.98;
-        private const double BarWidthRatio = 0.10; // Percent of total width per bar
+        private const double BarWidthRatio = 0.10; 
         private const double BarSpacingRatio = 0.05;
-        private const double CornerRadiusRatio = 0.5; // Circle-like ends
+        private const double CornerRadiusRatio = 0.5; 
 
-        // UI smoothing. Lower alpha = faster response.
+        
         private const double AlphaAttack = 0.88;
         private const double AlphaRelease = 0.96;
         private const double AlphaPauseRelease = 0.98;
@@ -115,7 +115,7 @@ namespace VNotch.Controls
             };
             IsVisibleChanged += (s, e) => UpdateTimerState();
 
-            // Initial heights
+            
             for (int i = 0; i < BarCount; i++) _currentHeights[i] = MinHeightRatio;
         }
 
@@ -169,9 +169,9 @@ namespace VNotch.Controls
 
             double interval = _state switch
             {
-                VisualizerState.Playing => 8,  // ~120 FPS
-                VisualizerState.Seeking => 8,  // ~120 FPS
-                VisualizerState.Paused => 8,   // smooth decay to resting state
+                VisualizerState.Playing => 8,  
+                VisualizerState.Seeking => 8,  
+                VisualizerState.Paused => 8,   
                 _ => 1000
             };
 
@@ -216,7 +216,7 @@ namespace VNotch.Controls
 
             string sid = TrackId ?? "";
 
-            // Read latest audio energy snapshot produced on audio thread.
+            
             float[] levels = GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent);
             double audioEnergy = 0;
             for (int i = 0; i < BarCount; i++) audioEnergy += Math.Clamp(levels[i], 0f, 1f);
@@ -275,7 +275,7 @@ namespace VNotch.Controls
                     }
                     else
                     {
-                        // Make "falling" motion clearer: bigger drops release faster.
+                        
                         double fallRatio = Math.Clamp(
                             (_currentHeights[i] - targetH) / (MaxHeightRatio - MinHeightRatio),
                             0.0, 1.0);
@@ -319,10 +319,10 @@ namespace VNotch.Controls
         {
             return barIndex switch
             {
-                0 => 0.16, // kick-focused
+                0 => 0.16, 
                 1 => 0.12,
                 2 => 0.08,
-                3 => 0.10, // snare/clap side
+                3 => 0.10, 
                 4 => 0.13,
                 _ => 0.08
             };
@@ -450,7 +450,7 @@ namespace VNotch.Controls
         private static WasapiLoopbackCapture? _capture;
         private static readonly object _lockObj = new object();
         private const int FftLength = 512;
-        private const int FftM = 9; // Log2(512)
+        private const int FftM = 9; 
         private const double MinDb = -72.0;
         private const double MaxDb = 0.0;
         private const double CompressionPower = 0.6;
@@ -492,7 +492,7 @@ namespace VNotch.Controls
         private static readonly float[] _displayTargets = new float[BarCount];
         private static double _rmsSumSquares;
         private static int _rmsSampleCount;
-        private static int _rmsWindowSamples = 882; // ~20ms at 44.1kHz
+        private static int _rmsWindowSamples = 882; 
         private static float _latestRmsNormalized;
         private static int _sampleRate = 44100;
         private static long _lastAudioFrameUtcTicks;
@@ -547,7 +547,7 @@ namespace VNotch.Controls
             }
             catch
             {
-                // Ignore stop failures; we'll dispose anyway.
+                
             }
             finally
             {
@@ -653,7 +653,7 @@ namespace VNotch.Controls
         {
             for (int i = 0; i < FftLength; i++)
             {
-                // Apply Hamming window
+                
                 double window = 0.54 - 0.46 * Math.Cos((2 * Math.PI * i) / (FftLength - 1));
                 _fftData[i].X = (float)(_fftInputBuffer[i] * window);
                 _fftData[i].Y = 0;
@@ -661,7 +661,7 @@ namespace VNotch.Controls
 
             FastFourierTransform.FFT(true, FftM, _fftData);
 
-            // Wide groups + focused percussion groups for stronger kick/snare motion.
+            
             double low = NormalizeAmplitude(ComputeBandEnergy(40, 250) * SpectralPreGain);
             double mid = NormalizeAmplitude(ComputeBandEnergy(250, 2000) * SpectralPreGain);
             double high = NormalizeAmplitude(ComputeBandEnergy(2000, 8000) * SpectralPreGain);
@@ -682,7 +682,7 @@ namespace VNotch.Controls
             snare = Math.Clamp(snare * agcScale, 0.0, 1.0);
             rms = Math.Clamp(rms * agcScale, 0.0, 1.0);
 
-            // Bass-heavy tracks: damp low/kick so visual stays balanced.
+            
             double nonBass = (mid * 0.7) + (high * 0.6) + 1e-5;
             double bassDominance = low / nonBass;
             double bassExcess = Math.Clamp((bassDominance - BassDominanceStart) / BassDominanceSpan, 0.0, 1.0);
@@ -691,7 +691,7 @@ namespace VNotch.Controls
             low *= lowScale;
             kick *= kickScale;
 
-            // Accent transients for percussion hits (fast rise, controlled decay).
+            
             double kickDelta = Math.Max(0.0, kick - _prevKickEnergy);
             double snareDelta = Math.Max(0.0, snare - _prevSnareEnergy);
             double rmsDelta = Math.Max(0.0, rms - _prevRmsForBeat);

@@ -33,7 +33,7 @@ public partial class MainWindow
             return;
         }
 
-        // Linear ping-pong marquee: smoother than AutoReverse with discrete jumps.
+        
         const double pauseMs = 900;
         const double minTravelMs = 2200;
         const double maxTravelMs = 14000;
@@ -159,10 +159,10 @@ public partial class MainWindow
         var dur = _dur600;
         var animFps = 144;
         
-        // Easing for a heavy smooth feel
+        
         var easeOut = _easeExpOut6;
 
-        // Reset and animate X translation for horizontal slide
+        
         currentMorph.BeginAnimation(TranslateTransform.XProperty, null);
         nextMorph.BeginAnimation(TranslateTransform.XProperty, null);
         currentMorph.BeginAnimation(TranslateTransform.YProperty, null);
@@ -170,15 +170,15 @@ public partial class MainWindow
         currentMorph.Y = 0;
         nextMorph.Y = 0;
         
-        // Old text slides left slightly
+        
         var slideOut = MakeAnim(0, -10, dur, easeOut, animFps);
         currentMorph.BeginAnimation(TranslateTransform.XProperty, slideOut);
 
-        // New text slides in from the right
+        
         var slideIn = MakeAnim(12, 0, dur, easeOut, animFps);
         nextMorph.BeginAnimation(TranslateTransform.XProperty, slideIn);
 
-        // Fading
+        
         var fadeOut = MakeAnim(1, 0, dur, easeOut, animFps);
         current.BeginAnimation(OpacityProperty, fadeOut);
 
