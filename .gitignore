@@ -49,3 +49,6 @@ fix_xaml.py
 r.ps1
 *.v2
 *.vsidx
+build-release.ps1
+build-installer.ps1
+V-Notch-Setup.nsi
