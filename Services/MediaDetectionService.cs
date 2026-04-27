@@ -407,6 +407,8 @@ public class MediaDetectionService : IMediaDetectionService
                     foreach (var title in windowTitles)
                     {
                         var lowerTitle = title.ToLower();
+                        
+                        // YouTube detection
                         if (lowerTitle.Contains("youtube") && !lowerTitle.StartsWith("youtube -") && lowerTitle != "youtube")
                         {
                             if (!info.IsSpotifyPlaying && string.IsNullOrEmpty(info.MediaSource))
@@ -420,7 +422,40 @@ public class MediaDetectionService : IMediaDetectionService
                                 break;
                             }
                         }
-
+                        
+                        // SoundCloud detection
+                        if (lowerTitle.Contains("soundcloud") && !lowerTitle.StartsWith("soundcloud -") && lowerTitle != "soundcloud")
+                        {
+                            if (!info.IsSpotifyPlaying && string.IsNullOrEmpty(info.MediaSource))
+                            {
+                                info.IsAnyMediaPlaying = true;
+                                info.MediaSource = "SoundCloud";
+                                info.IsSoundCloudRunning = true;
+                                
+                                // Extract track info from window title
+                                // Format: "Artist - Track | SoundCloud"
+                                string extractedTitle = ExtractVideoTitle(title, "SoundCloud");
+                                if (extractedTitle.Contains(" - "))
+                                {
+                                    var parts = extractedTitle.Split(" - ", 2);
+                                    info.CurrentArtist = parts[0].Trim();
+                                    info.CurrentTrack = parts[1].Trim();
+                                }
+                                else
+                                {
+                                    info.CurrentTrack = extractedTitle;
+                                    info.CurrentArtist = "SoundCloud";
+                                }
+                                
+                                // Mark for thumbnail fetch
+                                if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
+                                {
+                                    _sessionSourceOverrides[info.SourceAppId] = "SoundCloud";
+                                }
+                                
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -684,10 +719,16 @@ public class MediaDetectionService : IMediaDetectionService
             bool hasSoundCloudSessionOverride = !string.IsNullOrEmpty(info.SourceAppId) &&
                                                 _sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sourceOverride) &&
                                                 string.Equals(sourceOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase);
+            
+            // Improved SoundCloud detection from Browser source
+            // Trigger if: Browser source + not YouTube + has track + (no thumbnail OR placeholder OR session override)
             bool shouldProbeSoundCloudFromBrowser = info.MediaSource == "Browser" &&
                                                     !IsLikelyYouTube(info) &&
                                                     !string.IsNullOrEmpty(info.CurrentTrack) &&
-                                                    (IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail) || hasSoundCloudSessionOverride);
+                                                    (info.Thumbnail == null || 
+                                                     IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail) || 
+                                                     hasSoundCloudSessionOverride);
+            
             bool isPotentialSoundCloud = info.MediaSource == "SoundCloud" || shouldProbeSoundCloudFromBrowser;
             string soundCloudTrackIdentity = isPotentialSoundCloud
                 ? BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist)
@@ -2022,25 +2063,30 @@ public class MediaDetectionService : IMediaDetectionService
                         timelineUpdatedUtc <= nowUpdatedUtc + TimeSpan.FromSeconds(1) &&
                         timelineLatency <= TimeSpan.FromMinutes(10);
 
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
+                    // Compensate for timeline latency when media is already playing
+                    // This fixes the issue where opening V-Notch while media is playing shows stale position
+                    if (validTimelineTimestamp && 
+                        info.IsPlaying && 
+                        !forceStartPosition &&
+                        timelineLatency.TotalMilliseconds > 100)
+                    {
+                        // Calculate how much time has passed since timeline was last updated
+                        double playbackRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
+                        var compensatedPosition = chosenPosition + TimeSpan.FromSeconds(timelineLatency.TotalSeconds * playbackRate);
+                        
+                        // Clamp to duration if available
+                        if (duration > TimeSpan.Zero && compensatedPosition > duration)
+                        {
+                            compensatedPosition = duration;
+                        }
+                        
+                        chosenPosition = compensatedPosition;
+                        
+                        System.Diagnostics.Debug.WriteLine($"[TIMELINE] Compensated for latency: " +
+                            $"Original={timeline.Position.TotalSeconds:F1}s, " +
+                            $"Latency={timelineLatency.TotalMilliseconds:F0}ms, " +
+                            $"Compensated={chosenPosition.TotalSeconds:F1}s");
+                    }
 
                     if (chosenPosition < TimeSpan.Zero)
                     {
@@ -2288,7 +2334,7 @@ public class MediaDetectionService : IMediaDetectionService
             " - Apple Music", " – Apple Music",
             " - Google Chrome", " - Microsoft​ Edge", " - Microsoft Edge",
             " - Mozilla Firefox", " - Opera", " - Brave", " - Cốc Cốc",
-            " - Vivaldi", " – Vivaldi"
+            " - Browser", " – Current browser"
         };
 
         foreach (var sep in separators)

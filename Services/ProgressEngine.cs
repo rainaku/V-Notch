@@ -19,7 +19,7 @@ public struct ProgressSnapshot
     public TimeSpan Position;
     public TimeSpan Duration;
     public bool IsPlaying;
-    public bool IsYouTube;
+    public bool IsYouTube;  // Actually means "IsBrowserSource" - includes YouTube, SoundCloud, Spotify Web, and all browser-based media
     public double PlaybackRate;
     public bool IsSeekEnabled;
     public bool IsIndeterminate;
@@ -51,10 +51,12 @@ public class ProgressEngine
     private bool _isIndeterminate;
     private bool _isSeekEnabled;
     private bool _durationJustChanged = false;  
+    private bool _isYouTube = false;  // Track if source is browser-based  
 
 
     private DateTime _lastSnapshotTimestampUtc = DateTime.MinValue;
     private long _lastSnapshotSequence = -1;  
+    private TimeSpan _lastSnapshotPosition = TimeSpan.Zero;  // Track last snapshot position
     private DateTime _seekDebounceEndUtc = DateTime.MinValue;
     private DateTime _allowBackwardUntilUtc = DateTime.MinValue;
 
@@ -111,6 +113,21 @@ public class ProgressEngine
                 
                 return;
             }
+            
+            
+            
+            // Reject duplicate snapshots (same timestamp AND same position)
+            // This prevents stale snapshots from being reused and causing backward jumps
+            if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
+                snapshotTsUtc == _lastSnapshotTimestampUtc &&
+                Math.Abs((snapshot.Position - _lastSnapshotPosition).TotalSeconds) < 0.01)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ENGINE] REJECTED: Duplicate snapshot. " +
+                    $"Timestamp={snapshotTsUtc:HH:mm:ss.fff}, Position={snapshot.Position.TotalSeconds:F3}s " +
+                    $"(same as last snapshot)");
+                
+                return;
+            }
 
             
             
@@ -127,15 +144,26 @@ public class ProgressEngine
                     Math.Abs((snapshot.Duration - _duration).TotalSeconds) > Math.Max(5.0, _duration.TotalSeconds * 0.1);
                 
                 
-                bool likelyUserSeekBackward = backwardDiff.TotalSeconds > 2.0 && 
-                    Math.Abs((snapshot.Position - _basePosition).TotalSeconds) > 2.0;
+                // User seek detection: large backward jump in position
+                // Must be more tolerant than backward threshold to avoid false rejections
+                bool likelyUserSeekBackward = backwardDiff.TotalSeconds > 5.0 && 
+                    Math.Abs((snapshot.Position - _basePosition).TotalSeconds) > 5.0;
                 
-                if (backwardDiff.TotalSeconds > 0.5 && !likelySessionSwitch && !likelyUserSeekBackward)
+                // Platform-aware backward threshold
+                // Browser sources have higher latency but need balance
+                // Too high (3.0s) → slow progress correction
+                // Too low (0.5s) → reject valid snapshots
+                // Balanced: 2.0s for browser, 0.5s for native
+                double backwardThreshold = snapshot.IsYouTube ? 2.0 : 0.5;
+                
+                if (backwardDiff.TotalSeconds > backwardThreshold && !likelySessionSwitch && !likelyUserSeekBackward)
                 {
                     System.Diagnostics.Debug.WriteLine($"[ENGINE] REJECTED: Snapshot too far behind. " +
                         $"Current={currentPredicted.TotalSeconds:F3}s, " +
                         $"Snapshot={snapshotPredicted.TotalSeconds:F3}s, " +
-                        $"Diff={backwardDiff.TotalSeconds:F3}s");
+                        $"Diff={backwardDiff.TotalSeconds:F3}s, " +
+                        $"Threshold={backwardThreshold}s, " +
+                        $"IsYouTube={snapshot.IsYouTube}");
                     return;
                 }
                 else if (likelySessionSwitch)
@@ -147,6 +175,10 @@ public class ProgressEngine
                 {
                     System.Diagnostics.Debug.WriteLine($"[ENGINE] ACCEPTED: User seek backward detected. " +
                         $"Position changed from {_basePosition.TotalSeconds:F1}s to {snapshot.Position.TotalSeconds:F1}s");
+                }
+                else if (backwardDiff.TotalSeconds > 0.1)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ENGINE] ACCEPTED: Backward diff {backwardDiff.TotalSeconds:F3}s within threshold {backwardThreshold}s");
                 }
             }
 
@@ -160,6 +192,9 @@ public class ProgressEngine
             {
                 _lastSnapshotSequence = snapshot.SequenceNumber;
             }
+            
+            // Track last snapshot position for duplicate detection
+            _lastSnapshotPosition = snapshot.Position;
 
             TimeSpan previousDuration = _duration;
             if (snapshot.Duration.TotalSeconds > 0)
@@ -171,6 +206,7 @@ public class ProgressEngine
             
             _isIndeterminate = snapshot.IsIndeterminate;
             _isSeekEnabled = snapshot.IsSeekEnabled;
+            _isYouTube = snapshot.IsYouTube;  // Update platform flag
 
             
             var reportedRate = snapshot.PlaybackRate;
@@ -341,8 +377,10 @@ public class ProgressEngine
             _isIndeterminate = false;
             _isSeekEnabled = false;
             _durationJustChanged = false;  
+            _isYouTube = false;  // Reset platform flag
             _lastSnapshotTimestampUtc = DateTime.MinValue;
             _lastSnapshotSequence = -1;  
+            _lastSnapshotPosition = TimeSpan.Zero;  // Reset last position
             _seekDebounceEndUtc = DateTime.MinValue;
             _allowBackwardUntilUtc = DateTime.MinValue;
         }
@@ -399,7 +437,7 @@ public class ProgressEngine
     
     
     
-    private static bool DidDurationChange(TimeSpan previous, TimeSpan current)
+    private bool DidDurationChange(TimeSpan previous, TimeSpan current)
     {
         
         if (previous <= TimeSpan.Zero || current <= TimeSpan.Zero)
@@ -414,7 +452,14 @@ public class ProgressEngine
         
         
         
-        double minMeaningfulDelta = Math.Max(1.0, previous.TotalSeconds * 0.02);
+        
+        // Platform-aware threshold:
+        // Browser sources have unstable duration → higher threshold (5% or 3s)
+        // Native apps have stable duration → lower threshold (2% or 1s)
+        double percentThreshold = _isYouTube ? 0.05 : 0.02;  // 5% for browser, 2% for native
+        double absoluteThreshold = _isYouTube ? 3.0 : 1.0;   // 3s for browser, 1s for native
+        
+        double minMeaningfulDelta = Math.Max(absoluteThreshold, previous.TotalSeconds * percentThreshold);
         
         return diffSec >= minMeaningfulDelta;
     }

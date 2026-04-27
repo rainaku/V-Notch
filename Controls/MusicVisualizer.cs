@@ -73,18 +73,18 @@ namespace VNotch.Controls
         private const double CornerRadiusRatio = 0.5; 
 
         
-        private const double AlphaAttack = 0.88;
-        private const double AlphaRelease = 0.96;
-        private const double AlphaPauseRelease = 0.98;
+        private const double AlphaAttack = 0.94;  // Tăng từ 0.88 -> chuyển động lên chậm hơn
+        private const double AlphaRelease = 0.98;  // Tăng từ 0.96 -> chuyển động xuống chậm hơn
+        private const double AlphaPauseRelease = 0.99;  // Tăng từ 0.98
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
         private const double NoAudioPulseAmplitude = 0.18;
         private const double NoAudioPulseBase = 0.10;
-        private const double LegacyRhythmMinMix = 0.20;
-        private const double LegacyRhythmMaxMix = 0.42;
+        private const double LegacyRhythmMinMix = 0.15;  // Giảm từ 0.20 -> ít rhythm hơn, nhiều audio hơn
+        private const double LegacyRhythmMaxMix = 0.35;  // Giảm từ 0.42
         private const double AudioPresenceThreshold = 0.010;
-        private const double DownwardDropBoost = 0.05;
-        private const double MinReleaseAlpha = 0.86;
+        private const double DownwardDropBoost = 0.03;  // Giảm từ 0.05 -> rơi chậm hơn
+        private const double MinReleaseAlpha = 0.92;  // Tăng từ 0.86 -> chậm hơn
         private const double MotionContrast = 1.30;
         private const double RightBiasStrength = 1.00;
         private const double RightBiasDeadzone = 0.05;
@@ -661,22 +661,28 @@ namespace VNotch.Controls
 
             FastFourierTransform.FFT(true, FftM, _fftData);
 
-            
-            double low = NormalizeAmplitude(ComputeBandEnergy(40, 250) * SpectralPreGain);
-            double mid = NormalizeAmplitude(ComputeBandEnergy(250, 2000) * SpectralPreGain);
-            double high = NormalizeAmplitude(ComputeBandEnergy(2000, 8000) * SpectralPreGain);
+            // Phân tách âm sắc rõ ràng hơn - mỗi thanh đại diện cho 1 dải tần riêng biệt
+            double subBass = NormalizeAmplitude(ComputeBandEnergy(20, 60) * (SpectralPreGain * 1.5));    // Sub-bass
+            double bass = NormalizeAmplitude(ComputeBandEnergy(60, 250) * (SpectralPreGain * 1.3));      // Bass
+            double lowMid = NormalizeAmplitude(ComputeBandEnergy(250, 500) * SpectralPreGain);           // Low-mid
+            double mid = NormalizeAmplitude(ComputeBandEnergy(500, 2000) * SpectralPreGain);             // Mid
+            double highMid = NormalizeAmplitude(ComputeBandEnergy(2000, 4000) * SpectralPreGain);        // High-mid
+            double high = NormalizeAmplitude(ComputeBandEnergy(4000, 8000) * SpectralPreGain);           // High
             double kick = NormalizeAmplitude(ComputeBandEnergy(45, 130) * (SpectralPreGain * 1.35));
             double snare = NormalizeAmplitude(ComputeBandEnergy(1400, 5000) * (SpectralPreGain * 1.25));
             double rms = _latestRmsNormalized;
 
             double peak = Math.Max(
-                Math.Max(Math.Max(low, mid), Math.Max(high, rms)),
-                Math.Max(kick, snare));
+                Math.Max(Math.Max(Math.Max(subBass, bass), Math.Max(lowMid, mid)), Math.Max(highMid, high)),
+                Math.Max(Math.Max(kick, snare), rms));
             _agcPeak = Math.Max(peak, _agcPeak * AgcRelease);
             double agcScale = 1.0 / Math.Max(AgcFloor, _agcPeak);
 
-            low = Math.Clamp(low * agcScale, 0.0, 1.0);
+            subBass = Math.Clamp(subBass * agcScale, 0.0, 1.0);
+            bass = Math.Clamp(bass * agcScale, 0.0, 1.0);
+            lowMid = Math.Clamp(lowMid * agcScale, 0.0, 1.0);
             mid = Math.Clamp(mid * agcScale, 0.0, 1.0);
+            highMid = Math.Clamp(highMid * agcScale, 0.0, 1.0);
             high = Math.Clamp(high * agcScale, 0.0, 1.0);
             kick = Math.Clamp(kick * agcScale, 0.0, 1.0);
             snare = Math.Clamp(snare * agcScale, 0.0, 1.0);
@@ -684,11 +690,12 @@ namespace VNotch.Controls
 
             
             double nonBass = (mid * 0.7) + (high * 0.6) + 1e-5;
-            double bassDominance = low / nonBass;
+            double bassDominance = (subBass + bass) / nonBass;
             double bassExcess = Math.Clamp((bassDominance - BassDominanceStart) / BassDominanceSpan, 0.0, 1.0);
-            double lowScale = 1.0 - (bassExcess * MaxLowAttenuation);
+            double bassScale = 1.0 - (bassExcess * MaxLowAttenuation);
             double kickScale = 1.0 - (bassExcess * MaxKickAttenuation);
-            low *= lowScale;
+            subBass *= bassScale;
+            bass *= bassScale;
             kick *= kickScale;
 
             
@@ -709,13 +716,23 @@ namespace VNotch.Controls
             _beatAccent = Math.Max(beatHit, _beatAccent * BeatAccentDecay);
             _latestBeatAccent = (float)_beatAccent;
 
-            ApplySpectralContrast(ref low, ref mid, ref high, ref kick, ref snare, ref rms);
+            ApplySpectralContrast(ref subBass, ref bass, ref lowMid, ref mid, ref highMid, ref high, ref kick, ref snare, ref rms);
 
-            _displayTargets[0] = (float)Math.Clamp((low * 0.60) + (kick * 0.24) + (rms * 0.24) + (_kickAccent * 0.24) + (_beatAccent * 0.08), 0.0, 1.0);
-            _displayTargets[1] = (float)Math.Clamp((low * 0.42) + (mid * 0.38) + (kick * 0.16) + (_kickAccent * 0.16) + (_beatAccent * 0.06), 0.0, 1.0);
-            _displayTargets[2] = (float)Math.Clamp((mid * 0.64) + (rms * 0.30) + (snare * 0.10) + (_snareAccent * 0.08) + (_beatAccent * 0.05), 0.0, 1.0);
-            _displayTargets[3] = (float)Math.Clamp((mid * 0.38) + (high * 0.50) + (snare * 0.24) + (_snareAccent * 0.22) + (_beatAccent * 0.08), 0.0, 1.0);
-            _displayTargets[4] = (float)Math.Clamp((high * 0.60) + (rms * 0.22) + (snare * 0.30) + (_snareAccent * 0.30) + (_beatAccent * 0.10), 0.0, 1.0);
+            // Mỗi thanh đại diện cho 1 dải tần riêng biệt
+            // Bar 0: Sub-bass + Kick (20-130Hz) - Âm trầm sâu nhất
+            _displayTargets[0] = (float)Math.Clamp((subBass * 0.70) + (kick * 0.30) + (_kickAccent * 0.20), 0.0, 1.0);
+            
+            // Bar 1: Bass (60-250Hz) - Âm trầm
+            _displayTargets[1] = (float)Math.Clamp((bass * 0.80) + (subBass * 0.20) + (_kickAccent * 0.10), 0.0, 1.0);
+            
+            // Bar 2: Low-Mid (250-500Hz) + Mid (500-2000Hz) - Âm trung
+            _displayTargets[2] = (float)Math.Clamp((lowMid * 0.50) + (mid * 0.40) + (rms * 0.10), 0.0, 1.0);
+            
+            // Bar 3: High-Mid (2000-4000Hz) - Âm cao trung
+            _displayTargets[3] = (float)Math.Clamp((highMid * 0.70) + (snare * 0.20) + (_snareAccent * 0.15), 0.0, 1.0);
+            
+            // Bar 4: High (4000-8000Hz) + Snare - Âm cao
+            _displayTargets[4] = (float)Math.Clamp((high * 0.70) + (snare * 0.20) + (_snareAccent * 0.20), 0.0, 1.0);
 
             ApplyBarContrast(_displayTargets);
         }
@@ -759,17 +776,20 @@ namespace VNotch.Controls
             return Math.Pow(normalized, CompressionPower);
         }
 
-        private static void ApplySpectralContrast(ref double low, ref double mid, ref double high, ref double kick, ref double snare, ref double rms)
+        private static void ApplySpectralContrast(ref double subBass, ref double bass, ref double lowMid, ref double mid, ref double highMid, ref double high, ref double kick, ref double snare, ref double rms)
         {
-            double max = Math.Max(low, Math.Max(mid, high));
-            double min = Math.Min(low, Math.Min(mid, high));
+            double max = Math.Max(Math.Max(Math.Max(subBass, bass), Math.Max(lowMid, mid)), Math.Max(highMid, high));
+            double min = Math.Min(Math.Min(Math.Min(subBass, bass), Math.Min(lowMid, mid)), Math.Min(highMid, high));
             double spread = Math.Clamp(max - min, 0.0, 1.0);
             double contrast = Math.Clamp((spread - SpectralContrastStart) / SpectralContrastSpan, 0.0, 1.0);
 
             if (contrast <= 0.0001)
             {
-                low = ExpandDynamicRange(low);
+                subBass = ExpandDynamicRange(subBass);
+                bass = ExpandDynamicRange(bass);
+                lowMid = ExpandDynamicRange(lowMid);
                 mid = ExpandDynamicRange(mid);
+                highMid = ExpandDynamicRange(highMid);
                 high = ExpandDynamicRange(high);
                 kick = ExpandDynamicRange(kick);
                 snare = ExpandDynamicRange(snare);
@@ -777,20 +797,26 @@ namespace VNotch.Controls
                 return;
             }
 
-            double avg = (low + mid + high) / 3.0;
+            double avg = (subBass + bass + lowMid + mid + highMid + high) / 6.0;
 
-            low = EnhanceBand(low, avg, contrast);
+            subBass = EnhanceBand(subBass, avg, contrast);
+            bass = EnhanceBand(bass, avg, contrast);
+            lowMid = EnhanceBand(lowMid, avg, contrast);
             mid = EnhanceBand(mid, avg, contrast);
+            highMid = EnhanceBand(highMid, avg, contrast);
             high = EnhanceBand(high, avg, contrast);
 
-            double lowDelta = low - avg;
-            double highDelta = high - avg;
+            double bassDelta = (subBass + bass) / 2.0 - avg;
+            double highDelta = (highMid + high) / 2.0 - avg;
 
-            kick = Math.Clamp(kick * (1.0 + (lowDelta * 0.70 * contrast)), 0.0, 1.0);
+            kick = Math.Clamp(kick * (1.0 + (bassDelta * 0.70 * contrast)), 0.0, 1.0);
             snare = Math.Clamp(snare * (1.0 + (highDelta * 0.70 * contrast)), 0.0, 1.0);
 
-            low = ExpandDynamicRange(low);
+            subBass = ExpandDynamicRange(subBass);
+            bass = ExpandDynamicRange(bass);
+            lowMid = ExpandDynamicRange(lowMid);
             mid = ExpandDynamicRange(mid);
+            highMid = ExpandDynamicRange(highMid);
             high = ExpandDynamicRange(high);
             kick = ExpandDynamicRange(kick);
             snare = ExpandDynamicRange(snare);

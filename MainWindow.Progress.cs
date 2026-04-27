@@ -362,7 +362,7 @@ public partial class MainWindow
                 IsPlaying = info.IsPlaying,
                 
                 
-                IsYouTube = IsLikelyYouTubeProgressSource(info),
+                IsYouTube = IsLikelyBrowserProgressSource(info),
                 PlaybackRate = info.PlaybackRate,
                 IsSeekEnabled = info.IsSeekEnabled,
                 IsIndeterminate = info.IsIndeterminate,
@@ -412,8 +412,9 @@ public partial class MainWindow
         }
     }
 
-    private static bool IsLikelyYouTubeProgressSource(MediaInfo info)
+    private static bool IsLikelyBrowserProgressSource(MediaInfo info)
     {
+        // YouTube detection
         if (string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase))
         {
             return true;
@@ -430,8 +431,31 @@ public partial class MainWindow
             return true;
         }
 
-        return string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) &&
-               string.Equals(info.CurrentArtist, "YouTube", StringComparison.OrdinalIgnoreCase);
+        // SoundCloud detection
+        if (string.Equals(info.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Generic browser detection (covers Spotify Web, Apple Music Web, etc.)
+        if (string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Chrome/Edge browser detection
+        if (!string.IsNullOrWhiteSpace(info.SourceAppId) &&
+            (info.SourceAppId.Contains("chrome", StringComparison.OrdinalIgnoreCase) ||
+             info.SourceAppId.Contains("edge", StringComparison.OrdinalIgnoreCase) ||
+             info.SourceAppId.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
+             info.SourceAppId.Contains("firefox", StringComparison.OrdinalIgnoreCase) ||
+             info.SourceAppId.Contains("brave", StringComparison.OrdinalIgnoreCase) ||
+             info.SourceAppId.Contains("opera", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private void HandleSessionTransition()
@@ -596,14 +620,40 @@ public partial class MainWindow
 
             
             
+            // Platform-aware backward jump threshold
+            // Browser sources have higher latency but still need responsive correction
+            // Balance between: accepting late snapshots vs. responsive progress
+            double backwardThreshold = 0.5;  // Default for native apps
+            if (_currentMediaInfo != null)
+            {
+                bool isBrowserSource = string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
+                                      string.Equals(_currentMediaInfo.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
+                                      string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase) ||
+                                      (!string.IsNullOrEmpty(_currentMediaInfo.SourceAppId) && 
+                                       ((_currentMediaInfo.SourceAppId.Contains("chrome", StringComparison.OrdinalIgnoreCase)) ||
+                                        (_currentMediaInfo.SourceAppId.Contains("edge", StringComparison.OrdinalIgnoreCase)) ||
+                                        (_currentMediaInfo.SourceAppId.Contains("firefox", StringComparison.OrdinalIgnoreCase)) ||
+                                        (_currentMediaInfo.SourceAppId.Contains("brave", StringComparison.OrdinalIgnoreCase)) ||
+                                        (_currentMediaInfo.SourceAppId.Contains("opera", StringComparison.OrdinalIgnoreCase))));
+                
+                if (isBrowserSource)
+                {
+                    backwardThreshold = 1.5;  // Balanced threshold for browser sources
+                }
+            }
+            
             if (_progressTargetRatio < _progressDisplayRatio)
             {
                 double backwardSeconds = (_progressDisplayRatio - _progressTargetRatio) * frame.Duration.TotalSeconds;
-                if (backwardSeconds > 0.5)  
+                if (backwardSeconds > backwardThreshold)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[RENDER] IGNORED: Backward jump {backwardSeconds:F3}s");
+                    System.Diagnostics.Debug.WriteLine($"[RENDER] IGNORED: Backward jump {backwardSeconds:F3}s (threshold={backwardThreshold}s, source={_currentMediaInfo?.MediaSource})");
                     
                     return;
+                }
+                else if (backwardSeconds > 0.1)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[RENDER] ACCEPTED: Backward jump {backwardSeconds:F3}s (threshold={backwardThreshold}s, source={_currentMediaInfo?.MediaSource})");
                 }
             }
 
@@ -624,7 +674,22 @@ public partial class MainWindow
                     double error = _progressTargetRatio - _progressDisplayRatio;
                     
                     
-                    double correctionSpeed = error > 0 ? 0.9 : 0.3;
+                    // Improved correction speed for browser sources
+                    // Forward: fast (0.9)
+                    // Backward: medium-fast (0.6 for browser, 0.3 for native)
+                    double backwardCorrectionSpeed = 0.3;  // Default for native
+                    if (_currentMediaInfo != null)
+                    {
+                        bool isBrowserSource = string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
+                                              string.Equals(_currentMediaInfo.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
+                                              string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
+                        if (isBrowserSource)
+                        {
+                            backwardCorrectionSpeed = 0.6;  // Faster backward correction for browser
+                        }
+                    }
+                    
+                    double correctionSpeed = error > 0 ? 0.9 : backwardCorrectionSpeed;
                     double correctionLerp = 1.0 - Math.Exp(-(NORMAL_LERP_SPEED * correctionSpeed) * dt);
                     _progressDisplayRatio += error * correctionLerp;
 
