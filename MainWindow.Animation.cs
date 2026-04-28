@@ -298,6 +298,9 @@ public partial class MainWindow
             UpdateCalendarInfo();
             RenderProgressBar();
             ShowMediaBackground();
+            
+            // Start progress bar catch-up animation after expand completes
+            StartProgressCatchUpAnimation();
 
 
 

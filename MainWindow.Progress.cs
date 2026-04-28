@@ -503,6 +503,7 @@ public partial class MainWindow
 
     private DateTime _lastRenderTime = DateTime.MinValue;
     private TimeSpan _lastRenderedDuration = TimeSpan.Zero;
+    private double _lastRenderedRatio = 0;
 
     private void RenderProgressBar()
     {
@@ -536,6 +537,28 @@ public partial class MainWindow
             engineRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
             engineRatio = Math.Clamp(engineRatio, 0, 1);
         }
+
+        // Detect external seek (e.g., user seeking from YouTube player)
+        // If there's a large jump in position while catch-up is animating, stop the animation
+        if (_isCatchUpAnimating)
+        {
+            double ratioDiff = Math.Abs(engineRatio - _lastRenderedRatio);
+            // If position jumped more than 0.5% (external seek detected)
+            // This is ~12 seconds for a 40-minute video, ~3 seconds for a 10-minute video
+            if (ratioDiff > 0.005)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CATCHUP] External seek detected, stopping animation. Diff={ratioDiff:F4}");
+                StopCatchUpAnimation();
+            }
+            else
+            {
+                // Still animating, don't update
+                _lastRenderedRatio = engineRatio;
+                return;
+            }
+        }
+
+        _lastRenderedRatio = engineRatio;
 
         
         System.Diagnostics.Debug.WriteLine($"[RENDER] Engine pos={frame.Position.TotalSeconds:F3}s, " +
@@ -734,6 +757,9 @@ public partial class MainWindow
 
         e.Handled = true;
 
+        // Stop catch-up animation if running
+        StopCatchUpAnimation();
+
         
         
         _isClickSeekPending = true;
@@ -781,6 +807,7 @@ public partial class MainWindow
             _progressVelocity = 0;
             _springSettleFrames = 0;
             StopSpringRenderLoop();
+            StopCatchUpAnimation(); // Also stop catch-up if somehow still running
             MusicViz.IsBuffering = true;
         }
 
@@ -956,6 +983,137 @@ public partial class MainWindow
         {
             InputMonitorService.Stop();
         }
+    }
+
+    #endregion
+
+    #region Progress Catch-Up Animation
+
+    private bool _isCatchUpAnimating = false;
+    private DispatcherTimer? _catchUpTimer;
+    private double _catchUpTargetRatio = 0;
+    private TimeSpan _catchUpTargetPosition = TimeSpan.Zero;
+
+    private void StartProgressCatchUpAnimation()
+    {
+        if (_currentMediaInfo == null || _isCatchUpAnimating) return;
+
+        var frame = _progressEngine.GetUiFrame();
+        if (frame.Duration.TotalSeconds <= 0) return;
+
+        double targetRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
+        targetRatio = Math.Clamp(targetRatio, 0, 1);
+
+        // Only animate if there's a meaningful difference
+        if (targetRatio < 0.01) return;
+
+        _isCatchUpAnimating = true;
+        _catchUpTargetRatio = targetRatio;
+        _catchUpTargetPosition = frame.Position;
+
+        // Reset progress bar to 0
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ProgressBarScale.ScaleX = 0;
+        _progressDisplayRatio = 0;
+        CurrentTimeText.Text = "0:00";
+
+        // Create smooth ease-in-out animation (slow - fast - slow)
+        var catchUpDuration = TimeSpan.FromMilliseconds(Math.Min(800, 400 + targetRatio * 600));
+        var catchUpAnim = new DoubleAnimation(0, targetRatio, catchUpDuration)
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        };
+        Timeline.SetDesiredFrameRate(catchUpAnim, 60);
+
+        // Animate time text during catch-up
+        _catchUpTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(16)
+        };
+        var startTime = DateTime.Now;
+        _catchUpTimer.Tick += (s, e) =>
+        {
+            if (!_isCatchUpAnimating)
+            {
+                _catchUpTimer?.Stop();
+                return;
+            }
+
+            var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
+            var progress = Math.Min(1.0, elapsed / catchUpDuration.TotalMilliseconds);
+            
+            // Apply easing to time display
+            var easedProgress = EaseCubicInOut(progress);
+            var currentSeconds = _catchUpTargetPosition.TotalSeconds * easedProgress;
+            CurrentTimeText.Text = FormatTime(TimeSpan.FromSeconds(currentSeconds));
+        };
+        _catchUpTimer.Start();
+
+        catchUpAnim.Completed += (s, e) =>
+        {
+            if (!_isCatchUpAnimating) return; // Already stopped
+
+            _isCatchUpAnimating = false;
+            _catchUpTimer?.Stop();
+            _catchUpTimer = null;
+            
+            // Sync with CURRENT actual progress (not the old captured value)
+            var currentFrame = _progressEngine.GetUiFrame();
+            if (currentFrame.Duration.TotalSeconds > 0)
+            {
+                double currentRatio = currentFrame.Position.TotalSeconds / currentFrame.Duration.TotalSeconds;
+                currentRatio = Math.Clamp(currentRatio, 0, 1);
+                
+                _progressDisplayRatio = currentRatio;
+                _progressTargetRatio = currentRatio;
+                _progressSpringTargetRatio = currentRatio;
+                ProgressBarScale.ScaleX = currentRatio;
+                CurrentTimeText.Text = FormatTime(currentFrame.Position);
+            }
+            
+            // Resume normal progress tracking
+            RenderProgressBar();
+        };
+
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, catchUpAnim);
+    }
+
+    private void StopCatchUpAnimation()
+    {
+        if (!_isCatchUpAnimating) return;
+
+        _isCatchUpAnimating = false;
+        
+        // Stop timer
+        if (_catchUpTimer != null)
+        {
+            _catchUpTimer.Stop();
+            _catchUpTimer = null;
+        }
+
+        // Stop animation
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        
+        // Sync to current actual position
+        var frame = _progressEngine.GetUiFrame();
+        if (frame.Duration.TotalSeconds > 0)
+        {
+            double currentRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
+            currentRatio = Math.Clamp(currentRatio, 0, 1);
+            
+            _progressDisplayRatio = currentRatio;
+            _progressTargetRatio = currentRatio;
+            _progressSpringTargetRatio = currentRatio;
+            ProgressBarScale.ScaleX = currentRatio;
+            CurrentTimeText.Text = FormatTime(frame.Position);
+        }
+    }
+
+    private double EaseCubicInOut(double t)
+    {
+        return t < 0.5
+            ? 4 * t * t * t
+            : 1 - Math.Pow(-2 * t + 2, 3) / 2;
     }
 
     #endregion
