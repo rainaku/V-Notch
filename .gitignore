@@ -52,3 +52,6 @@ r.ps1
 build-release.ps1
 build-installer.ps1
 V-Notch-Setup.nsi
+*.kiro
+*.sqlite
+/.vs

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -66,28 +67,29 @@ namespace VNotch.Controls
         #region Constants & Config
 
         private const int BarCount = 5;
-        private const double MinHeightRatio = 0.12;
-        private const double MaxHeightRatio = 0.98;
+        private const double MinHeightRatio = 0.05;  // Giảm từ 0.08 -> biên độ lớn hơn
+        private const double MaxHeightRatio = 1.00;  // Max
         private const double BarWidthRatio = 0.10; 
         private const double BarSpacingRatio = 0.05;
         private const double CornerRadiusRatio = 0.5; 
 
-        
-        private const double AlphaAttack = 0.94;  // Tăng từ 0.88 -> chuyển động lên chậm hơn
-        private const double AlphaRelease = 0.98;  // Tăng từ 0.96 -> chuyển động xuống chậm hơn
-        private const double AlphaPauseRelease = 0.99;  // Tăng từ 0.98
+        // Smooth & responsive - ưu tiên mượt mà, giảm dao động nhỏ
+        private const double AlphaAttack = 0.94;  // Tăng lên -> lên chậm hơn, mượt hơn
+        private const double AlphaRelease = 0.96;  // Tăng lên -> xuống chậm hơn, mượt hơn
+        private const double AlphaPauseRelease = 0.98;  // Giữ nguyên
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
-        private const double NoAudioPulseAmplitude = 0.18;
-        private const double NoAudioPulseBase = 0.10;
-        private const double LegacyRhythmMinMix = 0.15;  // Giảm từ 0.20 -> ít rhythm hơn, nhiều audio hơn
-        private const double LegacyRhythmMaxMix = 0.35;  // Giảm từ 0.42
-        private const double AudioPresenceThreshold = 0.010;
-        private const double DownwardDropBoost = 0.03;  // Giảm từ 0.05 -> rơi chậm hơn
-        private const double MinReleaseAlpha = 0.92;  // Tăng từ 0.86 -> chậm hơn
-        private const double MotionContrast = 1.30;
+        private const double NoAudioPulseAmplitude = 0.08;  // Giảm thêm -> ít dao động nhỏ hơn
+        private const double NoAudioPulseBase = 0.06;  // Giảm thêm -> minimal hơn
+        private const double LegacyRhythmMinMix = 0.05;  // Giảm thêm -> ít rhythm, nhiều audio thật
+        private const double LegacyRhythmMaxMix = 0.15;  // Giảm thêm -> ít rhythm
+        private const double AudioPresenceThreshold = 0.035;  // Tăng lên -> chỉ phản ứng với âm rõ ràng
+        private const double DownwardDropBoost = 0.020;  // Giảm xuống -> rơi chậm hơn, mượt hơn
+        private const double MinReleaseAlpha = 0.92;  // Tăng lên -> chậm hơn
+        private const double MotionContrast = 1.50;  // Giảm xuống -> biên độ vừa phải hơn
         private const double RightBiasStrength = 1.00;
         private const double RightBiasDeadzone = 0.05;
+        private const double MinHeightChangeThreshold = 0.003;  // Ngưỡng thay đổi tối thiểu để lọc dao động nhỏ
 
         #endregion
 
@@ -99,6 +101,7 @@ namespace VNotch.Controls
         private readonly double[] _currentHeights = new double[BarCount];
         private readonly double[] _sortedHeights = new double[BarCount];
         private readonly double[] _drawHeights = new double[BarCount];
+        private readonly double[] _smoothedHeights = new double[BarCount];  // Thêm buffer cho smoothing
         private double _currentOpacity = 0.2;
         private VisualizerState _state = VisualizerState.Idle;
 
@@ -116,7 +119,11 @@ namespace VNotch.Controls
             IsVisibleChanged += (s, e) => UpdateTimerState();
 
             
-            for (int i = 0; i < BarCount; i++) _currentHeights[i] = MinHeightRatio;
+            for (int i = 0; i < BarCount; i++)
+            {
+                _currentHeights[i] = MinHeightRatio;
+                _smoothedHeights[i] = MinHeightRatio;  // Khởi tạo smoothed buffer
+            }
         }
 
         private static void OnStateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -261,7 +268,7 @@ namespace VNotch.Controls
                     targetH = MinHeightRatio;
                 }
 
-                double dynamicRelease = Math.Max(0.64, AlphaRelease - (beatAccent * 0.08));
+                double dynamicRelease = Math.Max(0.70, AlphaRelease - (beatAccent * 0.05));
                 double alpha;
                 if (targetH > _currentHeights[i])
                 {
@@ -284,9 +291,19 @@ namespace VNotch.Controls
                 }
                 
                 double oldH = _currentHeights[i];
-                _currentHeights[i] = (_currentHeights[i] * alpha) + (targetH * (1 - alpha));
+                double newH = (_currentHeights[i] * alpha) + (targetH * (1 - alpha));
                 
-                if (Math.Abs(_currentHeights[i] - oldH) > 0.001) isSettled = false;
+                // Lọc dao động nhỏ - chỉ cập nhật nếu thay đổi đủ lớn
+                if (Math.Abs(newH - _currentHeights[i]) > MinHeightChangeThreshold)
+                {
+                    _currentHeights[i] = newH;
+                    if (Math.Abs(_currentHeights[i] - oldH) > 0.001) isSettled = false;
+                }
+                else
+                {
+                    // Giữ nguyên giá trị cũ nếu thay đổi quá nhỏ
+                    _currentHeights[i] = oldH;
+                }
             }
 
             return isSettled;
@@ -308,10 +325,10 @@ namespace VNotch.Controls
         {
             uint hash = GetDeterministicHash(sid + index);
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
-            double freq = 0.34 + (hash % 24) / 100.0;
+            double freq = 0.22 + (hash % 15) / 100.0;  // Giảm xuống -> chậm hơn, mượt hơn
             double wavePrimary = 0.5 + 0.5 * Math.Sin((t * freq * Math.PI * 2) + phase);
-            double waveSecondary = 0.5 + 0.5 * Math.Sin((t * (freq * 1.45) * Math.PI * 2) + (phase * 0.37));
-            double wave = (wavePrimary * 0.76) + (waveSecondary * 0.24);
+            double waveSecondary = 0.5 + 0.5 * Math.Sin((t * (freq * 1.35) * Math.PI * 2) + (phase * 0.37));
+            double wave = (wavePrimary * 0.80) + (waveSecondary * 0.20);  // Ưu tiên wave chính -> mượt hơn
             return NoAudioPulseBase + (wave * NoAudioPulseAmplitude);
         }
 
@@ -332,16 +349,16 @@ namespace VNotch.Controls
         {
             uint hash = GetDeterministicHash(sid + index);
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
-            double baseFreq = 0.52 + (hash % 28) / 100.0;
-            double speed = 0.52 + (energy * 0.32);
+            double baseFreq = 0.35 + (hash % 18) / 100.0;  // Giảm xuống -> chậm hơn, mượt hơn
+            double speed = 0.40 + (energy * 0.22);  // Giảm xuống -> chậm hơn
 
-            double value = Math.Sin((t * baseFreq * speed * Math.PI * 2) + phase) * 0.40;
-            value += Math.Sin((t * (0.30 + (energy * 0.22)) * Math.PI * 2) + (phase * 0.5)) * 0.20;
-            value += Math.Sin((t * (baseFreq * 0.42) * Math.PI * 2) + (phase * 1.7)) * 0.08;
+            double value = Math.Sin((t * baseFreq * speed * Math.PI * 2) + phase) * 0.38;
+            value += Math.Sin((t * (0.22 + (energy * 0.16)) * Math.PI * 2) + (phase * 0.5)) * 0.18;  // Chậm hơn
+            value += Math.Sin((t * (baseFreq * 0.32) * Math.PI * 2) + (phase * 1.7)) * 0.06;
 
-            double noiseRate = 1.2 + (energy * 1.4);
+            double noiseRate = 0.7 + (energy * 0.9);  // Giảm xuống -> ít noise hơn
             uint noiseSeed = GetDeterministicHash(sid + index + (int)Math.Floor(t * noiseRate));
-            value += (((noiseSeed % 200) / 100.0) - 1.0) * (0.008 + (energy * 0.012));
+            value += (((noiseSeed % 200) / 100.0) - 1.0) * (0.003 + (energy * 0.005));  // Giảm noise
 
             return Math.Clamp(0.5 + value, 0.0, 1.0);
         }
@@ -368,13 +385,20 @@ namespace VNotch.Controls
 
         private void PrepareDrawHeights()
         {
+            // Áp dụng low-pass filter để làm mượt thêm
+            const double smoothingFactor = 0.75;  // Giá trị cao = mượt hơn
+            for (int i = 0; i < BarCount; i++)
+            {
+                _smoothedHeights[i] = (_smoothedHeights[i] * smoothingFactor) + (_currentHeights[i] * (1 - smoothingFactor));
+            }
+            
             if (RightBiasStrength <= 0)
             {
-                Array.Copy(_currentHeights, _drawHeights, BarCount);
+                Array.Copy(_smoothedHeights, _drawHeights, BarCount);
                 return;
             }
 
-            Array.Copy(_currentHeights, _sortedHeights, BarCount);
+            Array.Copy(_smoothedHeights, _sortedHeights, BarCount);
             for (int i = 0; i < BarCount - 1; i++)
             {
                 for (int j = i + 1; j < BarCount; j++)
@@ -399,7 +423,7 @@ namespace VNotch.Controls
 
             for (int i = 0; i < BarCount; i++)
             {
-                _drawHeights[i] = (_currentHeights[i] * (1.0 - bias)) + (_sortedHeights[i] * bias);
+                _drawHeights[i] = (_smoothedHeights[i] * (1.0 - bias)) + (_sortedHeights[i] * bias);
             }
         }
 
@@ -413,7 +437,7 @@ namespace VNotch.Controls
             DpiScale dpi = VisualTreeHelper.GetDpi(this);
             
             double barWidth = width * BarWidthRatio;
-            double spacing = width * BarSpacingRatio;
+            double spacing = (width * BarSpacingRatio) + 0.2; 
             double totalContentWidth = (barWidth * BarCount) + (spacing * (BarCount - 1));
             
             double startX = (width - totalContentWidth) / 2;
@@ -429,16 +453,20 @@ namespace VNotch.Controls
             {
                 double barHeight = _drawHeights[i] * height;
                 double x = startX + i * (barWidth + spacing);
-                double y = centerY - barHeight / 2;
+                
+                double halfHeight = barHeight / 2;
+                double top = centerY - halfHeight;
+                double bottom = centerY + halfHeight;
 
                 double snappedX = Math.Round(x * dpi.DpiScaleX) / dpi.DpiScaleX;
-                double snappedY = Math.Round(y * dpi.DpiScaleY) / dpi.DpiScaleY;
-                double snappedH = Math.Round(barHeight * dpi.DpiScaleY) / dpi.DpiScaleY;
+                double snappedTop = Math.Round(top * dpi.DpiScaleY) / dpi.DpiScaleY;
+                double snappedBottom = Math.Round(bottom * dpi.DpiScaleY) / dpi.DpiScaleY;
+                double snappedH = snappedBottom - snappedTop;
 
                 double radius = snappedW * CornerRadiusRatio;
                 
                 dc.DrawRoundedRectangle(ActiveBrush, null, 
-                    new Rect(snappedX, snappedY, snappedW, snappedH), 
+                    new Rect(snappedX, snappedTop, snappedW, snappedH), 
                     radius, radius);
             }
 
@@ -454,21 +482,21 @@ namespace VNotch.Controls
         private const double MinDb = -72.0;
         private const double MaxDb = 0.0;
         private const double CompressionPower = 0.6;
-        private const double SpectralPreGain = 12.0;
+        private const double SpectralPreGain = 18.0;  // Giảm xuống -> biên độ vừa phải hơn
         private const double RmsWindowSeconds = 0.020;
         private const int FreshAudioTimeoutMs = 800;
-        private const double AgcFloor = 0.14;
-        private const double AgcRelease = 0.985;
-        private const double KickTransientThreshold = 0.05;
-        private const double SnareTransientThreshold = 0.04;
-        private const double KickTransientGain = 4.4;
-        private const double SnareTransientGain = 5.8;
-        private const double KickAccentDecay = 0.92;
-        private const double SnareAccentDecay = 0.91;
-        private const double BeatTransientThreshold = 0.040;
-        private const double BeatTransientGain = 5.0;
-        private const double BeatAccentDecay = 0.92;
-        private const double BeatRmsDeltaThreshold = 0.016;
+        private const double AgcFloor = 0.12;  // Tăng lên -> giảm biên độ, ổn định hơn
+        private const double AgcRelease = 0.988;  // Tăng lên -> AGC chậm hơn, mượt hơn
+        private const double KickTransientThreshold = 0.06;  // Tăng lên -> ít nhạy hơn
+        private const double SnareTransientThreshold = 0.05;  // Tăng lên -> ít nhạy hơn
+        private const double KickTransientGain = 3.8;  // Giảm xuống -> ít phản ứng mạnh
+        private const double SnareTransientGain = 5.0;  // Giảm xuống -> ít phản ứng mạnh
+        private const double KickAccentDecay = 0.94;  // Tăng lên -> decay chậm hơn, mượt hơn
+        private const double SnareAccentDecay = 0.93;  // Tăng lên -> decay chậm hơn, mượt hơn
+        private const double BeatTransientThreshold = 0.050;  // Tăng lên -> ít nhạy hơn
+        private const double BeatTransientGain = 4.2;  // Giảm xuống -> ít phản ứng mạnh
+        private const double BeatAccentDecay = 0.94;  // Tăng lên -> decay chậm hơn, mượt hơn
+        private const double BeatRmsDeltaThreshold = 0.020;  // Tăng lên -> ít nhạy hơn
         private const double BassDominanceStart = 1.10;
         private const double BassDominanceSpan = 1.00;
         private const double MaxLowAttenuation = 0.34;
@@ -662,14 +690,14 @@ namespace VNotch.Controls
             FastFourierTransform.FFT(true, FftM, _fftData);
 
             // Phân tách âm sắc rõ ràng hơn - mỗi thanh đại diện cho 1 dải tần riêng biệt
-            double subBass = NormalizeAmplitude(ComputeBandEnergy(20, 60) * (SpectralPreGain * 1.5));    // Sub-bass
-            double bass = NormalizeAmplitude(ComputeBandEnergy(60, 250) * (SpectralPreGain * 1.3));      // Bass
-            double lowMid = NormalizeAmplitude(ComputeBandEnergy(250, 500) * SpectralPreGain);           // Low-mid
-            double mid = NormalizeAmplitude(ComputeBandEnergy(500, 2000) * SpectralPreGain);             // Mid
-            double highMid = NormalizeAmplitude(ComputeBandEnergy(2000, 4000) * SpectralPreGain);        // High-mid
-            double high = NormalizeAmplitude(ComputeBandEnergy(4000, 8000) * SpectralPreGain);           // High
-            double kick = NormalizeAmplitude(ComputeBandEnergy(45, 130) * (SpectralPreGain * 1.35));
-            double snare = NormalizeAmplitude(ComputeBandEnergy(1400, 5000) * (SpectralPreGain * 1.25));
+            double subBass = NormalizeAmplitude(ComputeBandEnergy(20, 60) * (SpectralPreGain * 1.6));    // Sub-bass
+            double bass = NormalizeAmplitude(ComputeBandEnergy(60, 250) * (SpectralPreGain * 1.5));      // Bass
+            double lowMid = NormalizeAmplitude(ComputeBandEnergy(250, 500) * (SpectralPreGain * 1.6));   // Low-mid
+            double mid = NormalizeAmplitude(ComputeBandEnergy(500, 2000) * (SpectralPreGain * 1.5));     // Mid
+            double highMid = NormalizeAmplitude(ComputeBandEnergy(2000, 4000) * (SpectralPreGain * 3.0)); // High-mid - tăng cực mạnh
+            double high = NormalizeAmplitude(ComputeBandEnergy(4000, 8000) * (SpectralPreGain * 3.5));   // High - tăng cực mạnh
+            double kick = NormalizeAmplitude(ComputeBandEnergy(45, 130) * (SpectralPreGain * 1.5));
+            double snare = NormalizeAmplitude(ComputeBandEnergy(1400, 5000) * (SpectralPreGain * 2.5));  // Tăng cực mạnh
             double rms = _latestRmsNormalized;
 
             double peak = Math.Max(
@@ -692,11 +720,16 @@ namespace VNotch.Controls
             double nonBass = (mid * 0.7) + (high * 0.6) + 1e-5;
             double bassDominance = (subBass + bass) / nonBass;
             double bassExcess = Math.Clamp((bassDominance - BassDominanceStart) / BassDominanceSpan, 0.0, 1.0);
-            double bassScale = 1.0 - (bassExcess * MaxLowAttenuation);
-            double kickScale = 1.0 - (bassExcess * MaxKickAttenuation);
+            double bassScale = 1.0 - (bassExcess * (MaxLowAttenuation * 0.2));  // Giảm attenuation xuống 20%
+            double kickScale = 1.0 - (bassExcess * (MaxKickAttenuation * 0.2));
             subBass *= bassScale;
             bass *= bassScale;
             kick *= kickScale;
+            
+            // Boost high frequencies mạnh hơn khi bass quá mạnh
+            double highBoost = 1.0 + (bassExcess * 0.7);  // Tăng từ 0.4 -> 0.7
+            highMid *= highBoost;
+            high *= highBoost;
 
             
             double kickDelta = Math.Max(0.0, kick - _prevKickEnergy);
@@ -720,19 +753,19 @@ namespace VNotch.Controls
 
             // Mỗi thanh đại diện cho 1 dải tần riêng biệt
             // Bar 0: Sub-bass + Kick (20-130Hz) - Âm trầm sâu nhất
-            _displayTargets[0] = (float)Math.Clamp((subBass * 0.70) + (kick * 0.30) + (_kickAccent * 0.20), 0.0, 1.0);
+            _displayTargets[0] = (float)Math.Clamp((subBass * 0.75) + (kick * 0.35) + (_kickAccent * 0.25), 0.0, 1.0);
             
             // Bar 1: Bass (60-250Hz) - Âm trầm
-            _displayTargets[1] = (float)Math.Clamp((bass * 0.80) + (subBass * 0.20) + (_kickAccent * 0.10), 0.0, 1.0);
+            _displayTargets[1] = (float)Math.Clamp((bass * 0.85) + (subBass * 0.25) + (_kickAccent * 0.15), 0.0, 1.0);
             
             // Bar 2: Low-Mid (250-500Hz) + Mid (500-2000Hz) - Âm trung
-            _displayTargets[2] = (float)Math.Clamp((lowMid * 0.50) + (mid * 0.40) + (rms * 0.10), 0.0, 1.0);
+            _displayTargets[2] = (float)Math.Clamp((lowMid * 0.75) + (mid * 0.65) + (rms * 0.20) + (_beatAccent * 0.15), 0.0, 1.0);
             
-            // Bar 3: High-Mid (2000-4000Hz) - Âm cao trung
-            _displayTargets[3] = (float)Math.Clamp((highMid * 0.70) + (snare * 0.20) + (_snareAccent * 0.15), 0.0, 1.0);
+            // Bar 3: High-Mid (2000-4000Hz) - Âm cao trung - tăng cực mạnh
+            _displayTargets[3] = (float)Math.Clamp((highMid * 1.40) + (snare * 0.70) + (_snareAccent * 0.60) + (mid * 0.35) + (high * 0.30), 0.0, 1.0);
             
-            // Bar 4: High (4000-8000Hz) + Snare - Âm cao
-            _displayTargets[4] = (float)Math.Clamp((high * 0.70) + (snare * 0.20) + (_snareAccent * 0.20), 0.0, 1.0);
+            // Bar 4: High (4000-8000Hz) + Snare - Âm cao - tăng cực mạnh
+            _displayTargets[4] = (float)Math.Clamp((high * 1.50) + (snare * 0.75) + (_snareAccent * 0.65) + (highMid * 0.40) + (rms * 0.25), 0.0, 1.0);
 
             ApplyBarContrast(_displayTargets);
         }

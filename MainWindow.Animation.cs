@@ -956,7 +956,7 @@ public partial class MainWindow
         PlayNextSkipAnimation(NextArrow0, NextArrow1, NextArrow2);
     }
 
-    private void PlayNextSkipAnimation(Path arrow0, Path arrow1, Path arrow2)
+    private void PlayNextSkipAnimation(System.Windows.Shapes.Path arrow0, System.Windows.Shapes.Path arrow1, System.Windows.Shapes.Path arrow2)
     {
 
         var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
@@ -1004,7 +1004,7 @@ public partial class MainWindow
         PlayPrevSkipAnimation(PrevArrow0, PrevArrow1, PrevArrow2);
     }
 
-    private void PlayPrevSkipAnimation(Path arrow0, Path arrow1, Path arrow2)
+    private void PlayPrevSkipAnimation(System.Windows.Shapes.Path arrow0, System.Windows.Shapes.Path arrow1, System.Windows.Shapes.Path arrow2)
     {
         var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow2.RenderTransform = arrow2Transform;

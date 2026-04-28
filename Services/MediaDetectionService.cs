@@ -2056,38 +2056,10 @@ public class MediaDetectionService : IMediaDetectionService
 
 
                     var timelineUpdatedUtc = timeline.LastUpdatedTime.ToUniversalTime();
-                    var nowUpdatedUtc = DateTimeOffset.UtcNow;
-                    var timelineLatency = nowUpdatedUtc - timelineUpdatedUtc;
-                    bool validTimelineTimestamp =
-                        timelineUpdatedUtc != DateTimeOffset.MinValue &&
-                        timelineUpdatedUtc <= nowUpdatedUtc + TimeSpan.FromSeconds(1) &&
-                        timelineLatency <= TimeSpan.FromMinutes(10);
 
-                    // Compensate for timeline latency when media is already playing
-                    // This fixes the issue where opening V-Notch while media is playing shows stale position
-                    if (validTimelineTimestamp && 
-                        info.IsPlaying && 
-                        !forceStartPosition &&
-                        timelineLatency.TotalMilliseconds > 100)
-                    {
-                        // Calculate how much time has passed since timeline was last updated
-                        double playbackRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
-                        var compensatedPosition = chosenPosition + TimeSpan.FromSeconds(timelineLatency.TotalSeconds * playbackRate);
-                        
-                        // Clamp to duration if available
-                        if (duration > TimeSpan.Zero && compensatedPosition > duration)
-                        {
-                            compensatedPosition = duration;
-                        }
-                        
-                        chosenPosition = compensatedPosition;
-                        
-                        System.Diagnostics.Debug.WriteLine($"[TIMELINE] Compensated for latency: " +
-                            $"Original={timeline.Position.TotalSeconds:F1}s, " +
-                            $"Latency={timelineLatency.TotalMilliseconds:F0}ms, " +
-                            $"Compensated={chosenPosition.TotalSeconds:F1}s");
-                    }
-
+                    // FIX: Don't compensate for latency - let ProgressEngine handle prediction
+                    // Using raw timeline data ensures timestamp matches position
+                    // ProgressEngine will predict forward from this base point accurately
                     if (chosenPosition < TimeSpan.Zero)
                     {
                         chosenPosition = TimeSpan.Zero;
@@ -2099,7 +2071,6 @@ public class MediaDetectionService : IMediaDetectionService
 
                     info.Position = chosenPosition;
                     info.Duration = duration;
-                    
                     info.LastUpdated = timelineUpdatedUtc;
 
                     if (info.Duration <= TimeSpan.Zero || info.Duration.TotalDays > 30)

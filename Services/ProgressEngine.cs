@@ -67,7 +67,7 @@ public class ProgressEngine
     private static readonly TimeSpan ResumeBackstepTolerance = TimeSpan.FromMilliseconds(350);
     
     
-    private static readonly TimeSpan IgnoreCorrectionThreshold = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan IgnoreCorrectionThreshold = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan SmoothCorrectionThreshold = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SmoothBackwardCap = TimeSpan.FromMilliseconds(120);
 
@@ -322,8 +322,8 @@ public class ProgressEngine
 
             if (absDiffSeconds < SmoothCorrectionThreshold.TotalSeconds)
             {
-                
-                const double correctionFactor = 0.55;
+                // Increased correction factor for faster convergence
+                const double correctionFactor = 0.65;
                 double correctedSeconds = predictedNow.TotalSeconds + (diff.TotalSeconds * correctionFactor);
 
                 if (diff < TimeSpan.Zero)

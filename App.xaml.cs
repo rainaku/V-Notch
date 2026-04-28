@@ -52,6 +52,7 @@ public partial class App : Application
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<IMediaMetadataLookupService, MediaMetadataLookupService>();
         services.AddSingleton<IMediaArtworkService, MediaArtworkService>();
+        services.AddSingleton<IColorExtractionService, ColorExtractionService>();
         services.AddSingleton<IWindowTitleScanner, WindowTitleScanner>();
         services.AddSingleton<IMediaDetectionService, MediaDetectionService>();
         services.AddSingleton<IVolumeService, VolumeService>();
