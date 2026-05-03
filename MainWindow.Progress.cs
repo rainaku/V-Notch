@@ -196,9 +196,11 @@ public partial class MainWindow
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
-        if (_currentMediaInfo != null && (_currentMediaInfo.IsAnyMediaPlaying || _progressEngine.GetUiFrame().State == ProgressState.Playing))
+        // Always render progress bar when expanded, regardless of play state
+        // This ensures UI updates even when user is seeking or paused
+        if (_isExpanded || _isMusicExpanded)
         {
-            if (_isExpanded)
+            if (_currentMediaInfo != null)
             {
                 RenderProgressBar();
             }
@@ -507,7 +509,8 @@ public partial class MainWindow
 
     private void RenderProgressBar()
     {
-        if ((_isDraggingProgress && !_isSeekSpringActive) || _currentMediaInfo == null) return;
+        // Allow rendering during seek spring animation, but not during manual drag
+        if (_isDraggingProgress || _currentMediaInfo == null) return;
 
         var frame = _progressEngine.GetUiFrame();
 
@@ -543,12 +546,20 @@ public partial class MainWindow
         if (_isCatchUpAnimating)
         {
             double ratioDiff = Math.Abs(engineRatio - _lastRenderedRatio);
-            // If position jumped more than 0.5% (external seek detected)
-            // This is ~12 seconds for a 40-minute video, ~3 seconds for a 10-minute video
-            if (ratioDiff > 0.005)
+            // If position jumped more than 1% (external seek detected)
+            // This is adaptive: ~24 seconds for 40-min video, ~4 seconds for 6-min video
+            if (ratioDiff > 0.01)
             {
                 System.Diagnostics.Debug.WriteLine($"[CATCHUP] External seek detected, stopping animation. Diff={ratioDiff:F4}");
                 StopCatchUpAnimation();
+                
+                // Immediately snap to the new position after external seek
+                _progressDisplayRatio = engineRatio;
+                _progressTargetRatio = engineRatio;
+                _progressSpringTargetRatio = engineRatio;
+                ProgressBarScale.ScaleX = engineRatio;
+                CurrentTimeText.Text = FormatTime(frame.Position);
+                _lastRenderedRatio = engineRatio;
             }
             else
             {
@@ -680,13 +691,25 @@ public partial class MainWindow
                 }
             }
 
-            if (diffSeconds >= SOURCE_SMOOTH_SECONDS)
+            // Detect large jumps (user seek or track change) and snap immediately
+            // Use a threshold of 3 seconds for instant snap
+            if (diffSeconds >= 3.0)
             {
                 
-                System.Diagnostics.Debug.WriteLine($"[RENDER] SNAP: Large jump {diffSeconds:F3}s");
+                System.Diagnostics.Debug.WriteLine($"[RENDER] SNAP: Large jump {diffSeconds:F3}s - instant snap to target");
                 _progressDisplayRatio = _progressTargetRatio;
                 _progressSpringTargetRatio = _progressTargetRatio;
                 _progressVelocity = 0;
+                ProgressBarScale.ScaleX = _progressDisplayRatio;
+            }
+            else if (diffSeconds >= SOURCE_SMOOTH_SECONDS)
+            {
+                
+                System.Diagnostics.Debug.WriteLine($"[RENDER] SNAP: Medium jump {diffSeconds:F3}s");
+                _progressDisplayRatio = _progressTargetRatio;
+                _progressSpringTargetRatio = _progressTargetRatio;
+                _progressVelocity = 0;
+                ProgressBarScale.ScaleX = _progressDisplayRatio;
             }
             else
             {
@@ -901,6 +924,10 @@ public partial class MainWindow
             StartSpringRenderLoop();
 
             await _mediaService.SeekAsync(newPos);
+            
+            // Ensure progress timer is running after seek
+            System.Diagnostics.Debug.WriteLine("[PROGRESS] Seek completed, ensuring timer is running");
+            UpdateProgressTimerState();
         } 
         catch { }
     }
@@ -935,6 +962,10 @@ public partial class MainWindow
             if (_isExpanded) RenderProgressBar();
 
             await _mediaService.SeekRelativeAsync(seconds);
+            
+            // Ensure progress timer is running after seek
+            System.Diagnostics.Debug.WriteLine("[PROGRESS] Relative seek completed, ensuring timer is running");
+            UpdateProgressTimerState();
         }
         catch { }
     }
@@ -964,15 +995,24 @@ public partial class MainWindow
         bool hasTimeline = _currentMediaInfo != null && (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
         bool shouldRunProgress = isExpanded && hasTimeline;
 
+        // Use 60fps for smooth progress updates
         _progressTimer.Interval = TimeSpan.FromMilliseconds(16);
 
         if (shouldRunProgress)
         {
-            if (!_progressTimer.IsEnabled) _progressTimer.Start();
+            if (!_progressTimer.IsEnabled) 
+            {
+                _progressTimer.Start();
+                System.Diagnostics.Debug.WriteLine("[PROGRESS] Timer started");
+            }
         }
         else
         {
-            if (_progressTimer.IsEnabled) _progressTimer.Stop();
+            if (_progressTimer.IsEnabled) 
+            {
+                _progressTimer.Stop();
+                System.Diagnostics.Debug.WriteLine("[PROGRESS] Timer stopped");
+            }
         }
 
         if (isExpanded)
@@ -1004,9 +1044,28 @@ public partial class MainWindow
         double targetRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
         targetRatio = Math.Clamp(targetRatio, 0, 1);
 
-        // Only animate if there's a meaningful difference
-        if (targetRatio < 0.01) return;
+        // Only animate if position is meaningful and not too far into the video
+        // If position < 1%, skip animation (too early)
+        // If position > 20%, snap immediately (too far to animate smoothly)
+        if (targetRatio < 0.01)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CATCHUP] Skipped: position too early ({targetRatio:P1})");
+            return;
+        }
+        
+        if (targetRatio > 0.20)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CATCHUP] Skipped: position too far ({targetRatio:P1}), snapping immediately");
+            // Snap immediately instead of animating
+            _progressDisplayRatio = targetRatio;
+            _progressTargetRatio = targetRatio;
+            _progressSpringTargetRatio = targetRatio;
+            ProgressBarScale.ScaleX = targetRatio;
+            CurrentTimeText.Text = FormatTime(frame.Position);
+            return;
+        }
 
+        System.Diagnostics.Debug.WriteLine($"[CATCHUP] Starting animation to {targetRatio:P1}");
         _isCatchUpAnimating = true;
         _catchUpTargetRatio = targetRatio;
         _catchUpTargetPosition = frame.Position;

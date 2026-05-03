@@ -1094,7 +1094,7 @@
                                 </Border.RenderTransform>
                                 <Grid VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition SharedSizeGroup="MonthColumn" Width="Auto"/>
+                                        <ColumnDefinition Width="40"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
@@ -1105,7 +1105,17 @@
                                                Style="{StaticResource TitleText}"
                                                FontSize="15"
                                                VerticalAlignment="Center"
-                                               Margin="0,0,12,0"/>
+                                               HorizontalAlignment="Left"
+                                               Margin="-3,0,12,0"
+                                               RenderTransformOrigin="0,0.5"
+                                               Panel.ZIndex="10">
+                                        <TextBlock.RenderTransform>
+                                            <TransformGroup>
+                                                <ScaleTransform x:Name="MonthTextScale" ScaleX="1" ScaleY="1"/>
+                                                <TranslateTransform x:Name="MonthTextTranslate" X="0" Y="0"/>
+                                            </TransformGroup>
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
                                     <TextBlock x:Name="DayText"
                                                Grid.Column="0"
                                                Text="14"
@@ -1119,13 +1129,13 @@
                                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                                 <GradientStop Color="Transparent" Offset="0"/>
                                                 <GradientStop Color="Black" Offset="0.12"/>
-                                                <GradientStop Color="Black" Offset="0.88"/>
+                                                <GradientStop Color="Black" Offset="0.92"/>
                                                 <GradientStop Color="Transparent" Offset="1"/>
                                             </LinearGradientBrush>
                                         </Grid.OpacityMask>
 
                                         <Canvas x:Name="CalendarStripClip"
-                                                Width="90"
+                                                Width="95"
                                                 Height="48"
                                                 ClipToBounds="True">
                                             <Grid x:Name="CalendarDayStrip" HorizontalAlignment="Left">
@@ -1140,7 +1150,7 @@
                                                         RenderTransformOrigin="0.5,0.5"
                                                         HorizontalAlignment="Left"
                                                         VerticalAlignment="Top"
-                                                        Margin="0,17,0,0">
+                                                        Margin="0,15,0,0">
                                                     <Border.RenderTransform>
                                                         <TransformGroup>
                                                             <ScaleTransform x:Name="CalendarHighlightScale" ScaleX="1" ScaleY="1"/>
@@ -1165,7 +1175,7 @@
                                     <BlurEffect x:Name="CalendarGreetingContextBlur" Radius="0" RenderingBias="Performance"/>
                                 </Grid.Effect>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition SharedSizeGroup="MonthColumn" Width="Auto"/>
+                                    <ColumnDefinition Width="40"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 

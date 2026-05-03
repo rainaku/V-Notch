@@ -361,7 +361,6 @@ public partial class MainWindow
     {
         if (_isAnimating || !_isExpanded) return;
         _isAnimating = true;
-        _progressTimer?.Stop();
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
@@ -762,7 +761,6 @@ public partial class MainWindow
         _isMusicAnimating = true;
         _isMusicExpanded = false;
 
-        _progressTimer?.Stop();
         UpdateZOrderTimerInterval();
         ResetCalendarHoverFocusVisualState();
 

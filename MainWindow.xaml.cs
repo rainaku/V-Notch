@@ -272,6 +272,8 @@ public partial class MainWindow : Window
     private double _calendarScrollAccumulator = 0; 
     private DateTime _lastCalendarScrollTime = DateTime.MinValue;
     private DateTime _lastCalendarUpdate = DateTime.Now;
+    private bool _isMonthAnimating = false;
+    private string _pendingMonthText = string.Empty;
 
     #endregion
 
@@ -1179,13 +1181,120 @@ public partial class MainWindow : Window
     private void ApplyCalendarCenterVisualState(int centerIdx)
     {
         var highlightedDate = _lastCalendarUpdate.AddDays(centerIdx - 5);
-        MonthText.Text = highlightedDate.ToString("MMM");
+        string newMonth = highlightedDate.ToString("MMM");
+        
+        // Animate month text change with morph effect
+        if (MonthText.Text != newMonth)
+        {
+            AnimateMonthTextChange(newMonth);
+        }
 
         for (int i = 0; i < CalendarTotalDays; i++)
         {
             _calendarDayNumbers[i].Foreground = (i == centerIdx) ? _brushBlack : _brushWhite;
             _calendarDayBorders[i].Background = _brushTransparent;
         }
+    }
+
+    private void AnimateMonthTextChange(string newMonth)
+    {
+        // If animation is running, queue the new month text
+        if (_isMonthAnimating)
+        {
+            _pendingMonthText = newMonth;
+            return;
+        }
+
+        _isMonthAnimating = true;
+        _pendingMonthText = string.Empty;
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(280));
+        var easeOut = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var easeIn = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        // Fade out + scale down + slide up
+        var fadeOut = new DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(140)),
+            EasingFunction = easeIn
+        };
+
+        var scaleDown = new DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.85,
+            Duration = new Duration(TimeSpan.FromMilliseconds(140)),
+            EasingFunction = easeIn
+        };
+
+        var slideUp = new DoubleAnimation
+        {
+            From = 0,
+            To = -8,
+            Duration = new Duration(TimeSpan.FromMilliseconds(140)),
+            EasingFunction = easeIn
+        };
+
+        fadeOut.Completed += (s, e) =>
+        {
+            MonthText.Text = newMonth;
+
+            // Fade in + scale up + slide down
+            var fadeIn = new DoubleAnimation
+            {
+                From = 0.0,
+                To = 1.0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(140)),
+                EasingFunction = easeOut
+            };
+
+            var scaleUp = new DoubleAnimation
+            {
+                From = 0.85,
+                To = 1.0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(140)),
+                EasingFunction = easeOut
+            };
+
+            var slideDown = new DoubleAnimation
+            {
+                From = 8,
+                To = 0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(140)),
+                EasingFunction = easeOut
+            };
+
+            fadeIn.Completed += (s2, e2) =>
+            {
+                _isMonthAnimating = false;
+                
+                // If there's a pending month change, trigger it now
+                if (!string.IsNullOrEmpty(_pendingMonthText) && _pendingMonthText != MonthText.Text)
+                {
+                    AnimateMonthTextChange(_pendingMonthText);
+                }
+            };
+
+            Timeline.SetDesiredFrameRate(fadeIn, 60);
+            Timeline.SetDesiredFrameRate(scaleUp, 60);
+            Timeline.SetDesiredFrameRate(slideDown, 60);
+
+            MonthText.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+            MonthTextScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleUp);
+            MonthTextScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleUp);
+            MonthTextTranslate.BeginAnimation(TranslateTransform.YProperty, slideDown);
+        };
+
+        Timeline.SetDesiredFrameRate(fadeOut, 60);
+        Timeline.SetDesiredFrameRate(scaleDown, 60);
+        Timeline.SetDesiredFrameRate(slideUp, 60);
+
+        MonthText.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        MonthTextScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);
+        MonthTextScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDown);
+        MonthTextTranslate.BeginAnimation(TranslateTransform.YProperty, slideUp);
     }
 
     private void AnimateCalendarHighlightToIndex(int centerIdx, Duration duration, IEasingFunction easing, bool pulse)
