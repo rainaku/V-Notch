@@ -61,26 +61,13 @@ public sealed class MediaArtworkService : IMediaArtworkService
         {
             int width = source.PixelWidth;
             int height = source.PixelHeight;
-            bool isSpotify = mediaSource.Contains("Spotify", StringComparison.OrdinalIgnoreCase);
 
             double zoom = 0.97;
-            int squareSize;
-            int offsetX;
-            int offsetY;
-
-            if (isSpotify)
-            {
-                int contentHeight = (int)(height * 0.80);
-                squareSize = (int)(Math.Min(width, contentHeight) * zoom);
-                offsetX = (width - squareSize) / 2;
-                offsetY = (contentHeight - squareSize) / 2;
-            }
-            else
-            {
-                squareSize = (int)(Math.Min(width, height) * zoom);
-                offsetX = (width - squareSize) / 2;
-                offsetY = (height - squareSize) / 2;
-            }
+            int squareSize = (int)(Math.Min(width, height) * zoom);
+            
+            // Always crop from the center of the image
+            int offsetX = (width - squareSize) / 2;
+            int offsetY = (height - squareSize) / 2;
 
             var rect = new System.Windows.Int32Rect(offsetX, offsetY, squareSize, squareSize);
             var cropped = new CroppedBitmap(source, rect);
