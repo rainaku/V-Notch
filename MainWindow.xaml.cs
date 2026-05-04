@@ -1050,6 +1050,68 @@ public partial class MainWindow : Window
         catch { }
     }
 
+    private void Settings_Click(object sender, MouseButtonEventArgs e)
+    {
+        try
+        {
+            var settingsWindow = new SettingsWindow(_settings, _settingsService);
+            settingsWindow.SettingsChanged += (s, newSettings) =>
+            {
+                _settings = newSettings;
+                ApplySettings();
+            };
+            settingsWindow.ShowDialog();
+        }
+        catch { }
+    }
+
+    private void SettingsButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        AnimateSettingsHover(true);
+    }
+
+    private void SettingsButton_MouseLeave(object sender, MouseEventArgs e)
+    {
+        AnimateSettingsHover(false);
+    }
+
+    private void AnimateSettingsHover(bool isEnter)
+    {
+        var dur = TimeSpan.FromMilliseconds(300);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        // Rotation animation - smooth 90 degree rotation from 45° to 135°
+        var rotateAnim = new DoubleAnimation
+        {
+            To = isEnter ? 135 : 45,
+            Duration = TimeSpan.FromMilliseconds(400),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        };
+        Timeline.SetDesiredFrameRate(rotateAnim, 120);
+
+        // Opacity animation - subtle fade
+        var opacityAnim = new DoubleAnimation
+        {
+            To = isEnter ? 0.8 : 1.0,
+            Duration = dur,
+            EasingFunction = easing
+        };
+        Timeline.SetDesiredFrameRate(opacityAnim, 120);
+
+        SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, rotateAnim);
+        SettingsButton.BeginAnimation(OpacityProperty, opacityAnim);
+        
+        // Animate background color
+        if (isEnter)
+        {
+            SettingsButton.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
+        }
+        else
+        {
+            SettingsButton.Background = new SolidColorBrush(Colors.Transparent);
+        }
+    }
+
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {
         if (_isMusicExpanded) SyncVolumeFromActiveSession();
@@ -1060,24 +1122,154 @@ public partial class MainWindow : Window
     {
         BatteryPercent.Text = battery.GetPercentageText();
 
-        double fillWidth = Math.Max(2, battery.Percentage / 100.0 * 26);
-        BatteryFill.Width = fillWidth;
-
-        if (battery.Percentage <= 20)
+        // Animate battery fill width with smooth easing
+        double targetWidth = Math.Max(1.14, battery.Percentage / 100.0 * 24);
+        var widthAnimation = new DoubleAnimation
         {
-            BatteryFill.Background = _brushLowBattery;
-            BatteryPercent.Foreground = _brushLowBattery;
+            To = targetWidth,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        };
+        BatteryFill.BeginAnimation(WidthProperty, widthAnimation);
+
+        // Determine battery state and colors
+        SolidColorBrush fillBrush;
+        SolidColorBrush percentBrush;
+        bool showLightning = false;
+
+        if (battery.Percentage <= 20 && !battery.IsCharging)
+        {
+            // Low battery (red)
+            fillBrush = _brushLowBattery;
+            percentBrush = _brushLowBattery;
+            showLightning = false;
         }
         else if (battery.IsCharging)
         {
-            BatteryFill.Background = _brushCharging;
-            BatteryPercent.Foreground = _brushWhite;
+            // Charging (green + lightning)
+            fillBrush = _brushCharging;
+            percentBrush = _brushWhite;
+            showLightning = true;
         }
         else
         {
-            BatteryFill.Background = _brushWhite;
-            BatteryPercent.Foreground = _brushWhite;
+            // Normal (white)
+            fillBrush = _brushWhite;
+            percentBrush = _brushWhite;
+            showLightning = false;
         }
+
+        // Animate color transitions
+        AnimateBrushTransition(BatteryFill, fillBrush);
+        AnimateBrushTransition(BatteryPercent, percentBrush);
+
+        // Animate lightning bolt
+        AnimateChargingBolt(showLightning);
+
+        // Add subtle pulse animation when charging
+        if (battery.IsCharging)
+        {
+            StartChargingPulse();
+        }
+        else
+        {
+            StopChargingPulse();
+        }
+    }
+
+    private void AnimateBrushTransition(FrameworkElement element, SolidColorBrush targetBrush)
+    {
+        var currentBrush = element is TextBlock tb ? tb.Foreground as SolidColorBrush : 
+                          element is Border border ? border.Background as SolidColorBrush : null;
+        
+        if (currentBrush == null || currentBrush.Color == targetBrush.Color) 
+        {
+            if (element is TextBlock textBlock)
+                textBlock.Foreground = targetBrush;
+            else if (element is Border borderElement)
+                borderElement.Background = targetBrush;
+            return;
+        }
+
+        var colorAnimation = new ColorAnimation
+        {
+            To = targetBrush.Color,
+            Duration = TimeSpan.FromMilliseconds(200),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        };
+
+        var animatedBrush = new SolidColorBrush(currentBrush.Color);
+        if (element is TextBlock textBlockElement)
+            textBlockElement.Foreground = animatedBrush;
+        else if (element is Border borderElement2)
+            borderElement2.Background = animatedBrush;
+
+        animatedBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnimation);
+    }
+
+    private void AnimateChargingBolt(bool show)
+    {
+        var opacityAnimation = new DoubleAnimation
+        {
+            To = show ? 1.0 : 0.0,
+            Duration = TimeSpan.FromMilliseconds(250),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        var scaleAnimation = new DoubleAnimation
+        {
+            To = show ? 1.0 : 0.95,
+            Duration = TimeSpan.FromMilliseconds(250),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        ChargingBolt.BeginAnimation(OpacityProperty, opacityAnimation);
+        ChargingBoltScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimation);
+        ChargingBoltScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimation);
+    }
+
+    private Storyboard? _chargingPulseStoryboard;
+
+    private void StartChargingPulse()
+    {
+        if (_chargingPulseStoryboard != null) return; // Already running
+
+        _chargingPulseStoryboard = new Storyboard
+        {
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+
+        var pulseAnimation = new DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.85,
+            Duration = TimeSpan.FromMilliseconds(1000),
+            AutoReverse = true,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+
+        Storyboard.SetTarget(pulseAnimation, BatteryFill);
+        Storyboard.SetTargetProperty(pulseAnimation, new PropertyPath("Opacity"));
+        _chargingPulseStoryboard.Children.Add(pulseAnimation);
+
+        _chargingPulseStoryboard.Begin();
+    }
+
+    private void StopChargingPulse()
+    {
+        if (_chargingPulseStoryboard == null) return;
+
+        _chargingPulseStoryboard.Stop();
+        _chargingPulseStoryboard = null;
+
+        // Reset opacity
+        var resetAnimation = new DoubleAnimation
+        {
+            To = 1.0,
+            Duration = TimeSpan.FromMilliseconds(200),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        BatteryFill.BeginAnimation(OpacityProperty, resetAnimation);
     }
 
     private void UpdateBatteryInfo()

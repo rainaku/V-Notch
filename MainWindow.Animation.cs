@@ -193,6 +193,9 @@ public partial class MainWindow
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
 
+        // Animate Status Bar (Battery + Settings) reveal
+        AnimateStatusBarReveal(true);
+
         PaginationDots.Visibility = Visibility.Visible;
         PaginationDots.Opacity = 0;
         UpdatePaginationDots();
@@ -364,6 +367,9 @@ public partial class MainWindow
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
+
+        // Hide Status Bar (Battery + Settings)
+        AnimateStatusBarReveal(false);
 
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         SecondaryContent.BeginAnimation(OpacityProperty, null);
@@ -1147,6 +1153,62 @@ public partial class MainWindow
         
         var bgFadeAnim = MakeAnim(bgOpacity, duration, _easeQuadOut);
         ProgressBarBg.BeginAnimation(OpacityProperty, bgFadeAnim);
+    }
+
+    #endregion
+
+    #region Status Bar Animation
+
+    private void AnimateStatusBarReveal(bool show)
+    {
+        var dur = TimeSpan.FromMilliseconds(300);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var animFps = 120;
+
+        // Battery animation
+        var batteryOpacityAnim = new DoubleAnimation
+        {
+            To = show ? 1.0 : 0.0,
+            Duration = dur,
+            EasingFunction = easing,
+            BeginTime = show ? TimeSpan.Zero : TimeSpan.Zero
+        };
+        Timeline.SetDesiredFrameRate(batteryOpacityAnim, animFps);
+
+        var batteryTranslateAnim = new DoubleAnimation
+        {
+            To = show ? 0 : -4,
+            Duration = dur,
+            EasingFunction = easing,
+            BeginTime = show ? TimeSpan.Zero : TimeSpan.Zero
+        };
+        Timeline.SetDesiredFrameRate(batteryTranslateAnim, animFps);
+
+        // Settings animation (with 40ms stagger when showing)
+        var settingsOpacityAnim = new DoubleAnimation
+        {
+            To = show ? 1.0 : 0.0,
+            Duration = dur,
+            EasingFunction = easing,
+            BeginTime = show ? TimeSpan.FromMilliseconds(40) : TimeSpan.Zero
+        };
+        Timeline.SetDesiredFrameRate(settingsOpacityAnim, animFps);
+
+        var settingsTranslateAnim = new DoubleAnimation
+        {
+            To = show ? 0 : -4,
+            Duration = dur,
+            EasingFunction = easing,
+            BeginTime = show ? TimeSpan.FromMilliseconds(40) : TimeSpan.Zero
+        };
+        Timeline.SetDesiredFrameRate(settingsTranslateAnim, animFps);
+
+        // Apply animations
+        BatterySection.BeginAnimation(OpacityProperty, batteryOpacityAnim);
+        BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
+
+        SettingsButton.BeginAnimation(OpacityProperty, settingsOpacityAnim);
+        SettingsTranslate.BeginAnimation(TranslateTransform.YProperty, settingsTranslateAnim);
     }
 
     #endregion
