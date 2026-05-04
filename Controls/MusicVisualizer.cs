@@ -74,22 +74,22 @@ namespace VNotch.Controls
         private const double CornerRadiusRatio = 0.5; 
 
         // Smooth & responsive - ưu tiên mượt mà, giảm dao động nhỏ
-        private const double AlphaAttack = 0.94;  // Tăng lên -> lên chậm hơn, mượt hơn
-        private const double AlphaRelease = 0.96;  // Tăng lên -> xuống chậm hơn, mượt hơn
+        private const double AlphaAttack = 0.86;  // Chậm và smooth hơn nhưng vẫn giữ biên độ lớn
+        private const double AlphaRelease = 0.90;  // Rơi mềm hơn để bớt giật nhanh
         private const double AlphaPauseRelease = 0.98;  // Giữ nguyên
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
         private const double NoAudioPulseAmplitude = 0.08;  // Giảm thêm -> ít dao động nhỏ hơn
         private const double NoAudioPulseBase = 0.06;  // Giảm thêm -> minimal hơn
-        private const double LegacyRhythmMinMix = 0.05;  // Giảm thêm -> ít rhythm, nhiều audio thật
-        private const double LegacyRhythmMaxMix = 0.15;  // Giảm thêm -> ít rhythm
-        private const double AudioPresenceThreshold = 0.035;  // Tăng lên -> chỉ phản ứng với âm rõ ràng
-        private const double DownwardDropBoost = 0.020;  // Giảm xuống -> rơi chậm hơn, mượt hơn
-        private const double MinReleaseAlpha = 0.92;  // Tăng lên -> chậm hơn
-        private const double MotionContrast = 1.50;  // Giảm xuống -> biên độ vừa phải hơn
+        private const double LegacyRhythmMinMix = 0.18;  // Thêm rhythm để vẫn nhảy mạnh khi volume app thấp
+        private const double LegacyRhythmMaxMix = 0.38;  // Trộn nhịp nhiều hơn cho visual đầy hơn
+        private const double AudioPresenceThreshold = 0.012;  // Nhận audio nhỏ hơn là có tín hiệu
+        private const double DownwardDropBoost = 0.08;  // Rơi vừa phải, không quá nhanh
+        private const double MinReleaseAlpha = 0.82;  // Giữ release smooth hơn
+        private const double MotionContrast = 2.25;  // Tăng tương phản chuyển động
         private const double RightBiasStrength = 1.00;
         private const double RightBiasDeadzone = 0.05;
-        private const double MinHeightChangeThreshold = 0.003;  // Ngưỡng thay đổi tối thiểu để lọc dao động nhỏ
+        private const double MinHeightChangeThreshold = 0.0005;  // Không lọc mất các dao động nhỏ sau khi normalize
 
         #endregion
 
@@ -385,8 +385,8 @@ namespace VNotch.Controls
 
         private void PrepareDrawHeights()
         {
-            // Áp dụng low-pass filter để làm mượt thêm
-            const double smoothingFactor = 0.75;  // Giá trị cao = mượt hơn
+            // Giữ smoothing nhẹ để visual vẫn mượt nhưng không bóp biên độ dao động
+            const double smoothingFactor = 0.58;
             for (int i = 0; i < BarCount; i++)
             {
                 _smoothedHeights[i] = (_smoothedHeights[i] * smoothingFactor) + (_currentHeights[i] * (1 - smoothingFactor));
@@ -481,22 +481,22 @@ namespace VNotch.Controls
         private const int FftM = 9; 
         private const double MinDb = -72.0;
         private const double MaxDb = 0.0;
-        private const double CompressionPower = 0.6;
-        private const double SpectralPreGain = 18.0;  // Giảm xuống -> biên độ vừa phải hơn
+        private const double CompressionPower = 0.38;
+        private const double SpectralPreGain = 32.0;  // Pre-gain mạnh hơn để visual như max volume
         private const double RmsWindowSeconds = 0.020;
         private const int FreshAudioTimeoutMs = 800;
-        private const double AgcFloor = 0.12;  // Tăng lên -> giảm biên độ, ổn định hơn
-        private const double AgcRelease = 0.988;  // Tăng lên -> AGC chậm hơn, mượt hơn
-        private const double KickTransientThreshold = 0.06;  // Tăng lên -> ít nhạy hơn
-        private const double SnareTransientThreshold = 0.05;  // Tăng lên -> ít nhạy hơn
-        private const double KickTransientGain = 3.8;  // Giảm xuống -> ít phản ứng mạnh
-        private const double SnareTransientGain = 5.0;  // Giảm xuống -> ít phản ứng mạnh
-        private const double KickAccentDecay = 0.94;  // Tăng lên -> decay chậm hơn, mượt hơn
-        private const double SnareAccentDecay = 0.93;  // Tăng lên -> decay chậm hơn, mượt hơn
-        private const double BeatTransientThreshold = 0.050;  // Tăng lên -> ít nhạy hơn
-        private const double BeatTransientGain = 4.2;  // Giảm xuống -> ít phản ứng mạnh
-        private const double BeatAccentDecay = 0.94;  // Tăng lên -> decay chậm hơn, mượt hơn
-        private const double BeatRmsDeltaThreshold = 0.020;  // Tăng lên -> ít nhạy hơn
+        private const double AgcFloor = 0.045;  // AGC kéo cả volume rất nhỏ lên mạnh hơn
+        private const double AgcRelease = 0.978;  // AGC mượt hơn, bớt thay đổi quá nhanh
+        private const double KickTransientThreshold = 0.025;  // Nhạy hơn với beat nhỏ
+        private const double SnareTransientThreshold = 0.022;  // Nhạy hơn với snare nhỏ
+        private const double KickTransientGain = 7.0;  // Beat nảy rõ hơn
+        private const double SnareTransientGain = 8.0;  // High bars nảy rõ hơn
+        private const double KickAccentDecay = 0.965;  // Beat decay chậm hơn để chuyển động mềm
+        private const double SnareAccentDecay = 0.96;  // High accent mềm hơn
+        private const double BeatTransientThreshold = 0.020;  // Nhận beat nhỏ hơn
+        private const double BeatTransientGain = 8.0;  // Beat accent mạnh hơn
+        private const double BeatAccentDecay = 0.965;  // Beat accent kéo dài hơn, smooth hơn
+        private const double BeatRmsDeltaThreshold = 0.006;  // Nhạy hơn với thay đổi RMS nhỏ
         private const double BassDominanceStart = 1.10;
         private const double BassDominanceSpan = 1.00;
         private const double MaxLowAttenuation = 0.34;
@@ -513,6 +513,10 @@ namespace VNotch.Controls
         private const double BarContrastStrength = 0.65;
         private const double BarContrastBoost = 0.16;
         private const double BarContrastCut = 0.12;
+        private const double VisualMaxPeakTarget = 0.96;
+        private const double VisualMaxFloor = 0.12;
+        private const double VisualMaxBandFloor = 0.45;
+        private const double VisualMaxBandLift = 0.72;
 
         private static readonly float[] _fftInputBuffer = new float[FftLength];
         private static int _fftInputPos = 0;
@@ -768,6 +772,7 @@ namespace VNotch.Controls
             _displayTargets[4] = (float)Math.Clamp((high * 1.50) + (snare * 0.75) + (_snareAccent * 0.65) + (highMid * 0.40) + (rms * 0.25), 0.0, 1.0);
 
             ApplyBarContrast(_displayTargets);
+            NormalizeDisplayTargetsToMaxVisual(_displayTargets);
         }
 
         private static double ComputeBandEnergy(int fromHz, int toHz)
@@ -877,6 +882,35 @@ namespace VNotch.Controls
             if (clamped <= 0) return 0;
             double expanded = Math.Pow(clamped, DynamicRangeExpansionPower);
             return (expanded * (1.0 - DynamicRangeExpansionBlend)) + (clamped * DynamicRangeExpansionBlend);
+        }
+
+        private static void NormalizeDisplayTargetsToMaxVisual(float[] targets)
+        {
+            double peak = 0.0;
+            double sum = 0.0;
+
+            for (int i = 0; i < BarCount; i++)
+            {
+                double value = Math.Clamp(targets[i], 0.0, 1.0);
+                peak = Math.Max(peak, value);
+                sum += value;
+            }
+
+            if (peak <= 0.0001) return;
+
+            double gain = VisualMaxPeakTarget / Math.Max(VisualMaxFloor, peak);
+            double energy = Math.Clamp(sum / BarCount * gain, 0.0, 1.0);
+            double bandFloor = VisualMaxBandFloor * energy;
+
+            for (int i = 0; i < BarCount; i++)
+            {
+                double boosted = Math.Clamp(targets[i] * gain, 0.0, 1.0);
+                double lifted = boosted < bandFloor
+                    ? boosted + ((bandFloor - boosted) * VisualMaxBandLift)
+                    : boosted;
+
+                targets[i] = (float)Math.Clamp(lifted, 0.0, 1.0);
+            }
         }
 
         private static void ApplyBarContrast(float[] targets)

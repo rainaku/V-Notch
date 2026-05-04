@@ -403,25 +403,25 @@
                                     <TextBlock x:Name="BatteryPercent" 
                                                Text="100%" 
                                                Style="{StaticResource SubtitleText}"
-                                               FontSize="10.9"
+                                               FontSize="10.36"
                                                Foreground="#CCFFFFFF"
                                                FontWeight="Regular"
                                                VerticalAlignment="Center"/>
-                                    <Grid Margin="4.75,0,0,0">
+                                    <Grid Margin="4.51,0,0,0">
                                         <!-- Battery Body -->
                                         <Border x:Name="BatteryIcon"
-                                                Width="28.5" Height="15.2"
+                                                Width="27.08" Height="14.44"
                                                 BorderBrush="#666666"
-                                                BorderThickness="1.43"
-                                                CornerRadius="4.28"
+                                                BorderThickness="1.36"
+                                                CornerRadius="4.07"
                                                 Panel.ZIndex="1">
                                             <Grid>
                                                 <Border x:Name="BatteryFill"
                                                         Background="White"
-                                                        CornerRadius="2.85"
+                                                        CornerRadius="2.71"
                                                         HorizontalAlignment="Left"
-                                                        Margin="1.43,1.14,0.5,1.14"
-                                                        Width="24">
+                                                        Margin="1.36,1.08,0.48,1.08"
+                                                        Width="22.8">
                                                     <Border.RenderTransform>
                                                         <ScaleTransform x:Name="BatteryFillScale" ScaleX="1" ScaleY="1"/>
                                                     </Border.RenderTransform>
@@ -430,11 +430,11 @@
                                         </Border>
                                         
                                         <!-- Battery Terminal -->
-                                        <Border Width="2.85" Height="7.6" 
-                                                Background="#666666" 
-                                                CornerRadius="0,2.38,2.38,0"
+                                        <Border Width="2.71" Height="7.22"
+                                                Background="#666666"
+                                                CornerRadius="0,2.26,2.26,0"
                                                 HorizontalAlignment="Right"
-                                                Margin="0,0,-2.85,0"
+                                                Margin="0,0,-2.71,0"
                                                 Panel.ZIndex="1"/>
                                         
                                         <!-- Lightning Bolt Icon (Charging Indicator) - Overlay on top -->

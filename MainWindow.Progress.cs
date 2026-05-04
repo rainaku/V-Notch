@@ -289,7 +289,7 @@ public partial class MainWindow
             
             
             
-            string newSignature = $"{info.SourceAppId}|{info.CurrentTrack}";
+            string newSignature = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}|{info.Duration.TotalMilliseconds:F0}";
             bool isTrackChanged = newSignature != _lastProgressSignature;
             bool isSessionSwitch = !string.IsNullOrEmpty(info.SourceAppId) && info.SourceAppId != _lastSessionId;
             
@@ -311,12 +311,23 @@ public partial class MainWindow
                 
                 
                 _progressEngine.Reset();
+                StopCatchUpAnimation();
+                ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                _progressDisplayRatio = 0;
+                _progressTargetRatio = 0;
+                _progressSpringTargetRatio = 0;
                 _progressVelocity = 0;
                 _springSettleFrames = 0;
                 _isSeekSpringActive = false;
+                _lastRenderedRatio = 0;
+                _lastRenderTime = DateTime.MinValue;
                 _lastRenderedDuration = TimeSpan.Zero;
-                _progressSnapshotSequence = 0;  
-                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;  
+                _lastDisplayedSecond = -1;
+                _progressSnapshotSequence = 0;
+                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
+                ProgressBarScale.ScaleX = 0;
+                CurrentTimeText.Text = "0:00";
+                RemainingTimeText.Text = info.Duration.TotalSeconds > 0 ? FormatTime(info.Duration) : "--:--";
                 StopSpringRenderLoop();
             }
             else if (isSessionSwitch)
@@ -328,7 +339,7 @@ public partial class MainWindow
                 _lastProgressTimelineUpdated = DateTimeOffset.MinValue;  
             }
 
-            string timelineKey = $"{info.SourceAppId}|{info.CurrentTrack}";
+            string timelineKey = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}|{info.Duration.TotalMilliseconds:F0}";
             if (timelineKey != _lastProgressTimelineKey)
             {
                 System.Diagnostics.Debug.WriteLine($"[PROGRESS] Timeline key changed: '{_lastProgressTimelineKey}' -> '{timelineKey}'");
@@ -394,7 +405,11 @@ public partial class MainWindow
 
             UpdateProgressTimerState();
 
-            if (_isExpanded) RenderProgressBar();
+            if (_isExpanded)
+            {
+                RenderProgressBar();
+                Dispatcher.BeginInvoke(new Action(RenderProgressBar), DispatcherPriority.Render);
+            }
         }
         else
         {

@@ -1054,13 +1054,12 @@ public partial class MainWindow : Window
     {
         try
         {
-            var settingsWindow = new SettingsWindow(_settings, _settingsService);
-            settingsWindow.SettingsChanged += (s, newSettings) =>
+            // Open Windows Settings
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                _settings = newSettings;
-                ApplySettings();
-            };
-            settingsWindow.ShowDialog();
+                FileName = "ms-settings:",
+                UseShellExecute = true
+            });
         }
         catch { }
     }
@@ -1123,7 +1122,7 @@ public partial class MainWindow : Window
         BatteryPercent.Text = battery.GetPercentageText();
 
         // Animate battery fill width with smooth easing
-        double targetWidth = Math.Max(1.14, battery.Percentage / 100.0 * 24);
+        double targetWidth = Math.Max(1.08, battery.Percentage / 100.0 * 22.8);
         var widthAnimation = new DoubleAnimation
         {
             To = targetWidth,
