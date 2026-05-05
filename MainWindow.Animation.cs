@@ -709,6 +709,10 @@ public partial class MainWindow
         fadeOutBattery.Completed += (s, e) => BatterySection.Visibility = Visibility.Collapsed;
         BatterySection.BeginAnimation(OpacityProperty, fadeOutBattery);
 
+        var fadeOutSettings = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
+        fadeOutSettings.Completed += (s, e) => SettingsButton.Visibility = Visibility.Collapsed;
+        SettingsButton.BeginAnimation(OpacityProperty, fadeOutSettings);
+
         var fadeOutGreeting = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
         fadeOutGreeting.Completed += (s, e) => GreetingSection.Visibility = Visibility.Collapsed;
         GreetingSection.BeginAnimation(OpacityProperty, fadeOutGreeting);
@@ -830,6 +834,12 @@ public partial class MainWindow
         BatterySection.Visibility = Visibility.Visible;
         var fadeInBattery = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
         BatterySection.BeginAnimation(OpacityProperty, fadeInBattery);
+
+        SettingsButton.BeginAnimation(OpacityProperty, null);
+        SettingsButton.Opacity = 0;
+        SettingsButton.Visibility = Visibility.Visible;
+        var fadeInSettings = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(120));
+        SettingsButton.BeginAnimation(OpacityProperty, fadeInSettings);
 
         GreetingSection.BeginAnimation(OpacityProperty, null);
         GreetingSection.Opacity = 0;

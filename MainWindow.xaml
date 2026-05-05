@@ -257,6 +257,15 @@
                         </MenuItem.Header>
                     </MenuItem>
                     <Separator Style="{StaticResource TraySeparatorStyle}"/>
+                    <MenuItem x:Name="MenuStartup" Style="{StaticResource TrayMenuItemStyle}" Click="ToggleStartup_Click">
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7F4;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
+                                <TextBlock Text="Startup: No" Style="{StaticResource TrayMenuItemText}"/>
+                            </StackPanel>
+                        </MenuItem.Header>
+                    </MenuItem>
+                    <Separator Style="{StaticResource TraySeparatorStyle}"/>
                     <MenuItem Style="{StaticResource TrayMenuItemStyle}" Click="Exit_Click">
                         <MenuItem.Header>
                             <TextBlock Text="Exit" Style="{StaticResource TrayMenuItemText}" HorizontalAlignment="Center"/>
@@ -601,8 +610,8 @@
                                     MouseLeave="SettingsButton_MouseLeave"
                                     RenderTransformOrigin="0.5,0.5"
                                     Opacity="0"
-                                    Visibility="Collapsed"
-                                    IsHitTestVisible="False">
+                                    Visibility="Visible"
+                                    IsHitTestVisible="True">
                                 <Border.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="SettingsScale" ScaleX="1" ScaleY="1"/>
@@ -638,11 +647,11 @@
                                     <BlurEffect x:Name="ExpandedContentBlur" Radius="0" RenderingBias="Performance"/>
                                 </Border.Effect>
                                 <Border.OpacityMask>
-                                    <RadialGradientBrush GradientOrigin="0.5,0.55" Center="0.5,0.55" RadiusX="0.5" RadiusY="0.5">
-                                        <GradientStop Color="#CCFFFFFF" Offset="0"/>
-                                        <GradientStop Color="#66FFFFFF" Offset="0.35"/>
-                                        <GradientStop Color="#22FFFFFF" Offset="0.6"/>
-                                        <GradientStop Color="#00FFFFFF" Offset="0.85"/>
+                                    <RadialGradientBrush GradientOrigin="0.5,0.55" Center="0.5,0.55" RadiusX="0.58" RadiusY="0.58">
+                                        <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                        <GradientStop Color="#99FFFFFF" Offset="0.35"/>
+                                        <GradientStop Color="#44FFFFFF" Offset="0.65"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="0.95"/>
                                     </RadialGradientBrush>
                                 </Border.OpacityMask>
                                 <Grid>
@@ -659,11 +668,11 @@
                                     Margin="-20,-20,-20,-30"
                                     IsHitTestVisible="False">
                                 <Border.OpacityMask>
-                                    <RadialGradientBrush GradientOrigin="0.4,0.4" Center="0.4,0.4" RadiusX="0.5" RadiusY="0.5">
-                                        <GradientStop Color="#99FFFFFF" Offset="0"/>
-                                        <GradientStop Color="#44FFFFFF" Offset="0.35"/>
-                                        <GradientStop Color="#11FFFFFF" Offset="0.65"/>
-                                        <GradientStop Color="#00FFFFFF" Offset="0.85"/>
+                                    <RadialGradientBrush GradientOrigin="0.4,0.4" Center="0.4,0.4" RadiusX="0.58" RadiusY="0.58">
+                                        <GradientStop Color="#DDFFFFFF" Offset="0"/>
+                                        <GradientStop Color="#77FFFFFF" Offset="0.35"/>
+                                        <GradientStop Color="#33FFFFFF" Offset="0.65"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="0.95"/>
                                     </RadialGradientBrush>
                                 </Border.OpacityMask>
                                 <Grid>
@@ -1611,8 +1620,9 @@
                             Opacity="0"
                             IsHitTestVisible="False">
                         <Border.Background>
-                            <RadialGradientBrush GradientOrigin="0.5,0" Center="0.5,0" RadiusX="0.8" RadiusY="1">
-                                <GradientStop Color="#15FFFFFF" Offset="0"/>
+                            <RadialGradientBrush GradientOrigin="0.5,0" Center="0.5,0" RadiusX="0.9" RadiusY="1.1">
+                                <GradientStop Color="#28FFFFFF" Offset="0"/>
+                                <GradientStop Color="#08FFFFFF" Offset="0.65"/>
                                 <GradientStop Color="#00FFFFFF" Offset="1"/>
                             </RadialGradientBrush>
                         </Border.Background>

@@ -218,6 +218,7 @@ public partial class MainWindow : Window
     private DateTime _lastTopmostAssertUtc = DateTime.MinValue;
     private DateTime _lastFullscreenCheckUtc = DateTime.MinValue;
     private bool _isTrayMenuOpen = false;
+    private bool _startupMenuHydrated = false;
 
     private readonly BatteryModule _batteryModule;
     private readonly CalendarModule _calendarModule;
@@ -1082,6 +1083,12 @@ public partial class MainWindow : Window
 
     private void Settings_Click(object sender, MouseButtonEventArgs e)
     {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:") { UseShellExecute = true });
+        }
+        catch { }
+
         e.Handled = true;
     }
 
@@ -1859,6 +1866,17 @@ public partial class MainWindow : Window
     {
         _isTrayMenuOpen = true;
         _zOrderFastTimer.Stop();
+        if (sender is ContextMenu menu)
+        {
+            foreach (var item in menu.Items.OfType<MenuItem>())
+            {
+                if (item.Header is StackPanel panel && panel.Children.OfType<TextBlock>().Any(t => t.Text.StartsWith("Open on startup")))
+                {
+                    UpdateStartupMenuItem(item);
+                    break;
+                }
+            }
+        }
     }
 
     private void TrayContextMenu_Closed(object sender, RoutedEventArgs e)
@@ -1892,6 +1910,25 @@ public partial class MainWindow : Window
     private void ResetPosition_Click(object sender, RoutedEventArgs e)
     {
         ResetPosition();
+    }
+
+    private void ToggleStartup_Click(object sender, RoutedEventArgs e)
+    {
+        bool enable = !StartupManager.IsAutoStartEnabled();
+        StartupManager.SetAutoStart(enable);
+        _settings.AutoStart = enable;
+        _settingsService.Save(_settings);
+        _startupMenuHydrated = true;
+        if (sender is MenuItem item) UpdateStartupMenuItem(item);
+    }
+
+    private void UpdateStartupMenuItem(MenuItem? item)
+    {
+        if (item?.Header is not StackPanel panel || panel.Children.Count < 2) return;
+
+        bool enabled = _startupMenuHydrated ? StartupManager.IsAutoStartEnabled() : _settings.AutoStart;
+        _startupMenuHydrated = true;
+        if (panel.Children[1] is TextBlock text) text.Text = enabled ? "Startup: Y" : "Startup: N";
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e)
