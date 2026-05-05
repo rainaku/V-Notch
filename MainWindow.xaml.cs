@@ -217,6 +217,7 @@ public partial class MainWindow : Window
     private DateTime _zOrderFastUntilUtc = DateTime.MinValue;
     private DateTime _lastTopmostAssertUtc = DateTime.MinValue;
     private DateTime _lastFullscreenCheckUtc = DateTime.MinValue;
+    private bool _isTrayMenuOpen = false;
 
     private readonly BatteryModule _batteryModule;
     private readonly CalendarModule _calendarModule;
@@ -523,10 +524,6 @@ public partial class MainWindow : Window
             NotchContainer.Visibility = IsEffectivelyNotchVisible ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        if (MenuToggle != null)
-        {
-            MenuToggle.Header = _isNotchVisible ? "Hide Notch" : "Show Notch";
-        }
     }
 
     private void UpdateFullscreenAutoHideState(IntPtr foregroundHwnd = default, bool force = false)
@@ -696,6 +693,11 @@ public partial class MainWindow : Window
 
     private void EnsureTopmost(bool force)
     {
+        if (_isTrayMenuOpen)
+        {
+            return;
+        }
+
         if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
         {
             return;
@@ -801,6 +803,11 @@ public partial class MainWindow : Window
 
     private void ZOrderWatchdogTimer_Tick(object? sender, EventArgs e)
     {
+        if (_isTrayMenuOpen)
+        {
+            return;
+        }
+
         if (_hwnd == IntPtr.Zero)
         {
             return;
@@ -823,6 +830,11 @@ public partial class MainWindow : Window
 
     private void ZOrderFastTimer_Tick(object? sender, EventArgs e)
     {
+        if (_isTrayMenuOpen)
+        {
+            return;
+        }
+
         if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
         {
             _zOrderFastTimer.Stop();
@@ -923,6 +935,24 @@ public partial class MainWindow : Window
     private void ResetPosition()
     {
         PositionAtTop();
+    }
+
+    private void OpenAppSettings()
+    {
+        var settingsWindow = new SettingsWindow(_settings, _settingsService)
+        {
+            Owner = this
+        };
+
+        settingsWindow.SettingsChanged += (s, newSettings) =>
+        {
+            _settings = newSettings.Clone();
+            _notchManager.UpdateSettings(_settings);
+            ApplySettings();
+            ResetPosition();
+        };
+
+        settingsWindow.ShowDialog();
     }
 
     private void ApplySettings()
@@ -1052,22 +1082,7 @@ public partial class MainWindow : Window
 
     private void Settings_Click(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Left)
-        {
-            e.Handled = true;
-            return;
-        }
-
-        try
-        {
-            // Open Windows Settings
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "ms-settings:",
-                UseShellExecute = true
-            });
-        }
-        catch { }
+        e.Handled = true;
     }
 
     private void SettingsButton_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -1839,6 +1854,19 @@ public partial class MainWindow : Window
     #endregion
 
     #region Menu Actions
+
+    private void TrayContextMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        _isTrayMenuOpen = true;
+        _zOrderFastTimer.Stop();
+    }
+
+    private void TrayContextMenu_Closed(object sender, RoutedEventArgs e)
+    {
+        _isTrayMenuOpen = false;
+        TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
+        EnsureTopmost(force: true);
+    }
 
     private void ToggleNotch_Click(object sender, RoutedEventArgs e)
     {

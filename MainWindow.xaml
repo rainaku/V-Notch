@@ -144,6 +144,91 @@
             <GradientStop Color="Transparent" Offset="0.5"/>
             <GradientStop Color="Transparent" Offset="1"/>
         </LinearGradientBrush>
+        <Style x:Key="TrayMenuItemText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="TrayMenuIcon" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#D8D8D8"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+        </Style>
+
+        <Style x:Key="TrayContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Width" Value="170"/>
+            <Setter Property="Background" Value="#1F1F1F"/>
+            <Setter Property="BorderBrush" Value="#3B3B3B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7"
+                                ClipToBounds="True"
+                                SnapsToDevicePixels="True">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TrayMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="20,0,16,0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#2B2B2B"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TraySeparatorStyle" TargetType="Separator">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Background" Value="#404040"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Background="{TemplateBinding Background}"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid RenderOptions.ClearTypeHint="Enabled">
@@ -152,11 +237,31 @@
                         ToolTipText="V-Notch"
                         MenuActivation="RightClick">
             <tb:TaskbarIcon.ContextMenu>
-                <ContextMenu>
-                    <MenuItem x:Name="MenuToggle" Header="Hide Notch" Click="ToggleNotch_Click"/>
-                    <MenuItem Header="Reset position" Click="ResetPosition_Click"/>
-                    <Separator/>
-                    <MenuItem Header="Exit" Click="Exit_Click"/>
+                <ContextMenu Style="{StaticResource TrayContextMenuStyle}"
+                             Opened="TrayContextMenu_Opened"
+                             Closed="TrayContextMenu_Closed">
+                    <MenuItem x:Name="MenuToggle" Style="{StaticResource TrayMenuItemStyle}" Click="ToggleNotch_Click">
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8A7;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
+                                <TextBlock Text="Hide Notch" Style="{StaticResource TrayMenuItemText}"/>
+                            </StackPanel>
+                        </MenuItem.Header>
+                    </MenuItem>
+                    <MenuItem Style="{StaticResource TrayMenuItemStyle}" Click="ResetPosition_Click">
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE777;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
+                                <TextBlock Text="Reset position" Style="{StaticResource TrayMenuItemText}"/>
+                            </StackPanel>
+                        </MenuItem.Header>
+                    </MenuItem>
+                    <Separator Style="{StaticResource TraySeparatorStyle}"/>
+                    <MenuItem Style="{StaticResource TrayMenuItemStyle}" Click="Exit_Click">
+                        <MenuItem.Header>
+                            <TextBlock Text="Exit" Style="{StaticResource TrayMenuItemText}" HorizontalAlignment="Center"/>
+                        </MenuItem.Header>
+                    </MenuItem>
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
@@ -495,7 +600,9 @@
                                     MouseEnter="SettingsButton_MouseEnter"
                                     MouseLeave="SettingsButton_MouseLeave"
                                     RenderTransformOrigin="0.5,0.5"
-                                    Opacity="0">
+                                    Opacity="0"
+                                    Visibility="Collapsed"
+                                    IsHitTestVisible="False">
                                 <Border.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="SettingsScale" ScaleX="1" ScaleY="1"/>
