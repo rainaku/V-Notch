@@ -128,7 +128,7 @@ public class NotchManager : INotchManager
     public static string[] GetMonitorNames()
     {
         return Screen.AllScreens
-            .Select((s, i) => $"Màn hình {i + 1}" + (s.Primary ? " (Chính)" : ""))
+            .Select((s, i) => $"Display {i + 1}" + (s.Primary ? " (Primary)" : ""))
             .ToArray();
     }
 

@@ -49,7 +49,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Không thể lưu cài đặt: {ex.Message}", "Lỗi",
+            System.Windows.MessageBox.Show($"Unable to save settings: {ex.Message}", "Error",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }

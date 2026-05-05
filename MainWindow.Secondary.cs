@@ -691,7 +691,7 @@ public partial class MainWindow
         };
 
         var menu = new ContextMenu();
-        var remove = new MenuItem { Header = "Xóa khỏi kệ" };
+        var remove = new MenuItem { Header = "Remove from shelf" };
         remove.Click += (s, e) => RemoveFileFromShelf(filePath, border);
         menu.Items.Add(remove);
         border.ContextMenu = menu;

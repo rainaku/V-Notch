@@ -21,7 +21,7 @@ public partial class App : Application
 
         if (!createdNew)
         {
-            MessageBox.Show("V-Notch đang chạy!", "V-Notch",
+            MessageBox.Show("V-Notch is already running!", "V-Notch",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
@@ -29,7 +29,7 @@ public partial class App : Application
 
         DispatcherUnhandledException += (s, args) =>
         {
-            MessageBox.Show($"Lỗi: {args.Exception.Message}", "V-Notch Error",
+            MessageBox.Show($"Error: {args.Exception.Message}", "V-Notch Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             args.Handled = true;
         };

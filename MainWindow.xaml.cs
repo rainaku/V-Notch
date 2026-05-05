@@ -525,7 +525,7 @@ public partial class MainWindow : Window
 
         if (MenuToggle != null)
         {
-            MenuToggle.Header = _isNotchVisible ? "Ẩn Notch" : "Hiện Notch";
+            MenuToggle.Header = _isNotchVisible ? "Hide Notch" : "Show Notch";
         }
     }
 

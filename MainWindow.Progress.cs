@@ -31,8 +31,9 @@ public partial class MainWindow
     private bool _isSeekSpringActive = false;    
     private int _springSettleFrames = 0;
     private DateTime _seekSpringStartTime = DateTime.MinValue;
-    private bool _isClickSeekPending = false;   
-    private Point _mouseDownPoint;              
+    private bool _isClickSeekPending = false;
+    private DateTime _allowProgressBackwardRenderUntil = DateTime.MinValue;
+    private Point _mouseDownPoint;
     private const double DRAG_THRESHOLD = 3.0;  
 
     
@@ -43,12 +44,12 @@ public partial class MainWindow
     private readonly System.Diagnostics.Stopwatch _springStopwatch = new();
 
     
-    private const double SPRING_STIFFNESS = 170.0;
-    private const double SPRING_DAMPING = 34.0;
+    private const double SPRING_STIFFNESS = 105.0;
+    private const double SPRING_DAMPING = 28.0;
     private const double SPRING_SETTLE_THRESHOLD = 0.0012;
     private const double SPRING_TARGET_FOLLOW_SPEED = 30.0;
-    private const double SPRING_MAX_VELOCITY = 4.2;
-    private const double SPRING_MAX_STEP_PER_FRAME = 0.055;
+    private const double SPRING_MAX_VELOCITY = 2.4;
+    private const double SPRING_MAX_STEP_PER_FRAME = 0.030;
     private const int SPRING_SETTLE_FRAMES_REQUIRED = 3;
     private const int SPRING_TIMEOUT_MS = 1400;
     private const double NORMAL_LERP_SPEED = 14.0;
@@ -694,7 +695,8 @@ public partial class MainWindow
             if (_progressTargetRatio < _progressDisplayRatio)
             {
                 double backwardSeconds = (_progressDisplayRatio - _progressTargetRatio) * frame.Duration.TotalSeconds;
-                if (backwardSeconds > backwardThreshold)
+                bool isUserSeekWindow = frame.State == ProgressState.Seeking || DateTime.Now < _allowProgressBackwardRenderUntil;
+                if (backwardSeconds > backwardThreshold && !isUserSeekWindow)
                 {
                     System.Diagnostics.Debug.WriteLine($"[RENDER] IGNORED: Backward jump {backwardSeconds:F3}s (threshold={backwardThreshold}s, source={_currentMediaInfo?.MediaSource})");
                     
@@ -702,7 +704,7 @@ public partial class MainWindow
                 }
                 else if (backwardSeconds > 0.1)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[RENDER] ACCEPTED: Backward jump {backwardSeconds:F3}s (threshold={backwardThreshold}s, source={_currentMediaInfo?.MediaSource})");
+                    System.Diagnostics.Debug.WriteLine($"[RENDER] ACCEPTED: Backward jump {backwardSeconds:F3}s (threshold={backwardThreshold}s, source={_currentMediaInfo?.MediaSource}, userSeek={isUserSeekWindow})");
                 }
             }
 
@@ -918,6 +920,20 @@ public partial class MainWindow
         CurrentTimeText.Text = FormatTime(_dragSeekPosition);
     }
 
+    private void AnimateSeekProgressTo(double targetRatio)
+    {
+        targetRatio = Math.Clamp(targetRatio, 0, 1);
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+
+        _progressTargetRatio = targetRatio;
+        _progressSpringTargetRatio = targetRatio;
+        _progressVelocity *= 0.35;
+        _springSettleFrames = 0;
+        _isSeekSpringActive = true;
+        _seekSpringStartTime = DateTime.Now;
+        StartSpringRenderLoop();
+    }
+
     private async Task SeekToPosition(TimeSpan newPos)
     {
         var duration = _progressEngine.GetUiFrame().Duration;
@@ -925,18 +941,15 @@ public partial class MainWindow
 
         try 
         {
+            _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(newPos);
 
             
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
-            _progressTargetRatio = targetRatio;
-            _progressSpringTargetRatio = _progressDisplayRatio;
-            _progressVelocity = 0;
-            _springSettleFrames = 0;
-            _isSeekSpringActive = true;
-            _seekSpringStartTime = DateTime.Now;
-            StartSpringRenderLoop();
+            AnimateSeekProgressTo(targetRatio);
+            CurrentTimeText.Text = FormatTime(newPos);
+            _lastDisplayedSecond = (int)newPos.TotalSeconds;
 
             await _mediaService.SeekAsync(newPos);
             
@@ -961,18 +974,15 @@ public partial class MainWindow
 
         try
         {
+            _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(newPos);
 
             
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
-            _progressTargetRatio = targetRatio;
-            _progressSpringTargetRatio = _progressDisplayRatio;
-            _progressVelocity = 0;
-            _springSettleFrames = 0;
-            _isSeekSpringActive = true;
-            _seekSpringStartTime = DateTime.Now;
-            StartSpringRenderLoop();
+            AnimateSeekProgressTo(targetRatio);
+            CurrentTimeText.Text = FormatTime(newPos);
+            _lastDisplayedSecond = (int)newPos.TotalSeconds;
 
             if (_isExpanded) RenderProgressBar();
 

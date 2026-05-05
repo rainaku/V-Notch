@@ -41,8 +41,8 @@ public class StartupManager
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Không thể thay đổi cài đặt khởi động: {ex.Message}",
-                "Lỗi", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            System.Windows.MessageBox.Show($"Unable to change startup settings: {ex.Message}",
+                "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }
 }

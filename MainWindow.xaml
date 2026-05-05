@@ -153,10 +153,10 @@
                         MenuActivation="RightClick">
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
-                    <MenuItem x:Name="MenuToggle" Header="Ẩn Notch" Click="ToggleNotch_Click"/>
-                    <MenuItem Header="Reset vị trí" Click="ResetPosition_Click"/>
+                    <MenuItem x:Name="MenuToggle" Header="Hide Notch" Click="ToggleNotch_Click"/>
+                    <MenuItem Header="Reset position" Click="ResetPosition_Click"/>
                     <Separator/>
-                    <MenuItem Header="Thoát" Click="Exit_Click"/>
+                    <MenuItem Header="Exit" Click="Exit_Click"/>
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
@@ -1387,7 +1387,7 @@
                                            RadiusX="16" RadiusY="16"/>
 
                                 <TextBlock x:Name="ShelfPlaceholder"
-                                           Text="Kéo thả file vào đây để lưu tạm" 
+                                           Text="Drag files here for temporary storage"
                                            HorizontalAlignment="Center" 
                                            VerticalAlignment="Center"
                                            Style="{StaticResource SubtitleText}"/>
