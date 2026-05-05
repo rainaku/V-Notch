@@ -490,6 +490,8 @@
                                     Cursor="Hand"
                                     Margin="7,0,0,0"
                                     MouseLeftButtonDown="Settings_Click"
+                                    PreviewMouseRightButtonDown="SettingsButton_PreviewMouseRightButtonDown"
+                                    MouseRightButtonDown="SettingsButton_PreviewMouseRightButtonDown"
                                     MouseEnter="SettingsButton_MouseEnter"
                                     MouseLeave="SettingsButton_MouseLeave"
                                     RenderTransformOrigin="0.5,0.5"

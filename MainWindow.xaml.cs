@@ -1052,6 +1052,12 @@ public partial class MainWindow : Window
 
     private void Settings_Click(object sender, MouseButtonEventArgs e)
     {
+        if (e.ChangedButton != MouseButton.Left)
+        {
+            e.Handled = true;
+            return;
+        }
+
         try
         {
             // Open Windows Settings
@@ -1062,6 +1068,11 @@ public partial class MainWindow : Window
             });
         }
         catch { }
+    }
+
+    private void SettingsButton_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
     }
 
     private void SettingsButton_MouseEnter(object sender, MouseEventArgs e)
