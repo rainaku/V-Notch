@@ -5,7 +5,7 @@ namespace VNotch.Models;
 public class NotchSettings
 {
 
-    public int Width { get; set; } = 200;
+    public int Width { get; set; } = 360;
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 16;
     public double Opacity { get; set; } = 1.0;
@@ -16,9 +16,8 @@ public class NotchSettings
     public bool EnableHoverExpand { get; set; } = true;
     public bool EnableCursorBypass { get; set; } = true;
     public bool EnableAnimations { get; set; } = true;
-    public bool ShowCameraIndicator { get; set; } = false;
 
-    public double AnimationSpeed { get; set; } = 1.0; 
+    public double AnimationSpeed { get; set; } = 1.0;
     public bool EnableBounceEffect { get; set; } = true;
 
     public int HoverExpandDelay { get; set; } = 100; 
@@ -53,7 +52,6 @@ public class NotchSettings
             EnableHoverExpand = EnableHoverExpand,
             EnableCursorBypass = EnableCursorBypass,
             EnableAnimations = EnableAnimations,
-            ShowCameraIndicator = ShowCameraIndicator,
             AnimationSpeed = AnimationSpeed,
             EnableBounceEffect = EnableBounceEffect,
             HoverExpandDelay = HoverExpandDelay,

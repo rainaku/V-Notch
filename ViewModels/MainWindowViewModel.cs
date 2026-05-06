@@ -293,7 +293,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
             if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
-            CollapsedWidth = shouldBeCompact ? 180 : Settings.Width;
+            CollapsedWidth = Settings.Width;
             IsMusicCompactMode = shouldBeCompact;
 
             

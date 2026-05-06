@@ -326,7 +326,7 @@ public partial class MainWindow : Window
 
         _hoverCollapseTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(1000)
+            Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay)
         };
         _hoverCollapseTimer.Tick += (s, e) =>
         {
@@ -339,16 +339,23 @@ public partial class MainWindow : Window
 
         _hoverThumbnailDelayTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(150)
+            Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay)
         };
         _hoverThumbnailDelayTimer.Tick += (s, e) =>
         {
             _hoverThumbnailDelayTimer.Stop();
-            if (CompactThumbnailBorder.IsMouseOver)
+            if (_settings.EnableHoverExpand && !_isExpanded && !_isAnimating)
+            {
+                ExpandNotch();
+            }
+            else if (CompactThumbnailBorder.IsMouseOver)
             {
                 AnimateThumbnailHover(true);
             }
         };
+
+        _notchManager.HoverService.HoverEnter += HoverService_HoverEnter;
+        _notchManager.HoverService.HoverLeave += HoverService_HoverLeave;
 
         Loaded += MainWindow_Loaded;
         Deactivated += MainWindow_Deactivated;
@@ -472,6 +479,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _notchManager.HoverService.HoverEnter -= HoverService_HoverEnter;
+        _notchManager.HoverService.HoverLeave -= HoverService_HoverLeave;
         _hwndSource?.RemoveHook(WndProc);
         StopZOrderWatchdog();
         _mediaService?.Dispose();
@@ -958,6 +967,13 @@ public partial class MainWindow : Window
 
     private void ApplySettings()
     {
+        _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
+        _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
+        if (_hwnd != IntPtr.Zero)
+        {
+            ConfigureOverlayWindow();
+        }
+
         NotchBorder.Width = _settings.Width;
         NotchBorder.Height = _settings.Height;
         var cr = new CornerRadius(0, 0, _settings.CornerRadius, _settings.CornerRadius);
@@ -972,7 +988,6 @@ public partial class MainWindow : Window
         _cornerRadiusCollapsed = _settings.CornerRadius;
         _cachedThumbnailExpandTarget = null;
 
-        CameraIndicator.Visibility = _settings.ShowCameraIndicator ? Visibility.Visible : Visibility.Collapsed;
     }
 
     #endregion
@@ -1036,10 +1051,13 @@ public partial class MainWindow : Window
     {
         _hoverCollapseTimer.Stop();
         AnimateNotchHover(true);
+        QueueHoverExpand();
     }
 
     private void NotchWrapper_MouseLeave(object sender, MouseEventArgs e)
     {
+        _hoverThumbnailDelayTimer.Stop();
+
         if (_isExpanded && !_isAnimating && !_isSecondaryView)
         {
             _hoverCollapseTimer.Start();
@@ -1048,6 +1066,32 @@ public partial class MainWindow : Window
         {
             AnimateNotchHover(false);
         }
+    }
+
+    private void QueueHoverExpand()
+    {
+        if (_settings.EnableHoverExpand && !_isExpanded && !_isAnimating)
+        {
+            _hoverThumbnailDelayTimer.Stop();
+            _hoverThumbnailDelayTimer.Start();
+        }
+    }
+
+    private void HoverService_HoverEnter(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(new Action(QueueHoverExpand));
+    }
+
+    private void HoverService_HoverLeave(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _hoverThumbnailDelayTimer.Stop();
+            if (_isExpanded && !_isAnimating && !_isSecondaryView)
+            {
+                _hoverCollapseTimer.Start();
+            }
+        }));
     }
 
     private void CompactThumbnailBorder_MouseEnter(object sender, MouseEventArgs e)
@@ -1081,14 +1125,14 @@ public partial class MainWindow : Window
         catch { }
     }
 
+    private void OpenSettings_Click(object sender, RoutedEventArgs e)
+    {
+        OpenAppSettings();
+    }
+
     private void Settings_Click(object sender, MouseButtonEventArgs e)
     {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:") { UseShellExecute = true });
-        }
-        catch { }
-
+        OpenAppSettings();
         e.Handled = true;
     }
 

@@ -257,6 +257,14 @@
                         </MenuItem.Header>
                     </MenuItem>
                     <Separator Style="{StaticResource TraySeparatorStyle}"/>
+                    <MenuItem Style="{StaticResource TrayMenuItemStyle}" Click="OpenSettings_Click">
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE713;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
+                                <TextBlock Text="Notch settings" Style="{StaticResource TrayMenuItemText}"/>
+                            </StackPanel>
+                        </MenuItem.Header>
+                    </MenuItem>
                     <MenuItem x:Name="MenuStartup" Style="{StaticResource TrayMenuItemStyle}" Click="ToggleStartup_Click">
                         <MenuItem.Header>
                             <StackPanel Orientation="Horizontal">
@@ -389,11 +397,6 @@
                         <StackPanel.Effect>
                             <BlurEffect x:Name="CollapsedContentBlur" Radius="0" RenderingBias="Performance"/>
                         </StackPanel.Effect>
-                        <Ellipse x:Name="CameraIndicator"
-                                 Width="8" Height="8"
-                                 Fill="#2a2a2a"
-                                 Margin="0,6,0,0"
-                                 Visibility="Collapsed"/>
                     </StackPanel>
 
                     <Grid x:Name="MusicCompactContent"

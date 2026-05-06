@@ -269,7 +269,7 @@ public partial class MainWindow
 
         if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
-        _collapsedWidth = shouldBeCompact ? 220 : _settings.Width;
+        _collapsedWidth = _settings.Width;
 
         if (shouldBeCompact == _isMusicCompactMode)
         {
