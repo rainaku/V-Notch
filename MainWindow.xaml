@@ -901,12 +901,12 @@
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
                                                         
-                                                        <TextBlock x:Name="TrackTitle" 
+                                                        <TextBlock x:Name="TrackTitle"
                                                                    Text="No media playing"
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
-                                                                   Foreground="{DynamicResource TrackTitleGradient}" />
+                                                                   Foreground="White" />
                                                     </Grid>
 
                                                     <Grid Opacity="{Binding Opacity, ElementName=TrackTitleNext}">
@@ -924,12 +924,12 @@
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
                                                         
-                                                        <TextBlock x:Name="TrackTitleNext" 
+                                                        <TextBlock x:Name="TrackTitleNext"
                                                                    Text=""
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
-                                                                   Foreground="{DynamicResource TrackTitleNextGradient}" />
+                                                                   Foreground="White" />
                                                     </Grid>
                                                 </Grid>
                                             </Canvas>

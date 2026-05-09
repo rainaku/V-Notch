@@ -667,9 +667,7 @@ public partial class MainWindow
         
         double textWidth = CompactTitleMarquee.DesiredSize.Width;
 
-        double containerWidth = CompactTitleScrollContainer.ActualWidth > 0
-            ? CompactTitleScrollContainer.ActualWidth
-            : Math.Max(0, _collapsedWidth + 12);
+        double containerWidth = Math.Max(0, ((NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : NotchBorder.Width) + 64) - 12);
 
         const double marqueeTriggerOverflow = 10.0;
 
@@ -685,7 +683,7 @@ public partial class MainWindow
             CompactHoverInfo.OpacityMask = null;
             
             CompactTitleMarqueeTranslate.BeginAnimation(TranslateTransform.XProperty, null);
-            CompactTitleMarqueeTranslate.X = (containerWidth - textWidth) / 2;
+            CompactTitleMarqueeTranslate.X = Math.Max(0, (containerWidth - textWidth) / 2);
         }
     }
 

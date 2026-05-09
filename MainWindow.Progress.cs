@@ -1017,7 +1017,11 @@ public partial class MainWindow
 
         bool isExpanded = _isExpanded || _isMusicExpanded;
         
-        bool hasTimeline = _currentMediaInfo != null && (_currentMediaInfo.HasTimeline || _currentMediaInfo.IsIndeterminate);
+        bool hasTimeline = _currentMediaInfo != null &&
+            (_currentMediaInfo.HasTimeline ||
+             _currentMediaInfo.IsIndeterminate ||
+             _currentMediaInfo.Duration.TotalSeconds > 0 ||
+             _currentMediaInfo.IsAnyMediaPlaying);
         bool shouldRunProgress = isExpanded && hasTimeline;
 
         // Use 60fps for smooth progress updates
