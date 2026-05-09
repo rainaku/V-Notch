@@ -141,37 +141,6 @@ public partial class MainWindow
 
     #endregion
 
-    #region Media Widget Click
-
-    private void ThumbnailBorder_Click(object sender, MouseButtonEventArgs e)
-    {
-        MediaWidget_Click(sender, e);
-    }
-
-    private void MediaWidget_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (_isMusicExpanded)
-        {
-            var source = e.OriginalSource as DependencyObject;
-            while (source != null)
-            {
-                if (source == InlineControls) return;
-                if (source == MediaWidget) break;
-                source = VisualTreeHelper.GetParent(source);
-            }
-        }
-
-        e.Handled = true;
-        if (_isMusicAnimating) return;
-
-        if (_isMusicExpanded)
-            CollapseMusicWidget();
-        else
-            ExpandMusicWidget();
-    }
-
-    #endregion
-
     #region Volume Control
 
     private float _currentVolume = 0.5f;

@@ -257,12 +257,12 @@ public partial class MainWindow
 
                 if (_cachedThumbWidthExpand == null || _cachedThumbWidthExpand.Duration != thumbDur)
                 {
-                    _cachedThumbWidthExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
-                    _cachedThumbHeightExpand = MakeAnim(22, 50, thumbDur, thumbEase, thumbDelay);
+        _cachedThumbWidthExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
+        _cachedThumbHeightExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
                     Timeline.SetDesiredFrameRate(_cachedThumbWidthExpand, thumbFps);
                     Timeline.SetDesiredFrameRate(_cachedThumbHeightExpand, thumbFps);
 
-                    _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 50, 50), thumbDur)
+        _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 102, 102), thumbDur)
                     {
                         EasingFunction = thumbEase,
                         BeginTime = thumbDelay
@@ -468,9 +468,9 @@ public partial class MainWindow
 
                 AnimationThumbnailImage.Source = ThumbnailImage.Source;
                 AnimationThumbnailBorder.Visibility = Visibility.Visible;
-                AnimationThumbnailBorder.Width = 50;
-                AnimationThumbnailBorder.Height = 50;
-                AnimationThumbnailClip.Rect = new Rect(0, 0, 50, 50);
+        AnimationThumbnailBorder.Width = 102;
+        AnimationThumbnailBorder.Height = 102;
+        AnimationThumbnailClip.Rect = new Rect(0, 0, 102, 102);
                 AnimationThumbnailTranslate.X = startX;
                 AnimationThumbnailTranslate.Y = startY;
 
@@ -481,12 +481,12 @@ public partial class MainWindow
 
                 if (_cachedThumbWidthCollapse == null || _cachedThumbWidthCollapse.Duration != thumbDur)
                 {
-                    _cachedThumbWidthCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
-                    _cachedThumbHeightCollapse = MakeAnim(50, 22, thumbDur, thumbEase, thumbDelay);
+        _cachedThumbWidthCollapse = MakeAnim(102, 22, thumbDur, thumbEase, thumbDelay);
+        _cachedThumbHeightCollapse = MakeAnim(102, 22, thumbDur, thumbEase, thumbDelay);
                     Timeline.SetDesiredFrameRate(_cachedThumbWidthCollapse, thumbFps);
                     Timeline.SetDesiredFrameRate(_cachedThumbHeightCollapse, thumbFps);
 
-                    _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 50, 50), new Rect(0, 0, 22, 22), thumbDur)
+        _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 102, 102), new Rect(0, 0, 22, 22), thumbDur)
                     {
                         EasingFunction = thumbEase,
                         BeginTime = thumbDelay
@@ -612,6 +612,7 @@ public partial class MainWindow
         if (_isExpanded || _isAnimating) return;
 
         double thumbScale = isHovered ? 1.6 : 1.0;
+        double notchWidth = isHovered ? _collapsedWidth + 64 : _collapsedWidth;
         double notchHeight = isHovered ? 84 : _collapsedHeight;
         double infoOpacity = isHovered ? 1 : 0;
         
@@ -620,7 +621,9 @@ public partial class MainWindow
         var animFps = 144;
 
         
+        var widthAnim = MakeAnim(notchWidth, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
         var heightAnim = MakeAnim(notchHeight, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
+        NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
         
@@ -634,6 +637,13 @@ public partial class MainWindow
         {
             CompactHoverInfo.Visibility = Visibility.Visible;
             UpdateCompactMarquee();
+            widthAnim.Completed += (s, e) =>
+            {
+                if (!_isExpanded && !_isAnimating && _isMusicCompactMode)
+                {
+                    UpdateCompactMarquee();
+                }
+            };
         }
 
         var fadeAnim = MakeAnim(infoOpacity, isHovered ? _dur200 : _dur100, _easeQuadOut);
@@ -656,14 +666,18 @@ public partial class MainWindow
         CompactTitleMarquee.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         
         double textWidth = CompactTitleMarquee.DesiredSize.Width;
-        
-        double containerWidth = _collapsedWidth - 8; 
-        
-        if (textWidth > containerWidth && containerWidth > 0)
+
+        double containerWidth = CompactTitleScrollContainer.ActualWidth > 0
+            ? CompactTitleScrollContainer.ActualWidth
+            : Math.Max(0, _collapsedWidth + 12);
+
+        const double marqueeTriggerOverflow = 10.0;
+
+        if (textWidth > containerWidth + marqueeTriggerOverflow && containerWidth > 0)
         {
             
             CompactHoverInfo.OpacityMask = CompactMarqueeFadeBrush;
-            StartMarqueeAnimation(CompactTitleMarqueeTranslate, textWidth - containerWidth + 20);
+            StartMarqueeAnimation(CompactTitleMarqueeTranslate, textWidth - containerWidth + 12);
         }
         else
         {
@@ -688,6 +702,7 @@ public partial class MainWindow
         if (_isMusicAnimating) return;
         _isMusicAnimating = true;
         _isMusicExpanded = true;
+        UpdateProgressSectionLayout();
 
         UpdateZOrderTimerInterval();
 
@@ -730,7 +745,7 @@ public partial class MainWindow
             EasingFunction = _easeExpOut7
         };
 
-        var marginAnim = new ThicknessAnimation(new Thickness(0, 0, 8, 0), new Thickness(0), expandDuration)
+        var marginAnim = new ThicknessAnimation(new Thickness(-8, 0, 0, 0), new Thickness(0), expandDuration)
         {
             EasingFunction = _easeExpOut7
         };
@@ -738,8 +753,9 @@ public partial class MainWindow
         widthAnim.Completed += (s, e) =>
         {
             MediaWidgetContainer.Width = double.NaN;
-            MediaWidgetContainer.Margin = new Thickness(0);
+            MediaWidgetContainer.Margin = new Thickness(-8, 0, 0, 0);
             MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
+            UpdateProgressSectionLayout();
             UpdateProgressTimerState();
             MediaWidgetContainer.BeginAnimation(WidthProperty, null);
             MediaWidgetContainer.BeginAnimation(MarginProperty, null);
@@ -770,6 +786,7 @@ public partial class MainWindow
         if (_isMusicAnimating) return;
         _isMusicAnimating = true;
         _isMusicExpanded = false;
+        UpdateProgressSectionLayout();
 
         UpdateZOrderTimerInterval();
         ResetCalendarHoverFocusVisualState();
@@ -795,7 +812,7 @@ public partial class MainWindow
             EasingFunction = _easeExpOut7
         };
 
-        var marginAnim = new ThicknessAnimation(new Thickness(0), new Thickness(0, 0, 8, 0), collapseDuration)
+        var marginAnim = new ThicknessAnimation(new Thickness(0), new Thickness(-8, 0, 0, 0), collapseDuration)
         {
             EasingFunction = _easeExpOut7
         };
@@ -803,10 +820,11 @@ public partial class MainWindow
         widthAnim.Completed += (s, e) =>
         {
             MediaWidgetContainer.Width = double.NaN;
-            MediaWidgetContainer.Margin = new Thickness(0, 0, 8, 0);
+            MediaWidgetContainer.Margin = new Thickness(-8, 0, 0, 0);
             MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
             Grid.SetColumnSpan(MediaWidgetContainer, 1);
             Panel.SetZIndex(MediaWidgetContainer, 0);
+            UpdateProgressSectionLayout();
             UpdateProgressTimerState();
             MediaWidgetContainer.BeginAnimation(WidthProperty, null);
             MediaWidgetContainer.BeginAnimation(MarginProperty, null);
@@ -848,10 +866,62 @@ public partial class MainWindow
         GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
     }
 
+    private void UpdateProgressSectionLayout()
+    {
+        if (ProgressSection == null || ProgressBarContainer == null || MediaInfoSection == null)
+            return;
+
+        bool useCompactLayout = !_isMusicExpanded;
+        double fallbackWidth = useCompactLayout ? 208 : 340;
+        double visibleTextWidth = GetVisibleMediaTextWidth(fallbackWidth);
+
+        double containerHeight = useCompactLayout ? 8 : 12;
+        double barHeight = useCompactLayout ? 3 : 4;
+        double barRadius = useCompactLayout ? 1.5 : 2.0;
+        double timeTopMargin = useCompactLayout ? 4 : 2;
+        double timeSideMargin = useCompactLayout ? 4 : 6;
+        double progressRightInset = 0;
+        double targetWidth = Math.Max(0, visibleTextWidth - 5);
+
+        Grid.SetColumnSpan(MediaInfoSection, useCompactLayout ? 2 : 1);
+
+        ProgressSection.HorizontalAlignment = HorizontalAlignment.Left;
+        ProgressSection.Width = targetWidth;
+        ProgressSection.Margin = new Thickness(0, useCompactLayout ? 8 : 10, progressRightInset, 0);
+        ProgressBarContainer.Margin = new Thickness(0);
+
+        ProgressBarContainer.Height = containerHeight;
+        ProgressBarBg.Height = barHeight;
+        ProgressBar.Height = barHeight;
+        IndeterminateProgress.Height = barHeight;
+
+        var cornerRadius = new CornerRadius(barRadius);
+        ProgressBarBg.CornerRadius = cornerRadius;
+        ProgressBar.CornerRadius = cornerRadius;
+        IndeterminateProgress.CornerRadius = cornerRadius;
+
+        CurrentTimeText.Margin = new Thickness(0, timeTopMargin, timeSideMargin, 0);
+        RemainingTimeText.Margin = new Thickness(timeSideMargin, timeTopMargin, 0, 0);
+    }
+
+    private void MediaInfoSection_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateProgressSectionLayout();
+    }
+
     private void MediaWidgetContainer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        double availableWidth = e.NewSize.Width - 72 - 12;
-        double fadeEndX = Math.Max(0, Math.Min(250, availableWidth));
+        double fadeEndX = GetVisibleMediaTextWidth(340);
+
+        if (TitleScrollContainer != null)
+        {
+            TitleScrollContainer.Width = fadeEndX;
+        }
+
+        if (ArtistScrollContainer != null)
+        {
+            ArtistScrollContainer.Width = fadeEndX;
+        }
         
         if (TextFadeBrush != null)
         {
@@ -861,6 +931,28 @@ public partial class MainWindow
             TextFadeBrush.GradientStops[1].Offset = fadeEndX > 0 ? fadeStartX / fadeEndX : 0.8;
             TextFadeBrush.GradientStops[2].Offset = 1;
         }
+
+        UpdateProgressSectionLayout();
+    }
+
+    private double GetVisibleMediaTextWidth(double fallbackWidth)
+    {
+        double infoWidth = MediaInfoSection?.ActualWidth > 0 ? MediaInfoSection.ActualWidth : 0;
+        if (infoWidth > 0)
+        {
+            return Math.Max(0, Math.Min(340, infoWidth));
+        }
+
+        double widgetWidth = MediaWidgetContainer?.ActualWidth > 0 ? MediaWidgetContainer.ActualWidth : 0;
+        if (widgetWidth > 0)
+        {
+            double thumbnailWidth = ThumbnailBorder?.ActualWidth > 0 ? ThumbnailBorder.ActualWidth : 102;
+            double thumbnailGap = ThumbnailBorder?.Margin.Right ?? 8;
+            double availableWidth = widgetWidth - thumbnailWidth - thumbnailGap - 4;
+            return Math.Max(0, Math.Min(340, availableWidth));
+        }
+
+        return fallbackWidth;
     }
 
     #endregion
@@ -975,22 +1067,21 @@ public partial class MainWindow
 
     private void PlayNextSkipAnimation(System.Windows.Shapes.Path arrow0, System.Windows.Shapes.Path arrow1, System.Windows.Shapes.Path arrow2)
     {
-
         var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow2.RenderTransform = arrow2Transform;
 
-        var slideOut2 = new DoubleAnimation(0, 12, _dur250) { EasingFunction = _easeQuadOut };
+        var slideOut2 = new DoubleAnimation(0, 8, _dur250) { EasingFunction = _easeQuadOut };
         var fadeOut2 = new DoubleAnimation(1, 0, _dur250) { EasingFunction = _easeQuadOut };
 
         var arrow1Transform = arrow1.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow1.RenderTransform = arrow1Transform;
 
-        var slideRight1 = new DoubleAnimation(0, 10, _dur250) { EasingFunction = _easeQuadOut };
+        var slideRight1 = new DoubleAnimation(0, 8, _dur250) { EasingFunction = _easeQuadOut };
 
         var arrow0Transform = arrow0.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow0.RenderTransform = arrow0Transform;
 
-        var slideIn0 = new DoubleAnimation(0, 10, _dur250) { EasingFunction = _easeQuadOut };
+        var slideIn0 = new DoubleAnimation(0, 8, _dur250) { EasingFunction = _easeQuadOut };
         var fadeIn0 = new DoubleAnimation(0, 1, _dur250) { EasingFunction = _easeQuadOut };
 
         arrow2Transform.BeginAnimation(TranslateTransform.XProperty, slideOut2);
@@ -1001,7 +1092,6 @@ public partial class MainWindow
 
         fadeOut2.Completed += (s, e) =>
         {
-
             arrow2Transform.X = 0;
             arrow2.Opacity = 1;
             arrow1Transform.X = 0;
@@ -1026,18 +1116,18 @@ public partial class MainWindow
         var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow2.RenderTransform = arrow2Transform;
 
-        var slideOut2 = new DoubleAnimation(0, -12, _dur250) { EasingFunction = _easeQuadOut };
+        var slideOut2 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
         var fadeOut2 = new DoubleAnimation(1, 0, _dur250) { EasingFunction = _easeQuadOut };
 
         var arrow1Transform = arrow1.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow1.RenderTransform = arrow1Transform;
 
-        var slideLeft1 = new DoubleAnimation(0, -10, _dur250) { EasingFunction = _easeQuadOut };
+        var slideLeft1 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
 
         var arrow0Transform = arrow0.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow0.RenderTransform = arrow0Transform;
 
-        var slideIn0 = new DoubleAnimation(0, -10, _dur250) { EasingFunction = _easeQuadOut };
+        var slideIn0 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
         var fadeIn0 = new DoubleAnimation(0, 1, _dur250) { EasingFunction = _easeQuadOut };
 
         arrow2Transform.BeginAnimation(TranslateTransform.XProperty, slideOut2);
@@ -1048,7 +1138,6 @@ public partial class MainWindow
 
         fadeOut2.Completed += (s, e) =>
         {
-
             arrow2Transform.X = 0;
             arrow2.Opacity = 1;
             arrow1Transform.X = 0;
@@ -1142,7 +1231,7 @@ public partial class MainWindow
 
     private void AnimateProgressBarHover(bool isHovered)
     {
-        double margin = isHovered ? 0 : 22;
+        double margin = isHovered ? 0 : (_isMusicExpanded ? 6 : 17);
         double scaleY = isHovered ? 1.8 : 1.0;
         double bgOpacity = isHovered ? 0.4 : 1.0;
         

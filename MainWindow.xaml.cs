@@ -231,7 +231,7 @@ public partial class MainWindow : Window
     private double _collapsedWidth;
     private double _collapsedHeight;
     private double _expandedWidth = 480;
-    private double _expandedHeight = 155;
+    private double _expandedHeight = 186;
     private double _cornerRadiusCollapsed;
     private double _cornerRadiusExpanded = 24;
 
@@ -413,6 +413,7 @@ public partial class MainWindow : Window
         {
             UpdateLayout();
             UpdateNotchClip();
+            UpdateMediaBackgroundFootprint();
             _isStartupLayoutReady = true;
             _pendingStartupClickToggle = false;
         }), DispatcherPriority.ContextIdle);
@@ -981,6 +982,8 @@ public partial class MainWindow : Window
         InnerClipBorder.CornerRadius = cr;
         UpdateNotchClip();
         MediaBackground.CornerRadius = cr;
+        MediaBackground2.CornerRadius = cr;
+        UpdateMediaBackgroundFootprint();
         this.Opacity = _settings.Opacity;
 
         _collapsedWidth = _settings.Width;
@@ -1867,6 +1870,31 @@ public partial class MainWindow : Window
     private void NotchContent_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateNotchClip();
+        UpdateMediaBackgroundFootprint();
+    }
+
+    private void UpdateMediaBackgroundFootprint()
+    {
+        if (MediaBackground == null || MediaBackground2 == null || NotchBorder == null) return;
+
+        double notchLength = NotchContent?.ActualWidth > 0
+            ? NotchContent.ActualWidth
+            : (NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : NotchBorder.Width);
+        if (notchLength <= 0) return;
+
+        // Use two-thirds of notch length.
+        double primaryLength = notchLength * (2.0 / 3.0);
+        double secondaryLength = primaryLength * 0.84;
+
+        double notchBreadth = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : NotchBorder.Height;
+        double primaryBreadth = Math.Clamp(notchBreadth * 1.24, 140.0, 220.0);
+        double secondaryBreadth = primaryBreadth * 0.82;
+
+        MediaBackground.Width = primaryLength;
+        MediaBackground.Height = primaryBreadth;
+
+        MediaBackground2.Width = secondaryLength;
+        MediaBackground2.Height = secondaryBreadth;
     }
 
     private void UpdateNotchClip()

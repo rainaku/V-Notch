@@ -53,6 +53,7 @@ public partial class MainWindow
 
         var targetColor = Color.FromRgb(dominantColor.R, dominantColor.G, dominantColor.B);
         var vibrantTargetColor = GetVibrantColor(targetColor);
+        double dominantLuminance = (0.2126 * dominantColor.R + 0.7152 * dominantColor.G + 0.0722 * dominantColor.B) / 255.0;
 
         var colorAnim = new ColorAnimation
         {
@@ -67,8 +68,9 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(500),
             EasingFunction = _easeQuadOut
         };
-        
-        double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh)) ? 0.9 : 0;
+        double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh))
+            ? GetAdaptiveBlurOpacity(dominantLuminance)
+            : 0;
 
         var opacityAnim = new DoubleAnimation
         {
@@ -96,6 +98,16 @@ public partial class MainWindow
 
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
+
+        double blurImageOpacity = GetAdaptiveBlurImageOpacity(dominantLuminance);
+        var blurImageOpacityAnim = new DoubleAnimation
+        {
+            To = blurImageOpacity,
+            Duration = TimeSpan.FromMilliseconds(450),
+            EasingFunction = _easeQuadOut
+        };
+        MediaBackgroundImage.BeginAnimation(UIElement.OpacityProperty, blurImageOpacityAnim);
+        MediaBackgroundImage2.BeginAnimation(UIElement.OpacityProperty, blurImageOpacityAnim);
 
         var currentBg = ProgressBar.Background as SolidColorBrush;
         if (currentBg == null || currentBg.IsFrozen)
@@ -146,8 +158,7 @@ public partial class MainWindow
         EnsureUnfrozenFill(InlinePrevArrow0);
         EnsureUnfrozenFill(InlinePrevArrow1);
         EnsureUnfrozenFill(InlinePrevArrow2);
-        EnsureUnfrozenFill(InlinePauseBar1);
-        EnsureUnfrozenFill(InlinePauseBar2);
+        EnsureUnfrozenFill(InlinePauseIconPath);
         EnsureUnfrozenFill(InlinePlayIconPath);
         EnsureUnfrozenFill(InlineNextArrow0);
         EnsureUnfrozenFill(InlineNextArrow1);
@@ -187,13 +198,18 @@ public partial class MainWindow
             if (max == r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6.0;
             else if (max == g) h = ((b - r) / d + 2) / 6.0;
             else h = ((r - g) / d + 4) / 6.0;
-            
-            
-            s = Math.Max(s, 0.45);
-            s = Math.Min(s, 0.95);
+            // Keep natural saturation; avoid forcing vivid colors for near-monochrome art.
+            s = Math.Min(s, 0.90);
         }
 
-        
+        // If source color is low-saturation, keep it neutral instead of tinting.
+        if (s < 0.16)
+        {
+            byte gray = (byte)Math.Clamp((0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B), 0, 255);
+            byte lifted = (byte)Math.Clamp(gray + (255 - gray) * 0.18, 0, 255);
+            return Color.FromRgb(lifted, lifted, lifted);
+        }
+
         l = Math.Max(l, 0.65); 
         l = Math.Min(l, 0.85);
 
@@ -243,6 +259,21 @@ public partial class MainWindow
             return Color.FromRgb(r, g, b);
         }
         return c;
+    }
+
+    private static double GetAdaptiveBlurImageOpacity(double luminance)
+    {
+        // Keep normal covers close to current look, dim very bright palettes.
+        if (luminance <= 0.70) return 0.80;
+        double t = Math.Clamp((luminance - 0.70) / 0.30, 0.0, 1.0);
+        return 0.80 - t * 0.18; // down to ~0.62
+    }
+
+    private static double GetAdaptiveBlurOpacity(double luminance)
+    {
+        if (luminance <= 0.72) return 0.90;
+        double t = Math.Clamp((luminance - 0.72) / 0.28, 0.0, 1.0);
+        return 0.90 - t * 0.18; // down to ~0.72
     }
 
     private void HideMediaBackground()
@@ -297,8 +328,7 @@ public partial class MainWindow
         ResetUnfrozenFill(InlinePrevArrow0);
         ResetUnfrozenFill(InlinePrevArrow1);
         ResetUnfrozenFill(InlinePrevArrow2);
-        ResetUnfrozenFill(InlinePauseBar1);
-        ResetUnfrozenFill(InlinePauseBar2);
+        ResetUnfrozenFill(InlinePauseIconPath);
         ResetUnfrozenFill(InlinePlayIconPath);
         ResetUnfrozenFill(InlineNextArrow0);
         ResetUnfrozenFill(InlineNextArrow1);
@@ -355,6 +385,10 @@ public partial class MainWindow
 
             double totalWeightAll = 0;
             double avgR = 0, avgG = 0, avgB = 0;
+            double satWeightAll = 0;
+            double satWeightedSum = 0;
+            double colorfulWeight = 0;
+            double darkWeight = 0;
 
             double centerX = width / 2.0;
             double centerY = height / 2.0;
@@ -385,6 +419,7 @@ public partial class MainWindow
                     avgG += g * spatialWeight;
                     avgB += b * spatialWeight;
                     totalWeightAll += spatialWeight;
+                    if (l < 0.14) darkWeight += spatialWeight;
 
                     
                     if (l < 0.08) { pixelIndex++; continue; }
@@ -402,6 +437,10 @@ public partial class MainWindow
 
                     
                     
+                    satWeightAll += spatialWeight;
+                    satWeightedSum += s * spatialWeight;
+                    if (s > 0.22) colorfulWeight += spatialWeight;
+
                     double satWeight = 0.3 + 0.7 * s; 
                     double lumWeight = l;
                     if (l > 0.85) lumWeight = Math.Max(0.1, 1.0 - (l - 0.85) * 4);
@@ -457,6 +496,31 @@ public partial class MainWindow
                 {
                     bestScore = score;
                     bestCenter = i;
+                }
+            }
+
+            if (totalWeightAll > 0)
+            {
+                double avgSatAll = satWeightAll > 0 ? satWeightedSum / satWeightAll : 0;
+                double colorfulRatio = colorfulWeight / totalWeightAll;
+                double darkRatio = darkWeight / totalWeightAll;
+                double avgLumAll = 0.2126 * (avgR / totalWeightAll) + 0.7152 * (avgG / totalWeightAll) + 0.0722 * (avgB / totalWeightAll);
+                double meanR = avgR / totalWeightAll;
+                double meanG = avgG / totalWeightAll;
+                double meanB = avgB / totalWeightAll;
+                double colorSpread = Math.Max(meanR, Math.Max(meanG, meanB)) - Math.Min(meanR, Math.Min(meanG, meanB));
+
+                // Force white only when thumbnail is almost fully black.
+                if (avgLumAll < 0.06 && darkRatio > 0.90)
+                {
+                    return Colors.White;
+                }
+
+                // Force white for truly monochrome/single-tone thumbnails.
+                bool isMonochrome = avgSatAll < 0.10 && colorfulRatio < 0.10 && colorSpread < 0.08;
+                if (isMonochrome)
+                {
+                    return Colors.White;
                 }
             }
 
