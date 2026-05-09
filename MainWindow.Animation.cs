@@ -1113,16 +1113,16 @@ public partial class MainWindow
 
     private void PlayPrevSkipAnimation(System.Windows.Shapes.Path arrow0, System.Windows.Shapes.Path arrow1, System.Windows.Shapes.Path arrow2)
     {
-        var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
-        arrow2.RenderTransform = arrow2Transform;
-
-        var slideOut2 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
-        var fadeOut2 = new DoubleAnimation(1, 0, _dur250) { EasingFunction = _easeQuadOut };
-
         var arrow1Transform = arrow1.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow1.RenderTransform = arrow1Transform;
 
-        var slideLeft1 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
+        var slideOut1 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
+        var fadeOut1 = new DoubleAnimation(1, 0, _dur250) { EasingFunction = _easeQuadOut };
+
+        var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
+        arrow2.RenderTransform = arrow2Transform;
+
+        var slideLeft2 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
 
         var arrow0Transform = arrow0.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow0.RenderTransform = arrow0Transform;
@@ -1130,23 +1130,23 @@ public partial class MainWindow
         var slideIn0 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
         var fadeIn0 = new DoubleAnimation(0, 1, _dur250) { EasingFunction = _easeQuadOut };
 
-        arrow2Transform.BeginAnimation(TranslateTransform.XProperty, slideOut2);
-        arrow2.BeginAnimation(OpacityProperty, fadeOut2);
-        arrow1Transform.BeginAnimation(TranslateTransform.XProperty, slideLeft1);
+        arrow1Transform.BeginAnimation(TranslateTransform.XProperty, slideOut1);
+        arrow1.BeginAnimation(OpacityProperty, fadeOut1);
+        arrow2Transform.BeginAnimation(TranslateTransform.XProperty, slideLeft2);
         arrow0Transform.BeginAnimation(TranslateTransform.XProperty, slideIn0);
         arrow0.BeginAnimation(OpacityProperty, fadeIn0);
 
-        fadeOut2.Completed += (s, e) =>
+        fadeOut1.Completed += (s, e) =>
         {
-            arrow2Transform.X = 0;
-            arrow2.Opacity = 1;
             arrow1Transform.X = 0;
+            arrow1.Opacity = 1;
+            arrow2Transform.X = 0;
             arrow0Transform.X = 0;
             arrow0.Opacity = 0;
 
-            arrow2Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow2.BeginAnimation(OpacityProperty, null);
             arrow1Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow1.BeginAnimation(OpacityProperty, null);
+            arrow2Transform.BeginAnimation(TranslateTransform.XProperty, null);
             arrow0Transform.BeginAnimation(TranslateTransform.XProperty, null);
             arrow0.BeginAnimation(OpacityProperty, null);
         };

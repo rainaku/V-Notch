@@ -83,7 +83,27 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT lpwndpl);
+
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
@@ -114,6 +134,8 @@ public partial class MainWindow : Window
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const int GWL_STYLE = -16;
     private const int GWL_EXSTYLE = -20;
+    private const int SW_RESTORE = 9;
+    private const int SW_SHOW = 5;
     private const int WS_CAPTION = 0x00C00000;
     private const int WS_THICKFRAME = 0x00040000;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
@@ -231,7 +253,7 @@ public partial class MainWindow : Window
     private double _collapsedWidth;
     private double _collapsedHeight;
     private double _expandedWidth = 480;
-    private double _expandedHeight = 186;
+    private double _expandedHeight = 180;
     private double _cornerRadiusCollapsed;
     private double _cornerRadiusExpanded = 24;
 

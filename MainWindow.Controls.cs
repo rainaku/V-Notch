@@ -3,7 +3,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
+using System.Text;
+using System.Text.RegularExpressions;
 using VNotch.Services;
+using VNotch.Models;
 
 namespace VNotch;
 
@@ -43,6 +47,7 @@ public partial class MainWindow
         else
         {
             await _mediaService.NextTrackAsync();
+            SendMediaKey(VK_MEDIA_NEXT_TRACK);
         }
     }
 
@@ -62,6 +67,7 @@ public partial class MainWindow
         else
         {
             await _mediaService.PreviousTrackAsync();
+            SendMediaKey(VK_MEDIA_PREV_TRACK);
         }
     }
 
@@ -111,6 +117,7 @@ public partial class MainWindow
         else
         {
             await _mediaService.NextTrackAsync();
+            SendMediaKey(VK_MEDIA_NEXT_TRACK);
         }
     }
 
@@ -130,7 +137,341 @@ public partial class MainWindow
         else
         {
             await _mediaService.PreviousTrackAsync();
+            SendMediaKey(VK_MEDIA_PREV_TRACK);
         }
+    }
+
+    private void ThumbnailBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        OpenCurrentMediaSourceFromThumbnail();
+    }
+
+    private void CompactThumbnailBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        OpenCurrentMediaSourceFromThumbnail();
+    }
+
+    private async void OpenCurrentMediaSourceFromThumbnail()
+    {
+        var info = _currentMediaInfo;
+        if (info == null || !info.IsAnyMediaPlaying) return;
+        await TryActivateMediaProcess(info);
+    }
+
+    private async Task<bool> TryActivateMediaProcess(MediaInfo info)
+    {
+        var candidates = GetMediaProcessCandidates(info).ToList();
+        var processNames = new HashSet<string>(candidates, StringComparer.OrdinalIgnoreCase);
+        bool preferBrowserTabMatch = info.IsVideoSource || info.MediaSource is "YouTube" or "SoundCloud" or "Facebook" or "TikTok" or "Instagram" or "Twitter" or "Browser";
+
+        if (preferBrowserTabMatch && TryActivateBestMediaWindow(info, processNames, out bool usedBrowser))
+        {
+            if (usedBrowser && await TrySwitchBrowserTabAsync(info)) return true;
+            return true;
+        }
+
+        foreach (string processName in candidates)
+        {
+            Process[] processes;
+            try
+            {
+                processes = Process.GetProcessesByName(processName);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var process in processes)
+            {
+                try
+                {
+                    process.Refresh();
+                    IntPtr hwnd = process.MainWindowHandle;
+                    if (hwnd == IntPtr.Zero)
+                    {
+                        continue;
+                    }
+
+                    if (TryActivateWindow(hwnd))
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        if (TryActivateBestMediaWindow(info, processNames, out bool fallbackUsedBrowser))
+        {
+            if (fallbackUsedBrowser && await TrySwitchBrowserTabAsync(info)) return true;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryActivateBestMediaWindow(MediaInfo info, ISet<string> processNames, out bool usedBrowser)
+    {
+        usedBrowser = false;
+        IntPtr bestHwnd = IntPtr.Zero;
+        string bestProcessName = string.Empty;
+        int bestScore = 0;
+
+        EnumWindows((hwnd, _) =>
+        {
+            if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) return true;
+
+            GetWindowThreadProcessId(hwnd, out uint processId);
+            if (processId == 0) return true;
+
+            string processName;
+            try
+            {
+                processName = Process.GetProcessById((int)processId).ProcessName;
+            }
+            catch
+            {
+                return true;
+            }
+
+            if (processNames.Count > 0 && !processNames.Contains(processName)) return true;
+
+            string title = GetWindowTitle(hwnd);
+            if (string.IsNullOrWhiteSpace(title)) return true;
+
+            int score = ScoreMediaWindow(title, processName, info);
+            if (score <= 0 && info.IsVideoSource && IsBrowserProcess(processName)) score = 1;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestHwnd = hwnd;
+                bestProcessName = processName;
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        usedBrowser = IsBrowserProcess(bestProcessName);
+        return bestHwnd != IntPtr.Zero && TryActivateWindow(bestHwnd);
+    }
+
+    private static async Task<bool> TrySwitchBrowserTabAsync(MediaInfo info)
+    {
+        string query = info.MediaSource.Equals("YouTube", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(info.YouTubeTitle)
+            ? info.YouTubeTitle
+            : info.CurrentTrack;
+
+        query = Regex.Replace(query ?? string.Empty, @"\s+", " ").Trim();
+        if (string.IsNullOrWhiteSpace(query)) return false;
+
+        try
+        {
+            await Task.Delay(160);
+            foreach (var _ in Enumerable.Range(0, 2))
+            {
+                System.Windows.Forms.SendKeys.SendWait("^l");
+                await Task.Delay(80);
+                System.Windows.Forms.SendKeys.SendWait("%{LEFT}");
+                await Task.Delay(140);
+            }
+
+            System.Windows.Forms.SendKeys.SendWait("^+a");
+            await Task.Delay(180);
+            System.Windows.Forms.SendKeys.SendWait(EscapeSendKeysText(query));
+            await Task.Delay(180);
+            System.Windows.Forms.SendKeys.SendWait("{ENTER}");
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string EscapeSendKeysText(string value)
+    {
+        var sb = new StringBuilder(value.Length * 2);
+        foreach (char c in value)
+        {
+            if ("+^%~(){}[]".Contains(c)) sb.Append('{').Append(c).Append('}');
+            else sb.Append(c);
+        }
+
+        return sb.ToString();
+    }
+
+    private static string GetWindowTitle(IntPtr hwnd)
+    {
+        int length = GetWindowTextLength(hwnd);
+        if (length <= 0) return string.Empty;
+
+        var sb = new System.Text.StringBuilder(length + 1);
+        GetWindowText(hwnd, sb, sb.Capacity);
+        return sb.ToString();
+    }
+
+    private static int ScoreMediaWindow(string title, string processName, MediaInfo info)
+    {
+        int score = 0;
+        string source = info.MediaSource ?? string.Empty;
+        string track = NormalizeMediaTitle(info.CurrentTrack);
+        string artist = NormalizeMediaTitle(info.CurrentArtist);
+        string window = NormalizeMediaTitle(title);
+
+        if (!string.IsNullOrWhiteSpace(source) && title.Contains(source, StringComparison.OrdinalIgnoreCase)) score += 80;
+        if (!string.IsNullOrWhiteSpace(track) && window.Contains(track, StringComparison.OrdinalIgnoreCase)) score += 140;
+        if (!string.IsNullOrWhiteSpace(artist) && artist is not "youtube" and not "browser" && window.Contains(artist, StringComparison.OrdinalIgnoreCase)) score += 70;
+
+        if (source.Equals("YouTube", StringComparison.OrdinalIgnoreCase) && title.Contains("YouTube", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (source.Equals("SoundCloud", StringComparison.OrdinalIgnoreCase) && title.Contains("SoundCloud", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (source.Equals("Facebook", StringComparison.OrdinalIgnoreCase) && title.Contains("Facebook", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (source.Equals("TikTok", StringComparison.OrdinalIgnoreCase) && title.Contains("TikTok", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (source.Equals("Instagram", StringComparison.OrdinalIgnoreCase) && title.Contains("Instagram", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if ((source.Equals("Twitter", StringComparison.OrdinalIgnoreCase) || source.Equals("X", StringComparison.OrdinalIgnoreCase)) && (title.Contains("Twitter", StringComparison.OrdinalIgnoreCase) || title.Contains(" / X", StringComparison.OrdinalIgnoreCase))) score += 90;
+        if (info.IsVideoSource && IsBrowserProcess(processName)) score += 25;
+
+        return score;
+    }
+
+    private static string NormalizeMediaTitle(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        string normalized = Regex.Replace(value, @"\s+", " ").Trim().ToLowerInvariant();
+        normalized = Regex.Replace(normalized, @"\s+-\s+(youtube|google chrome|microsoft edge|mozilla firefox|brave|opera|vivaldi).*$", "", RegexOptions.IgnoreCase);
+        return normalized;
+    }
+
+    private static bool IsBrowserProcess(string processName)
+    {
+        return processName.Equals("msedge", StringComparison.OrdinalIgnoreCase) ||
+               processName.Equals("chrome", StringComparison.OrdinalIgnoreCase) ||
+               processName.Equals("firefox", StringComparison.OrdinalIgnoreCase) ||
+               processName.Equals("brave", StringComparison.OrdinalIgnoreCase) ||
+               processName.Equals("opera", StringComparison.OrdinalIgnoreCase) ||
+               processName.Equals("vivaldi", StringComparison.OrdinalIgnoreCase) ||
+               processName.Equals("browser", StringComparison.OrdinalIgnoreCase) ||
+               processName.Equals("arc", StringComparison.OrdinalIgnoreCase) ||
+               processName.Equals("sidekick", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryActivateWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (IsIconic(hwnd))
+        {
+            ShowWindow(hwnd, SW_RESTORE);
+        }
+        else
+        {
+            ShowWindow(hwnd, SW_SHOW);
+        }
+
+        return SetForegroundWindow(hwnd);
+    }
+
+    private static IEnumerable<string> GetMediaProcessCandidates(MediaInfo info)
+    {
+        var candidates = new List<string>();
+
+        void Add(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            if (candidates.Any(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase))) return;
+            candidates.Add(value);
+        }
+
+        foreach (Match match in Regex.Matches(info.SourceAppId ?? string.Empty, @"([A-Za-z0-9_\-]+)\.exe", RegexOptions.IgnoreCase))
+        {
+            Add(match.Groups[1].Value);
+        }
+
+        string sourceAppId = info.SourceAppId ?? string.Empty;
+        string mediaSource = info.MediaSource ?? string.Empty;
+
+        if (sourceAppId.Contains("spotify", StringComparison.OrdinalIgnoreCase) ||
+            mediaSource.Equals("Spotify", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("Spotify");
+        }
+
+        if (sourceAppId.Contains("applemusic", StringComparison.OrdinalIgnoreCase) ||
+            sourceAppId.Contains("apple music", StringComparison.OrdinalIgnoreCase) ||
+            mediaSource.Equals("Apple Music", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("AppleMusic");
+        }
+
+        if (sourceAppId.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
+            sourceAppId.Contains("edge", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("msedge");
+        }
+
+        if (sourceAppId.Contains("chrome", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("chrome");
+        }
+
+        if (sourceAppId.Contains("firefox", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("firefox");
+        }
+
+        if (sourceAppId.Contains("brave", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("brave");
+        }
+
+        if (sourceAppId.Contains("opera", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("opera");
+        }
+
+        if (sourceAppId.Contains("vivaldi", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("vivaldi");
+        }
+
+        if (sourceAppId.Contains("arc", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("arc");
+        }
+
+        if (sourceAppId.Contains("sidekick", StringComparison.OrdinalIgnoreCase))
+        {
+            Add("sidekick");
+        }
+
+        if (string.IsNullOrWhiteSpace(sourceAppId) &&
+            mediaSource is "YouTube" or "SoundCloud" or "Browser" or "Facebook" or "TikTok" or "Instagram" or "Twitter")
+        {
+            Add("msedge");
+            Add("chrome");
+            Add("firefox");
+            Add("brave");
+            Add("opera");
+        }
+
+        if (mediaSource is "YouTube" or "SoundCloud" or "Browser" or "Facebook" or "TikTok" or "Instagram" or "Twitter")
+        {
+            Add("msedge");
+            Add("chrome");
+            Add("firefox");
+            Add("brave");
+            Add("opera");
+            Add("vivaldi");
+        }
+
+        return candidates;
     }
 
     private void SendMediaKey(byte key)
