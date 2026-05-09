@@ -168,7 +168,6 @@ public partial class MainWindow
 
         if (preferBrowserTabMatch && TryActivateBestMediaWindow(info, processNames, out bool usedBrowser))
         {
-            if (usedBrowser && await TrySwitchBrowserTabAsync(info)) return true;
             return true;
         }
 
@@ -208,7 +207,6 @@ public partial class MainWindow
 
         if (TryActivateBestMediaWindow(info, processNames, out bool fallbackUsedBrowser))
         {
-            if (fallbackUsedBrowser && await TrySwitchBrowserTabAsync(info)) return true;
             return true;
         }
 
@@ -258,51 +256,6 @@ public partial class MainWindow
 
         usedBrowser = IsBrowserProcess(bestProcessName);
         return bestHwnd != IntPtr.Zero && TryActivateWindow(bestHwnd);
-    }
-
-    private static async Task<bool> TrySwitchBrowserTabAsync(MediaInfo info)
-    {
-        string query = info.MediaSource.Equals("YouTube", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(info.YouTubeTitle)
-            ? info.YouTubeTitle
-            : info.CurrentTrack;
-
-        query = Regex.Replace(query ?? string.Empty, @"\s+", " ").Trim();
-        if (string.IsNullOrWhiteSpace(query)) return false;
-
-        try
-        {
-            await Task.Delay(160);
-            foreach (var _ in Enumerable.Range(0, 2))
-            {
-                System.Windows.Forms.SendKeys.SendWait("^l");
-                await Task.Delay(80);
-                System.Windows.Forms.SendKeys.SendWait("%{LEFT}");
-                await Task.Delay(140);
-            }
-
-            System.Windows.Forms.SendKeys.SendWait("^+a");
-            await Task.Delay(180);
-            System.Windows.Forms.SendKeys.SendWait(EscapeSendKeysText(query));
-            await Task.Delay(180);
-            System.Windows.Forms.SendKeys.SendWait("{ENTER}");
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static string EscapeSendKeysText(string value)
-    {
-        var sb = new StringBuilder(value.Length * 2);
-        foreach (char c in value)
-        {
-            if ("+^%~(){}[]".Contains(c)) sb.Append('{').Append(c).Append('}');
-            else sb.Append(c);
-        }
-
-        return sb.ToString();
     }
 
     private static string GetWindowTitle(IntPtr hwnd)

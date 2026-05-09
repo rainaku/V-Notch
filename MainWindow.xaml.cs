@@ -225,6 +225,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _zOrderFastTimer;
     private readonly DispatcherTimer _hoverCollapseTimer;
     private readonly DispatcherTimer _hoverThumbnailDelayTimer;
+    private readonly DispatcherTimer _compactThumbnailHoverLeaveTimer;
 
 
     private bool _isDraggingVolume = false;
@@ -264,6 +265,8 @@ public partial class MainWindow : Window
 
     private MediaInfo? _currentMediaInfo;
     private bool _isMusicCompactMode = false;
+    private bool _isCompactThumbnailHovered = false;
+    private const double CompactThumbnailHoverExitMargin = 22.0;
     private DateTime _lastMediaActionTime = DateTime.MinValue;
 
     private readonly DispatcherTimer _progressTimer;
@@ -366,14 +369,29 @@ public partial class MainWindow : Window
         _hoverThumbnailDelayTimer.Tick += (s, e) =>
         {
             _hoverThumbnailDelayTimer.Stop();
-            if (_settings.EnableHoverExpand && !_isExpanded && !_isAnimating)
+            if (_settings.EnableHoverExpand && !_isExpanded && !_isAnimating && !_isMusicCompactMode)
             {
                 ExpandNotch();
             }
             else if (CompactThumbnailBorder.IsMouseOver)
             {
-                AnimateThumbnailHover(true);
+                SetCompactThumbnailHover(true);
             }
+        };
+
+        _compactThumbnailHoverLeaveTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(140)
+        };
+        _compactThumbnailHoverLeaveTimer.Tick += (s, e) =>
+        {
+            if (!_isExpanded && !_isAnimating && _isMusicCompactMode && IsCursorInsideCompactThumbnailExitZone())
+            {
+                return;
+            }
+
+            _compactThumbnailHoverLeaveTimer.Stop();
+            SetCompactThumbnailHover(false);
         };
 
         _notchManager.HoverService.HoverEnter += HoverService_HoverEnter;
@@ -1123,6 +1141,8 @@ public partial class MainWindow : Window
     {
         if (!_isExpanded && !_isAnimating && _isMusicCompactMode)
         {
+            _compactThumbnailHoverLeaveTimer.Stop();
+            _hoverThumbnailDelayTimer.Stop();
             _hoverThumbnailDelayTimer.Start();
         }
     }
@@ -1132,8 +1152,33 @@ public partial class MainWindow : Window
         _hoverThumbnailDelayTimer.Stop();
         if (!_isExpanded && !_isAnimating && _isMusicCompactMode)
         {
-            AnimateThumbnailHover(false);
+            _compactThumbnailHoverLeaveTimer.Stop();
+            _compactThumbnailHoverLeaveTimer.Start();
         }
+    }
+
+    private void SetCompactThumbnailHover(bool isHovered)
+    {
+        if (_isCompactThumbnailHovered == isHovered) return;
+
+        _isCompactThumbnailHovered = isHovered;
+        if (!isHovered)
+        {
+            _compactThumbnailHoverLeaveTimer.Stop();
+        }
+        AnimateThumbnailHover(isHovered);
+    }
+
+    private bool IsCursorInsideCompactThumbnailExitZone()
+    {
+        var p = Mouse.GetPosition(CompactThumbnailBorder);
+        double width = CompactThumbnailBorder.ActualWidth;
+        double height = CompactThumbnailBorder.ActualHeight;
+
+        return p.X >= -CompactThumbnailHoverExitMargin &&
+               p.Y >= -CompactThumbnailHoverExitMargin &&
+               p.X <= width + CompactThumbnailHoverExitMargin &&
+               p.Y <= height + CompactThumbnailHoverExitMargin;
     }
 
     #endregion

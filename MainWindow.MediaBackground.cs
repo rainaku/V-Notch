@@ -13,6 +13,7 @@ public partial class MainWindow
     #region Media Background & Color Extraction
 
     private Color _lastDominantColor = Colors.Transparent;
+    private Color _lastSubColor = Colors.White;
     private string? _lastTrackId = null;
     private bool _isFadingTrack = false;
     private DispatcherTimer? _titleGradientTimer;
@@ -28,7 +29,9 @@ public partial class MainWindow
             return;
         }
 
-        var dominantColor = GetDominantColor(info.Thumbnail);
+        var palette = GetDynamicIslandPalette(info.Thumbnail);
+        var dominantColor = palette.Main;
+        var subColor = palette.Sub;
 
         
         string currentTrackId = info.GetSignature();
@@ -50,9 +53,10 @@ public partial class MainWindow
         }
 
         _lastDominantColor = dominantColor;
+        _lastSubColor = subColor;
 
         var targetColor = Color.FromRgb(dominantColor.R, dominantColor.G, dominantColor.B);
-        var vibrantTargetColor = GetVibrantColor(targetColor);
+        var vibrantTargetColor = Color.FromRgb(subColor.R, subColor.G, subColor.B);
         double dominantLuminance = (0.2126 * dominantColor.R + 0.7152 * dominantColor.G + 0.0722 * dominantColor.B) / 255.0;
 
         var colorAnim = new ColorAnimation
@@ -65,7 +69,7 @@ public partial class MainWindow
         var uiColorAnim = new ColorAnimation
         {
             To = vibrantTargetColor,
-            Duration = TimeSpan.FromMilliseconds(500),
+            Duration = TimeSpan.FromMilliseconds(420),
             EasingFunction = _easeQuadOut
         };
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh))
@@ -113,6 +117,10 @@ public partial class MainWindow
         if (currentBg == null || currentBg.IsFrozen)
             ProgressBar.Background = new SolidColorBrush(currentBg?.Color ?? Colors.White);
 
+        var currentInd = IndeterminateProgress.Background as SolidColorBrush;
+        if (currentInd == null || currentInd.IsFrozen)
+            IndeterminateProgress.Background = new SolidColorBrush(currentInd?.Color ?? Colors.White);
+
         var currentSt = CurrentTimeText.Foreground as SolidColorBrush;
         if (currentSt == null || currentSt.IsFrozen)
             CurrentTimeText.Foreground = new SolidColorBrush(currentSt?.Color ?? Color.FromRgb(136, 136, 136));
@@ -121,15 +129,25 @@ public partial class MainWindow
         if (currentRt == null || currentRt.IsFrozen)
             RemainingTimeText.Foreground = new SolidColorBrush(currentRt?.Color ?? Color.FromRgb(136, 136, 136));
 
+        var currentCompactTitle = CompactTitleMarquee.Foreground as SolidColorBrush;
+        if (currentCompactTitle == null || currentCompactTitle.IsFrozen)
+            CompactTitleMarquee.Foreground = new SolidColorBrush(currentCompactTitle?.Color ?? Colors.White);
+
 
         if (ProgressBar.Background is SolidColorBrush pbb && !pbb.IsFrozen)
             pbb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+
+        if (IndeterminateProgress.Background is SolidColorBrush ipb && !ipb.IsFrozen)
+            ipb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
         if (CurrentTimeText.Foreground is SolidColorBrush ctf && !ctf.IsFrozen)
             ctf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
         if (RemainingTimeText.Foreground is SolidColorBrush rtf && !rtf.IsFrozen)
             rtf.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+
+        if (CompactTitleMarquee.Foreground is SolidColorBrush cmt && !cmt.IsFrozen)
+            cmt.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
         
         AnimateTitleGradient(vibrantTargetColor);
@@ -310,8 +328,10 @@ public partial class MainWindow
         };
 
         if (ProgressBar.Background is SolidColorBrush sb && !sb.IsFrozen) sb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+        if (IndeterminateProgress.Background is SolidColorBrush ipb && !ipb.IsFrozen) ipb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
         if (CurrentTimeText.Foreground is SolidColorBrush st && !st.IsFrozen) st.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
+        if (CompactTitleMarquee.Foreground is SolidColorBrush cmt && !cmt.IsFrozen) cmt.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
         
         ResetTitleGradientToWhite();
 
@@ -353,6 +373,192 @@ public partial class MainWindow
             }
         }
         catch { }
+    }
+
+    private readonly record struct DynamicIslandPalette(Color Main, Color Sub);
+    private readonly record struct PaletteColor(Color Color, int Population, double Score);
+
+    private DynamicIslandPalette GetDynamicIslandPalette(BitmapSource bitmap)
+    {
+        var palette = ExtractPalette(bitmap, 8);
+        if (palette.Count == 0) return new DynamicIslandPalette(Color.FromRgb(34, 34, 34), Colors.White);
+
+        var main = palette.OrderByDescending(p => p.Score).First().Color;
+        var darkUiBackground = Colors.Black;
+        var subCandidate = palette
+            .Where(p => ColorDistance(p.Color, main) > 28)
+            .OrderByDescending(p => ScoreLightTextCandidate(p.Color, darkUiBackground, p.Score))
+            .FirstOrDefault().Color;
+
+        if (subCandidate == default) subCandidate = Colors.White;
+        var sub = EnsureTextOnDarkBackground(subCandidate, darkUiBackground, 4.5);
+        return new DynamicIslandPalette(main, sub);
+    }
+
+    private List<PaletteColor> ExtractPalette(BitmapSource bitmap, int maxColors)
+    {
+        try
+        {
+            var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+            const int sampleSize = 50;
+            double scale = Math.Min((double)sampleSize / formattedBitmap.PixelWidth, (double)sampleSize / formattedBitmap.PixelHeight);
+            scale = Math.Min(1.0, Math.Max(0.01, scale));
+            var small = new TransformedBitmap(formattedBitmap, new ScaleTransform(scale, scale));
+
+            int width = small.PixelWidth;
+            int height = small.PixelHeight;
+            if (width <= 0 || height <= 0) return new List<PaletteColor>();
+
+            int stride = width * 4;
+            byte[] pixels = new byte[height * stride];
+            small.CopyPixels(pixels, stride, 0);
+
+            var buckets = new Dictionary<int, (double R, double G, double B, int Count)>();
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int i = (y * stride) + (x * 4);
+                    byte a = pixels[i + 3];
+                    if (a < 80) continue;
+
+                    byte b = pixels[i];
+                    byte g = pixels[i + 1];
+                    byte r = pixels[i + 2];
+                    int key = (r >> 4) << 8 | (g >> 4) << 4 | (b >> 4);
+                    buckets.TryGetValue(key, out var bucket);
+                    buckets[key] = (bucket.R + r, bucket.G + g, bucket.B + b, bucket.Count + 1);
+                }
+            }
+
+            int maxPopulation = Math.Max(1, buckets.Values.Select(b => b.Count).DefaultIfEmpty(1).Max());
+            return buckets.Values
+                .Where(b => b.Count > 0)
+                .Select(b =>
+                {
+                    var c = Color.FromRgb((byte)(b.R / b.Count), (byte)(b.G / b.Count), (byte)(b.B / b.Count));
+                    var hsl = ToHsl(c);
+                    double pop = b.Count / (double)maxPopulation;
+                    double lightnessScore = hsl.L < 0.15 || hsl.L > 0.90 ? 0.08 : 1.0 - Math.Abs(hsl.L - 0.52) * 0.55;
+                    double vibrancy = Math.Pow(hsl.S, 0.72) * lightnessScore;
+                    double score = (vibrancy * 0.68 + pop * 0.32) * b.Count;
+                    return new PaletteColor(c, b.Count, score);
+                })
+                .OrderByDescending(p => p.Score)
+                .Take(maxColors)
+                .ToList();
+        }
+        catch
+        {
+            return new List<PaletteColor>();
+        }
+    }
+
+    private static (double H, double S, double L) ToHsl(Color c)
+    {
+        double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
+        double max = Math.Max(r, Math.Max(g, b));
+        double min = Math.Min(r, Math.Min(g, b));
+        double h = 0, s = 0, l = (max + min) / 2.0;
+        double d = max - min;
+        if (d > 0.0001)
+        {
+            s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
+            if (max == r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6.0;
+            else if (max == g) h = ((b - r) / d + 2) / 6.0;
+            else h = ((r - g) / d + 4) / 6.0;
+        }
+        return (h, s, l);
+    }
+
+    private static double ScoreLightTextCandidate(Color color, Color background, double paletteScore)
+    {
+        double luminance = GetRelativeLuminance(color);
+        double contrast = GetContrastRatio(color, background);
+        var hsl = ToHsl(color);
+        double lightSwatchBonus = hsl.L >= 0.45 ? 1000 : 0;
+        double contrastBonus = contrast >= 4.5 ? 600 : 0;
+        double darkPenalty = luminance < 0.18 ? 1200 : 0;
+        return paletteScore + lightSwatchBonus + contrastBonus - darkPenalty;
+    }
+
+    private static Color EnsureTextOnDarkBackground(Color color, Color background, double minRatio)
+    {
+        var hsl = ToHsl(color);
+        Color best = color;
+
+        if (GetRelativeLuminance(best) < 0.18 || hsl.L < 0.40)
+        {
+            best = HslToColor(hsl.H, Math.Max(0.18, hsl.S), Math.Clamp(Math.Max(hsl.L, 0.60), 0.55, 0.65));
+        }
+
+        if (GetContrastRatio(best, background) >= minRatio && GetRelativeLuminance(best) >= 0.18)
+            return best;
+
+        for (int step = 0; step <= 100; step++)
+        {
+            double t = step / 100.0;
+            double l = hsl.L + (1.0 - hsl.L) * t;
+            var candidate = HslToColor(hsl.H, Math.Max(0.18, hsl.S), Math.Clamp(l, 0.55, 0.72));
+            if (GetContrastRatio(candidate, background) >= minRatio && GetRelativeLuminance(candidate) >= 0.18)
+                return candidate;
+        }
+
+        return Colors.White;
+    }
+
+    private static Color EnsureContrast(Color sub, Color main, double minRatio)
+    {
+        var hsl = ToHsl(sub);
+        bool lighten = GetRelativeLuminance(main) < 0.45;
+        Color best = sub;
+        double bestRatio = GetContrastRatio(best, main);
+
+        for (int step = 0; step <= 100 && bestRatio < minRatio; step++)
+        {
+            double t = step / 100.0;
+            double l = lighten ? hsl.L + (1.0 - hsl.L) * t : hsl.L * (1.0 - t);
+            var candidate = HslToColor(hsl.H, Math.Max(0.18, hsl.S), Math.Clamp(l, 0.0, 1.0));
+            double ratio = GetContrastRatio(candidate, main);
+            if (ratio > bestRatio)
+            {
+                best = candidate;
+                bestRatio = ratio;
+            }
+        }
+
+        if (bestRatio < minRatio)
+        {
+            var whiteRatio = GetContrastRatio(Colors.White, main);
+            var blackRatio = GetContrastRatio(Colors.Black, main);
+            best = whiteRatio >= blackRatio ? Colors.White : Colors.Black;
+        }
+
+        return best;
+    }
+
+    private static double GetContrastRatio(Color a, Color b)
+    {
+        double l1 = GetRelativeLuminance(a);
+        double l2 = GetRelativeLuminance(b);
+        if (l1 < l2) (l1, l2) = (l2, l1);
+        return (l1 + 0.05) / (l2 + 0.05);
+    }
+
+    private static double GetRelativeLuminance(Color c)
+    {
+        static double Linear(byte v)
+        {
+            double x = v / 255.0;
+            return x <= 0.03928 ? x / 12.92 : Math.Pow((x + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * Linear(c.R) + 0.7152 * Linear(c.G) + 0.0722 * Linear(c.B);
+    }
+
+    private static double ColorDistance(Color a, Color b)
+    {
+        int dr = a.R - b.R, dg = a.G - b.G, db = a.B - b.B;
+        return Math.Sqrt(dr * dr + dg * dg + db * db);
     }
 
     private Color GetDominantColor(BitmapSource bitmap)
@@ -573,9 +779,9 @@ public partial class MainWindow
 
         
         var highlightColor = Color.FromRgb(
-            (byte)Math.Min(255, vibrantColor.R + (255 - vibrantColor.R) * 0.6),
-            (byte)Math.Min(255, vibrantColor.G + (255 - vibrantColor.G) * 0.6),
-            (byte)Math.Min(255, vibrantColor.B + (255 - vibrantColor.B) * 0.6));
+            (byte)Math.Min(255, vibrantColor.R + (255 - vibrantColor.R) * 0.42),
+            (byte)Math.Min(255, vibrantColor.G + (255 - vibrantColor.G) * 0.42),
+            (byte)Math.Min(255, vibrantColor.B + (255 - vibrantColor.B) * 0.42));
 
         var colorAnimMain = new ColorAnimation { To = vibrantColor, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
         var colorAnimHighlight = new ColorAnimation { To = highlightColor, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
@@ -586,21 +792,43 @@ public partial class MainWindow
         
         if (Resources["TrackTitleGradient"] is LinearGradientBrush titleBrush)
         {
+            titleBrush.SpreadMethod = GradientSpreadMethod.Repeat;
+            EnsureTitleGradientSpacing(titleBrush);
             titleBrush.GradientStops[0].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
-            titleBrush.GradientStops[1].BeginAnimation(GradientStop.ColorProperty, colorAnimHighlight);
-            titleBrush.GradientStops[2].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+            titleBrush.GradientStops[1].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+            titleBrush.GradientStops[2].BeginAnimation(GradientStop.ColorProperty, colorAnimHighlight);
+            titleBrush.GradientStops[3].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+            titleBrush.GradientStops[4].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
         }
 
         
         if (Resources["TrackTitleNextGradient"] is LinearGradientBrush titleNextBrush)
         {
+            titleNextBrush.SpreadMethod = GradientSpreadMethod.Repeat;
+            EnsureTitleGradientSpacing(titleNextBrush);
             titleNextBrush.GradientStops[0].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
-            titleNextBrush.GradientStops[1].BeginAnimation(GradientStop.ColorProperty, colorAnimHighlight);
-            titleNextBrush.GradientStops[2].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+            titleNextBrush.GradientStops[1].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+            titleNextBrush.GradientStops[2].BeginAnimation(GradientStop.ColorProperty, colorAnimHighlight);
+            titleNextBrush.GradientStops[3].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
+            titleNextBrush.GradientStops[4].BeginAnimation(GradientStop.ColorProperty, colorAnimMain);
         }
 
         
         StartTitleGradientShift();
+    }
+
+    private static void EnsureTitleGradientSpacing(LinearGradientBrush brush)
+    {
+        while (brush.GradientStops.Count < 5)
+        {
+            brush.GradientStops.Add(new GradientStop(Colors.White, 1));
+        }
+
+        brush.GradientStops[0].Offset = 0.00;
+        brush.GradientStops[1].Offset = 0.43;
+        brush.GradientStops[2].Offset = 0.50;
+        brush.GradientStops[3].Offset = 0.57;
+        brush.GradientStops[4].Offset = 1.00;
     }
 
     private void StartTitleGradientShift()
@@ -627,7 +855,7 @@ public partial class MainWindow
 
     private void TitleGradientTimer_Tick(object? sender, EventArgs e)
     {
-        _titleGradientPhase += 0.012; 
+        _titleGradientPhase += 0.012;
         if (_titleGradientPhase > 2.0) _titleGradientPhase -= 2.0;
 
         

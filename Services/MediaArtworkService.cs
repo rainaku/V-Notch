@@ -62,10 +62,13 @@ public sealed class MediaArtworkService : IMediaArtworkService
             int width = source.PixelWidth;
             int height = source.PixelHeight;
 
-            double zoom = 0.97;
+            double aspect = (double)width / height;
+            double zoom = string.Equals(mediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) && aspect > 1.25
+                ? 0.74
+                : 0.97;
             int squareSize = (int)(Math.Min(width, height) * zoom);
             
-            // Always crop from the center of the image
+            // YouTube thumbs are usually 16:9 with letterbox bars after square crop; cut deeper vertically.
             int offsetX = (width - squareSize) / 2;
             int offsetY = (height - squareSize) / 2;
 

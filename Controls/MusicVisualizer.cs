@@ -87,6 +87,7 @@ namespace VNotch.Controls
         private const double DownwardDropBoost = 0.08;  // Rơi vừa phải, không quá nhanh
         private const double MinReleaseAlpha = 0.82;  // Giữ release smooth hơn
         private const double MotionContrast = 2.25;  // Tăng tương phản chuyển động
+        private const double LeftMiniBarSensitivity = 0.58;  // Giảm độ nhạy 2 thanh đầu từ trái qua
         private const double RightBiasStrength = 1.00;
         private const double RightBiasDeadzone = 0.05;
         private const double MinHeightChangeThreshold = 0.0005;  // Không lọc mất các dao động nhỏ sau khi normalize
@@ -246,6 +247,7 @@ namespace VNotch.Controls
                     double rhythmMix = rhythmMixBase * (1.0 - (beatAccent * 0.45));
                     double normalized = (audioShaped * (1.0 - rhythmMix)) + (rhythm * rhythmMix);
                     normalized = Math.Clamp(normalized + (beatAccent * GetBeatLiftWeight(i) * 0.62), 0.0, 1.0);
+                    normalized = ApplyMiniBarSensitivity(i, normalized);
                     normalized = ApplyMotionContrast(normalized);
                     targetH = MapNormalizedToHeight(normalized);
                 }
@@ -319,6 +321,14 @@ namespace VNotch.Controls
         {
             double clamped = Math.Clamp(normalized, 0.0, 1.0);
             return Math.Clamp(0.5 + ((clamped - 0.5) * MotionContrast), 0.0, 1.0);
+        }
+
+        private static double ApplyMiniBarSensitivity(int barIndex, double normalized)
+        {
+            if (barIndex > 1) return normalized;
+
+            double clamped = Math.Clamp(normalized, 0.0, 1.0);
+            return Math.Clamp(clamped * LeftMiniBarSensitivity, 0.0, 1.0);
         }
 
         private double GetNoAudioPulseAt(int index, double t, string sid)

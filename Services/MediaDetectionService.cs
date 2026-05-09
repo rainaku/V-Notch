@@ -1930,6 +1930,8 @@ public class MediaDetectionService : IMediaDetectionService
                 _cachedSource = "Browser";
             }
 
+            bool isYouTubeLikeSource = info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info));
+            bool hasVerifiedYouTubeThumb = string.Equals(_cachedThumbnailSource, "YouTube", StringComparison.OrdinalIgnoreCase);
             if (!forceRefresh && currentSignature == _lastTrackSignature && _cachedThumbnail != null)
             {
                 info.Thumbnail = _cachedThumbnail;
@@ -1953,7 +1955,10 @@ public class MediaDetectionService : IMediaDetectionService
                                 bool skipSmtcThumbForFreshSoundCloudTrack = isSoundCloudSource &&
                                                                             trackChangedForThisPass &&
                                                                             !hasVerifiedSoundCloudThumb;
-                                if (skipSmtcThumbForFreshSoundCloudTrack)
+                                bool skipSmtcThumbForFreshYouTubeTrack = isYouTubeLikeSource &&
+                                                                         trackChangedForThisPass &&
+                                                                         !hasVerifiedYouTubeThumb;
+                                if (skipSmtcThumbForFreshSoundCloudTrack || skipSmtcThumbForFreshYouTubeTrack)
                                 {
                                     
                                     
@@ -1969,8 +1974,11 @@ public class MediaDetectionService : IMediaDetectionService
                                         isSquare &&
                                         (newBitmap.PixelWidth <= 320 || newBitmap.PixelHeight <= 320);
                                     bool isGenericIcon = info.MediaSource == "YouTube" || info.MediaSource == "Browser" || isLikelySoundCloudPlaceholder;
+                                    bool shouldPreferVerifiedYouTubeLookup = isYouTubeLikeSource &&
+                                                                            trackChangedForThisPass &&
+                                                                            !hasVerifiedYouTubeThumb;
 
-                                    if (!(isSquare && isGenericIcon))
+                                    if (!(isSquare && isGenericIcon) && !shouldPreferVerifiedYouTubeLookup)
                                     {
                                         newBitmap = CropToSquare(newBitmap, info.MediaSource) ?? newBitmap;
                                         _cachedThumbnail = newBitmap;
