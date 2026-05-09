@@ -47,7 +47,6 @@ public partial class MainWindow
         else
         {
             await _mediaService.NextTrackAsync();
-            SendMediaKey(VK_MEDIA_NEXT_TRACK);
         }
     }
 
@@ -67,7 +66,6 @@ public partial class MainWindow
         else
         {
             await _mediaService.PreviousTrackAsync();
-            SendMediaKey(VK_MEDIA_PREV_TRACK);
         }
     }
 
@@ -117,7 +115,6 @@ public partial class MainWindow
         else
         {
             await _mediaService.NextTrackAsync();
-            SendMediaKey(VK_MEDIA_NEXT_TRACK);
         }
     }
 
@@ -137,7 +134,6 @@ public partial class MainWindow
         else
         {
             await _mediaService.PreviousTrackAsync();
-            SendMediaKey(VK_MEDIA_PREV_TRACK);
         }
     }
 
