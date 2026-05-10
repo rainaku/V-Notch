@@ -20,6 +20,12 @@ public partial class MainWindow
     private void NotchWrapper_MouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (!_isExpanded || _isAnimating) return;
+        if (e.Handled) return;
+
+        e.Handled = true;
+
+        // Cooldown prevents rapid double-fire (touchpad inertia, multiple queued events)
+        if ((DateTime.UtcNow - _lastViewSwitchUtc) < ViewSwitchCooldown) return;
 
         if (e.Delta < 0) 
         {
@@ -47,6 +53,7 @@ public partial class MainWindow
         if (_isSecondaryView || _isAnimating) return;
         _isSecondaryView = true;
         _isAnimating = true;
+        _lastViewSwitchUtc = DateTime.UtcNow;
 
         NotchBorder.IsHitTestVisible = false;
 
@@ -144,6 +151,7 @@ public partial class MainWindow
         if (!_isSecondaryView || _isAnimating) return;
         _isSecondaryView = false;
         _isAnimating = true;
+        _lastViewSwitchUtc = DateTime.UtcNow;
 
         NotchBorder.IsHitTestVisible = false;
         ResetCameraSectionLayoutInstant();

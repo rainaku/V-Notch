@@ -267,14 +267,6 @@
                             </StackPanel>
                         </MenuItem.Header>
                     </MenuItem>
-                    <MenuItem x:Name="MenuStartup" Style="{StaticResource TrayMenuItemStyle}" Click="ToggleStartup_Click">
-                        <MenuItem.Header>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE7F4;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
-                                <TextBlock Text="Startup: No" Style="{StaticResource TrayMenuItemText}"/>
-                            </StackPanel>
-                        </MenuItem.Header>
-                    </MenuItem>
                     <Separator Style="{StaticResource TraySeparatorStyle}"/>
                     <MenuItem Style="{StaticResource TrayMenuItemStyle}" Click="Exit_Click">
                         <MenuItem.Header>
@@ -545,7 +537,7 @@
                                                         Background="White"
                                                         CornerRadius="2.71"
                                                         HorizontalAlignment="Left"
-                                                        Margin="1.36,1.08,0.48,1.08"
+                                                        Margin="1.36,1.08,1.36,1.08"
                                                         Width="22.8">
                                                     <Border.RenderTransform>
                                                         <ScaleTransform x:Name="BatteryFillScale" ScaleX="1" ScaleY="1"/>
@@ -1024,15 +1016,20 @@
                                               VerticalAlignment="Top"
                                               HorizontalAlignment="Left"
                                               Margin="0,2,0,0">
-                                            <StackPanel Orientation="Horizontal"
-                                                        HorizontalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
 
                                                 <Border x:Name="PrevButton"
+                                                        Grid.Column="0"
                                                         Background="Transparent"
                                                         Cursor="Hand"
                                                         MouseLeftButtonDown="PrevButton_Click"
                                                         Width="32" Height="26"
-                                                        Margin="0,0,20,0"
+                                                        Margin="0"
+                                                        HorizontalAlignment="Left"
                                                         RenderTransformOrigin="0.5,0.5">
                                                     <Border.RenderTransform>
                                                         <ScaleTransform ScaleX="1" ScaleY="1"/>
@@ -1059,11 +1056,13 @@
                                                 </Border>
 
                                                 <Border x:Name="PlayPauseButton"
+                                                        Grid.Column="1"
                                                         Background="Transparent"
                                                         Cursor="Hand"
                                                         MouseLeftButtonDown="PlayPauseButton_Click"
                                                         Width="32" Height="26"
                                                         Margin="0"
+                                                        HorizontalAlignment="Center"
                                                         RenderTransformOrigin="0.5,0.5">
                                                     <Border.RenderTransform>
                                                         <ScaleTransform ScaleX="1" ScaleY="1"/>
@@ -1101,11 +1100,13 @@
                                                 </Border>
 
                                                 <Border x:Name="NextButton"
+                                                        Grid.Column="2"
                                                         Background="Transparent"
                                                         Cursor="Hand"
                                                         MouseLeftButtonDown="NextButton_Click"
                                                         Width="32" Height="26"
-                                                        Margin="20,0,0,0"
+                                                        Margin="0"
+                                                        HorizontalAlignment="Right"
                                                         RenderTransformOrigin="0.5,0.5">
                                                     <Border.RenderTransform>
                                                         <ScaleTransform ScaleX="1" ScaleY="1"/>
@@ -1130,7 +1131,6 @@
                                                     </Canvas>
                                                     </Viewbox>
                                                 </Border>
-                                            </StackPanel>
                                         </Grid>
 
                                         <Grid x:Name="ProgressSection" Grid.Row="1" Margin="0,8,0,0" Visibility="Visible">

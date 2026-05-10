@@ -28,6 +28,8 @@ namespace VNotch;
 public partial class MainWindow
 {
     private bool _isSecondaryView = false;
+    private DateTime _lastViewSwitchUtc = DateTime.MinValue;
+    private static readonly TimeSpan ViewSwitchCooldown = TimeSpan.FromMilliseconds(600);
     private readonly List<string> _shelfFiles = new List<string>();
     private readonly HashSet<string> _selectedFiles = new HashSet<string>();
 

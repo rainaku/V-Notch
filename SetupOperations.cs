@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Principal;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Win32;
@@ -26,6 +27,64 @@ internal static class SetupOperations
     private const string Publisher = "rainaku";
     private const string AppUrl = "https://github.com/rainaku/V-Notch";
     private const string Version = "1.6";
+    private const string UninstallRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\V-Notch";
+
+    public static string GetDefaultInstallDirectory()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Programs",
+            AppName);
+    }
+
+    public static bool IsRunningAsAdministrator()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    public static bool RequiresAdministratorForInstallPath(string installPath)
+    {
+        var fullPath = Path.GetFullPath(installPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        var driveRoot = Path.GetPathRoot(fullPath)?
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (!string.IsNullOrEmpty(driveRoot) &&
+            string.Equals(fullPath, driveRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var protectedRoots = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
+        };
+
+        foreach (var protectedRoot in protectedRoots)
+        {
+            if (string.IsNullOrWhiteSpace(protectedRoot))
+            {
+                continue;
+            }
+
+            var normalizedRoot = Path.GetFullPath(protectedRoot)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            if (string.Equals(fullPath, normalizedRoot, StringComparison.OrdinalIgnoreCase) ||
+                fullPath.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public static async Task InstallAsync(SetupInstallOptions options, Action<SetupProgressInfo> reportProgress)
     {
@@ -119,6 +178,17 @@ internal static class SetupOperations
             return;
         }
 
+        if (RequiresAdministratorForInstallPath(installDirectory) && !IsRunningAsAdministrator())
+        {
+            MessageBox.Show(
+                "This installation is in a protected Windows folder. Please run the uninstall as administrator.",
+                "V-Notch Setup",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            Application.Current.Shutdown(1);
+            return;
+        }
+
         RemoveStartupRegistration();
         RemoveUninstallRegistration();
         RemoveShortcuts();
@@ -190,8 +260,7 @@ internal static class SetupOperations
 
     private static void RegisterUninstall(string installedExePath, string installDirectory)
     {
-        using var uninstallKey = Registry.LocalMachine.CreateSubKey(
-            $@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{AppName}");
+        using var uninstallKey = Registry.CurrentUser.CreateSubKey(UninstallRegistryPath);
 
         if (uninstallKey == null)
         {
@@ -213,10 +282,32 @@ internal static class SetupOperations
 
     private static void RemoveUninstallRegistration()
     {
-        Registry.LocalMachine.DeleteSubKeyTree(
-            $@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{AppName}",
-            throwOnMissingSubKey: false);
-        Registry.CurrentUser.DeleteSubKeyTree($@"Software\{AppName}", throwOnMissingSubKey: false);
+        try
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(UninstallRegistryPath, throwOnMissingSubKey: false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Ignore and continue cleanup.
+        }
+
+        try
+        {
+            Registry.LocalMachine.DeleteSubKeyTree(UninstallRegistryPath, throwOnMissingSubKey: false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Ignore and continue cleanup.
+        }
+
+        try
+        {
+            Registry.CurrentUser.DeleteSubKeyTree($@"Software\{AppName}", throwOnMissingSubKey: false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Ignore and continue cleanup.
+        }
     }
 
     private static void RemoveStartupRegistration()

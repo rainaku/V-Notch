@@ -60,9 +60,7 @@ public partial class SetupWindow : Window
 
         _sourceDirectory = sourceDirectory ?? AppContext.BaseDirectory;
         _introductionPage = new IntroductionPage();
-        _directoryPage = new DirectoryPage(IOPath.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            "V-Notch"));
+        _directoryPage = new DirectoryPage(SetupOperations.GetDefaultInstallDirectory());
         _startupOptionsPage = new StartupOptionsPage(startWithWindows: true);
         _installProgressPage = new InstallProgressPage();
         _finishPage = new FinishPage(launchAfterInstall: true);
@@ -753,6 +751,18 @@ public partial class SetupWindow : Window
         try
         {
             _directoryPage.InstallPath = IOPath.GetFullPath(installPath);
+
+            if (SetupOperations.RequiresAdministratorForInstallPath(_directoryPage.InstallPath) &&
+                !SetupOperations.IsRunningAsAdministrator())
+            {
+                MessageBox.Show(
+                    "This folder needs administrator permission.\n\nChoose a folder inside your user profile, or run the installer as administrator if you want to install into C:\\ or Program Files.",
+                    "V-Notch Setup",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return false;
+            }
+
             return true;
         }
         catch (Exception ex)
@@ -824,14 +834,12 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
     private readonly Border _eyebrow;
     private readonly TextBlock _headline;
     private readonly TextBlock _lead;
-    private readonly Border _creatorCard;
-    private readonly Border _repositoryCard;
-    private readonly Border _promiseCard;
+    private readonly Border _projectCard;
+    private readonly Border _sourceCard;
 
     public IntroductionPage()
     {
         var grid = new Grid();
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
@@ -845,7 +853,7 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
 
         _headline = new TextBlock
         {
-            Text = "Built openly by rainaku",
+            Text = "Built by rainaku",
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
@@ -858,52 +866,46 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
 
         _lead = new TextBlock
         {
-            Text = "V-Notch is an independent Windows project inspired by the Dynamic Island idea and shaped in public from the very beginning.",
+            Text = "V-Notch is an independent Windows project inspired by Dynamic Island and built in public.",
             FontSize = 14,
-            LineHeight = 23,
+            LineHeight = 21,
             Foreground = new SolidColorBrush(Color.FromArgb(204, 255, 255, 255)),
             FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
-            Margin = new Thickness(0, 0, 0, 22),
+            Margin = new Thickness(0, 0, 0, 18),
             TextWrapping = TextWrapping.Wrap
         };
         Grid.SetRow(_lead, 2);
         grid.Children.Add(_lead);
 
-        _creatorCard = CreateInfoCard(
-            "Created by rainaku",
-            "V-Notch is designed and maintained by rainaku as a focused desktop companion for media, notifications, battery, calendar, and quick controls.");
-        Grid.SetRow(_creatorCard, 3);
-        grid.Children.Add(_creatorCard);
+        _projectCard = CreateInfoCard(
+            "Independent project",
+            "Designed and maintained by rainaku for media, notifications, battery, calendar, and quick controls.");
+        Grid.SetRow(_projectCard, 3);
+        grid.Children.Add(_projectCard);
 
-        _repositoryCard = CreateInfoCard(
-            "Open GitHub project",
-            "The source code lives at github.com/rainaku/V-Notch, so releases, issues, and ongoing improvements stay visible to everyone.");
-        Grid.SetRow(_repositoryCard, 4);
-        grid.Children.Add(_repositoryCard);
-
-        _promiseCard = CreateInfoCard(
-            "Free and open source",
-            "The repository began on February 8, 2026, then quickly grew into public releases and UI refinements. V-Notch is MIT-licensed, free to use, and intended to remain open source.");
-        Grid.SetRow(_promiseCard, 5);
-        grid.Children.Add(_promiseCard);
+        _sourceCard = CreateInfoCard(
+            "Open source",
+            "Code, releases, and issues stay public on GitHub. V-Notch is MIT-licensed and free to use.");
+        Grid.SetRow(_sourceCard, 4);
+        grid.Children.Add(_sourceCard);
 
         Content = grid;
     }
 
     public IReadOnlyList<UIElement> GetAnimatedElements()
     {
-        return new UIElement[] { _eyebrow, _headline, _lead, _creatorCard, _repositoryCard, _promiseCard };
+        return new UIElement[] { _eyebrow, _headline, _lead, _projectCard, _sourceCard };
     }
 
     private static Border CreateEyebrow(string text)
     {
         return new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(46, 255, 255, 255)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(999),
-            Padding = new Thickness(12, 5, 12, 5),
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(0),
+            Padding = new Thickness(0),
             Margin = new Thickness(0, 0, 0, 18),
             HorizontalAlignment = HorizontalAlignment.Left,
             Child = new TextBlock
@@ -933,7 +935,7 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
         {
             Text = body,
             FontSize = 13,
-            LineHeight = 21,
+            LineHeight = 20,
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.FromArgb(196, 255, 255, 255)),
             FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
@@ -945,8 +947,8 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
             BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(18, 16, 18, 16),
-            Margin = new Thickness(0, 0, 0, 12),
+            Padding = new Thickness(16, 14, 16, 14),
+            Margin = new Thickness(0, 0, 0, 10),
             Child = stack
         };
     }
@@ -1218,9 +1220,12 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
         {
             Text = "Copying files...",
             FontSize = 14,
+            TextWrapping = TextWrapping.Wrap,
+            LineHeight = 21,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 255, 255)),
             FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
-            Margin = new Thickness(0, 0, 0, 24)
+            MaxWidth = 430,
+            Margin = new Thickness(0, 0, 0, 32)
         };
         Grid.SetRow(_status, 1);
         grid.Children.Add(_status);

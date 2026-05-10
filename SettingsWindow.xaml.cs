@@ -1,4 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media.Animation;
+using System.Windows.Media;
 using VNotch.Models;
 using VNotch.Services;
 
@@ -23,6 +26,11 @@ public partial class SettingsWindow : Window
 
         LoadSettings();
         _ = CheckForUpdatesAsync();
+    }
+
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        PlayEntranceAnimation();
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -87,6 +95,52 @@ public partial class SettingsWindow : Window
 
     #endregion
 
+    #region Entrance Animation
+
+    private void PlayEntranceAnimation()
+    {
+        var shellEase = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 7 };
+        var itemEase = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 };
+
+        MainShell.BeginAnimation(OpacityProperty, CreateAnimation(0, 1, 360, shellEase));
+
+        ShellScale.BeginAnimation(ScaleTransform.ScaleXProperty, CreateAnimation(0.985, 1.0, 560, shellEase));
+        ShellScale.BeginAnimation(ScaleTransform.ScaleYProperty, CreateAnimation(0.985, 1.0, 560, shellEase));
+        ShellTranslate.BeginAnimation(TranslateTransform.YProperty, CreateAnimation(8, 0, 620, shellEase));
+
+        AnimateEntranceItem(SettingsHeader, HeaderTranslate, 0);
+        AnimateEntranceItem(AppearanceCard, AppearanceCardTranslate, 70);
+        AnimateEntranceItem(BehaviorCard, BehaviorCardTranslate, 140);
+        AnimateEntranceItem(DisplayCard, DisplayCardTranslate, 210);
+        AnimateEntranceItem(SystemCard, SystemCardTranslate, 280);
+        AnimateEntranceItem(UpdatesCard, UpdatesCardTranslate, 350);
+        AnimateEntranceItem(FooterBar, FooterTranslate, 420);
+
+        void AnimateEntranceItem(UIElement element, TranslateTransform translate, int delayMs)
+        {
+            var fade = CreateAnimation(0, 1, 420, itemEase);
+            fade.BeginTime = TimeSpan.FromMilliseconds(delayMs);
+            element.BeginAnimation(OpacityProperty, fade);
+
+            var slide = CreateAnimation(12, 0, 620, itemEase);
+            slide.BeginTime = TimeSpan.FromMilliseconds(delayMs);
+            translate.BeginAnimation(TranslateTransform.YProperty, slide);
+        }
+    }
+
+    private static DoubleAnimation CreateAnimation(double from, double to, int durationMs, IEasingFunction easing)
+    {
+        var animation = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(durationMs))
+        {
+            EasingFunction = easing
+        };
+
+        Timeline.SetDesiredFrameRate(animation, 144);
+        return animation;
+    }
+
+    #endregion
+
     #region Button Handlers
 
     private void Reset_Click(object sender, RoutedEventArgs e)
@@ -111,9 +165,19 @@ public partial class SettingsWindow : Window
         Close();
     }
 
+    private void Apply_Click(object sender, RoutedEventArgs e)
+    {
+        ApplySettingsFromUi();
+    }
+
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        ApplySettingsFromUi();
+        Close();
+    }
 
+    private void ApplySettingsFromUi()
+    {
         _settings.Width = (int)WidthSlider.Value;
         _settings.Height = (int)HeightSlider.Value;
         _settings.CornerRadius = (int)RadiusSlider.Value;
@@ -132,8 +196,6 @@ public partial class SettingsWindow : Window
         StartupManager.SetAutoStart(_settings.AutoStart);
 
         SettingsChanged?.Invoke(this, _settings);
-
-        Close();
     }
 
     #endregion
