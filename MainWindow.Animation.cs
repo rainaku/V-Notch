@@ -915,7 +915,7 @@ public partial class MainWindow
         double timeTopMargin = useCompactLayout ? 4 : 2;
         double timeSideMargin = useCompactLayout ? 4 : 6;
         double progressRightInset = 0;
-        double targetWidth = Math.Max(0, visibleTextWidth - 5);
+        double targetWidth = Math.Max(0, fallbackWidth - 34);
 
         Grid.SetColumnSpan(MediaInfoSection, useCompactLayout ? 2 : 1);
 
@@ -956,6 +956,8 @@ public partial class MainWindow
         {
             ArtistScrollContainer.Width = fadeEndX;
         }
+
+        RefreshMediaMarquee();
         
         if (TextFadeBrush != null)
         {
@@ -971,12 +973,6 @@ public partial class MainWindow
 
     private double GetVisibleMediaTextWidth(double fallbackWidth)
     {
-        double infoWidth = MediaInfoSection?.ActualWidth > 0 ? MediaInfoSection.ActualWidth : 0;
-        if (infoWidth > 0)
-        {
-            return Math.Max(0, Math.Min(340, infoWidth));
-        }
-
         double widgetWidth = MediaWidgetContainer?.ActualWidth > 0 ? MediaWidgetContainer.ActualWidth : 0;
         if (widgetWidth > 0)
         {
@@ -984,6 +980,12 @@ public partial class MainWindow
             double thumbnailGap = ThumbnailBorder?.Margin.Right ?? 8;
             double availableWidth = widgetWidth - thumbnailWidth - thumbnailGap - 4;
             return Math.Max(0, Math.Min(340, availableWidth));
+        }
+
+        double infoWidth = MediaInfoSection?.ActualWidth > 0 ? MediaInfoSection.ActualWidth : 0;
+        if (infoWidth > 0)
+        {
+            return Math.Max(0, Math.Min(340, infoWidth));
         }
 
         return fallbackWidth;

@@ -64,6 +64,37 @@ public partial class MainWindow
 
     #endregion
 
+    private void RefreshMediaMarquee()
+    {
+        RestartMarqueeFor(TrackTitle, TitleMarqueeTranslate, TrackTitleNext, TitleMarqueeTranslateNext, _isTitleActiveA, isTitle: true);
+        RestartMarqueeFor(TrackArtist, ArtistMarqueeTranslate, TrackArtistNext, ArtistMarqueeTranslateNext, _isArtistActiveA, isTitle: false);
+    }
+
+    private void RestartMarqueeFor(TextBlock textA, TranslateTransform translateA, TextBlock textB, TranslateTransform translateB, bool activeA, bool isTitle)
+    {
+        var activeText = activeA ? textA : textB;
+        var activeTranslate = activeA ? translateA : translateB;
+
+        activeText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double textWidth = activeText.DesiredSize.Width;
+        double containerWidth = GetVisibleMediaTextWidth(340);
+        double distance = textWidth - containerWidth + 15;
+
+        if (distance > 1)
+        {
+            if (isTitle) _titleScrollDistance = distance;
+            else _artistScrollDistance = distance;
+            StartMarqueeAnimation(activeTranslate, distance);
+        }
+        else
+        {
+            if (isTitle) _titleScrollDistance = 0;
+            else _artistScrollDistance = 0;
+            activeTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+            activeTranslate.X = 0;
+        }
+    }
+
     #region Text Update with Marquee
 
     private void UpdateTitleText(string newText)

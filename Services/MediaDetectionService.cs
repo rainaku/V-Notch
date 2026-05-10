@@ -1877,6 +1877,13 @@ public class MediaDetectionService : IMediaDetectionService
                         {
                             info.MediaSource = "YouTube";
                             info.IsYouTubeRunning = true;
+                            string extractedYouTubeTitle = ExtractVideoTitle(title, "YouTube");
+                            if (!string.IsNullOrWhiteSpace(extractedYouTubeTitle) &&
+                                extractedYouTubeTitle.Length > info.CurrentTrack.Length &&
+                                NormalizeForLooseMatch(extractedYouTubeTitle).Contains(NormalizeForLooseMatch(info.CurrentTrack), StringComparison.Ordinal))
+                            {
+                                info.CurrentTrack = extractedYouTubeTitle;
+                            }
                             break;
                         }
                         else if (winTitleLower.Contains("soundcloud"))
@@ -2370,11 +2377,6 @@ public class MediaDetectionService : IMediaDetectionService
 
         
         title = Regex.Replace(title, @"\s+[\-\|–•]\s*$", "");
-
-        if (title.Length > 60)
-        {
-            title = title.Substring(0, 57) + "...";
-        }
 
         return string.IsNullOrEmpty(title) ? platform : title;
     }
