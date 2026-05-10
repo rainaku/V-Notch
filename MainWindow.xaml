@@ -503,11 +503,12 @@
                             <ColumnDefinition Width="0.72*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Status Bar: Battery + Settings (Overlay on top) -->
+                        <!-- Status Bar: Battery + Update + Settings (Overlay on top) -->
                         <Grid x:Name="StatusBar" Grid.Column="0" Grid.ColumnSpan="3" 
                               HorizontalAlignment="Right" VerticalAlignment="Top" 
                               Margin="0,0,8,0" Panel.ZIndex="100">
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
@@ -605,8 +606,86 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- Update Notification Button with Breathing Effect -->
+                            <Border x:Name="UpdateNotificationButton" Grid.Column="1"
+                                    Width="20" Height="20"
+                                    Background="Transparent"
+                                    Cursor="Hand"
+                                    Margin="7,0,0,0"
+                                    ToolTipService.Placement="Bottom"
+                                    ToolTipService.VerticalOffset="10"
+                                    ToolTipService.HorizontalOffset="-18"
+                                    ToolTipOpening="UpdateNotification_ToolTipOpening"
+                                    ToolTipClosing="UpdateNotification_ToolTipClosing"
+                                    MouseLeftButtonDown="UpdateNotification_Click"
+                                    MouseEnter="UpdateNotification_MouseEnter"
+                                    MouseLeave="UpdateNotification_MouseLeave"
+                                    RenderTransformOrigin="0.5,0.5"
+                                    Opacity="0"
+                                    Visibility="Collapsed"
+                                    IsHitTestVisible="True"
+                                    Tag="1.0.0">
+                                <Border.ToolTip>
+                                    <ToolTip Placement="Bottom"
+                                             VerticalOffset="10"
+                                             HorizontalOffset="-18"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             HasDropShadow="False">
+                                        <Border CornerRadius="10"
+                                                BorderBrush="#33FFFFFF"
+                                                BorderThickness="1"
+                                                Padding="10,8">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                    <GradientStop Color="#F0222222" Offset="0"/>
+                                                    <GradientStop Color="#EA111111" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="True">
+                                                    <Ellipse Width="7" Height="7" Fill="#30D158" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Update Available"
+                                                               Foreground="White"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               FontFamily="{StaticResource MainSystemFont}"/>
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ToolTip}, StringFormat=Version v{0}}"
+                                                           Foreground="#CCFFFFFF"
+                                                           FontSize="10.5"
+                                                           Margin="0,4,0,0"
+                                                           FontFamily="{StaticResource MainSystemFont}"/>
+                                                <TextBlock Text="Click to open Settings"
+                                                           Foreground="#99FFFFFF"
+                                                           FontSize="9.5"
+                                                           Margin="0,5,0,0"
+                                                           FontFamily="{StaticResource MainSystemFont}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ToolTip>
+                                </Border.ToolTip>
+                                <Border.RenderTransform>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="UpdateNotificationScale" ScaleX="1" ScaleY="1"/>
+                                        <TranslateTransform x:Name="UpdateNotificationTranslate" Y="-4"/>
+                                    </TransformGroup>
+                                </Border.RenderTransform>
+                                <Viewbox Width="16" Height="16" Stretch="Uniform">
+                                    <Canvas Width="512" Height="512">
+                                        <!-- Update icon with breathing color animation -->
+                                        <Path x:Name="UpdateIconPath"
+                                              Data="M104.426,139.813l83.563,83.781c14.344-13.766,26.781-25.703,36.109-34.672l-84.297-84.5l-10.313-45.719 L54.27,12.985L33.629,33.642L12.988,54.282l45.719,75.219L104.426,139.813z M358.363,276.298L481.926,399.47c22.781,22.766,22.781,59.688,0,82.469c-22.781,22.766-59.688,22.766-82.469,0 L275.895,358.767L358.363,276.298z M459.957,203.407c42.547-38.609,49.656-82.484,40.141-119.484c-0.281-2.938-0.984-5.406-3.547-7.25 l-8.563-7.016c-1.484-1.391-3.484-2.063-5.484-1.875c-2.016,0.203-3.844,1.234-5.031,2.875l-49.25,64.031 c-1.375,1.891-3.594,2.969-5.922,2.891l-17.875,1.313c-1.531-0.047-3.016-0.594-4.219-1.563l-34.531-29.266 c-1.406-1.141-2.328-2.766-2.563-4.563l-2.141-16.188c-0.25-1.781,0.203-3.594,1.266-5.063l46.109-62.641 c2.094-2.875,1.688-6.859-0.906-9.281l-11.188-8.75c-2.188-2.031-4.672-1.75-8.063-1.094 c-31.844,6.281-86.219,37.125-100.016,79.75c-12.156,37.516-7.922,63.969-7.922,63.969c0,21.141-6.953,41.516-15.5,50.063 L24.504,424.923c-0.469,0.422-0.922,0.859-1.375,1.313c-19.844,19.844-19.813,52.047-0.641,71.219s51.859,19.672,71.703-0.172 c0.922-0.922,1.813-1.875,2.641-2.859l231.672-250.438C357.004,218.61,413.426,245.642,459.957,203.407z">
+                                            <Path.Fill>
+                                                <SolidColorBrush x:Name="UpdateIconBrush" Color="#30D158"/>
+                                            </Path.Fill>
+                                        </Path>
+                                    </Canvas>
+                                </Viewbox>
+                            </Border>
+
                             <!-- Settings Button -->
-                            <Border x:Name="SettingsButton" Grid.Column="1"
+                            <Border x:Name="SettingsButton" Grid.Column="2"
                                     Width="24" Height="24"
                                     CornerRadius="12"
                                     Background="Transparent"

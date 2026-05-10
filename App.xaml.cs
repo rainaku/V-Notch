@@ -59,6 +59,7 @@ public partial class App : Application
         services.AddSingleton<IBatteryService, BatteryServiceImpl>();
         services.AddSingleton<IDispatcherService>(sp =>
             new DispatcherService(Current.Dispatcher));
+        services.AddSingleton<IUpdateService, UpdateService>();
 
         
         services.AddSingleton<MainWindow>();

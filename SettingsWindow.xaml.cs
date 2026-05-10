@@ -8,6 +8,8 @@ public partial class SettingsWindow : Window
 {
     private readonly NotchSettings _settings;
     private readonly SettingsService _settingsService;
+    private readonly IUpdateService _updateService;
+    private UpdateInfo? _availableUpdate;
 
     public event EventHandler<NotchSettings>? SettingsChanged;
 
@@ -17,8 +19,10 @@ public partial class SettingsWindow : Window
 
         _settings = settings.Clone();
         _settingsService = settingsService;
+        _updateService = new UpdateService();
 
         LoadSettings();
+        _ = CheckForUpdatesAsync();
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -130,6 +134,79 @@ public partial class SettingsWindow : Window
         SettingsChanged?.Invoke(this, _settings);
 
         Close();
+    }
+
+    #endregion
+
+    #region Update Handlers
+
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            UpdateStatusText.Text = "Checking for updates...";
+            CheckUpdateButton.IsEnabled = false;
+            DownloadUpdateButton.Visibility = Visibility.Collapsed;
+
+            _availableUpdate = await _updateService.CheckForUpdatesAsync();
+
+            if (_availableUpdate == null)
+            {
+                UpdateStatusText.Text = "Unable to check for updates";
+                CheckUpdateButton.IsEnabled = true;
+                return;
+            }
+
+            if (_availableUpdate.IsNewerVersion)
+            {
+                UpdateStatusText.Text = $"New version {_availableUpdate.Version} available!";
+                DownloadUpdateButton.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                UpdateStatusText.Text = "You're up to date";
+            }
+
+            CheckUpdateButton.IsEnabled = true;
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = $"Error: {ex.Message}";
+            CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        await CheckForUpdatesAsync();
+    }
+
+    private async void DownloadUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_availableUpdate == null) return;
+
+        var result = MessageBox.Show(
+            $"Do you want to download and install version {_availableUpdate.Version}?\n\n" +
+            $"Release Notes:\n{_availableUpdate.ReleaseNotes.Substring(0, Math.Min(200, _availableUpdate.ReleaseNotes.Length))}...\n\n" +
+            "The application will close and the installer will run.",
+            "Update Available",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            UpdateStatusText.Text = "Downloading update...";
+            DownloadUpdateButton.IsEnabled = false;
+
+            var success = await _updateService.DownloadAndInstallUpdateAsync(_availableUpdate);
+
+            if (!success)
+            {
+                UpdateStatusText.Text = "Failed to download update";
+                DownloadUpdateButton.IsEnabled = true;
+                MessageBox.Show("Failed to download or install the update. Please try again later.", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
     }
 
     #endregion

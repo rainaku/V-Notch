@@ -490,6 +490,20 @@
                     <CheckBox x:Name="AutoStartCheck" Content="Start with Windows"/>
                     <CheckBox x:Name="MusicNotifyCheck" Content="Show music notifications"/>
                     <CheckBox x:Name="SystemNotifyCheck" Content="Show system notifications"/>
+
+                    <TextBlock Text="UPDATES" Style="{StaticResource SectionHeader}"/>
+                    <Grid Margin="0,8,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock x:Name="UpdateStatusText" Text="Checking for updates..." FontSize="12" Foreground="#D8D8D8"/>
+                            <TextBlock x:Name="CurrentVersionText" Text="Current version: 1.6.0" FontSize="11" Foreground="#7A7A7A" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <Button x:Name="CheckUpdateButton" Grid.Column="1" Content="Check" MinWidth="80" Height="36" Click="CheckUpdate_Click"/>
+                    </Grid>
+                    <Button x:Name="DownloadUpdateButton" Content="Download &amp; Install Update" Visibility="Collapsed" Click="DownloadUpdate_Click" Style="{StaticResource PrimaryButton}"/>
                 </StackPanel>
             </ScrollViewer>
 

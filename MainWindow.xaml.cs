@@ -220,7 +220,9 @@ public partial class MainWindow : Window
     private readonly SettingsService _settingsService;
     private readonly NotchManager _notchManager;
     private readonly MediaDetectionService _mediaService;
+    private readonly IUpdateService _updateService;
     private readonly DispatcherTimer _updateTimer;
+    private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _zOrderWatchdogTimer;
     private readonly DispatcherTimer _zOrderFastTimer;
     private readonly DispatcherTimer _hoverCollapseTimer;
@@ -290,6 +292,12 @@ public partial class MainWindow : Window
     private readonly Border[] _calendarDayBorders = new Border[11];
     private readonly TextBlock[] _calendarDayNumbers = new TextBlock[11];
 
+    private bool _isUpdateAvailable = false;
+    private UpdateInfo? _availableUpdate = null;
+    private DispatcherTimer? _updatePulseTimer;
+    private DateTime _updatePulseStartedAtUtc = DateTime.MinValue;
+    private bool _isUpdateTooltipOpen = false;
+    private DateTime _suspendTopmostUntilUtc = DateTime.MinValue;
     
     private const int CalendarTotalDays = 11;   
     private const int CalendarVisibleDays = 3;  
@@ -306,13 +314,15 @@ public partial class MainWindow : Window
 
     public MainWindow(
         ISettingsService settingsService,
-        IMediaDetectionService mediaService)
+        IMediaDetectionService mediaService,
+        IUpdateService updateService)
     {
         InitializeComponent();
         _settingsService = (SettingsService)settingsService;
         _settings = _settingsService.Load();
         _notchManager = new NotchManager(this, _settings);
         _mediaService = (MediaDetectionService)mediaService;
+        _updateService = updateService;
 
         _batteryModule = new BatteryModule((IBatteryService)App.Services.GetService(typeof(IBatteryService))!);
         _batteryModule.BatteryUpdated += BatteryModule_BatteryUpdated;
@@ -329,6 +339,12 @@ public partial class MainWindow : Window
             Interval = TimeSpan.FromSeconds(30)
         };
         _updateTimer.Tick += UpdateTimer_Tick;
+
+        _updateCheckTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromHours(2)
+        };
+        _updateCheckTimer.Tick += UpdateCheckTimer_Tick;
 
         _zOrderWatchdogTimer = new DispatcherTimer
         {
@@ -444,6 +460,10 @@ public partial class MainWindow : Window
         _batteryModule.Start();
         _calendarModule.Start();
         
+        // Start update check timer and perform initial check
+        _updateCheckTimer.Start();
+        _ = CheckForUpdatesAsync();
+        
         if (IsEffectivelyNotchVisible)
         {
             PlayAppearAnimation();
@@ -528,6 +548,7 @@ public partial class MainWindow : Window
         _notchManager?.Dispose();
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
+        _updateCheckTimer?.Stop();
         _batteryModule?.Stop();
         _calendarModule?.Stop();
         DisposeAllShelfWatchers();
@@ -749,6 +770,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_isUpdateTooltipOpen || DateTime.UtcNow < _suspendTopmostUntilUtc)
+        {
+            return;
+        }
+
         if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
         {
             return;
@@ -931,6 +957,11 @@ public partial class MainWindow : Window
 
     private void AssertTopmostNow()
     {
+        if (_isUpdateTooltipOpen || DateTime.UtcNow < _suspendTopmostUntilUtc)
+        {
+            return;
+        }
+
         if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
         {
             return;
@@ -1257,6 +1288,237 @@ public partial class MainWindow : Window
             SettingsButton.Background = new SolidColorBrush(Colors.Transparent);
         }
     }
+
+    #endregion
+
+    #region Update Notification Handlers
+
+    private async void UpdateCheckTimer_Tick(object? sender, EventArgs e)
+    {
+        await CheckForUpdatesAsync();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            var updateInfo = await _updateService.CheckForUpdatesAsync();
+            
+            if (updateInfo != null && updateInfo.IsNewerVersion)
+            {
+                _isUpdateAvailable = true;
+                _availableUpdate = updateInfo;
+                ShowUpdateNotification();
+            }
+            else
+            {
+                _isUpdateAvailable = false;
+                _availableUpdate = null;
+                HideUpdateNotification();
+            }
+        }
+        catch
+        {
+            // Silently fail - don't interrupt user experience
+        }
+    }
+
+    private void ShowUpdateNotification()
+    {
+        if (UpdateNotificationButton.Visibility == Visibility.Visible)
+            return;
+
+        UpdateNotificationButton.Visibility = Visibility.Visible;
+        UpdateNotificationButton.Tag = _availableUpdate?.Version?.ToString() ?? "-";
+        
+        // Reset icon color to green before animating
+        UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        UpdateIconBrush.Color = Color.FromRgb(48, 209, 88);
+        
+        // Apple-style entrance animation
+        var fadeIn = new DoubleAnimation
+        {
+            From = 0,
+            To = 1.0,
+            Duration = TimeSpan.FromMilliseconds(400),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        var slideIn = new DoubleAnimation
+        {
+            From = -4,
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(400),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        // Start breathing immediately after fade completes
+        fadeIn.Completed += (s, e) =>
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                StartUpdatePulseAnimation();
+            }), DispatcherPriority.Render);
+        };
+
+        UpdateNotificationButton.BeginAnimation(OpacityProperty, fadeIn);
+        UpdateNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
+    }
+
+    private void HideUpdateNotification()
+    {
+        if (UpdateNotificationButton.Visibility == Visibility.Collapsed)
+            return;
+
+        _isUpdateTooltipOpen = false;
+        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(220);
+        StopUpdatePulseAnimation();
+
+        var fadeOut = new DoubleAnimation
+        {
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+
+        fadeOut.Completed += (s, e) =>
+        {
+            UpdateNotificationButton.Visibility = Visibility.Collapsed;
+        };
+
+        UpdateNotificationButton.BeginAnimation(OpacityProperty, fadeOut);
+    }
+
+    private void StartUpdatePulseAnimation()
+    {
+        if (UpdateIconBrush == null) return;
+
+        // Keep a deterministic pulse regardless of other storyboard/property animations.
+        UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        UpdateIconBrush.Color = Color.FromRgb(48, 209, 88);
+
+        if (_updatePulseTimer == null)
+        {
+            _updatePulseTimer = new DispatcherTimer(DispatcherPriority.Render)
+            {
+                Interval = TimeSpan.FromMilliseconds(16)
+            };
+            _updatePulseTimer.Tick += UpdatePulseTimer_Tick;
+        }
+
+        _updatePulseStartedAtUtc = DateTime.UtcNow;
+        _updatePulseTimer.Start();
+    }
+
+    private void StopUpdatePulseAnimation()
+    {
+        if (_updatePulseTimer != null)
+        {
+            _updatePulseTimer.Stop();
+        }
+
+        if (UpdateIconBrush != null)
+        {
+            UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            UpdateIconBrush.Color = Color.FromRgb(48, 209, 88);
+        }
+    }
+
+    private void UpdatePulseTimer_Tick(object? sender, EventArgs e)
+    {
+        if (UpdateIconBrush == null)
+            return;
+
+        if (!_isUpdateAvailable || UpdateNotificationButton.Visibility != Visibility.Visible)
+        {
+            StopUpdatePulseAnimation();
+            return;
+        }
+
+        const double periodMs = 3000.0;
+        var elapsedMs = (DateTime.UtcNow - _updatePulseStartedAtUtc).TotalMilliseconds;
+        var phase = (elapsedMs % periodMs) / periodMs; // 0..1
+        var mix = 0.5 - (0.5 * Math.Cos(phase * Math.PI * 2.0)); // 0->1->0
+
+        // Lerp Apple green (#30D158) <-> white.
+        byte r = (byte)Math.Round(48 + ((255 - 48) * mix));
+        byte g = (byte)Math.Round(209 + ((255 - 209) * mix));
+        byte b = (byte)Math.Round(88 + ((255 - 88) * mix));
+        UpdateIconBrush.Color = Color.FromRgb(r, g, b);
+    }
+
+    private void UpdateNotification_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (_availableUpdate != null)
+        {
+            OpenAppSettings();
+        }
+        e.Handled = true;
+    }
+
+    private void UpdateNotification_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(1200);
+        AnimateUpdateNotificationHover(true);
+        
+        // Update tooltip version text
+        if (_availableUpdate != null)
+        {
+            UpdateNotificationButton.Tag = _availableUpdate.Version.ToString();
+        }
+    }
+
+    private void UpdateNotification_MouseLeave(object sender, MouseEventArgs e)
+    {
+        _isUpdateTooltipOpen = false;
+        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(220);
+        AnimateUpdateNotificationHover(false);
+    }
+
+    private void UpdateNotification_ToolTipOpening(object sender, ToolTipEventArgs e)
+    {
+        _isUpdateTooltipOpen = true;
+        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(1500);
+    }
+
+    private void UpdateNotification_ToolTipClosing(object sender, ToolTipEventArgs e)
+    {
+        _isUpdateTooltipOpen = false;
+        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(220);
+    }
+
+    private void AnimateUpdateNotificationHover(bool isEnter)
+    {
+        if (UpdateIconBrush == null) return;
+        
+        var scaleAnim = new DoubleAnimation
+        {
+            To = isEnter ? 1.08 : 1.0,
+            Duration = TimeSpan.FromMilliseconds(200),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        Timeline.SetDesiredFrameRate(scaleAnim, 120);
+
+        if (!isEnter)
+        {
+            // Resume breathing animation when mouse leaves
+            scaleAnim.Completed += (s, e) =>
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    StartUpdatePulseAnimation();
+                }), DispatcherPriority.Render);
+            };
+        }
+
+        UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
+        UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+    }
+
+    #endregion
+
+    #region Timer Handlers
 
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {

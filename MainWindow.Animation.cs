@@ -722,6 +722,15 @@ public partial class MainWindow
         fadeOutBattery.Completed += (s, e) => BatterySection.Visibility = Visibility.Collapsed;
         BatterySection.BeginAnimation(OpacityProperty, fadeOutBattery);
 
+        // Fade out update notification if visible
+        if (UpdateNotificationButton != null && UpdateNotificationButton.Visibility == Visibility.Visible)
+        {
+            StopUpdatePulseAnimation();
+            var fadeOutUpdate = MakeAnim(UpdateNotificationButton.Opacity, 0d, _dur150, _easePowerIn2, null);
+            fadeOutUpdate.Completed += (s, e) => UpdateNotificationButton.Visibility = Visibility.Collapsed;
+            UpdateNotificationButton.BeginAnimation(OpacityProperty, fadeOutUpdate);
+        }
+
         var fadeOutSettings = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
         fadeOutSettings.Completed += (s, e) => SettingsButton.Visibility = Visibility.Collapsed;
         SettingsButton.BeginAnimation(OpacityProperty, fadeOutSettings);
@@ -850,6 +859,27 @@ public partial class MainWindow
         BatterySection.Visibility = Visibility.Visible;
         var fadeInBattery = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
         BatterySection.BeginAnimation(OpacityProperty, fadeInBattery);
+
+        // Animate update notification if available
+        if (_isUpdateAvailable && UpdateNotificationButton != null)
+        {
+            UpdateNotificationButton.BeginAnimation(OpacityProperty, null);
+            UpdateNotificationButton.Opacity = 0;
+            UpdateNotificationButton.Visibility = Visibility.Visible;
+            
+            // Reset icon color
+            if (UpdateIconBrush != null)
+            {
+                UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                UpdateIconBrush.Color = Color.FromRgb(48, 209, 88);
+            }
+
+            // Start pulse deterministically for every reveal.
+            StartUpdatePulseAnimation();
+
+            var fadeInUpdate = MakeAnim(0d, 1.0d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(110));
+            UpdateNotificationButton.BeginAnimation(OpacityProperty, fadeInUpdate);
+        }
 
         SettingsButton.BeginAnimation(OpacityProperty, null);
         SettingsButton.Opacity = 0;
@@ -1299,6 +1329,46 @@ public partial class MainWindow
             BeginTime = show ? TimeSpan.FromMilliseconds(40) : TimeSpan.Zero
         };
         Timeline.SetDesiredFrameRate(settingsTranslateAnim, animFps);
+
+        // Update notification animation (with 30ms stagger when showing, between battery and settings)
+        if (_isUpdateAvailable && UpdateNotificationButton != null)
+        {
+            var updateOpacityAnim = new DoubleAnimation
+            {
+                To = show ? 1.0 : 0.0,
+                Duration = dur,
+                EasingFunction = easing,
+                BeginTime = show ? TimeSpan.FromMilliseconds(30) : TimeSpan.Zero
+            };
+            Timeline.SetDesiredFrameRate(updateOpacityAnim, animFps);
+
+            var updateTranslateAnim = new DoubleAnimation
+            {
+                To = show ? 0 : -4,
+                Duration = dur,
+                EasingFunction = easing,
+                BeginTime = show ? TimeSpan.FromMilliseconds(30) : TimeSpan.Zero
+            };
+            Timeline.SetDesiredFrameRate(updateTranslateAnim, animFps);
+
+            if (show)
+            {
+                // Reset and start pulse before reveal; don't depend on Completed timing.
+                if (UpdateIconBrush != null)
+                {
+                    UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                    UpdateIconBrush.Color = Color.FromRgb(48, 209, 88);
+                }
+                StartUpdatePulseAnimation();
+            }
+            else
+            {
+                StopUpdatePulseAnimation();
+            }
+
+            UpdateNotificationButton.BeginAnimation(OpacityProperty, updateOpacityAnim);
+            UpdateNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, updateTranslateAnim);
+        }
 
         // Apply animations
         BatterySection.BeginAnimation(OpacityProperty, batteryOpacityAnim);
