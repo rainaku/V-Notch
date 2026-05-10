@@ -10,6 +10,7 @@ using VNotch.Models;
 using VNotch.Services;
 using static VNotch.Services.Win32Interop;
 using POINT = VNotch.Services.Win32Interop.POINT;
+using static VNotch.Services.AnimationPrimitives;
 namespace VNotch;
 
 public partial class MainWindow
@@ -38,22 +39,22 @@ public partial class MainWindow
     private Point _mouseDownPoint;
     private const double DRAG_THRESHOLD = 3.0;  
 
-    
-    
-    private bool _springRenderHooked = false;
-    private DoubleAnimation? _fpsBoostAnim;
-    private readonly TranslateTransform _fpsBoostTarget = new(); 
-    private readonly System.Diagnostics.Stopwatch _springStopwatch = new();
+    // Spring render loop is driven by a dedicated helper; this partial keeps the
+    // per-frame ratios/velocity in its own fields (and pushes them into the
+    // renderer state every time the spring restarts) because many sites across
+    // Progress.cs mutate them directly (click-seek pending, drag snap-back,
+    // catch-up animation etc.).
+    private ProgressSpringRenderer? _springRenderer;
+    private ProgressSpringRenderer Spring => _springRenderer ??= new ProgressSpringRenderer(
+        applyRatio: r =>
+        {
+            _progressDisplayRatio = r;
+            ProgressBarScale.ScaleX = r;
+        },
+        shouldRender: () => (_isExpanded || _isMusicExpanded) && !_isDraggingProgress,
+        getPlaybackRate: () => _currentMediaInfo?.PlaybackRate ?? 1.0);
 
     
-    private const double SPRING_STIFFNESS = 105.0;
-    private const double SPRING_DAMPING = 28.0;
-    private const double SPRING_SETTLE_THRESHOLD = 0.0012;
-    private const double SPRING_TARGET_FOLLOW_SPEED = 30.0;
-    private const double SPRING_MAX_VELOCITY = 2.4;
-    private const double SPRING_MAX_STEP_PER_FRAME = 0.030;
-    private const int SPRING_SETTLE_FRAMES_REQUIRED = 3;
-    private const int SPRING_TIMEOUT_MS = 1400;
     private const double NORMAL_LERP_SPEED = 14.0;
     private const double SOURCE_IGNORE_SECONDS = 0.30;
     private const double SOURCE_SMOOTH_SECONDS = 2.0;
@@ -66,135 +67,36 @@ public partial class MainWindow
     
     private void StartSpringRenderLoop()
     {
-        if (_springRenderHooked) return;
-        _springRenderHooked = true;
-        _springStopwatch.Restart();
-
-        
-        if (_fpsBoostAnim == null)
-        {
-            _fpsBoostAnim = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(1))
-            {
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            Timeline.SetDesiredFrameRate(_fpsBoostAnim, 144);
-            _fpsBoostAnim.Freeze();
-        }
-        _fpsBoostTarget.BeginAnimation(TranslateTransform.XProperty, _fpsBoostAnim);
-
-        CompositionTarget.Rendering += SpringRender_Tick;
+        // Keep the renderer's mirror of the physics state in sync with the
+        // fields the rest of this partial mutates directly.
+        Spring.DisplayRatio = _progressDisplayRatio;
+        Spring.TargetRatio = _progressTargetRatio;
+        Spring.SpringTargetRatio = _progressSpringTargetRatio;
+        Spring.Velocity = _progressVelocity;
+        Spring.SettleFrames = _springSettleFrames;
+        Spring.Start();
     }
 
     private void StopSpringRenderLoop()
     {
-        if (!_springRenderHooked) return;
-        _springRenderHooked = false;
-        _springStopwatch.Stop();
-
-        CompositionTarget.Rendering -= SpringRender_Tick;
-        _fpsBoostTarget.BeginAnimation(TranslateTransform.XProperty, null);
+        if (_springRenderer == null) return;
+        Spring.Stop();
+        // Pull the final state back into the partial's fields so the rest of
+        // the code keeps seeing consistent numbers.
+        _progressDisplayRatio = Spring.DisplayRatio;
+        _progressVelocity = Spring.Velocity;
+        _springSettleFrames = Spring.SettleFrames;
+        _isSeekSpringActive = Spring.IsActive;
     }
 
-    private void SpringRender_Tick(object? sender, EventArgs e)
+    private void SyncSpringStateFromFields()
     {
-        if (!_isSeekSpringActive)
-        {
-            StopSpringRenderLoop();
-            return;
-        }
-
-        if ((_isExpanded || _isMusicExpanded) && !_isDraggingProgress)
-        {
-            RenderSpringFrame();
-        }
-    }
-
-    
-    
-    
-    
-    private void RenderSpringFrame()
-    {
-        if (!_isSeekSpringActive) return;
-
-        
-        double dt = _springStopwatch.Elapsed.TotalSeconds;
-        _springStopwatch.Restart();
-        dt = Math.Clamp(dt, 0.001, 0.033);
-
-        
-        double effectivePlaybackRate = 1.0;
-        if (_currentMediaInfo != null &&
-            !double.IsNaN(_currentMediaInfo.PlaybackRate) &&
-            !double.IsInfinity(_currentMediaInfo.PlaybackRate) &&
-            _currentMediaInfo.PlaybackRate > 0)
-        {
-            effectivePlaybackRate = Math.Clamp(_currentMediaInfo.PlaybackRate, 0.5, 3.0);
-        }
-
-        
-        double scaledDt = dt * effectivePlaybackRate;
-
-        
-        double targetFollow = 1.0 - Math.Exp(-SPRING_TARGET_FOLLOW_SPEED * scaledDt);
-        _progressSpringTargetRatio += (_progressTargetRatio - _progressSpringTargetRatio) * targetFollow;
-
-        double error = _progressSpringTargetRatio - _progressDisplayRatio;
-
-        
-        double springForce = SPRING_STIFFNESS * error - SPRING_DAMPING * _progressVelocity;
-        _progressVelocity += springForce * scaledDt;
-        _progressVelocity = Math.Clamp(_progressVelocity, -SPRING_MAX_VELOCITY, SPRING_MAX_VELOCITY);
-
-        double prevDisplay = _progressDisplayRatio;
-        _progressDisplayRatio += _progressVelocity * scaledDt;
-
-        double step = _progressDisplayRatio - prevDisplay;
-        if (Math.Abs(step) > SPRING_MAX_STEP_PER_FRAME)
-        {
-            _progressDisplayRatio = prevDisplay + Math.Sign(step) * SPRING_MAX_STEP_PER_FRAME;
-        }
-
-        
-        if ((prevDisplay - _progressSpringTargetRatio) * (_progressDisplayRatio - _progressSpringTargetRatio) < 0)
-        {
-            _progressDisplayRatio = _progressSpringTargetRatio;
-            _progressVelocity = 0;
-        }
-
-        
-        if (Math.Abs(_progressTargetRatio - _progressDisplayRatio) < SPRING_SETTLE_THRESHOLD &&
-            Math.Abs(_progressVelocity) < 0.004)
-        {
-            _springSettleFrames++;
-        }
-        else
-        {
-            _springSettleFrames = 0;
-        }
-
-        if (_springSettleFrames >= SPRING_SETTLE_FRAMES_REQUIRED)
-        {
-            _progressDisplayRatio = _progressTargetRatio;
-            _progressVelocity = 0;
-            _springSettleFrames = 0;
-            _isSeekSpringActive = false;
-            StopSpringRenderLoop();
-        }
-
-        
-        if ((DateTime.Now - _seekSpringStartTime).TotalMilliseconds > SPRING_TIMEOUT_MS)
-        {
-            _progressDisplayRatio = _progressTargetRatio;
-            _progressVelocity = 0;
-            _springSettleFrames = 0;
-            _isSeekSpringActive = false;
-            StopSpringRenderLoop();
-        }
-
-        
-        _progressDisplayRatio = Math.Clamp(_progressDisplayRatio, 0, 1);
-        ProgressBarScale.ScaleX = _progressDisplayRatio;
+        if (_springRenderer == null) return;
+        Spring.DisplayRatio = _progressDisplayRatio;
+        Spring.TargetRatio = _progressTargetRatio;
+        Spring.SpringTargetRatio = _progressSpringTargetRatio;
+        Spring.Velocity = _progressVelocity;
+        Spring.SettleFrames = _springSettleFrames;
     }
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
@@ -425,66 +327,11 @@ public partial class MainWindow
         }
     }
 
-    private static void NormalizeStartupSnapshotTimestamp(MediaInfo info)
-    {
-        if (!info.IsPlaying || info.Position <= TimeSpan.Zero)
-        {
-            return;
-        }
+    private static void NormalizeStartupSnapshotTimestamp(MediaInfo info) =>
+        MediaProgressHelpers.NormalizeStartupSnapshotTimestamp(info);
 
-        var updatedUtc = info.LastUpdated.ToUniversalTime();
-        var nowUtc = DateTimeOffset.UtcNow;
-        if (updatedUtc > nowUtc.AddMilliseconds(250))
-        {
-            info.LastUpdated = nowUtc;
-        }
-    }
-
-    private static bool IsLikelyBrowserProgressSource(MediaInfo info)
-    {
-        // YouTube detection
-        if (string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(info.YouTubeVideoId))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(info.SourceAppId) &&
-            info.SourceAppId.Contains("YouTube", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        // SoundCloud detection
-        if (string.Equals(info.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        // Generic browser detection (covers Spotify Web, Apple Music Web, etc.)
-        if (string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        // Chrome/Edge browser detection
-        if (!string.IsNullOrWhiteSpace(info.SourceAppId) &&
-            (info.SourceAppId.Contains("chrome", StringComparison.OrdinalIgnoreCase) ||
-             info.SourceAppId.Contains("edge", StringComparison.OrdinalIgnoreCase) ||
-             info.SourceAppId.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
-             info.SourceAppId.Contains("firefox", StringComparison.OrdinalIgnoreCase) ||
-             info.SourceAppId.Contains("brave", StringComparison.OrdinalIgnoreCase) ||
-             info.SourceAppId.Contains("opera", StringComparison.OrdinalIgnoreCase)))
-        {
-            return true;
-        }
-
-        return false;
-    }
+    private static bool IsLikelyBrowserProgressSource(MediaInfo info) =>
+        MediaProgressHelpers.IsLikelyBrowserProgressSource(info);
 
     private void HandleSessionTransition()
     {
@@ -618,7 +465,7 @@ public partial class MainWindow
         else if (_isSeekSpringActive)
         {
             // Safety: if spring is active but render hook was not running, restart it.
-            if (!_springRenderHooked)
+            if (!Spring.IsHooked)
             {
                 StartSpringRenderLoop();
             }
@@ -808,12 +655,7 @@ public partial class MainWindow
         }
     }
 
-    private string FormatTime(TimeSpan time)
-    {
-        if (time.TotalHours >= 1)
-            return time.ToString(@"h\:mm\:ss");
-        return time.ToString(@"m\:ss");
-    }
+    private string FormatTime(TimeSpan time) => MediaProgressHelpers.FormatTime(time);
 
     #region Progress Bar Click and Drag to Seek
 

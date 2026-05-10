@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using VNotch.Models;
 using VNotch.Services;
+using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
 
@@ -26,57 +27,91 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() =>
         {
-
-            SpotifyIcon.Visibility = Visibility.Collapsed;
-            YouTubeIcon.Visibility = Visibility.Collapsed;
-            SoundCloudIcon.Visibility = Visibility.Collapsed;
-            FacebookIcon.Visibility = Visibility.Collapsed;
-            TikTokIcon.Visibility = Visibility.Collapsed;
-            InstagramIcon.Visibility = Visibility.Collapsed;
-            TwitterIcon.Visibility = Visibility.Collapsed;
-            AppleMusicIcon.Visibility = Visibility.Collapsed;
-            BrowserIcon.Visibility = Visibility.Collapsed;
-
             bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
-            if (hasRealTrack && !string.IsNullOrEmpty(info.MediaSource))
+            // Stable source for display purposes.
+            //
+            // The backend can flip-flop MediaSource between e.g. "Browser" and
+            // "SoundCloud" on the same track due to window-title heuristics +
+            // cached track→source map. We handle that here by:
+            //  1) not changing the rendered icon when the source is unchanged;
+            //  2) not "degrading" a known-specific source (Spotify/YouTube/
+            //     SoundCloud/…) back to the generic "Browser" fallback while
+            //     still playing the same track. Only upgrades (Browser -> X) or
+            //     a real track change can flip the icon.
+            string incomingSource = hasRealTrack ? (info.MediaSource ?? "") : "";
+            string currentTrackKey = $"{info.CurrentTrack}|{info.CurrentArtist}";
+            bool sameTrackAsBefore = hasRealTrack &&
+                                     currentTrackKey == _lastAnimatedTrackSignature;
+
+            string renderedSource = incomingSource;
+            if (sameTrackAsBefore &&
+                !string.IsNullOrEmpty(_lastRenderedMediaSource) &&
+                _lastRenderedMediaSource != "Browser" &&
+                (incomingSource == "" || incomingSource == "Browser"))
             {
-                switch (info.MediaSource)
+                // Keep the previously-rendered specific source instead of flipping
+                // back to the generic Browser icon on the same track.
+                renderedSource = _lastRenderedMediaSource;
+            }
+
+            if (renderedSource != _lastRenderedMediaSource)
+            {
+                SpotifyIcon.Visibility = Visibility.Collapsed;
+                YouTubeIcon.Visibility = Visibility.Collapsed;
+                SoundCloudIcon.Visibility = Visibility.Collapsed;
+                FacebookIcon.Visibility = Visibility.Collapsed;
+                TikTokIcon.Visibility = Visibility.Collapsed;
+                InstagramIcon.Visibility = Visibility.Collapsed;
+                TwitterIcon.Visibility = Visibility.Collapsed;
+                AppleMusicIcon.Visibility = Visibility.Collapsed;
+                BrowserIcon.Visibility = Visibility.Collapsed;
+
+                if (!string.IsNullOrEmpty(renderedSource))
                 {
-                    case "Spotify": SpotifyIcon.Visibility = Visibility.Visible; break;
-                    case "YouTube": YouTubeIcon.Visibility = Visibility.Visible; break;
-                    case "SoundCloud": SoundCloudIcon.Visibility = Visibility.Visible; break;
-                    case "Facebook": FacebookIcon.Visibility = Visibility.Visible; break;
-                    case "TikTok": TikTokIcon.Visibility = Visibility.Visible; break;
-                    case "Instagram": InstagramIcon.Visibility = Visibility.Visible; break;
-                    case "Twitter": case "X": TwitterIcon.Visibility = Visibility.Visible; break;
-                    case "Apple Music": AppleMusicIcon.Visibility = Visibility.Visible; break;
-                    default: BrowserIcon.Visibility = Visibility.Visible; break;
+                    switch (renderedSource)
+                    {
+                        case "Spotify": SpotifyIcon.Visibility = Visibility.Visible; break;
+                        case "YouTube": YouTubeIcon.Visibility = Visibility.Visible; break;
+                        case "SoundCloud": SoundCloudIcon.Visibility = Visibility.Visible; break;
+                        case "Facebook": FacebookIcon.Visibility = Visibility.Visible; break;
+                        case "TikTok": TikTokIcon.Visibility = Visibility.Visible; break;
+                        case "Instagram": InstagramIcon.Visibility = Visibility.Visible; break;
+                        case "Twitter": case "X": TwitterIcon.Visibility = Visibility.Visible; break;
+                        case "Apple Music": AppleMusicIcon.Visibility = Visibility.Visible; break;
+                        default: BrowserIcon.Visibility = Visibility.Visible; break;
+                    }
                 }
             }
 
             string currentSig = info.GetSignature();
-            bool isNewTrack = currentSig != _lastAnimatedTrackSignature;
+            // Track identity used to decide whether to re-animate the thumbnail.
+            // IMPORTANT: do NOT include MediaSource here — the backend can flip-flop
+            // the source between e.g. "Browser" and "SoundCloud" on the same track
+            // (stale window-title heuristics + cached track->source map), and using
+            // GetSignature() here would re-trigger the flip animation and icon swap
+            // every time. The thumbnail should only "change" when the track itself
+            // changes (title + artist).
+            string trackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
+            bool isNewTrack = trackIdentity != _lastAnimatedTrackSignature;
 
             string titleText, artistText;
             if (hasRealTrack)
             {
-                MediaAppName.Text = info.MediaSource;
+                MediaAppName.Text = renderedSource;
                 titleText = info.CurrentTrack;
                 if (!string.IsNullOrEmpty(info.CurrentArtist) && info.CurrentArtist != "YouTube" && info.CurrentArtist != "Browser" && info.CurrentArtist != "Spotify")
                 {
                     artistText = info.CurrentArtist;
                 }
-                else if (!string.IsNullOrEmpty(info.MediaSource))
+                else if (!string.IsNullOrEmpty(renderedSource))
                 {
-                    artistText = info.MediaSource;
+                    artistText = renderedSource;
                 }
                 else
                 {
                     artistText = "Unknown Artist";
                 }
-
-                MediaAppName.Text = info.MediaSource;
             }
             else
             {
@@ -105,7 +140,7 @@ public partial class MainWindow
 
                     if (isNewTrack)
                     {
-                        _lastAnimatedTrackSignature = currentSig;
+                        _lastAnimatedTrackSignature = trackIdentity;
                         AnimateThumbnailSwitchOnly(info.Thumbnail);
                         PlayTrackChangeBounce();
                     }
@@ -123,9 +158,9 @@ public partial class MainWindow
                     ThumbnailFallback.Visibility = Visibility.Collapsed;
 
                     
-                    if (isNewTrack || _lastColorTrackSignature != currentSig)
+                    if (isNewTrack || _lastColorTrackSignature != trackIdentity)
                     {
-                        _lastColorTrackSignature = currentSig;
+                        _lastColorTrackSignature = trackIdentity;
                         UpdateMediaBackground(info);
                     }
                 }
@@ -194,7 +229,10 @@ public partial class MainWindow
 
             MusicViz.TrackId = info?.GetSignature() ?? "";
             MusicViz.IsPlaying = info?.IsPlaying ?? false;
-            _lastRenderedMediaSource = info?.MediaSource ?? "";
+            // Remember the *rendered* source (after the sticky-override) so the
+            // anti-flip-flop check at the top of the next update can still see
+            // the "strong" source we chose last time.
+            _lastRenderedMediaSource = renderedSource;
         });
     }
 
@@ -277,10 +315,12 @@ public partial class MainWindow
             {
                 if (info?.Thumbnail != null)
                 {
-                    string currentSig = info.GetSignature();
-                    if (currentSig != _lastAnimatedTrackSignature)
+                    // Use track-only identity (not GetSignature) so a MediaSource
+                    // flip-flop on the same track does not re-trigger the flip anim.
+                    string compactTrackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
+                    if (compactTrackIdentity != _lastAnimatedTrackSignature)
                     {
-                        _lastAnimatedTrackSignature = currentSig;
+                        _lastAnimatedTrackSignature = compactTrackIdentity;
                         AnimateThumbnailSwitchOnly(info.Thumbnail);
                     }
                 }

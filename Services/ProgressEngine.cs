@@ -247,17 +247,43 @@ public class ProgressEngine
 
                 // Additional core fix: debounce transient single-frame pause glitches
                 // (commonly observed on Spotify/browser bridge) before committing Paused state.
+                //
+                // IMPORTANT: we must not let progress continue to tick forward while we wait
+                // for confirmation. Previously the engine returned here leaving _isPlaying=true
+                // and _state=Playing, so PredictPosition kept advancing — the progress bar and
+                // time text kept running after the user pressed pause until the next snapshot
+                // (which for event-driven sources can be up to ~3s later via heartbeat).
+                // Now we soft-freeze the engine at the latest predicted position while pending;
+                // if a real play snapshot arrives within the window, the play branch below will
+                // clear the pending flag and resume from there without visible regression.
                 if (_isPlaying || _state == ProgressState.Playing || _state == ProgressState.Seeking)
                 {
+                    TimeSpan predictedAtPending = ClampPosition(PredictPosition(nowUtc));
+                    if (pausedPos < predictedAtPending - PauseBackstepTolerance)
+                    {
+                        pausedPos = predictedAtPending;
+                    }
+
                     if (!_pendingPauseConfirmation)
                     {
                         _pendingPauseConfirmation = true;
                         _pendingPauseStartedUtc = nowUtc;
                         _pendingPausePosition = pausedPos;
+
+                        // Soft-freeze: lock prediction to the current position so the UI
+                        // stops advancing immediately on the first pause snapshot.
+                        _isPlaying = false;
+                        _basePosition = pausedPos;
+                        _baseTimeUtc = nowUtc;
                         return;
                     }
 
                     _pendingPausePosition = pausedPos;
+                    // Keep the soft-freeze anchor up to date so any jitter doesn't leak through.
+                    _isPlaying = false;
+                    _basePosition = pausedPos;
+                    _baseTimeUtc = nowUtc;
+
                     var pendingAge = nowUtc - _pendingPauseStartedUtc;
                     if (pendingAge < PauseConfirmationWindow)
                     {
