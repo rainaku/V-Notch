@@ -4,6 +4,10 @@ namespace VNotch.Models;
 
 public class NotchSettings
 {
+    
+    
+    
+    public int SettingsVersion { get; set; } = 0;
 
     public int Width { get; set; } = 360;
     public int Height { get; set; } = 32;
@@ -43,6 +47,7 @@ public class NotchSettings
     {
         return new NotchSettings
         {
+            SettingsVersion = SettingsVersion,
             Width = Width,
             Height = Height,
             CornerRadius = CornerRadius,

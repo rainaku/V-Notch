@@ -60,6 +60,7 @@ public partial class MainWindow : Window
 
     private readonly BatteryModule _batteryModule;
     private readonly CalendarModule _calendarModule;
+    private readonly IModuleLifecycleManager _moduleHost;
 
 
     private bool _isAnimating = false;
@@ -129,7 +130,10 @@ public partial class MainWindow : Window
     public MainWindow(
         ISettingsService settingsService,
         IMediaDetectionService mediaService,
-        IUpdateService updateService)
+        IUpdateService updateService,
+        IModuleLifecycleManager moduleHost,
+        BatteryModule batteryModule,
+        CalendarModule calendarModule)
     {
         InitializeComponent();
         _settingsService = (SettingsService)settingsService;
@@ -138,10 +142,11 @@ public partial class MainWindow : Window
         _mediaService = (MediaDetectionService)mediaService;
         _updateService = updateService;
 
-        _batteryModule = new BatteryModule((IBatteryService)App.Services.GetService(typeof(IBatteryService))!);
+        _moduleHost = moduleHost;
+        _batteryModule = batteryModule;
         _batteryModule.BatteryUpdated += BatteryModule_BatteryUpdated;
-        
-        _calendarModule = new CalendarModule();
+
+        _calendarModule = calendarModule;
         _calendarModule.CalendarUpdated += CalendarModule_CalendarUpdated;
 
         _collapsedWidth = _settings.Width;
@@ -271,8 +276,7 @@ public partial class MainWindow : Window
         _mediaService.Start();
         _updateTimer.Start();
 
-        _batteryModule.Start();
-        _calendarModule.Start();
+        _moduleHost.StartAll();
         
         // Start update check timer and perform initial check
         _updateCheckTimer.Start();
@@ -363,8 +367,7 @@ public partial class MainWindow : Window
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
         _updateCheckTimer?.Stop();
-        _batteryModule?.Stop();
-        _calendarModule?.Stop();
+        _moduleHost?.Dispose();
         DisposeAllShelfWatchers();
         base.OnClosed(e);
     }

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using VNotch.Services;
+using VNotch.Modules;
 using System.Linq;
 
 namespace VNotch;
@@ -81,6 +82,17 @@ public partial class App : Application
         services.AddSingleton<IDispatcherService>(sp =>
             new DispatcherService(Current.Dispatcher));
         services.AddSingleton<IUpdateService, UpdateService>();
+
+        
+        services.AddSingleton<BatteryModule>();
+        services.AddSingleton<CalendarModule>();
+        services.AddSingleton<IModuleLifecycleManager>(sp =>
+        {
+            var host = new ModuleLifecycleManager();
+            host.Register(sp.GetRequiredService<BatteryModule>());
+            host.Register(sp.GetRequiredService<CalendarModule>());
+            return host;
+        });
 
         
         services.AddSingleton<MainWindow>();

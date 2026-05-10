@@ -1,5 +1,4 @@
 using System;
-using System.Windows.Threading;
 using VNotch.Contracts;
 
 namespace VNotch.Modules;
@@ -9,43 +8,15 @@ public class CalendarUpdateEventArgs : EventArgs
     public DateTime Now { get; set; }
 }
 
-public class CalendarModule : INotchModule
+public class CalendarModule : NotchModuleBase
 {
-    public string ModuleName => "Calendar";
+    public override string ModuleName => "Calendar";
 
-    private DispatcherTimer? _timer;
+    public override TimeSpan? TickInterval => TimeSpan.FromSeconds(30);
+
     public event EventHandler<CalendarUpdateEventArgs>? CalendarUpdated;
 
-    public CalendarModule()
-    {
-    }
-
-    public void Initialize()
-    {
-        _timer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(30)
-        };
-        _timer.Tick += Timer_Tick;
-    }
-
-    public void Start()
-    {
-        Update();
-        _timer?.Start();
-    }
-
-    public void Stop()
-    {
-        _timer?.Stop();
-    }
-
-    private void Timer_Tick(object? sender, EventArgs e)
-    {
-        Update();
-    }
-
-    private void Update()
+    protected override void OnTick()
     {
         CalendarUpdated?.Invoke(this, new CalendarUpdateEventArgs { Now = DateTime.Now });
     }
