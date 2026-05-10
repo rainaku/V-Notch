@@ -31,9 +31,9 @@ public class SettingsService : ISettingsService
                 return JsonSerializer.Deserialize<NotchSettings>(json) ?? new NotchSettings();
             }
         }
-        catch
+        catch (Exception ex)
         {
-
+            RuntimeLog.Log("SETTINGS-LOAD", ex.ToString());
         }
 
         return new NotchSettings();

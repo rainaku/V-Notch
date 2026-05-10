@@ -458,7 +458,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
             await _mediaService.SeekAsync(newPos);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("VM-SEEK", ex.ToString());
+        }
     }
 
     public async Task SeekRelative(double seconds)
@@ -482,7 +485,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             await _mediaService.SeekRelativeAsync(seconds);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("VM-SEEK-RELATIVE", ex.ToString());
+        }
     }
 
     public bool ShouldShowProgress => CurrentMediaInfo != null && CurrentMediaInfo.IsAnyMediaPlaying &&

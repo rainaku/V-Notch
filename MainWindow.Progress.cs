@@ -520,73 +520,79 @@ public partial class MainWindow
             
             
 
-            _progressTargetRatio = engineRatio;
-            double ratioDiff = Math.Abs(_progressTargetRatio - _progressDisplayRatio);
-            double diffSeconds = ratioDiff * frame.Duration.TotalSeconds;
+            double rawTargetRatio = engineRatio;
+            double rawRatioDiff = Math.Abs(rawTargetRatio - _progressDisplayRatio);
+            double rawDiffSeconds = rawRatioDiff * frame.Duration.TotalSeconds;
 
-            
-            
-            // Platform-aware backward jump threshold
-            // Browser sources have higher latency but still need responsive correction
-            // Balance between: accepting late snapshots vs. responsive progress
-            double backwardThreshold = 0.5;  // Default for native apps
-            if (_currentMediaInfo != null)
+            // Large jumps must snap to the real engine position before any
+            // backward-jitter cap runs, otherwise a track change can inherit
+            // the previous song's bar state and slowly crawl backward.
+            if (rawDiffSeconds >= SOURCE_SMOOTH_SECONDS)
             {
-                bool isBrowserSource = string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(_currentMediaInfo.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase) ||
-                                      (!string.IsNullOrEmpty(_currentMediaInfo.SourceAppId) && 
-                                       ((_currentMediaInfo.SourceAppId.Contains("chrome", StringComparison.OrdinalIgnoreCase)) ||
-                                        (_currentMediaInfo.SourceAppId.Contains("edge", StringComparison.OrdinalIgnoreCase)) ||
-                                        (_currentMediaInfo.SourceAppId.Contains("firefox", StringComparison.OrdinalIgnoreCase)) ||
-                                        (_currentMediaInfo.SourceAppId.Contains("brave", StringComparison.OrdinalIgnoreCase)) ||
-                                        (_currentMediaInfo.SourceAppId.Contains("opera", StringComparison.OrdinalIgnoreCase))));
-                
-                if (isBrowserSource)
-                {
-                    backwardThreshold = 1.5;  // Balanced threshold for browser sources
-                }
-            }
-            
-            if (_progressTargetRatio < _progressDisplayRatio)
-            {
-                double backwardSeconds = (_progressDisplayRatio - _progressTargetRatio) * frame.Duration.TotalSeconds;
-                bool isUserSeekWindow = frame.State == ProgressState.Seeking || DateTime.Now < _allowProgressBackwardRenderUntil;
-                if (backwardSeconds > backwardThreshold && !isUserSeekWindow)
-                {
-                    // Avoid hard-freeze: cap backward correction per frame instead of bailing out.
-                    double maxBackwardStepSeconds = 0.22;
-                    double maxBackwardRatioStep = maxBackwardStepSeconds / frame.Duration.TotalSeconds;
-                    double cappedTarget = Math.Max(_progressTargetRatio, _progressDisplayRatio - maxBackwardRatioStep);
-                    _progressTargetRatio = cappedTarget;
-                }
-                else if (backwardSeconds > 0.1)
-                {
-                }
-            }
-
-            // Detect large jumps (user seek or track change) and snap immediately
-            // Use a threshold of 3 seconds for instant snap
-            if (diffSeconds >= 3.0)
-            {
-                 
-                _progressDisplayRatio = _progressTargetRatio;
-                _progressSpringTargetRatio = _progressTargetRatio;
-                _progressVelocity = 0;
-                ProgressBarScale.ScaleX = _progressDisplayRatio;
-            }
-            else if (diffSeconds >= SOURCE_SMOOTH_SECONDS)
-            {
-                 
-                _progressDisplayRatio = _progressTargetRatio;
-                _progressSpringTargetRatio = _progressTargetRatio;
+                _progressDisplayRatio = rawTargetRatio;
+                _progressTargetRatio = rawTargetRatio;
+                _progressSpringTargetRatio = rawTargetRatio;
                 _progressVelocity = 0;
                 ProgressBarScale.ScaleX = _progressDisplayRatio;
             }
             else
             {
+                _progressTargetRatio = rawTargetRatio;
+
                 
                 
+                // Platform-aware backward jump threshold
+                // Browser sources have higher latency but still need responsive correction
+                // Balance between: accepting late snapshots vs. responsive progress
+                double backwardThreshold = 0.5;  // Default for native apps
+                if (_currentMediaInfo != null)
+                {
+                    bool isBrowserSource = string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
+                                          string.Equals(_currentMediaInfo.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
+                                          string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase) ||
+                                          (!string.IsNullOrEmpty(_currentMediaInfo.SourceAppId) && 
+                                           ((_currentMediaInfo.SourceAppId.Contains("chrome", StringComparison.OrdinalIgnoreCase)) ||
+                                            (_currentMediaInfo.SourceAppId.Contains("edge", StringComparison.OrdinalIgnoreCase)) ||
+                                            (_currentMediaInfo.SourceAppId.Contains("firefox", StringComparison.OrdinalIgnoreCase)) ||
+                                            (_currentMediaInfo.SourceAppId.Contains("brave", StringComparison.OrdinalIgnoreCase)) ||
+                                            (_currentMediaInfo.SourceAppId.Contains("opera", StringComparison.OrdinalIgnoreCase))));
+                    
+                    if (isBrowserSource)
+                    {
+                        backwardThreshold = 1.5;  // Balanced threshold for browser sources
+                    }
+                }
+                
+                bool isUserSeekWindow = frame.State == ProgressState.Seeking || DateTime.Now < _allowProgressBackwardRenderUntil;
+
+                if (_progressTargetRatio < _progressDisplayRatio)
+                {
+                    double backwardSeconds = (_progressDisplayRatio - _progressTargetRatio) * frame.Duration.TotalSeconds;
+
+                    // Tiny backward corrections from browser/native timeline jitter
+                    // make the bar visibly "breathe" even while playback time is correct.
+                    // Ignore those micro backsteps during normal playback so the visual
+                    // progress stays smooth and mostly monotonic.
+                    if (isRealtimeProgressing && backwardSeconds <= SOURCE_IGNORE_SECONDS && !isUserSeekWindow)
+                    {
+                        _progressTargetRatio = _progressDisplayRatio;
+                    }
+                    else if (backwardSeconds > backwardThreshold && !isUserSeekWindow)
+                    {
+                        // Avoid hard-freeze: cap backward correction per frame instead of bailing out.
+                        double maxBackwardStepSeconds = 0.22;
+                        double maxBackwardRatioStep = maxBackwardStepSeconds / frame.Duration.TotalSeconds;
+                        double cappedTarget = Math.Max(_progressTargetRatio, _progressDisplayRatio - maxBackwardRatioStep);
+                        _progressTargetRatio = cappedTarget;
+                    }
+                    else if (backwardSeconds > 0.1)
+                    {
+                    }
+                }
+
+                double ratioDiff = Math.Abs(_progressTargetRatio - _progressDisplayRatio);
+                double diffSeconds = ratioDiff * frame.Duration.TotalSeconds;
+
                 if (diffSeconds > 0.05)  
                 {
                     double error = _progressTargetRatio - _progressDisplayRatio;
@@ -595,7 +601,7 @@ public partial class MainWindow
                     // Improved correction speed for browser sources
                     // Forward: fast (0.9)
                     // Backward: medium-fast (0.6 for browser, 0.3 for native)
-                    double backwardCorrectionSpeed = 0.3;  // Default for native
+                    double backwardCorrectionSpeed = 0.14;  // Default for native
                     if (_currentMediaInfo != null)
                     {
                         bool isBrowserSource = string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
@@ -603,7 +609,7 @@ public partial class MainWindow
                                               string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
                         if (isBrowserSource)
                         {
-                            backwardCorrectionSpeed = 0.6;  // Faster backward correction for browser
+                            backwardCorrectionSpeed = 0.22;  // Slightly faster, but still visually stable
                         }
                     }
                     
@@ -832,7 +838,10 @@ public partial class MainWindow
             // Ensure progress timer is running after seek
             UpdateProgressTimerState();
         } 
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("PROGRESS-SEEK", ex.ToString());
+        }
     }
 
     private async Task SeekRelative(double seconds)
@@ -874,7 +883,10 @@ public partial class MainWindow
             // Ensure progress timer is running after seek
             UpdateProgressTimerState();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("PROGRESS-SEEK-RELATIVE", ex.ToString());
+        }
     }
 
     private DispatcherTimer? _progressHoverTimer;

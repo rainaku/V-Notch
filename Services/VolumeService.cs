@@ -100,7 +100,10 @@ public class VolumeService : IVolumeService
             int hr = _endpointVolume!.GetMute(out bool mute);
             if (hr == 0) return mute;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("VOLUME-GETMUTE", ex.ToString());
+        }
 
         return false;
     }
@@ -113,7 +116,10 @@ public class VolumeService : IVolumeService
         {
             _endpointVolume!.SetMute(mute, Guid.Empty);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("VOLUME-SETMUTE", ex.ToString());
+        }
     }
 
     public void ToggleMute()

@@ -270,7 +270,10 @@ public partial class MainWindow
                 MediaBackgroundImage2.Source = blurredImage;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-BG-BLUR", ex.ToString());
+        }
     }
 
     #endregion

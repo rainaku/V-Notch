@@ -42,7 +42,11 @@ internal static class MediaWindowActivator
         {
             Process[] processes;
             try { processes = Process.GetProcessesByName(processName); }
-            catch { continue; }
+            catch (Exception ex)
+            {
+                RuntimeLog.Log("MEDIA-ACTIVATOR", ex.ToString());
+                continue;
+            }
 
             foreach (var process in processes)
             {
@@ -54,7 +58,10 @@ internal static class MediaWindowActivator
 
                     if (TryActivateWindow(hwnd)) return true;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Log("MEDIA-ACTIVATOR", ex.ToString());
+                }
             }
         }
 

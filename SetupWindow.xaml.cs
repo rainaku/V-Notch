@@ -35,6 +35,7 @@ public partial class SetupWindow : Window
 
     private int _currentPageIndex = 0;
     private readonly Func<UIElement>[] _pageFactories;
+    private readonly IntroductionPage _introductionPage;
     private readonly DirectoryPage _directoryPage;
     private readonly StartupOptionsPage _startupOptionsPage;
     private readonly InstallProgressPage _installProgressPage;
@@ -58,6 +59,7 @@ public partial class SetupWindow : Window
         InitializeComponent();
 
         _sourceDirectory = sourceDirectory ?? AppContext.BaseDirectory;
+        _introductionPage = new IntroductionPage();
         _directoryPage = new DirectoryPage(IOPath.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             "V-Notch"));
@@ -68,6 +70,7 @@ public partial class SetupWindow : Window
         _pageFactories = new Func<UIElement>[]
         {
             () => null!, // Welcome page uses built-in XAML
+            () => _introductionPage,
             () => _directoryPage,
             () => _startupOptionsPage,
             () => _installProgressPage,
@@ -639,7 +642,7 @@ public partial class SetupWindow : Window
 
     private void UpdateStepIndicators(int currentStep)
     {
-        var steps = new[] { Step1Text, Step2Text, Step3Text, Step4Text, Step5Text };
+        var steps = new[] { Step1Text, Step2Text, Step3Text, Step4Text, Step5Text, Step6Text };
         
         for (int i = 0; i < steps.Length; i++)
         {
@@ -726,7 +729,7 @@ public partial class SetupWindow : Window
 
     private bool CommitCurrentStep()
     {
-        if (_currentPageIndex == 1)
+        if (_currentPageIndex == 2)
         {
             return ValidateInstallDirectory();
         }
@@ -816,6 +819,139 @@ public partial class SetupWindow : Window
 }
 
 // Directory Selection Page
+public class IntroductionPage : UserControl, ISetupAnimatedPage
+{
+    private readonly Border _eyebrow;
+    private readonly TextBlock _headline;
+    private readonly TextBlock _lead;
+    private readonly Border _creatorCard;
+    private readonly Border _repositoryCard;
+    private readonly Border _promiseCard;
+
+    public IntroductionPage()
+    {
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        _eyebrow = CreateEyebrow("About the project");
+        Grid.SetRow(_eyebrow, 0);
+        grid.Children.Add(_eyebrow);
+
+        _headline = new TextBlock
+        {
+            Text = "Built openly by rainaku",
+            FontSize = 28,
+            FontWeight = FontWeights.Bold,
+            Foreground = Brushes.White,
+            FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            Margin = new Thickness(0, 0, 0, 12),
+            TextWrapping = TextWrapping.Wrap
+        };
+        Grid.SetRow(_headline, 1);
+        grid.Children.Add(_headline);
+
+        _lead = new TextBlock
+        {
+            Text = "V-Notch is an independent Windows project inspired by the Dynamic Island idea and shaped in public from the very beginning.",
+            FontSize = 14,
+            LineHeight = 23,
+            Foreground = new SolidColorBrush(Color.FromArgb(204, 255, 255, 255)),
+            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            Margin = new Thickness(0, 0, 0, 22),
+            TextWrapping = TextWrapping.Wrap
+        };
+        Grid.SetRow(_lead, 2);
+        grid.Children.Add(_lead);
+
+        _creatorCard = CreateInfoCard(
+            "Created by rainaku",
+            "V-Notch is designed and maintained by rainaku as a focused desktop companion for media, notifications, battery, calendar, and quick controls.");
+        Grid.SetRow(_creatorCard, 3);
+        grid.Children.Add(_creatorCard);
+
+        _repositoryCard = CreateInfoCard(
+            "Open GitHub project",
+            "The source code lives at github.com/rainaku/V-Notch, so releases, issues, and ongoing improvements stay visible to everyone.");
+        Grid.SetRow(_repositoryCard, 4);
+        grid.Children.Add(_repositoryCard);
+
+        _promiseCard = CreateInfoCard(
+            "Free and open source",
+            "The repository began on February 8, 2026, then quickly grew into public releases and UI refinements. V-Notch is MIT-licensed, free to use, and intended to remain open source.");
+        Grid.SetRow(_promiseCard, 5);
+        grid.Children.Add(_promiseCard);
+
+        Content = grid;
+    }
+
+    public IReadOnlyList<UIElement> GetAnimatedElements()
+    {
+        return new UIElement[] { _eyebrow, _headline, _lead, _creatorCard, _repositoryCard, _promiseCard };
+    }
+
+    private static Border CreateEyebrow(string text)
+    {
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(46, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(999),
+            Padding = new Thickness(12, 5, 12, 5),
+            Margin = new Thickness(0, 0, 0, 18),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = new TextBlock
+            {
+                Text = text,
+                FontSize = 11.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromArgb(224, 255, 255, 255)),
+                FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
+            }
+        };
+    }
+
+    private static Border CreateInfoCard(string title, string body)
+    {
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            Margin = new Thickness(0, 0, 0, 7)
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = body,
+            FontSize = 13,
+            LineHeight = 21,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Color.FromArgb(196, 255, 255, 255)),
+            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
+        });
+
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(255, 18, 18, 22)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(18, 16, 18, 16),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = stack
+        };
+    }
+}
+
 public class DirectoryPage : UserControl, ISetupAnimatedPage
 {
     private TextBox? _pathBox;

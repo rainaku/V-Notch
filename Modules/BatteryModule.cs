@@ -56,6 +56,9 @@ public class BatteryModule : INotchModule
             var info = _batteryService.GetBatteryInfo();
             BatteryUpdated?.Invoke(this, info);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("BATTERY-MODULE", ex.ToString());
+        }
     }
 }

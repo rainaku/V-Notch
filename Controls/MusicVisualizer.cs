@@ -587,9 +587,9 @@ namespace VNotch.Controls
                 captureToDispose.RecordingStopped -= OnCaptureStopped;
                 captureToDispose.StopRecording();
             }
-            catch
+            catch (Exception ex)
             {
-                
+                VNotch.Services.RuntimeLog.Log("MUSIC-VIS-STOP", ex.ToString());
             }
             finally
             {

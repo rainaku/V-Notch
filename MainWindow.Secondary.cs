@@ -885,7 +885,10 @@ public partial class MainWindow
             watcher.Renamed += OnShelfFileExternalRename;
             _shelfWatchers[dir] = watcher;
         }
-        catch {  }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("SHELF-WATCH", ex.ToString());
+        }
     }
 
     private void UnwatchShelfDirectory(string filePath)

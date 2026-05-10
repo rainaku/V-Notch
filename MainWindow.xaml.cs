@@ -901,7 +901,10 @@ public partial class MainWindow : Window
 
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:batterysaver") { UseShellExecute = true });
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("BATTERY-CLICK", ex.ToString());
+        }
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)

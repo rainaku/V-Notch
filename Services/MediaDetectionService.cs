@@ -111,7 +111,10 @@ public class MediaDetectionService : IMediaDetectionService
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-CACHE-LOAD", ex.ToString());
+        }
     }
 
     private void SaveSourceCache()
@@ -121,7 +124,10 @@ public class MediaDetectionService : IMediaDetectionService
             var json = JsonSerializer.Serialize(_trackSourceCache);
             File.WriteAllText(_cachePath, json);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-CACHE-SAVE", ex.ToString());
+        }
     }
 
 
@@ -224,7 +230,10 @@ public class MediaDetectionService : IMediaDetectionService
                 _currentSession.PlaybackInfoChanged -= OnPlaybackChanged;
                 _currentSession.MediaPropertiesChanged -= OnMediaPropertiesChanged;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RuntimeLog.Log("MEDIA-UNSUBSCRIBE", ex.ToString());
+            }
             _currentSession = null;
         }
     }
@@ -855,7 +864,10 @@ public class MediaDetectionService : IMediaDetectionService
                         }
                     }
                     catch (OperationCanceledException) { }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        RuntimeLog.Log("MEDIA-YOUTUBE-FETCH", ex.ToString());
+                    }
                 }, token);
             }
             else if (isPotentialSoundCloud && !string.IsNullOrEmpty(info.CurrentTrack))
@@ -954,7 +966,10 @@ public class MediaDetectionService : IMediaDetectionService
                             }
                         }
                         catch (OperationCanceledException) { }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            RuntimeLog.Log("MEDIA-SOUNDCLOUD-FETCH", ex.ToString());
+                        }
                         finally
                         {
                             if (fetchGeneration == Volatile.Read(ref _soundCloudFetchGeneration))
@@ -1008,7 +1023,10 @@ public class MediaDetectionService : IMediaDetectionService
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-SPOTIFY-TITLE", ex.ToString());
+        }
         return "";
     }
 
@@ -1376,7 +1394,10 @@ public class MediaDetectionService : IMediaDetectionService
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Log("MEDIA-DETECT-ACTIVE", ex.ToString());
+                }
             }
 
             if (session == null)
@@ -1413,7 +1434,10 @@ public class MediaDetectionService : IMediaDetectionService
                                 break;
                             }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            RuntimeLog.Log("MEDIA-DETECT-ACTIVE-SCAN", ex.ToString());
+                        }
                     }
 
                     foreach (var s in sessions)
@@ -1523,7 +1547,10 @@ public class MediaDetectionService : IMediaDetectionService
                                     }
                                 }
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                RuntimeLog.Log("MEDIA-DETECT-TIMELINE", ex.ToString());
+                            }
 
                             if (props != null && !string.IsNullOrEmpty(props.Title))
                             {
@@ -1541,10 +1568,16 @@ public class MediaDetectionService : IMediaDetectionService
                                 bestSession = s;
                             }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            RuntimeLog.Log("MEDIA-DETECT-SCORE", ex.ToString());
+                        }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Log("MEDIA-DETECT-SESSIONS", ex.ToString());
+                }
 
                 if (hasAnyActiveSession && bestSession != null)
                 {
@@ -1555,7 +1588,10 @@ public class MediaDetectionService : IMediaDetectionService
                             bestSession = fallbackActiveSession ?? bestSession;
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        RuntimeLog.Log("MEDIA-DETECT-BESTCHECK", ex.ToString());
+                    }
                 }
 
                 if (bestSession != null && _activeDisplaySession != null && !ReferenceEquals(bestSession, _activeDisplaySession))
@@ -1583,7 +1619,10 @@ public class MediaDetectionService : IMediaDetectionService
                     {
                         currentStillPlaying = IsSessionPlayingStatus(_activeDisplaySession.GetPlaybackInfo().PlaybackStatus);
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        RuntimeLog.Log("MEDIA-DETECT-CURRENT-STATUS", ex.ToString());
+                    }
 
                     
                     
@@ -1611,7 +1650,10 @@ public class MediaDetectionService : IMediaDetectionService
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        RuntimeLog.Log("MEDIA-DETECT-FRESH-TIMELINE", ex.ToString());
+                    }
 
                     if (!isRecentLatestPlayback &&
                         !isOsCurrent &&
@@ -1651,7 +1693,10 @@ public class MediaDetectionService : IMediaDetectionService
                                 currentStillPlaying = IsSessionPlayingStatus(_activeDisplaySession.GetPlaybackInfo().PlaybackStatus);
                             }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            RuntimeLog.Log("MEDIA-DETECT-FALLBACK-STATUS", ex.ToString());
+                        }
 
                         
                         
@@ -1675,7 +1720,10 @@ public class MediaDetectionService : IMediaDetectionService
                         _activeDisplaySession.PlaybackInfoChanged -= OnPlaybackChanged;
                         _activeDisplaySession.TimelinePropertiesChanged -= OnTimelineChanged;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        RuntimeLog.Log("MEDIA-DETECT-UNSUB", ex.ToString());
+                    }
                 }
 
                 _activeDisplaySession = session;
@@ -1686,7 +1734,10 @@ public class MediaDetectionService : IMediaDetectionService
                     _activeDisplaySession.PlaybackInfoChanged += OnPlaybackChanged;
                     _activeDisplaySession.TimelinePropertiesChanged += OnTimelineChanged;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Log("MEDIA-DETECT-SUB", ex.ToString());
+                }
 
                 _lastTrackSignature = "";
             }
@@ -2127,7 +2178,10 @@ public class MediaDetectionService : IMediaDetectionService
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        RuntimeLog.Log("MEDIA-THUMB-PROCESS", ex.ToString());
+                    }
                 }
             }
 
@@ -2608,7 +2662,10 @@ public class MediaDetectionService : IMediaDetectionService
                 {
                     score += session.AudioMeterInformation.MasterPeakValue * 100;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Log("MEDIA-VOLUME-SCORE", ex.ToString());
+                }
 
                 if (score > bestScore)
                 {
@@ -2747,8 +2804,9 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 processes = Process.GetProcessesByName(processName);
             }
-            catch
+            catch (Exception ex)
             {
+                RuntimeLog.Log("MEDIA-PID-LOOKUP", ex.ToString());
                 continue;
             }
 
@@ -2758,7 +2816,10 @@ public class MediaDetectionService : IMediaDetectionService
                 {
                     processIds.Add((uint)process.Id);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Log("MEDIA-PID-COLLECT", ex.ToString());
+                }
                 finally
                 {
                     process.Dispose();
@@ -2795,7 +2856,10 @@ public class MediaDetectionService : IMediaDetectionService
                 await session.TryTogglePlayPauseAsync();
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-PLAYPAUSE", ex.ToString());
+        }
     }
 
     public async Task NextTrackAsync()
@@ -2811,7 +2875,10 @@ public class MediaDetectionService : IMediaDetectionService
                 await session.TrySkipNextAsync();
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-NEXT", ex.ToString());
+        }
     }
 
     public async Task PreviousTrackAsync()
@@ -2827,7 +2894,10 @@ public class MediaDetectionService : IMediaDetectionService
                 await session.TrySkipPreviousAsync();
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-PREV", ex.ToString());
+        }
     }
 
     public async Task SeekAsync(TimeSpan position)
@@ -2843,7 +2913,10 @@ public class MediaDetectionService : IMediaDetectionService
                 await session.TryChangePlaybackPositionAsync(position.Ticks);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-SEEK", ex.ToString());
+        }
     }
 
     public async Task SeekRelativeAsync(double seconds)
@@ -2881,7 +2954,10 @@ public class MediaDetectionService : IMediaDetectionService
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-SEEK-REL", ex.ToString());
+        }
     }
 }
 

@@ -386,10 +386,11 @@
                             <TextBlock Text="Dynamic Island for Windows" FontSize="12" Foreground="#99FFFFFF" TextWrapping="Wrap" LineHeight="18" Margin="0,6,0,22"/>
                             <StackPanel>
                                 <TextBlock x:Name="Step1Text" Text="01  Welcome" Foreground="#FFFFFFFF" FontSize="12" Margin="0,0,0,10"/>
-                                <TextBlock x:Name="Step2Text" Text="02  Location" Foreground="#88FFFFFF" FontSize="12" Margin="0,0,0,10"/>
-                                <TextBlock x:Name="Step3Text" Text="03  Startup" Foreground="#88FFFFFF" FontSize="12" Margin="0,0,0,10"/>
-                                <TextBlock x:Name="Step4Text" Text="04  Install" Foreground="#88FFFFFF" FontSize="12" Margin="0,0,0,10"/>
-                                <TextBlock x:Name="Step5Text" Text="05  Finish" Foreground="#88FFFFFF" FontSize="12"/>
+                                <TextBlock x:Name="Step2Text" Text="02  About" Foreground="#88FFFFFF" FontSize="12" Margin="0,0,0,10"/>
+                                <TextBlock x:Name="Step3Text" Text="03  Location" Foreground="#88FFFFFF" FontSize="12" Margin="0,0,0,10"/>
+                                <TextBlock x:Name="Step4Text" Text="04  Startup" Foreground="#88FFFFFF" FontSize="12" Margin="0,0,0,10"/>
+                                <TextBlock x:Name="Step5Text" Text="05  Install" Foreground="#88FFFFFF" FontSize="12" Margin="0,0,0,10"/>
+                                <TextBlock x:Name="Step6Text" Text="06  Finish" Foreground="#88FFFFFF" FontSize="12"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>

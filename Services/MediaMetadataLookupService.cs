@@ -65,8 +65,9 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 return new YouTubeLookupResult { Id = match.Groups[1].Value };
             }
         }
-        catch
+        catch (Exception ex)
         {
+            RuntimeLog.Log("META-YOUTUBE-SEARCH", ex.ToString());
         }
 
         return null;
