@@ -727,7 +727,11 @@ public partial class MainWindow
         {
             StopUpdatePulseAnimation();
             var fadeOutUpdate = MakeAnim(UpdateNotificationButton.Opacity, 0d, _dur150, _easePowerIn2, null);
-            fadeOutUpdate.Completed += (s, e) => UpdateNotificationButton.Visibility = Visibility.Collapsed;
+            fadeOutUpdate.Completed += (s, e) =>
+            {
+                UpdateNotificationButton.Visibility = Visibility.Collapsed;
+                UpdateNotificationButton.IsHitTestVisible = false;
+            };
             UpdateNotificationButton.BeginAnimation(OpacityProperty, fadeOutUpdate);
         }
 
@@ -866,6 +870,8 @@ public partial class MainWindow
             UpdateNotificationButton.BeginAnimation(OpacityProperty, null);
             UpdateNotificationButton.Opacity = 0;
             UpdateNotificationButton.Visibility = Visibility.Visible;
+            UpdateNotificationButton.IsHitTestVisible = true;
+            UpdateNotificationButton.Cursor = System.Windows.Input.Cursors.Hand;
             
             // Reset icon color
             if (UpdateIconBrush != null)
@@ -1359,10 +1365,13 @@ public partial class MainWindow
                     UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
                     UpdateIconBrush.Color = Color.FromRgb(48, 209, 88);
                 }
+                UpdateNotificationButton.IsHitTestVisible = true;
+                UpdateNotificationButton.Cursor = System.Windows.Input.Cursors.Hand;
                 StartUpdatePulseAnimation();
             }
             else
             {
+                UpdateNotificationButton.IsHitTestVisible = false;
                 StopUpdatePulseAnimation();
             }
 

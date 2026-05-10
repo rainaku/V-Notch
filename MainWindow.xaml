@@ -645,18 +645,18 @@
                                             <StackPanel>
                                                 <DockPanel LastChildFill="True">
                                                     <Ellipse Width="7" Height="7" Fill="#30D158" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Update Available"
+                                                    <TextBlock Text="Ready To Update"
                                                                Foreground="White"
                                                                FontSize="11.5"
                                                                FontWeight="SemiBold"
                                                                FontFamily="{StaticResource MainSystemFont}"/>
                                                 </DockPanel>
-                                                <TextBlock Text="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ToolTip}, StringFormat=Version v{0}}"
+                                                <TextBlock Text="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ToolTip}}"
                                                            Foreground="#CCFFFFFF"
                                                            FontSize="10.5"
                                                            Margin="0,4,0,0"
                                                            FontFamily="{StaticResource MainSystemFont}"/>
-                                                <TextBlock Text="Click to open Settings"
+                                                <TextBlock Text="Click to download &amp; install"
                                                            Foreground="#99FFFFFF"
                                                            FontSize="9.5"
                                                            Margin="0,5,0,0"

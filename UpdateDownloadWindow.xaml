@@ -1,0 +1,78 @@
+<Window x:Class="VNotch.UpdateDownloadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Updating V-Notch"
+        Width="360"
+        Height="170"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        WindowStartupLocation="CenterScreen"
+        AllowsTransparency="True"
+        Background="Transparent">
+    <Grid>
+        <Border CornerRadius="14"
+                Background="#F0050505"
+                BorderBrush="#26FFFFFF"
+                BorderThickness="1"
+                Padding="16">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="22" Opacity="0.58" ShadowDepth="0" Color="Black"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="#30D158" Margin="0,0,8,0"/>
+                    <TextBlock Text="Installing Update"
+                               Foreground="White"
+                               FontSize="13.5"
+                               FontWeight="SemiBold"
+                               FontFamily="SF Pro Text, SF Pro Display, Segoe UI Variable Text, Segoe UI, Inter, Roboto, Sans-serif"/>
+                </StackPanel>
+
+                <TextBlock x:Name="StatusText"
+                           Grid.Row="1"
+                           Margin="0,12,0,10"
+                           Text="Preparing download..."
+                           Foreground="#CCFFFFFF"
+                           FontSize="11.5"
+                           FontFamily="SF Pro Text, SF Pro Display, Segoe UI Variable Text, Segoe UI, Inter, Roboto, Sans-serif"/>
+
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Height="8"
+                            CornerRadius="4"
+                            Background="#1A1A1A"
+                            VerticalAlignment="Center">
+                        <ProgressBar x:Name="DownloadProgressBar"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="0"
+                                     Height="8"
+                                     Background="Transparent"
+                                     Foreground="#30D158"
+                                     BorderThickness="0"/>
+                    </Border>
+                    <TextBlock x:Name="PercentText"
+                               Grid.Column="1"
+                               Margin="10,0,0,0"
+                               Text="0%"
+                               Foreground="#E5FFFFFF"
+                               FontSize="11.5"
+                               FontWeight="SemiBold"
+                               FontFamily="SF Pro Text, SF Pro Display, Segoe UI Variable Text, Segoe UI, Inter, Roboto, Sans-serif"
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

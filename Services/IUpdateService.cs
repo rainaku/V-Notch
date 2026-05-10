@@ -1,11 +1,12 @@
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace VNotch.Services;
 
 public interface IUpdateService
 {
     Task<UpdateInfo?> CheckForUpdatesAsync();
-    Task<bool> DownloadAndInstallUpdateAsync(UpdateInfo updateInfo);
+    Task<bool> DownloadAndInstallUpdateAsync(UpdateInfo updateInfo, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
     string CurrentVersion { get; }
 }
 

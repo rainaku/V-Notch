@@ -294,6 +294,7 @@ public partial class MainWindow : Window
 
     private bool _isUpdateAvailable = false;
     private UpdateInfo? _availableUpdate = null;
+    private bool _isUpdateInstalling = false;
     private DispatcherTimer? _updatePulseTimer;
     private DateTime _updatePulseStartedAtUtc = DateTime.MinValue;
     private bool _isUpdateTooltipOpen = false;
@@ -342,7 +343,7 @@ public partial class MainWindow : Window
 
         _updateCheckTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromHours(2)
+            Interval = TimeSpan.FromSeconds(90)
         };
         _updateCheckTimer.Tick += UpdateCheckTimer_Tick;
 
@@ -1325,11 +1326,21 @@ public partial class MainWindow : Window
 
     private void ShowUpdateNotification()
     {
+        if (_availableUpdate == null || !_availableUpdate.IsNewerVersion)
+        {
+            _isUpdateAvailable = false;
+            HideUpdateNotification();
+            return;
+        }
+
         if (UpdateNotificationButton.Visibility == Visibility.Visible)
             return;
 
         UpdateNotificationButton.Visibility = Visibility.Visible;
-        UpdateNotificationButton.Tag = _availableUpdate?.Version?.ToString() ?? "-";
+        UpdateNotificationButton.IsHitTestVisible = true;
+        UpdateNotificationButton.Tag = $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}";
+        UpdateNotificationButton.Cursor = Cursors.Hand;
+        UpdateNotificationButton.Opacity = 1.0;
         
         // Reset icon color to green before animating
         UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
@@ -1373,6 +1384,8 @@ public partial class MainWindow : Window
         _isUpdateTooltipOpen = false;
         _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(220);
         StopUpdatePulseAnimation();
+        UpdateNotificationButton.IsHitTestVisible = false;
+        UpdateNotificationButton.Cursor = Cursors.Hand;
 
         var fadeOut = new DoubleAnimation
         {
@@ -1447,13 +1460,72 @@ public partial class MainWindow : Window
         UpdateIconBrush.Color = Color.FromRgb(r, g, b);
     }
 
-    private void UpdateNotification_Click(object sender, MouseButtonEventArgs e)
+    private async void UpdateNotification_Click(object sender, MouseButtonEventArgs e)
     {
-        if (_availableUpdate != null)
-        {
-            OpenAppSettings();
-        }
         e.Handled = true;
+
+        if (_availableUpdate == null || _isUpdateInstalling)
+        {
+            return;
+        }
+
+        _isUpdateInstalling = true;
+        UpdateNotificationButton.Tag = "Preparing download...";
+        UpdateNotificationButton.Cursor = Cursors.Wait;
+        UpdateNotificationButton.Opacity = 0.95;
+        StopUpdatePulseAnimation();
+
+        var updateProgressWindow = new UpdateDownloadWindow();
+        updateProgressWindow.SetIndeterminate("Preparing download...");
+        updateProgressWindow.Show();
+
+        var downloadProgress = new Progress<double>(p =>
+        {
+            if (p < 0)
+            {
+                updateProgressWindow.SetIndeterminate("Downloading update...");
+                UpdateNotificationButton.Tag = "Downloading update...";
+                return;
+            }
+
+            updateProgressWindow.SetStatus($"Downloading update... {p:0}%");
+            updateProgressWindow.SetProgress(p);
+            UpdateNotificationButton.Tag = $"Downloading... {p:0}%";
+        });
+
+        try
+        {
+            var installed = await _updateService.DownloadAndInstallUpdateAsync(_availableUpdate, downloadProgress);
+
+            if (!installed)
+            {
+                updateProgressWindow.Close();
+                _isUpdateInstalling = false;
+                UpdateNotificationButton.Tag = $"Version v{_availableUpdate.Version}";
+                UpdateNotificationButton.Cursor = Cursors.Hand;
+                UpdateNotificationButton.Opacity = 1.0;
+                StartUpdatePulseAnimation();
+                MessageBox.Show(
+                    "Unable to download/install update right now. Please try again.",
+                    "Update Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+        catch
+        {
+            updateProgressWindow.Close();
+            _isUpdateInstalling = false;
+            UpdateNotificationButton.Tag = $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}";
+            UpdateNotificationButton.Cursor = Cursors.Hand;
+            UpdateNotificationButton.Opacity = 1.0;
+            StartUpdatePulseAnimation();
+            MessageBox.Show(
+                "Update process failed unexpectedly. Please try again.",
+                "Update Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void UpdateNotification_MouseEnter(object sender, MouseEventArgs e)
@@ -1462,9 +1534,9 @@ public partial class MainWindow : Window
         AnimateUpdateNotificationHover(true);
         
         // Update tooltip version text
-        if (_availableUpdate != null)
+        if (_availableUpdate != null && !_isUpdateInstalling)
         {
-            UpdateNotificationButton.Tag = _availableUpdate.Version.ToString();
+            UpdateNotificationButton.Tag = $"Version v{_availableUpdate.Version}";
         }
     }
 
