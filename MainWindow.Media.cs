@@ -15,6 +15,7 @@ public partial class MainWindow
     private string _lastAnimatedTrackSignature = "";
     private string _lastColorTrackSignature = "";
     private string _lastRenderedMediaSource = "";
+    private ImageSource? _pendingFlipThumbnail;
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
 
     private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
@@ -240,7 +241,8 @@ public partial class MainWindow
     {
         if (_isAnimating)
         {
-            CancelThumbnailSwitchAnimations(newThumb);
+            // Queue the flip to run after the expand/collapse animation finishes
+            _pendingFlipThumbnail = newThumb;
             return;
         }
 

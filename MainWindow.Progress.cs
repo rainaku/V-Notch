@@ -182,6 +182,16 @@ public partial class MainWindow
         _currentMediaInfo = info;
         NormalizeStartupSnapshotTimestamp(info);
 
+        // Thumbnail-only updates carry stale Position/LastUpdated from when the
+        // background fetch started. Skip all progress engine updates to avoid
+        // feeding an outdated position that would make the bar jump backward.
+        if (info.IsThumbnailOnlyUpdate)
+        {
+            UpdateProgressTimerState();
+            if (_isExpanded || _isMusicExpanded) RenderProgressBar();
+            return;
+        }
+
         ProgressSection.Visibility = Visibility.Visible;
         ProgressSection.Opacity = 1;
 

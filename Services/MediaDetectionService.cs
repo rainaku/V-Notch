@@ -841,8 +841,10 @@ public class MediaDetectionService : IMediaDetectionService
                                                     if (!token.IsCancellationRequested &&
                                                         IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                                     {
+                                                        info.IsThumbnailOnlyUpdate = true;
                                                         _lastTrackSignature = info.GetSignature();
                                                         MediaChanged?.Invoke(this, info);
+                                                        info.IsThumbnailOnlyUpdate = false;
                                                     }
                                                 });
                                             }
@@ -959,8 +961,10 @@ public class MediaDetectionService : IMediaDetectionService
                                     if (!token.IsCancellationRequested &&
                                         IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                     {
+                                        info.IsThumbnailOnlyUpdate = true;
                                         _lastTrackSignature = info.GetSignature();
                                         MediaChanged?.Invoke(this, info);
+                                        info.IsThumbnailOnlyUpdate = false;
                                     }
                                 });
                             }

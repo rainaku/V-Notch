@@ -40,11 +40,13 @@ public partial class SetupWindow : Window
     private readonly StartupOptionsPage _startupOptionsPage;
     private readonly InstallProgressPage _installProgressPage;
     private readonly FinishPage _finishPage;
+    private readonly CancelSetupPage _cancelSetupPage;
     private readonly string _sourceDirectory;
     private bool _isWelcomePage = true;
     private bool _isTransitioning;
     private bool _isInstalling;
     private bool _installationSucceeded;
+    private bool _isShowingCancelSetupPage;
     private bool _hasForcedForeground;
     public int ResultExitCode { get; private set; } = 1;
 
@@ -64,6 +66,7 @@ public partial class SetupWindow : Window
         _startupOptionsPage = new StartupOptionsPage(startWithWindows: true);
         _installProgressPage = new InstallProgressPage();
         _finishPage = new FinishPage(launchAfterInstall: true);
+        _cancelSetupPage = new CancelSetupPage();
 
         _pageFactories = new Func<UIElement>[]
         {
@@ -114,20 +117,25 @@ public partial class SetupWindow : Window
             return;
         }
 
-        var result = MessageBox.Show(
-            "Are you sure you want to cancel the installation?",
-            "Cancel Setup",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-        
-        if (result == MessageBoxResult.Yes)
+        if (_isShowingCancelSetupPage)
+        {
             Close();
+            return;
+        }
+
+        ShowCancelSetupPage();
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isTransitioning)
         {
+            return;
+        }
+
+        if (_isShowingCancelSetupPage)
+        {
+            HideCancelSetupPage();
             return;
         }
 
@@ -141,6 +149,12 @@ public partial class SetupWindow : Window
     {
         if (_isTransitioning)
         {
+            return;
+        }
+
+        if (_isShowingCancelSetupPage)
+        {
+            Close();
             return;
         }
 
@@ -229,14 +243,7 @@ public partial class SetupWindow : Window
 
     private void ShowDynamicPage(int index, NavigationDirection direction)
     {
-        HideWelcomeElements();
-
-        ResetContentPresenter();
-        ContentPresenter.Content = _pageFactories[index]();
-        ContentPresenter.Visibility = Visibility.Visible;
-        _isWelcomePage = false;
-
-        AnimateDynamicPageIn(direction, () =>
+        ShowDynamicContent(_pageFactories[index](), direction, () =>
         {
             CompleteTransition();
 
@@ -245,11 +252,23 @@ public partial class SetupWindow : Window
                 BeginInstallationAsync();
             }
         });
-        AnimateButtonPanel();
     }
 
     private void UpdateNavigationButtons(int index)
     {
+        BackButton.Content = "Back";
+        CancelButton.Content = "Cancel";
+
+        if (_isShowingCancelSetupPage)
+        {
+            BackButton.Content = "Keep setup";
+            NextButton.Content = "Cancel setup";
+            BackButton.Visibility = Visibility.Visible;
+            CancelButton.Visibility = Visibility.Collapsed;
+            NextButton.Visibility = Visibility.Visible;
+            return;
+        }
+
         var showBack = index > 0 && index < _pageFactories.Length - 1;
         var showCancel = index < _pageFactories.Length - 1;
         var showNext = true;
@@ -526,6 +545,65 @@ public partial class SetupWindow : Window
 
         ButtonPanel.BeginAnimation(OpacityProperty, fadeIn);
         ButtonTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
+    }
+
+    private void ShowCancelSetupPage()
+    {
+        if (_isTransitioning || _isShowingCancelSetupPage)
+        {
+            return;
+        }
+
+        _isTransitioning = true;
+        SetNavigationEnabled(false);
+
+        AnimateCurrentViewOut(NavigationDirection.Forward, () =>
+        {
+            _isShowingCancelSetupPage = true;
+            ShowDynamicContent(_cancelSetupPage, NavigationDirection.Forward, CompleteTransition);
+            UpdateNavigationButtons(_currentPageIndex);
+        });
+    }
+
+    private void HideCancelSetupPage()
+    {
+        if (_isTransitioning || !_isShowingCancelSetupPage)
+        {
+            return;
+        }
+
+        _isTransitioning = true;
+        SetNavigationEnabled(false);
+
+        AnimateCurrentViewOut(NavigationDirection.Backward, () =>
+        {
+            _isShowingCancelSetupPage = false;
+
+            if (_currentPageIndex == 0)
+            {
+                ShowWelcomePage(NavigationDirection.Backward);
+            }
+            else
+            {
+                ShowDynamicPage(_currentPageIndex, NavigationDirection.Backward);
+            }
+
+            UpdateStepIndicators(_currentPageIndex);
+            UpdateNavigationButtons(_currentPageIndex);
+        });
+    }
+
+    private void ShowDynamicContent(UIElement content, NavigationDirection direction, Action? onComplete = null)
+    {
+        HideWelcomeElements();
+
+        ResetContentPresenter();
+        ContentPresenter.Content = content;
+        ContentPresenter.Visibility = Visibility.Visible;
+        _isWelcomePage = false;
+
+        AnimateDynamicPageIn(direction, onComplete);
+        AnimateButtonPanel();
     }
 
     private List<UIElement> GetAnimatedElementsForCurrentPage()
@@ -1187,6 +1265,92 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
     }
 
     public bool StartWithWindows => _checkbox.IsChecked == true;
+}
+
+public class CancelSetupPage : UserControl, ISetupAnimatedPage
+{
+    private readonly TextBlock _headline;
+    private readonly TextBlock _description;
+    private readonly Border _warningCard;
+
+    public CancelSetupPage()
+    {
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        _headline = new TextBlock
+        {
+            Text = "Cancel setup?",
+            FontSize = 28,
+            FontWeight = FontWeights.Bold,
+            Foreground = Brushes.White,
+            FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        Grid.SetRow(_headline, 0);
+        grid.Children.Add(_headline);
+
+        _description = new TextBlock
+        {
+            Text = "V-Notch will not be installed and setup will close.",
+            FontSize = 14,
+            LineHeight = 22,
+            Foreground = new SolidColorBrush(Color.FromArgb(204, 255, 255, 255)),
+            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            Margin = new Thickness(0, 0, 0, 24),
+            TextWrapping = TextWrapping.Wrap
+        };
+        Grid.SetRow(_description, 1);
+        grid.Children.Add(_description);
+
+        _warningCard = CreateWarningCard();
+        Grid.SetRow(_warningCard, 2);
+        grid.Children.Add(_warningCard);
+
+        Content = grid;
+    }
+
+    public IReadOnlyList<UIElement> GetAnimatedElements()
+    {
+        return new UIElement[] { _headline, _description, _warningCard };
+    }
+
+    private static Border CreateWarningCard()
+    {
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = "You can go back and continue setup, or confirm to exit now.",
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            Margin = new Thickness(0, 0, 0, 6),
+            TextWrapping = TextWrapping.Wrap
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Choose Keep setup to return to the current step, or Cancel setup to close the installer.",
+            FontSize = 13,
+            LineHeight = 20,
+            Foreground = new SolidColorBrush(Color.FromArgb(196, 255, 255, 255)),
+            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(255, 18, 18, 22)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(16, 14, 16, 14),
+            Child = stack
+        };
+    }
 }
 
 // Install Progress Page

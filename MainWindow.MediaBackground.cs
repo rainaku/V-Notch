@@ -39,7 +39,9 @@ public partial class MainWindow
         var dominantColor = palette.Main;
         var subColor = palette.Sub;
 
-        string currentTrackId = info.GetSignature();
+        // Use track identity without MediaSource to avoid false "new track" detection
+        // when background fetches change MediaSource (e.g., "Browser" → "YouTube").
+        string currentTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
         bool isNewTrack = _lastTrackId != null && _lastTrackId != currentTrackId;
         _lastTrackId = currentTrackId;
 

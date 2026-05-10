@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
 using VNotch.Models;
@@ -39,6 +41,36 @@ public partial class SettingsWindow : Window
         {
             DragMove();
         }
+    }
+
+    private void WindowSurface_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        if (IsInteractiveElement(e.OriginalSource as DependencyObject))
+        {
+            return;
+        }
+
+        DragMove();
+    }
+
+    private static bool IsInteractiveElement(DependencyObject? source)
+    {
+        while (source != null)
+        {
+            if (source is ButtonBase or Slider or Thumb or ComboBox or ComboBoxItem or CheckBox or ScrollBar or TextBox)
+            {
+                return true;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return false;
     }
 
     private void LoadSettings()

@@ -220,6 +220,14 @@ public partial class MainWindow
             // Start progress bar catch-up animation after expand completes
             StartProgressCatchUpAnimation();
 
+            // Play queued thumbnail flip animation
+            if (_pendingFlipThumbnail != null)
+            {
+                var thumb = _pendingFlipThumbnail;
+                _pendingFlipThumbnail = null;
+                AnimateThumbnailSwitchOnly(thumb);
+            }
+
 
 
             ExpandedContent.Opacity = 1;
