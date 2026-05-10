@@ -447,10 +447,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 }
                                 
                                 // Mark for thumbnail fetch
-                                if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
-                                {
-                                    _sessionSourceOverrides[info.SourceAppId] = "SoundCloud";
-                                }
+                                SetSessionSourceOverride(info, "SoundCloud");
                                 
                                 break;
                             }
@@ -617,14 +614,12 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 windowTitles ??= GetAllWindowTitles();
                 bool hasYouTubeWindowHint = string.Equals(DetectPlatformHint(windowTitles), "YouTube", StringComparison.OrdinalIgnoreCase);
-                if (!hasYouTubeWindowHint)
+                bool hasSoundCloudWindowMatch = HasReliablePlatformWindowMatch(windowTitles, info.CurrentTrack, "soundcloud");
+                if (!hasYouTubeWindowHint && hasSoundCloudWindowMatch)
                 {
                     info.MediaSource = "SoundCloud";
                     info.IsSoundCloudRunning = true;
-                    if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
-                    {
-                        _sessionSourceOverrides[info.SourceAppId] = "SoundCloud";
-                    }
+                    SetSessionSourceOverride(info, "SoundCloud");
                 }
             }
 
@@ -694,6 +689,7 @@ public class MediaDetectionService : IMediaDetectionService
                 _lastPublishedTrackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
                 _lastPublishedTrackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
                 _lastPublishedSourceAppId = info.SourceAppId ?? "";
+                _lastPublishedSessionInstanceKey = info.SessionInstanceKey ?? "";
 
                 
                 UpdateDetectionMode(info);
@@ -723,7 +719,7 @@ public class MediaDetectionService : IMediaDetectionService
 
             bool isPotentialYouTube = info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info));
             bool hasSoundCloudSessionOverride = !string.IsNullOrEmpty(info.SourceAppId) &&
-                                                _sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sourceOverride) &&
+                                                TryGetSessionSourceOverride(info, out var sourceOverride) &&
                                                 string.Equals(sourceOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase);
             
             // Improved SoundCloud detection from Browser source
@@ -755,6 +751,7 @@ public class MediaDetectionService : IMediaDetectionService
                 string trackDuringFetch = info.CurrentTrack;
                 string artistDuringFetch = info.CurrentArtist;
                 string sourceAppDuringFetch = info.SourceAppId ?? "";
+                string sessionKeyDuringFetch = info.SessionInstanceKey ?? "";
 
                 bool isBrowserIcon = info.Thumbnail != null && info.MediaSource == "Browser";
                 bool needsBetterThumb = shouldForceThumbFetch || info.Thumbnail == null || info.Thumbnail.PixelWidth < 120 || isBrowserIcon;
@@ -781,10 +778,7 @@ public class MediaDetectionService : IMediaDetectionService
                                         info.MediaSource = "YouTube";
                                         info.IsYouTubeRunning = true;
 
-                                        if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
-                                        {
-                                            _sessionSourceOverrides[info.SourceAppId] = "YouTube";
-                                        }
+                                        SetSessionSourceOverride(info, "YouTube");
 
                                         _trackSourceCache[trackDuringFetch] = "YouTube";
                                         _trackSourceCache[BuildTrackIdentity(trackDuringFetch, artistDuringFetch)] = "YouTube";
@@ -822,7 +816,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                                     if (frameBitmap != null && !token.IsCancellationRequested)
                                     {
-                                        if (IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
+                                        if (IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                         {
                                             frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
                                             _recoveredThumbnail = frameBitmap;
@@ -836,7 +830,7 @@ public class MediaDetectionService : IMediaDetectionService
                                                 await dispatcher.InvokeAsync(() =>
                                                 {
                                                     if (!token.IsCancellationRequested &&
-                                                        IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
+                                                        IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                                     {
                                                         _lastTrackSignature = info.GetSignature();
                                                         MediaChanged?.Invoke(this, info);
@@ -853,7 +847,7 @@ public class MediaDetectionService : IMediaDetectionService
                             retryCount++;
                             if (retryCount < 3 &&
                                 !token.IsCancellationRequested &&
-                                IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
+                                IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                             {
                                 await Task.Delay(retryCount * 350, token);
                                 videoId = null;
@@ -895,6 +889,7 @@ public class MediaDetectionService : IMediaDetectionService
                     string trackDuringFetch = info.CurrentTrack;
                     string artistDuringFetch = info.CurrentArtist;
                     string sourceAppDuringFetch = info.SourceAppId ?? "";
+                    string sessionKeyDuringFetch = info.SessionInstanceKey ?? "";
                     
                     bool requireStrongMatch = true;
 
@@ -918,7 +913,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 return;
                             }
 
-                            if (!IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
+                            if (!IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                             {
                                 return;
                             }
@@ -931,10 +926,7 @@ public class MediaDetectionService : IMediaDetectionService
                             {
                                 info.MediaSource = "SoundCloud";
                                 info.IsSoundCloudRunning = true;
-                                if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
-                                {
-                                    _sessionSourceOverrides[info.SourceAppId] = "SoundCloud";
-                                }
+                                SetSessionSourceOverride(info, "SoundCloud");
 
                                 string currentTrackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
                                 string currentTrackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
@@ -953,7 +945,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 await dispatcher.InvokeAsync(() =>
                                 {
                                     if (!token.IsCancellationRequested &&
-                                        IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch))
+                                        IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                     {
                                         _lastTrackSignature = info.GetSignature();
                                         MediaChanged?.Invoke(this, info);
@@ -996,6 +988,7 @@ public class MediaDetectionService : IMediaDetectionService
     private string _lastPublishedTrackIdentity = "";
     private string _lastPublishedTrackOnlyIdentity = "";
     private string _lastPublishedSourceAppId = "";
+    private string _lastPublishedSessionInstanceKey = "";
 
     private string GetSpotifyWindowTitle()
     {
@@ -1029,8 +1022,14 @@ public class MediaDetectionService : IMediaDetectionService
         return $"{track.Trim().ToLowerInvariant()}|{artist.Trim().ToLowerInvariant()}";
     }
 
-    private bool IsStillSamePublishedTrack(string expectedTrack, string expectedArtist, string expectedSourceAppId)
+    private bool IsStillSamePublishedTrack(string expectedTrack, string expectedArtist, string expectedSourceAppId, string expectedSessionInstanceKey = "")
     {
+        if (!string.IsNullOrEmpty(expectedSessionInstanceKey) &&
+            !string.Equals(_lastPublishedSessionInstanceKey, expectedSessionInstanceKey, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrEmpty(expectedSourceAppId) &&
             !string.Equals(_lastPublishedSourceAppId, expectedSourceAppId, StringComparison.OrdinalIgnoreCase))
         {
@@ -1041,6 +1040,88 @@ public class MediaDetectionService : IMediaDetectionService
         string expectedTrackOnly = BuildTrackIdentity(expectedTrack, "");
         return string.Equals(_lastPublishedTrackIdentity, expectedIdentity, StringComparison.Ordinal) ||
                string.Equals(_lastPublishedTrackOnlyIdentity, expectedTrackOnly, StringComparison.Ordinal);
+    }
+
+    private static string BuildSourceOverrideKey(string sessionInstanceKey, string sourceAppId)
+    {
+        if (!string.IsNullOrWhiteSpace(sessionInstanceKey))
+        {
+            return sessionInstanceKey;
+        }
+
+        return IsBrowserSourceApp(sourceAppId) ? string.Empty : sourceAppId ?? string.Empty;
+    }
+
+    private static bool IsTrackCompatibleWithWindowTitle(string track, string windowTitle)
+    {
+        if (string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(windowTitle))
+        {
+            return false;
+        }
+
+        string normalizedTrack = NormalizeForLooseMatch(track);
+        string normalizedWindowTitle = NormalizeForLooseMatch(windowTitle);
+        return !string.IsNullOrEmpty(normalizedTrack) &&
+               normalizedWindowTitle.Contains(normalizedTrack, StringComparison.Ordinal);
+    }
+
+    private static bool HasReliablePlatformWindowMatch(IEnumerable<string> windowTitles, string track, string platform)
+    {
+        if (string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(platform))
+        {
+            return false;
+        }
+
+        foreach (var title in windowTitles)
+        {
+            if (!title.Contains(platform, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (IsTrackCompatibleWithWindowTitle(track, title))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryGetSessionSourceOverride(MediaInfo info, out string sessionOverride)
+    {
+        sessionOverride = string.Empty;
+
+        string key = BuildSourceOverrideKey(info.SessionInstanceKey, info.SourceAppId);
+        if (string.IsNullOrEmpty(key) ||
+            !_sessionSourceOverrides.TryGetValue(key, out string? resolvedOverride) ||
+            string.IsNullOrWhiteSpace(resolvedOverride))
+        {
+            return false;
+        }
+
+        sessionOverride = resolvedOverride;
+        return true;
+    }
+
+    private void SetSessionSourceOverride(MediaInfo info, string mediaSource)
+    {
+        string key = BuildSourceOverrideKey(info.SessionInstanceKey, info.SourceAppId);
+        if (string.IsNullOrEmpty(key) || string.IsNullOrWhiteSpace(mediaSource))
+        {
+            return;
+        }
+
+        _sessionSourceOverrides[key] = mediaSource;
+    }
+
+    private void ClearSessionSourceOverride(string sessionInstanceKey, string sourceAppId)
+    {
+        string key = BuildSourceOverrideKey(sessionInstanceKey, sourceAppId);
+        if (!string.IsNullOrEmpty(key))
+        {
+            _sessionSourceOverrides.Remove(key);
+        }
     }
 
     private static string BuildSessionInstanceKey(GlobalSystemMediaTransportControlsSession session)
@@ -1355,10 +1436,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 _latestPlayingSessionKey = sessionInstanceKey;
                                 _latestPlayingSessionStartUtc = nowUtc;
 
-                                if (IsBrowserSourceApp(sourceApp))
-                                {
-                                    _sessionSourceOverrides.Remove(sourceApp);
-                                }
+                                ClearSessionSourceOverride(sessionInstanceKey, sourceApp);
 
                                 _lastTrackSignature = "";
                                 _cachedThumbnail = null;
@@ -1614,8 +1692,10 @@ public class MediaDetectionService : IMediaDetectionService
             }
 
             var sessionSourceApp = session.SourceAppUserModelId ?? "";
+            string activeSessionInstanceKey = BuildSessionInstanceKey(session);
             info.IsAnyMediaPlaying = true; 
             info.SourceAppId = sessionSourceApp; 
+            info.SessionInstanceKey = activeSessionInstanceKey;
 
             if (!string.IsNullOrEmpty(sessionSourceApp))
             {
@@ -1764,8 +1844,8 @@ public class MediaDetectionService : IMediaDetectionService
             if (info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource))
             {
 
-                bool isSameSession = _activeDisplaySession != null && session != null &&
-                                   _activeDisplaySession.SourceAppUserModelId == session.SourceAppUserModelId;
+                bool isSameSession = !string.IsNullOrEmpty(info.SessionInstanceKey) &&
+                                     string.Equals(info.SessionInstanceKey, _lastPublishedSessionInstanceKey, StringComparison.Ordinal);
                 string currentTrackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
                 string trackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
                 bool sameTrackAsStable = !string.IsNullOrEmpty(currentTrackIdentity) &&
@@ -1779,18 +1859,25 @@ public class MediaDetectionService : IMediaDetectionService
                 if (!string.IsNullOrEmpty(sessionSourceApp) && IsBrowserSourceApp(sessionSourceApp))
                 {
                     hintedWindowTitles ??= windowTitleFactory();
-                    browserPlatformHint = DetectPlatformHint(hintedWindowTitles);
+                    bool hasReliableYouTubeWindowMatch = HasReliablePlatformWindowMatch(hintedWindowTitles, info.CurrentTrack, "youtube");
+                    browserPlatformHint = hasReliableYouTubeWindowMatch
+                        ? "YouTube"
+                        : DetectPlatformHint(hintedWindowTitles);
                 }
 
                 if (!string.IsNullOrEmpty(sessionSourceApp) &&
                     IsBrowserSourceApp(sessionSourceApp) &&
-                    _sessionSourceOverrides.TryGetValue(sessionSourceApp, out var sessionOverride) &&
+                    TryGetSessionSourceOverride(info, out var sessionOverride) &&
                     string.Equals(sessionOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(browserPlatformHint, "YouTube", StringComparison.OrdinalIgnoreCase))
                 {
-                    info.MediaSource = "SoundCloud";
-                    info.IsSoundCloudRunning = true;
-                    sourceFromBrowserOverride = true;
+                    hintedWindowTitles ??= windowTitleFactory();
+                    if (HasReliablePlatformWindowMatch(hintedWindowTitles, info.CurrentTrack, "soundcloud"))
+                    {
+                        info.MediaSource = "SoundCloud";
+                        info.IsSoundCloudRunning = true;
+                        sourceFromBrowserOverride = true;
+                    }
                 }
 
                 if ((info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource)) &&
@@ -1803,9 +1890,13 @@ public class MediaDetectionService : IMediaDetectionService
                         string.Equals(cachedSource, "SoundCloud", StringComparison.OrdinalIgnoreCase) &&
                         !string.Equals(browserPlatformHint, "YouTube", StringComparison.OrdinalIgnoreCase))
                     {
-                        info.MediaSource = "SoundCloud";
-                        info.IsSoundCloudRunning = true;
-                        sourceFromTrackCache = true;
+                        hintedWindowTitles ??= windowTitleFactory();
+                        if (HasReliablePlatformWindowMatch(hintedWindowTitles, info.CurrentTrack, "soundcloud"))
+                        {
+                            info.MediaSource = "SoundCloud";
+                            info.IsSoundCloudRunning = true;
+                            sourceFromTrackCache = true;
+                        }
                     }
                 }
 
@@ -1835,8 +1926,12 @@ public class MediaDetectionService : IMediaDetectionService
                     string trackTitleLower = info.CurrentTrack.ToLower();
                     string trackTitleNormalized = NormalizeForLooseMatch(trackTitleLower);
                     bool hasTrack = !string.IsNullOrEmpty(trackTitleLower) && trackTitleLower != "browser" && trackTitleLower != "now playing";
-                    string platformHint = DetectPlatformHint(windowTitles);
-                    if (string.Equals(platformHint, "YouTube", StringComparison.OrdinalIgnoreCase))
+                    bool hasReliableYouTubeWindowMatch = HasReliablePlatformWindowMatch(windowTitles, info.CurrentTrack, "youtube");
+                    string platformHint = hasReliableYouTubeWindowMatch
+                        ? "YouTube"
+                        : DetectPlatformHint(windowTitles);
+                    if ((!hasTrack && string.Equals(platformHint, "YouTube", StringComparison.OrdinalIgnoreCase)) ||
+                        hasReliableYouTubeWindowMatch)
                     {
                         info.MediaSource = "YouTube";
                         info.IsYouTubeRunning = true;
@@ -1860,17 +1955,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                         if (hasTrack && !trackMatch)
                         {
-                            bool hasPlatformHint = winTitleLower.Contains("youtube") ||
-                                                   winTitleLower.Contains("soundcloud") ||
-                                                   winTitleLower.Contains("apple music") ||
-                                                   winTitleLower.Contains("music.apple.com") ||
-                                                   winTitleLower.Contains("facebook") ||
-                                                   winTitleLower.Contains("tiktok") ||
-                                                   winTitleLower.Contains("instagram") ||
-                                                   winTitleLower.Contains("twitter") ||
-                                                   winTitleLower.Contains(" / x");
-                            if (!hasPlatformHint)
-                                continue;
+                            continue;
                         }
 
                         if (winTitleLower.Contains("youtube") && !winTitleLower.StartsWith("youtube -") && winTitleLower != "youtube")
@@ -1934,12 +2019,12 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 if (info.MediaSource == "YouTube")
                 {
-                    _sessionSourceOverrides[sessionSourceApp] = "YouTube";
+                    SetSessionSourceOverride(info, "YouTube");
                 }
-                else if (!_sessionSourceOverrides.TryGetValue(sessionSourceApp, out var existingOverride) ||
+                else if (!TryGetSessionSourceOverride(info, out var existingOverride) ||
                          !string.Equals(existingOverride, "YouTube", StringComparison.OrdinalIgnoreCase))
                 {
-                    _sessionSourceOverrides[sessionSourceApp] = info.MediaSource;
+                    SetSessionSourceOverride(info, info.MediaSource);
                 }
             }
 
@@ -2109,13 +2194,39 @@ public class MediaDetectionService : IMediaDetectionService
                     }
 
 
+                    var rawTimelineUpdatedUtc = timeline.LastUpdatedTime.ToUniversalTime();
                     var timelineUpdatedUtc = forceStartPosition
                         ? DateTimeOffset.UtcNow
-                        : timeline.LastUpdatedTime.ToUniversalTime();
+                        : rawTimelineUpdatedUtc;
 
-                    // FIX: Don't compensate for latency - let ProgressEngine handle prediction
-                    // Using raw timeline data ensures timestamp matches position
-                    // ProgressEngine will predict forward from this base point accurately
+                    if (!forceStartPosition && info.IsPlaying)
+                    {
+                        var nowUpdatedUtc = DateTimeOffset.UtcNow;
+                        var timelineLatency = nowUpdatedUtc - rawTimelineUpdatedUtc;
+                        bool validTimelineTimestamp =
+                            rawTimelineUpdatedUtc > DateTimeOffset.MinValue &&
+                            rawTimelineUpdatedUtc <= nowUpdatedUtc.AddMilliseconds(250) &&
+                            timelineLatency >= TimeSpan.Zero &&
+                            timelineLatency < TimeSpan.FromSeconds(15);
+
+                        if (validTimelineTimestamp && timelineLatency.TotalMilliseconds > 100)
+                        {
+                            double playbackRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
+                            var compensatedPosition = chosenPosition + TimeSpan.FromSeconds(timelineLatency.TotalSeconds * playbackRate);
+
+                            if (duration > TimeSpan.Zero && compensatedPosition > duration)
+                            {
+                                compensatedPosition = duration;
+                            }
+
+                            if (compensatedPosition > chosenPosition)
+                            {
+                                chosenPosition = compensatedPosition;
+                                timelineUpdatedUtc = nowUpdatedUtc;
+                            }
+                        }
+                    }
+
                     if (chosenPosition < TimeSpan.Zero)
                     {
                         chosenPosition = TimeSpan.Zero;
@@ -2205,7 +2316,7 @@ public class MediaDetectionService : IMediaDetectionService
         
         if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId))
         {
-            if (_sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sOver) && sOver == "YouTube")
+            if (TryGetSessionSourceOverride(info, out var sOver) && sOver == "YouTube")
             {
                 if (string.IsNullOrEmpty(info.CurrentTrack))
                 {
@@ -2247,12 +2358,13 @@ public class MediaDetectionService : IMediaDetectionService
 
         if (string.IsNullOrWhiteSpace(info.CurrentTrack) ||
             string.IsNullOrWhiteSpace(info.SourceAppId) ||
-            !IsBrowserSourceApp(info.SourceAppId))
+            !IsBrowserSourceApp(info.SourceAppId) ||
+            string.IsNullOrWhiteSpace(info.SessionInstanceKey))
         {
             return false;
         }
 
-        if (!string.Equals(_lastPublishedSourceAppId, info.SourceAppId, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(_lastPublishedSessionInstanceKey, info.SessionInstanceKey, StringComparison.Ordinal))
         {
             return false;
         }
@@ -2270,7 +2382,7 @@ public class MediaDetectionService : IMediaDetectionService
             return false;
         }
 
-        if (_sessionSourceOverrides.TryGetValue(info.SourceAppId, out var sessionOverride) &&
+        if (TryGetSessionSourceOverride(info, out var sessionOverride) &&
             !string.IsNullOrEmpty(sessionOverride) &&
             !string.Equals(sessionOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase))
         {

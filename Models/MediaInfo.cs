@@ -23,6 +23,7 @@ public class MediaInfo
     public string YouTubeTitle { get; set; } = "";
     public string MediaSource { get; set; } = "";
     public string SourceAppId { get; set; } = "";
+    public string SessionInstanceKey { get; set; } = "";
     public string? YouTubeVideoId { get; set; }
     public BitmapImage? Thumbnail { get; set; }
     public bool HasThumbnail => Thumbnail != null;

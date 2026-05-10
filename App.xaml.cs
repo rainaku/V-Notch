@@ -17,6 +17,15 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Check for --setup argument to launch setup window
+        if (e.Args.Length > 0 && e.Args[0] == "--setup")
+        {
+            var setupWindow = new SetupWindow();
+            setupWindow.ShowDialog();
+            Shutdown();
+            return;
+        }
+        
         _mutex = new Mutex(true, MutexName, out bool createdNew);
 
         if (!createdNew)

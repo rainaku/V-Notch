@@ -915,7 +915,7 @@ public partial class MainWindow
         double timeTopMargin = useCompactLayout ? 4 : 2;
         double timeSideMargin = useCompactLayout ? 4 : 6;
         double progressRightInset = 0;
-        double targetWidth = Math.Max(0, fallbackWidth - 34);
+        double targetWidth = Math.Max(0, fallbackWidth - 29);
 
         Grid.SetColumnSpan(MediaInfoSection, useCompactLayout ? 2 : 1);
 
@@ -1296,47 +1296,80 @@ public partial class MainWindow
 
     private void AnimateStatusBarReveal(bool show)
     {
-        var dur = TimeSpan.FromMilliseconds(300);
-        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-        var animFps = 120;
+        var dur = TimeSpan.FromMilliseconds(show ? 340 : 220);
+        var easing = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
+        var settingsEase = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.22 };
+        var animFps = 144;
 
-        // Battery animation
+        BatterySection.BeginAnimation(OpacityProperty, null);
+        BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        SettingsButton.BeginAnimation(OpacityProperty, null);
+        SettingsTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        SettingsScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        SettingsScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+
+        if (show)
+        {
+            BatterySection.Visibility = Visibility.Visible;
+            SettingsButton.Visibility = Visibility.Visible;
+            SettingsScale.ScaleX = 0.86;
+            SettingsScale.ScaleY = 0.86;
+            SettingsRotate.Angle = 20;
+        }
+
         var batteryOpacityAnim = new DoubleAnimation
         {
             To = show ? 1.0 : 0.0,
             Duration = dur,
-            EasingFunction = easing,
-            BeginTime = show ? TimeSpan.Zero : TimeSpan.Zero
+            EasingFunction = easing
         };
         Timeline.SetDesiredFrameRate(batteryOpacityAnim, animFps);
 
         var batteryTranslateAnim = new DoubleAnimation
         {
-            To = show ? 0 : -4,
+            To = show ? 0 : -6,
             Duration = dur,
-            EasingFunction = easing,
-            BeginTime = show ? TimeSpan.Zero : TimeSpan.Zero
+            EasingFunction = easing
         };
         Timeline.SetDesiredFrameRate(batteryTranslateAnim, animFps);
 
-        // Settings animation (with 40ms stagger when showing)
+        var settingsDelay = show ? TimeSpan.FromMilliseconds(56) : TimeSpan.Zero;
         var settingsOpacityAnim = new DoubleAnimation
         {
             To = show ? 1.0 : 0.0,
             Duration = dur,
             EasingFunction = easing,
-            BeginTime = show ? TimeSpan.FromMilliseconds(40) : TimeSpan.Zero
+            BeginTime = settingsDelay
         };
         Timeline.SetDesiredFrameRate(settingsOpacityAnim, animFps);
 
         var settingsTranslateAnim = new DoubleAnimation
         {
-            To = show ? 0 : -4,
+            To = show ? 0 : -6,
             Duration = dur,
-            EasingFunction = easing,
-            BeginTime = show ? TimeSpan.FromMilliseconds(40) : TimeSpan.Zero
+            EasingFunction = settingsEase,
+            BeginTime = settingsDelay
         };
         Timeline.SetDesiredFrameRate(settingsTranslateAnim, animFps);
+
+        var settingsScaleAnim = new DoubleAnimation
+        {
+            To = show ? 1.0 : 0.86,
+            Duration = new Duration(TimeSpan.FromMilliseconds(show ? 460 : 200)),
+            EasingFunction = settingsEase,
+            BeginTime = settingsDelay
+        };
+        Timeline.SetDesiredFrameRate(settingsScaleAnim, animFps);
+
+        var settingsRotateAnim = new DoubleAnimation
+        {
+            To = show ? 45 : 20,
+            Duration = new Duration(TimeSpan.FromMilliseconds(show ? 520 : 200)),
+            EasingFunction = easing,
+            BeginTime = settingsDelay
+        };
+        Timeline.SetDesiredFrameRate(settingsRotateAnim, animFps);
 
         // Update notification animation (with 30ms stagger when showing, between battery and settings)
         if (_isUpdateAvailable && UpdateNotificationButton != null)
@@ -1385,8 +1418,11 @@ public partial class MainWindow
         BatterySection.BeginAnimation(OpacityProperty, batteryOpacityAnim);
         BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
 
-        SettingsButton.BeginAnimation(OpacityProperty, settingsOpacityAnim);
-        SettingsTranslate.BeginAnimation(TranslateTransform.YProperty, settingsTranslateAnim);
+        SettingsButton.BeginAnimation(OpacityProperty, settingsOpacityAnim, HandoffBehavior.SnapshotAndReplace);
+        SettingsTranslate.BeginAnimation(TranslateTransform.YProperty, settingsTranslateAnim, HandoffBehavior.SnapshotAndReplace);
+        SettingsScale.BeginAnimation(ScaleTransform.ScaleXProperty, settingsScaleAnim, HandoffBehavior.SnapshotAndReplace);
+        SettingsScale.BeginAnimation(ScaleTransform.ScaleYProperty, settingsScaleAnim, HandoffBehavior.SnapshotAndReplace);
+        SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, settingsRotateAnim, HandoffBehavior.SnapshotAndReplace);
     }
 
     #endregion

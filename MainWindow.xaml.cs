@@ -1255,39 +1255,57 @@ public partial class MainWindow : Window
 
     private void AnimateSettingsHover(bool isEnter)
     {
-        var dur = TimeSpan.FromMilliseconds(300);
-        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        const int fps = 144;
+        var dur = TimeSpan.FromMilliseconds(isEnter ? 360 : 300);
+        var scaleDur = new Duration(dur);
+        var rotateDur = new Duration(TimeSpan.FromMilliseconds(isEnter ? 520 : 360));
+        var easeOut = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = isEnter ? 0.32 : 0.18 };
+        var rotateEase = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
 
-        // Rotation animation - smooth 90 degree rotation from 45° to 135°
+        var scaleAnim = new DoubleAnimation
+        {
+            To = isEnter ? 1.18 : 1.0,
+            Duration = scaleDur,
+            EasingFunction = easeOut
+        };
+        Timeline.SetDesiredFrameRate(scaleAnim, fps);
+
         var rotateAnim = new DoubleAnimation
         {
-            To = isEnter ? 135 : 45,
-            Duration = TimeSpan.FromMilliseconds(400),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+            To = isEnter ? 132 : 45,
+            Duration = rotateDur,
+            EasingFunction = rotateEase
         };
-        Timeline.SetDesiredFrameRate(rotateAnim, 120);
+        Timeline.SetDesiredFrameRate(rotateAnim, fps);
 
-        // Opacity animation - subtle fade
         var opacityAnim = new DoubleAnimation
         {
-            To = isEnter ? 0.8 : 1.0,
-            Duration = dur,
-            EasingFunction = easing
+            To = isEnter ? 0.95 : 1.0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(180)),
+            EasingFunction = _easeQuadOut
         };
-        Timeline.SetDesiredFrameRate(opacityAnim, 120);
+        Timeline.SetDesiredFrameRate(opacityAnim, fps);
 
-        SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, rotateAnim);
-        SettingsButton.BeginAnimation(OpacityProperty, opacityAnim);
-        
-        // Animate background color
-        if (isEnter)
+        var bg = SettingsButton.Background as SolidColorBrush;
+        if (bg == null || bg.IsFrozen)
         {
-            SettingsButton.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
+            bg = new SolidColorBrush(Colors.Transparent);
+            SettingsButton.Background = bg;
         }
-        else
+
+        var bgAnim = new ColorAnimation
         {
-            SettingsButton.Background = new SolidColorBrush(Colors.Transparent);
-        }
+            To = isEnter ? Color.FromArgb(34, 255, 255, 255) : Colors.Transparent,
+            Duration = new Duration(TimeSpan.FromMilliseconds(isEnter ? 160 : 240)),
+            EasingFunction = _easeQuadOut
+        };
+        Timeline.SetDesiredFrameRate(bgAnim, fps);
+
+        SettingsScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim, HandoffBehavior.SnapshotAndReplace);
+        SettingsScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim, HandoffBehavior.SnapshotAndReplace);
+        SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, rotateAnim, HandoffBehavior.SnapshotAndReplace);
+        SettingsButton.BeginAnimation(OpacityProperty, opacityAnim, HandoffBehavior.SnapshotAndReplace);
+        bg.BeginAnimation(SolidColorBrush.ColorProperty, bgAnim, HandoffBehavior.SnapshotAndReplace);
     }
 
     #endregion
@@ -1584,31 +1602,19 @@ public partial class MainWindow : Window
 
     private void AnimateUpdateNotificationHover(bool isEnter)
     {
-        if (UpdateIconBrush == null) return;
-        
+        const int fps = 144;
         var scaleAnim = new DoubleAnimation
         {
-            To = isEnter ? 1.08 : 1.0,
-            Duration = TimeSpan.FromMilliseconds(200),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            To = isEnter ? 1.10 : 1.0,
+            Duration = TimeSpan.FromMilliseconds(isEnter ? 180 : 220),
+            EasingFunction = isEnter
+                ? new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.20 }
+                : _easeQuadOut
         };
 
-        Timeline.SetDesiredFrameRate(scaleAnim, 120);
-
-        if (!isEnter)
-        {
-            // Resume breathing animation when mouse leaves
-            scaleAnim.Completed += (s, e) =>
-            {
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    StartUpdatePulseAnimation();
-                }), DispatcherPriority.Render);
-            };
-        }
-
-        UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
-        UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+        Timeline.SetDesiredFrameRate(scaleAnim, fps);
+        UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim, HandoffBehavior.SnapshotAndReplace);
+        UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim, HandoffBehavior.SnapshotAndReplace);
     }
 
     private void SetUpdateInlineTooltipContent(string status, string hint)

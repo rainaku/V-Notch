@@ -55,3 +55,4 @@ V-Notch-Setup.nsi
 *.kiro
 *.sqlite
 /.vs
+test-setup.ps1
