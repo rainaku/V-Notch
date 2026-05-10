@@ -59,6 +59,10 @@ public class ProgressEngine
     private TimeSpan _lastSnapshotPosition = TimeSpan.Zero;  // Track last snapshot position
     private DateTime _seekDebounceEndUtc = DateTime.MinValue;
     private DateTime _allowBackwardUntilUtc = DateTime.MinValue;
+    private DateTime _seekPauseGraceUntilUtc = DateTime.MinValue;
+    private bool _pendingPauseConfirmation = false;
+    private DateTime _pendingPauseStartedUtc = DateTime.MinValue;
+    private TimeSpan _pendingPausePosition = TimeSpan.Zero;
 
     
     
@@ -73,6 +77,8 @@ public class ProgressEngine
 
     private static readonly TimeSpan DurationChangeSeekWindow = TimeSpan.FromMilliseconds(650);
     private static readonly TimeSpan UserSeekDebounceDuration = TimeSpan.FromMilliseconds(2500);
+    private static readonly TimeSpan UserSeekPauseGraceDuration = TimeSpan.FromMilliseconds(3200);
+    private static readonly TimeSpan PauseConfirmationWindow = TimeSpan.FromMilliseconds(700);
 
     private readonly object _lock = new object();
 
@@ -86,21 +92,9 @@ public class ProgressEngine
                 : snapshot.Timestamp.ToUniversalTime();
 
             
-            var predictedBeforeSnapshot = PredictPosition(nowUtc);
-            System.Diagnostics.Debug.WriteLine($"[ENGINE] Snapshot: pos={snapshot.Position.TotalSeconds:F3}s, " +
-                $"ts={snapshotTsUtc:HH:mm:ss.fff}, " +
-                $"now={nowUtc:HH:mm:ss.fff}, " +
-                $"latency={(nowUtc - snapshotTsUtc).TotalMilliseconds:F0}ms, " +
-                $"isPlaying={snapshot.IsPlaying}, " +
-                $"predicted={predictedBeforeSnapshot.TotalSeconds:F3}s, " +
-                $"diff={(snapshot.Position - predictedBeforeSnapshot).TotalSeconds:F3}s");
-
-            
             
             if (snapshot.SequenceNumber > 0 && snapshot.SequenceNumber <= _lastSnapshotSequence)
             {
-                System.Diagnostics.Debug.WriteLine($"[ENGINE] REJECTED: Old sequence {snapshot.SequenceNumber} <= {_lastSnapshotSequence}");
-                
                 return;
             }
 
@@ -109,8 +103,6 @@ public class ProgressEngine
             if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
                 snapshotTsUtc < _lastSnapshotTimestampUtc - SnapshotOutOfOrderTolerance)
             {
-                System.Diagnostics.Debug.WriteLine($"[ENGINE] REJECTED: Old timestamp {snapshotTsUtc:HH:mm:ss.fff} < {_lastSnapshotTimestampUtc:HH:mm:ss.fff}");
-                
                 return;
             }
             
@@ -122,10 +114,6 @@ public class ProgressEngine
                 snapshotTsUtc == _lastSnapshotTimestampUtc &&
                 Math.Abs((snapshot.Position - _lastSnapshotPosition).TotalSeconds) < 0.01)
             {
-                System.Diagnostics.Debug.WriteLine($"[ENGINE] REJECTED: Duplicate snapshot. " +
-                    $"Timestamp={snapshotTsUtc:HH:mm:ss.fff}, Position={snapshot.Position.TotalSeconds:F3}s " +
-                    $"(same as last snapshot)");
-                
                 return;
             }
 
@@ -158,27 +146,7 @@ public class ProgressEngine
                 
                 if (backwardDiff.TotalSeconds > backwardThreshold && !likelySessionSwitch && !likelyUserSeekBackward)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[ENGINE] REJECTED: Snapshot too far behind. " +
-                        $"Current={currentPredicted.TotalSeconds:F3}s, " +
-                        $"Snapshot={snapshotPredicted.TotalSeconds:F3}s, " +
-                        $"Diff={backwardDiff.TotalSeconds:F3}s, " +
-                        $"Threshold={backwardThreshold}s, " +
-                        $"IsYouTube={snapshot.IsYouTube}");
                     return;
-                }
-                else if (likelySessionSwitch)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[ENGINE] ACCEPTED: Session switch detected. " +
-                        $"Duration changed from {_duration.TotalSeconds:F1}s to {snapshot.Duration.TotalSeconds:F1}s");
-                }
-                else if (likelyUserSeekBackward)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[ENGINE] ACCEPTED: User seek backward detected. " +
-                        $"Position changed from {_basePosition.TotalSeconds:F1}s to {snapshot.Position.TotalSeconds:F1}s");
-                }
-                else if (backwardDiff.TotalSeconds > 0.1)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[ENGINE] ACCEPTED: Backward diff {backwardDiff.TotalSeconds:F3}s within threshold {backwardThreshold}s");
                 }
             }
 
@@ -223,6 +191,12 @@ public class ProgressEngine
 
             _playbackRate = Math.Abs(reportedRate - 1.0) <= 0.035 ? 1.0 : reportedRate;
 
+            if (snapshot.IsPlaying && _pendingPauseConfirmation)
+            {
+                _pendingPauseConfirmation = false;
+                _pendingPauseStartedUtc = DateTime.MinValue;
+            }
+
             
             
             bool durationChanged = DidDurationChange(previousDuration, _duration);
@@ -254,7 +228,48 @@ public class ProgressEngine
             
             if (!snapshot.IsPlaying)
             {
+                // Core fix: many sources briefly report "paused/changing" right after seek
+                // while playback actually continues. If we snap to Paused here, progress freezes.
+                bool inSeekStabilizationWindow = nowUtc < _seekDebounceEndUtc || nowUtc < _seekPauseGraceUntilUtc;
+                if (inSeekStabilizationWindow && _state == ProgressState.Seeking)
+                {
+                    TimeSpan observedDuringSeek = ClampPosition(snapshot.Position);
+                    if (observedDuringSeek > _basePosition)
+                    {
+                        _basePosition = observedDuringSeek;
+                        _baseTimeUtc = nowUtc;
+                    }
+                    return;
+                }
+
                 TimeSpan pausedPos = ClampPosition(snapshot.Position);
+
+                // Additional core fix: debounce transient single-frame pause glitches
+                // (commonly observed on Spotify/browser bridge) before committing Paused state.
+                if (_isPlaying || _state == ProgressState.Playing || _state == ProgressState.Seeking)
+                {
+                    if (!_pendingPauseConfirmation)
+                    {
+                        _pendingPauseConfirmation = true;
+                        _pendingPauseStartedUtc = nowUtc;
+                        _pendingPausePosition = pausedPos;
+                        return;
+                    }
+
+                    _pendingPausePosition = pausedPos;
+                    var pendingAge = nowUtc - _pendingPauseStartedUtc;
+                    if (pendingAge < PauseConfirmationWindow)
+                    {
+                        return;
+                    }
+
+                    pausedPos = _pendingPausePosition;
+                }
+                else
+                {
+                    _pendingPauseConfirmation = false;
+                    _pendingPauseStartedUtc = DateTime.MinValue;
+                }
 
                 if (_isPlaying || _state == ProgressState.Playing || _state == ProgressState.Seeking)
                 {
@@ -271,6 +286,9 @@ public class ProgressEngine
                 _baseTimeUtc = nowUtc;
                 
                 _seekDebounceEndUtc = DateTime.MinValue;
+                _seekPauseGraceUntilUtc = DateTime.MinValue;
+                _pendingPauseConfirmation = false;
+                _pendingPauseStartedUtc = DateTime.MinValue;
                 return;
             }
 
@@ -288,6 +306,9 @@ public class ProgressEngine
                 _state = ProgressState.Playing;
                 _basePosition = startPos;
                 _baseTimeUtc = nowUtc;
+                _seekPauseGraceUntilUtc = DateTime.MinValue;
+                _pendingPauseConfirmation = false;
+                _pendingPauseStartedUtc = DateTime.MinValue;
                 
                 return;
             }
@@ -304,6 +325,7 @@ public class ProgressEngine
             if (_state == ProgressState.Seeking)
             {
                 _state = ProgressState.Playing;
+                _seekPauseGraceUntilUtc = DateTime.MinValue;
             }
 
             TimeSpan observedPos = ClampPosition(snapshot.Position);
@@ -345,6 +367,9 @@ public class ProgressEngine
             _state = ProgressState.Playing;
             _allowBackwardUntilUtc = nowUtc + TimeSpan.FromMilliseconds(900);
             _seekDebounceEndUtc = nowUtc + TimeSpan.FromMilliseconds(600);
+            _seekPauseGraceUntilUtc = DateTime.MinValue;
+            _pendingPauseConfirmation = false;
+            _pendingPauseStartedUtc = DateTime.MinValue;
         }
     }
 
@@ -360,7 +385,10 @@ public class ProgressEngine
             _basePosition = clampedPos;
             _baseTimeUtc = nowUtc;
             _seekDebounceEndUtc = nowUtc + UserSeekDebounceDuration;
+            _seekPauseGraceUntilUtc = nowUtc + UserSeekPauseGraceDuration;
             _allowBackwardUntilUtc = nowUtc + TimeSpan.FromMilliseconds(900);
+            _pendingPauseConfirmation = false;
+            _pendingPauseStartedUtc = DateTime.MinValue;
         }
     }
 
@@ -383,6 +411,10 @@ public class ProgressEngine
             _lastSnapshotPosition = TimeSpan.Zero;  // Reset last position
             _seekDebounceEndUtc = DateTime.MinValue;
             _allowBackwardUntilUtc = DateTime.MinValue;
+            _seekPauseGraceUntilUtc = DateTime.MinValue;
+            _pendingPauseConfirmation = false;
+            _pendingPauseStartedUtc = DateTime.MinValue;
+            _pendingPausePosition = TimeSpan.Zero;
         }
     }
 

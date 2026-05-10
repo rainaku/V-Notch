@@ -255,9 +255,8 @@ public class MediaDetectionService : IMediaDetectionService
 
     private void Log(string tag, string message)
     {
-#if DEBUG
+        RuntimeLog.Log($"MEDIA-{tag}", message);
         System.Diagnostics.Debug.WriteLine($"[MediaService][{tag}] {message}");
-#endif
     }
 
     #region Background Processing
@@ -616,11 +615,16 @@ public class MediaDetectionService : IMediaDetectionService
 
             if (ShouldPreserveSoundCloudSourceDuringTrackSwitch(info))
             {
-                info.MediaSource = "SoundCloud";
-                info.IsSoundCloudRunning = true;
-                if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
+                windowTitles ??= GetAllWindowTitles();
+                bool hasYouTubeWindowHint = string.Equals(DetectPlatformHint(windowTitles), "YouTube", StringComparison.OrdinalIgnoreCase);
+                if (!hasYouTubeWindowHint)
                 {
-                    _sessionSourceOverrides[info.SourceAppId] = "SoundCloud";
+                    info.MediaSource = "SoundCloud";
+                    info.IsSoundCloudRunning = true;
+                    if (!string.IsNullOrEmpty(info.SourceAppId) && IsBrowserSourceApp(info.SourceAppId))
+                    {
+                        _sessionSourceOverrides[info.SourceAppId] = "SoundCloud";
+                    }
                 }
             }
 
@@ -698,13 +702,15 @@ public class MediaDetectionService : IMediaDetectionService
                 var dispatcher = System.Windows.Application.Current?.Dispatcher;
                 if (dispatcher != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[MEDIA] Firing MediaChanged event: Track='{info.CurrentTrack}', " +
-                        $"Pos={info.Position.TotalSeconds:F1}s, IsPlaying={info.IsPlaying}");
+                    RuntimeLog.Log("MEDIA-EVENT",
+                        $"Firing MediaChanged: Source={info.MediaSource}, App={info.SourceAppId}, Track='{info.CurrentTrack}', Artist='{info.CurrentArtist}', " +
+                        $"Pos={info.Position.TotalSeconds:F3}s, Dur={info.Duration.TotalSeconds:F3}s, IsPlaying={info.IsPlaying}, " +
+                        $"Rate={info.PlaybackRate:F3}, LastUpdated={info.LastUpdated:O}");
                     await dispatcher.InvokeAsync(() => MediaChanged?.Invoke(this, info));
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"[MEDIA] WARNING: No dispatcher, cannot fire MediaChanged event!");
+                    RuntimeLog.Log("MEDIA-EVENT", "WARNING: No dispatcher, cannot fire MediaChanged event");
                 }
 
                 
@@ -1068,19 +1074,20 @@ public class MediaDetectionService : IMediaDetectionService
 
     private static string DetectPlatformHint(IEnumerable<string> windowTitles)
     {
+        string fallback = "";
         foreach (var title in windowTitles)
         {
             var lower = title.ToLower();
-            if (lower.Contains("soundcloud")) return "SoundCloud";
             if (lower.Contains("youtube") && !lower.StartsWith("youtube -") && lower != "youtube") return "YouTube";
-            if (lower.Contains("apple music") || lower.Contains("music.apple.com")) return "Apple Music";
-            if (lower.Contains("facebook") && (lower.Contains("watch") || lower.Contains("video"))) return "Facebook";
-            if (lower.Contains("tiktok") && lower.Contains(" | ")) return "TikTok";
-            if (lower.Contains("instagram") && (lower.Contains("reel") || lower.Contains("video"))) return "Instagram";
-            if ((lower.Contains("twitter") || lower.Contains(" / x")) && (lower.Contains("video") || lower.Contains("watch"))) return "Twitter";
+            if (lower.Contains("soundcloud") && string.IsNullOrEmpty(fallback)) fallback = "SoundCloud";
+            else if ((lower.Contains("apple music") || lower.Contains("music.apple.com")) && string.IsNullOrEmpty(fallback)) fallback = "Apple Music";
+            else if (lower.Contains("facebook") && (lower.Contains("watch") || lower.Contains("video")) && string.IsNullOrEmpty(fallback)) fallback = "Facebook";
+            else if (lower.Contains("tiktok") && lower.Contains(" | ") && string.IsNullOrEmpty(fallback)) fallback = "TikTok";
+            else if (lower.Contains("instagram") && (lower.Contains("reel") || lower.Contains("video")) && string.IsNullOrEmpty(fallback)) fallback = "Instagram";
+            else if ((lower.Contains("twitter") || lower.Contains(" / x")) && (lower.Contains("video") || lower.Contains("watch")) && string.IsNullOrEmpty(fallback)) fallback = "Twitter";
         }
 
-        return "";
+        return fallback;
     }
 
     private static string NormalizeForLooseMatch(string value)
@@ -1768,10 +1775,18 @@ public class MediaDetectionService : IMediaDetectionService
                 bool sourceFromBrowserOverride = false;
                 bool sourceFromTrackCache = false;
 
+                string browserPlatformHint = "";
+                if (!string.IsNullOrEmpty(sessionSourceApp) && IsBrowserSourceApp(sessionSourceApp))
+                {
+                    hintedWindowTitles ??= windowTitleFactory();
+                    browserPlatformHint = DetectPlatformHint(hintedWindowTitles);
+                }
+
                 if (!string.IsNullOrEmpty(sessionSourceApp) &&
                     IsBrowserSourceApp(sessionSourceApp) &&
                     _sessionSourceOverrides.TryGetValue(sessionSourceApp, out var sessionOverride) &&
-                    string.Equals(sessionOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(sessionOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(browserPlatformHint, "YouTube", StringComparison.OrdinalIgnoreCase))
                 {
                     info.MediaSource = "SoundCloud";
                     info.IsSoundCloudRunning = true;
@@ -1784,7 +1799,9 @@ public class MediaDetectionService : IMediaDetectionService
                     bool hasCachedSource = _trackSourceCache.TryGetValue(currentTrackIdentity, out var cachedSource) ||
                                            _trackSourceCache.TryGetValue(trackOnlyIdentity, out cachedSource);
 
-                    if (hasCachedSource && string.Equals(cachedSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
+                    if (hasCachedSource &&
+                        string.Equals(cachedSource, "SoundCloud", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(browserPlatformHint, "YouTube", StringComparison.OrdinalIgnoreCase))
                     {
                         info.MediaSource = "SoundCloud";
                         info.IsSoundCloudRunning = true;
@@ -1818,9 +1835,20 @@ public class MediaDetectionService : IMediaDetectionService
                     string trackTitleLower = info.CurrentTrack.ToLower();
                     string trackTitleNormalized = NormalizeForLooseMatch(trackTitleLower);
                     bool hasTrack = !string.IsNullOrEmpty(trackTitleLower) && trackTitleLower != "browser" && trackTitleLower != "now playing";
+                    string platformHint = DetectPlatformHint(windowTitles);
+                    if (string.Equals(platformHint, "YouTube", StringComparison.OrdinalIgnoreCase))
+                    {
+                        info.MediaSource = "YouTube";
+                        info.IsYouTubeRunning = true;
+                    }
 
                     foreach (var title in windowTitles)
                     {
+                        if (string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase))
+                        {
+                            break;
+                        }
+
                         var winTitleLower = title.ToLower();
                         bool trackMatch = winTitleLower.Contains(trackTitleLower);
 
@@ -1897,7 +1925,15 @@ public class MediaDetectionService : IMediaDetectionService
                 !string.IsNullOrEmpty(info.MediaSource) &&
                 info.MediaSource != "Browser")
             {
-                _sessionSourceOverrides[sessionSourceApp] = info.MediaSource;
+                if (info.MediaSource == "YouTube")
+                {
+                    _sessionSourceOverrides[sessionSourceApp] = "YouTube";
+                }
+                else if (!_sessionSourceOverrides.TryGetValue(sessionSourceApp, out var existingOverride) ||
+                         !string.Equals(existingOverride, "YouTube", StringComparison.OrdinalIgnoreCase))
+                {
+                    _sessionSourceOverrides[sessionSourceApp] = info.MediaSource;
+                }
             }
 
             if (info.MediaSource != "Browser" && !string.IsNullOrEmpty(info.MediaSource))
@@ -2043,8 +2079,11 @@ public class MediaDetectionService : IMediaDetectionService
                         chosenPosition = timeline.Position;
                     }
 
-                    bool isSoundCloudTrack = string.Equals(info.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
-                    if (isSoundCloudTrack && isNewTrack && info.IsPlaying)
+                    bool isBrowserTimelineTrack = IsBrowserSourceApp(info.SourceAppId) ||
+                                                  info.MediaSource == "YouTube" ||
+                                                  info.MediaSource == "SoundCloud" ||
+                                                  info.MediaSource == "Browser";
+                    if (isBrowserTimelineTrack && isNewTrack && info.IsPlaying)
                     {
                         TimeSpan timelineAge = DateTimeOffset.UtcNow - timeline.LastUpdatedTime.ToUniversalTime();
                         if (timelineAge < TimeSpan.Zero) timelineAge = TimeSpan.Zero;
@@ -2063,7 +2102,9 @@ public class MediaDetectionService : IMediaDetectionService
                     }
 
 
-                    var timelineUpdatedUtc = timeline.LastUpdatedTime.ToUniversalTime();
+                    var timelineUpdatedUtc = forceStartPosition
+                        ? DateTimeOffset.UtcNow
+                        : timeline.LastUpdatedTime.ToUniversalTime();
 
                     // FIX: Don't compensate for latency - let ProgressEngine handle prediction
                     // Using raw timeline data ensures timestamp matches position

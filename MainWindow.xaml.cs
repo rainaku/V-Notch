@@ -1333,14 +1333,24 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (UpdateNotificationButton.Visibility == Visibility.Visible)
-            return;
-
+        bool wasVisible = UpdateNotificationButton.Visibility == Visibility.Visible;
         UpdateNotificationButton.Visibility = Visibility.Visible;
         UpdateNotificationButton.IsHitTestVisible = true;
         UpdateNotificationButton.Tag = $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}";
         UpdateNotificationButton.Cursor = Cursors.Hand;
         UpdateNotificationButton.Opacity = 1.0;
+        SetUpdateInlineTooltipContent(
+            $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}",
+            "Click to download & install");
+
+        if (wasVisible)
+        {
+            if (!_isUpdateInstalling)
+            {
+                StartUpdatePulseAnimation();
+            }
+            return;
+        }
         
         // Reset icon color to green before animating
         UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
@@ -1378,11 +1388,11 @@ public partial class MainWindow : Window
 
     private void HideUpdateNotification()
     {
+        HideUpdateInlineTooltip();
+
         if (UpdateNotificationButton.Visibility == Visibility.Collapsed)
             return;
 
-        _isUpdateTooltipOpen = false;
-        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(220);
         StopUpdatePulseAnimation();
         UpdateNotificationButton.IsHitTestVisible = false;
         UpdateNotificationButton.Cursor = Cursors.Hand;
@@ -1474,6 +1484,8 @@ public partial class MainWindow : Window
         UpdateNotificationButton.Cursor = Cursors.Wait;
         UpdateNotificationButton.Opacity = 0.95;
         StopUpdatePulseAnimation();
+        SetUpdateInlineTooltipContent("Preparing download...", "Opening updater...");
+        ShowUpdateInlineTooltip();
 
         var updateProgressWindow = new UpdateDownloadWindow();
         updateProgressWindow.SetIndeterminate("Preparing download...");
@@ -1485,12 +1497,14 @@ public partial class MainWindow : Window
             {
                 updateProgressWindow.SetIndeterminate("Downloading update...");
                 UpdateNotificationButton.Tag = "Downloading update...";
+                SetUpdateInlineTooltipContent("Downloading update...", "Please wait...");
                 return;
             }
 
             updateProgressWindow.SetStatus($"Downloading update... {p:0}%");
             updateProgressWindow.SetProgress(p);
             UpdateNotificationButton.Tag = $"Downloading... {p:0}%";
+            SetUpdateInlineTooltipContent($"Downloading... {p:0}%", "Please wait...");
         });
 
         try
@@ -1504,6 +1518,9 @@ public partial class MainWindow : Window
                 UpdateNotificationButton.Tag = $"Version v{_availableUpdate.Version}";
                 UpdateNotificationButton.Cursor = Cursors.Hand;
                 UpdateNotificationButton.Opacity = 1.0;
+                SetUpdateInlineTooltipContent(
+                    $"Version v{_availableUpdate.Version}",
+                    "Click to download & install");
                 StartUpdatePulseAnimation();
                 MessageBox.Show(
                     "Unable to download/install update right now. Please try again.",
@@ -1519,6 +1536,9 @@ public partial class MainWindow : Window
             UpdateNotificationButton.Tag = $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}";
             UpdateNotificationButton.Cursor = Cursors.Hand;
             UpdateNotificationButton.Opacity = 1.0;
+            SetUpdateInlineTooltipContent(
+                $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}",
+                "Click to download & install");
             StartUpdatePulseAnimation();
             MessageBox.Show(
                 "Update process failed unexpectedly. Please try again.",
@@ -1532,18 +1552,21 @@ public partial class MainWindow : Window
     {
         _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(1200);
         AnimateUpdateNotificationHover(true);
+        ShowUpdateInlineTooltip();
         
         // Update tooltip version text
         if (_availableUpdate != null && !_isUpdateInstalling)
         {
             UpdateNotificationButton.Tag = $"Version v{_availableUpdate.Version}";
+            SetUpdateInlineTooltipContent(
+                $"Version v{_availableUpdate.Version}",
+                "Click to download & install");
         }
     }
 
     private void UpdateNotification_MouseLeave(object sender, MouseEventArgs e)
     {
-        _isUpdateTooltipOpen = false;
-        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(220);
+        HideUpdateInlineTooltip();
         AnimateUpdateNotificationHover(false);
     }
 
@@ -1586,6 +1609,56 @@ public partial class MainWindow : Window
 
         UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
         UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+    }
+
+    private void SetUpdateInlineTooltipContent(string status, string hint)
+    {
+        UpdateInlineStatusText.Text = status;
+        UpdateInlineHintText.Text = hint;
+    }
+
+    private void ShowUpdateInlineTooltip()
+    {
+        if (!_isUpdateAvailable || UpdateNotificationButton.Visibility != Visibility.Visible)
+            return;
+
+        _isUpdateTooltipOpen = true;
+        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(1200);
+        UpdateInlineTooltip.BeginAnimation(OpacityProperty, null);
+        UpdateInlineTooltip.Visibility = Visibility.Visible;
+
+        var fadeIn = new DoubleAnimation
+        {
+            To = 1.0,
+            Duration = TimeSpan.FromMilliseconds(140),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        UpdateInlineTooltip.BeginAnimation(OpacityProperty, fadeIn, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void HideUpdateInlineTooltip()
+    {
+        _isUpdateTooltipOpen = false;
+        _suspendTopmostUntilUtc = DateTime.UtcNow.AddMilliseconds(220);
+
+        if (UpdateInlineTooltip.Visibility != Visibility.Visible)
+            return;
+
+        UpdateInlineTooltip.BeginAnimation(OpacityProperty, null);
+        var fadeOut = new DoubleAnimation
+        {
+            To = 0.0,
+            Duration = TimeSpan.FromMilliseconds(120),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+
+        fadeOut.Completed += (_, _) =>
+        {
+            UpdateInlineTooltip.Visibility = Visibility.Collapsed;
+            UpdateInlineTooltip.Opacity = 0;
+        };
+
+        UpdateInlineTooltip.BeginAnimation(OpacityProperty, fadeOut, HandoffBehavior.SnapshotAndReplace);
     }
 
     #endregion

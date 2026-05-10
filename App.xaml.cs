@@ -27,8 +27,12 @@ public partial class App : Application
             return;
         }
 
+        RuntimeLog.InitializeNewSession("vnotch-debug.log");
+        RuntimeLog.Log("SYSTEM", $"Application startup. Log file: {RuntimeLog.LogPath}");
+
         DispatcherUnhandledException += (s, args) =>
         {
+            RuntimeLog.Log("UNHANDLED", args.Exception.ToString());
             MessageBox.Show($"Error: {args.Exception.Message}", "V-Notch Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             args.Handled = true;
@@ -67,6 +71,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        RuntimeLog.Log("SYSTEM", "Application exit");
+
         
         if (Services is IDisposable disposable)
         {

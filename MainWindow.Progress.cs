@@ -101,7 +101,7 @@ public partial class MainWindow
             return;
         }
 
-        if (_isExpanded && !_isDraggingProgress)
+        if ((_isExpanded || _isMusicExpanded) && !_isDraggingProgress)
         {
             RenderSpringFrame();
         }
@@ -276,6 +276,7 @@ public partial class MainWindow
     private void UpdateProgressTracking(MediaInfo info)
     {
         _currentMediaInfo = info;
+        NormalizeStartupSnapshotTimestamp(info);
 
         ProgressSection.Visibility = Visibility.Visible;
         ProgressSection.Opacity = 1;
@@ -290,17 +291,15 @@ public partial class MainWindow
             
             
             
-            string newSignature = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}|{info.Duration.TotalMilliseconds:F0}";
+            // Track identity should not include duration jitter.
+            // Browser timelines often report tiny duration deltas for the same song,
+            // which previously caused false track-change resets and progress freeze/jump.
+            string newSignature = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}";
             bool isTrackChanged = newSignature != _lastProgressSignature;
             bool isSessionSwitch = !string.IsNullOrEmpty(info.SourceAppId) && info.SourceAppId != _lastSessionId;
             
-            System.Diagnostics.Debug.WriteLine($"[PROGRESS] Session: {info.SourceAppId}, Track: {info.CurrentTrack}, " +
-                $"isTrackChanged: {isTrackChanged}, isSessionSwitch: {isSessionSwitch}");
-            
-            
             if (isTrackChanged)
             {
-                System.Diagnostics.Debug.WriteLine($"[PROGRESS] RESET: Track changed from '{_lastProgressSignature}' to '{newSignature}'");
                 _lastProgressSignature = newSignature;
                 
                 
@@ -333,17 +332,14 @@ public partial class MainWindow
             }
             else if (isSessionSwitch)
             {
-                System.Diagnostics.Debug.WriteLine($"[PROGRESS] Session switch without track change: {info.SourceAppId}");
-                
-                
                 _lastSessionId = info.SourceAppId;
                 _lastProgressTimelineUpdated = DateTimeOffset.MinValue;  
             }
 
-            string timelineKey = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}|{info.Duration.TotalMilliseconds:F0}";
+            // Timeline key keeps duration only at second granularity to absorb ms-level noise.
+            string timelineKey = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}|{Math.Round(info.Duration.TotalSeconds):F0}";
             if (timelineKey != _lastProgressTimelineKey)
             {
-                System.Diagnostics.Debug.WriteLine($"[PROGRESS] Timeline key changed: '{_lastProgressTimelineKey}' -> '{timelineKey}'");
                 _lastProgressTimelineKey = timelineKey;
                 _lastProgressTimelineUpdated = DateTimeOffset.MinValue;  
             }
@@ -360,11 +356,8 @@ public partial class MainWindow
                 
                 if (infoUpdatedUtc < lastUpdatedUtc)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[PROGRESS] REJECTED: Stale snapshot for same timeline. " +
-                        $"LastUpdated={infoUpdatedUtc:HH:mm:ss.fff} < {lastUpdatedUtc:HH:mm:ss.fff}");
-                    
                     UpdateProgressTimerState();
-                    if (_isExpanded) RenderProgressBar();
+                    if (_isExpanded || _isMusicExpanded) RenderProgressBar();
                     return;
                 }
             }
@@ -406,7 +399,7 @@ public partial class MainWindow
 
             UpdateProgressTimerState();
 
-            if (_isExpanded)
+            if (_isExpanded || _isMusicExpanded)
             {
                 RenderProgressBar();
                 Dispatcher.BeginInvoke(new Action(RenderProgressBar), DispatcherPriority.Render);
@@ -426,7 +419,22 @@ public partial class MainWindow
             _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
             _lastRenderedDuration = TimeSpan.Zero;
             ResetProgressUI();
-            if (_isExpanded) RenderProgressBar();
+            if (_isExpanded || _isMusicExpanded) RenderProgressBar();
+        }
+    }
+
+    private static void NormalizeStartupSnapshotTimestamp(MediaInfo info)
+    {
+        if (!info.IsPlaying || info.Position <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        var updatedUtc = info.LastUpdated.ToUniversalTime();
+        var nowUtc = DateTimeOffset.UtcNow;
+        if (updatedUtc > nowUtc || (nowUtc - updatedUtc).TotalSeconds > 2.0)
+        {
+            info.LastUpdated = nowUtc;
         }
     }
 
@@ -522,6 +530,9 @@ public partial class MainWindow
     private DateTime _lastRenderTime = DateTime.MinValue;
     private TimeSpan _lastRenderedDuration = TimeSpan.Zero;
     private double _lastRenderedRatio = 0;
+    private DateTime _lastProgressMovementUtc = DateTime.UtcNow;
+    private double _lastProgressMovementRatio = -1;
+    private DateTime _lastFreezeDebugLogUtc = DateTime.MinValue;
 
     private void RenderProgressBar()
     {
@@ -566,7 +577,6 @@ public partial class MainWindow
             // This is adaptive: ~24 seconds for 40-min video, ~4 seconds for 6-min video
             if (ratioDiff > 0.01)
             {
-                System.Diagnostics.Debug.WriteLine($"[CATCHUP] External seek detected, stopping animation. Diff={ratioDiff:F4}");
                 StopCatchUpAnimation();
                 
                 // Immediately snap to the new position after external seek
@@ -588,15 +598,6 @@ public partial class MainWindow
         _lastRenderedRatio = engineRatio;
 
         
-        System.Diagnostics.Debug.WriteLine($"[RENDER] Engine pos={frame.Position.TotalSeconds:F3}s, " +
-            $"duration={frame.Duration.TotalSeconds:F1}s, " +
-            $"state={frame.State}, " +
-            $"engineRatio={engineRatio:F4}, " +
-            $"displayRatio={_progressDisplayRatio:F4}, " +
-            $"diff={(engineRatio - _progressDisplayRatio):F4}");
-
-        
-        
         if (frame.DurationJustChanged)
         {
             
@@ -614,7 +615,13 @@ public partial class MainWindow
         }
         else if (_isSeekSpringActive)
         {
-            
+            // Safety: if spring is active but render hook was not running, restart it.
+            if (!_springRenderHooked)
+            {
+                StartSpringRenderLoop();
+            }
+
+             
             _progressTargetRatio = engineRatio;
             if (Math.Abs(_progressTargetRatio - _progressSpringTargetRatio) > 0.12)
             {
@@ -698,13 +705,14 @@ public partial class MainWindow
                 bool isUserSeekWindow = frame.State == ProgressState.Seeking || DateTime.Now < _allowProgressBackwardRenderUntil;
                 if (backwardSeconds > backwardThreshold && !isUserSeekWindow)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[RENDER] IGNORED: Backward jump {backwardSeconds:F3}s (threshold={backwardThreshold}s, source={_currentMediaInfo?.MediaSource})");
-                    
-                    return;
+                    // Avoid hard-freeze: cap backward correction per frame instead of bailing out.
+                    double maxBackwardStepSeconds = 0.22;
+                    double maxBackwardRatioStep = maxBackwardStepSeconds / frame.Duration.TotalSeconds;
+                    double cappedTarget = Math.Max(_progressTargetRatio, _progressDisplayRatio - maxBackwardRatioStep);
+                    _progressTargetRatio = cappedTarget;
                 }
                 else if (backwardSeconds > 0.1)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[RENDER] ACCEPTED: Backward jump {backwardSeconds:F3}s (threshold={backwardThreshold}s, source={_currentMediaInfo?.MediaSource}, userSeek={isUserSeekWindow})");
                 }
             }
 
@@ -712,8 +720,7 @@ public partial class MainWindow
             // Use a threshold of 3 seconds for instant snap
             if (diffSeconds >= 3.0)
             {
-                
-                System.Diagnostics.Debug.WriteLine($"[RENDER] SNAP: Large jump {diffSeconds:F3}s - instant snap to target");
+                 
                 _progressDisplayRatio = _progressTargetRatio;
                 _progressSpringTargetRatio = _progressTargetRatio;
                 _progressVelocity = 0;
@@ -721,8 +728,7 @@ public partial class MainWindow
             }
             else if (diffSeconds >= SOURCE_SMOOTH_SECONDS)
             {
-                
-                System.Diagnostics.Debug.WriteLine($"[RENDER] SNAP: Medium jump {diffSeconds:F3}s");
+                 
                 _progressDisplayRatio = _progressTargetRatio;
                 _progressSpringTargetRatio = _progressTargetRatio;
                 _progressVelocity = 0;
@@ -770,6 +776,24 @@ public partial class MainWindow
 
             _progressDisplayRatio = Math.Clamp(_progressDisplayRatio, 0, 1);
             ProgressBarScale.ScaleX = _progressDisplayRatio;
+        }
+
+        if (!_isDraggingProgress && frame.Duration.TotalSeconds > 0 && frame.State == ProgressState.Playing)
+        {
+            if (_lastProgressMovementRatio < 0 || Math.Abs(_progressDisplayRatio - _lastProgressMovementRatio) > 0.0015)
+            {
+                _lastProgressMovementRatio = _progressDisplayRatio;
+                _lastProgressMovementUtc = DateTime.UtcNow;
+            }
+            else
+            {
+                var stuckFor = DateTime.UtcNow - _lastProgressMovementUtc;
+                var visualDrift = Math.Abs(engineRatio - _progressDisplayRatio);
+                if (stuckFor.TotalMilliseconds > 900 && visualDrift > 0.02)
+                {
+                    _lastProgressMovementUtc = DateTime.UtcNow;
+                }
+            }
         }
 
         
@@ -945,6 +969,14 @@ public partial class MainWindow
             _progressEngine.NotifyUserSeek(newPos);
 
             
+            bool seekToTrackEnd = duration.TotalSeconds > 0 && newPos >= duration - TimeSpan.FromMilliseconds(900);
+            if (seekToTrackEnd)
+            {
+                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
+                _lastProgressTimelineKey = "";
+                _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(6);
+            }
+
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
             AnimateSeekProgressTo(targetRatio);
@@ -954,7 +986,6 @@ public partial class MainWindow
             await _mediaService.SeekAsync(newPos);
             
             // Ensure progress timer is running after seek
-            System.Diagnostics.Debug.WriteLine("[PROGRESS] Seek completed, ensuring timer is running");
             UpdateProgressTimerState();
         } 
         catch { }
@@ -978,18 +1009,25 @@ public partial class MainWindow
             _progressEngine.NotifyUserSeek(newPos);
 
             
+            bool seekToTrackEnd = duration.TotalSeconds > 0 && newPos >= duration - TimeSpan.FromMilliseconds(900);
+            if (seekToTrackEnd)
+            {
+                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
+                _lastProgressTimelineKey = "";
+                _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(6);
+            }
+
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
             AnimateSeekProgressTo(targetRatio);
             CurrentTimeText.Text = FormatTime(newPos);
             _lastDisplayedSecond = (int)newPos.TotalSeconds;
 
-            if (_isExpanded) RenderProgressBar();
+            if (_isExpanded || _isMusicExpanded) RenderProgressBar();
 
             await _mediaService.SeekRelativeAsync(seconds);
             
             // Ensure progress timer is running after seek
-            System.Diagnostics.Debug.WriteLine("[PROGRESS] Relative seek completed, ensuring timer is running");
             UpdateProgressTimerState();
         }
         catch { }
@@ -1029,18 +1067,16 @@ public partial class MainWindow
 
         if (shouldRunProgress)
         {
-            if (!_progressTimer.IsEnabled) 
+            if (!_progressTimer.IsEnabled)
             {
                 _progressTimer.Start();
-                System.Diagnostics.Debug.WriteLine("[PROGRESS] Timer started");
             }
         }
         else
         {
-            if (_progressTimer.IsEnabled) 
+            if (_progressTimer.IsEnabled)
             {
                 _progressTimer.Stop();
-                System.Diagnostics.Debug.WriteLine("[PROGRESS] Timer stopped");
             }
         }
 
@@ -1073,18 +1109,24 @@ public partial class MainWindow
         double targetRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
         targetRatio = Math.Clamp(targetRatio, 0, 1);
 
+        // Prevent reopen-jump effect:
+        // if UI already has meaningful progress, do not reset to 0 and animate again.
+        // Catch-up should only run for fresh/near-zero visual state.
+        if (_progressDisplayRatio > 0.02)
+        {
+            return;
+        }
+
         // Only animate if position is meaningful and not too far into the video
         // If position < 1%, skip animation (too early)
         // If position > 20%, snap immediately (too far to animate smoothly)
         if (targetRatio < 0.01)
         {
-            System.Diagnostics.Debug.WriteLine($"[CATCHUP] Skipped: position too early ({targetRatio:P1})");
             return;
         }
         
         if (targetRatio > 0.20)
         {
-            System.Diagnostics.Debug.WriteLine($"[CATCHUP] Skipped: position too far ({targetRatio:P1}), snapping immediately");
             // Snap immediately instead of animating
             _progressDisplayRatio = targetRatio;
             _progressTargetRatio = targetRatio;
@@ -1094,7 +1136,6 @@ public partial class MainWindow
             return;
         }
 
-        System.Diagnostics.Debug.WriteLine($"[CATCHUP] Starting animation to {targetRatio:P1}");
         _isCatchUpAnimating = true;
         _catchUpTargetRatio = targetRatio;
         _catchUpTargetPosition = frame.Position;

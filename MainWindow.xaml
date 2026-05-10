@@ -612,11 +612,7 @@
                                     Background="Transparent"
                                     Cursor="Hand"
                                     Margin="7,0,0,0"
-                                    ToolTipService.Placement="Bottom"
-                                    ToolTipService.VerticalOffset="10"
-                                    ToolTipService.HorizontalOffset="-18"
-                                    ToolTipOpening="UpdateNotification_ToolTipOpening"
-                                    ToolTipClosing="UpdateNotification_ToolTipClosing"
+                                    ToolTipService.IsEnabled="False"
                                     MouseLeftButtonDown="UpdateNotification_Click"
                                     MouseEnter="UpdateNotification_MouseEnter"
                                     MouseLeave="UpdateNotification_MouseLeave"
@@ -625,46 +621,6 @@
                                     Visibility="Collapsed"
                                     IsHitTestVisible="True"
                                     Tag="1.0.0">
-                                <Border.ToolTip>
-                                    <ToolTip Placement="Bottom"
-                                             VerticalOffset="10"
-                                             HorizontalOffset="-18"
-                                             Background="Transparent"
-                                             BorderThickness="0"
-                                             HasDropShadow="False">
-                                        <Border CornerRadius="10"
-                                                BorderBrush="#33FFFFFF"
-                                                BorderThickness="1"
-                                                Padding="10,8">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                    <GradientStop Color="#F0222222" Offset="0"/>
-                                                    <GradientStop Color="#EA111111" Offset="1"/>
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <StackPanel>
-                                                <DockPanel LastChildFill="True">
-                                                    <Ellipse Width="7" Height="7" Fill="#30D158" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Ready To Update"
-                                                               Foreground="White"
-                                                               FontSize="11.5"
-                                                               FontWeight="SemiBold"
-                                                               FontFamily="{StaticResource MainSystemFont}"/>
-                                                </DockPanel>
-                                                <TextBlock Text="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ToolTip}}"
-                                                           Foreground="#CCFFFFFF"
-                                                           FontSize="10.5"
-                                                           Margin="0,4,0,0"
-                                                           FontFamily="{StaticResource MainSystemFont}"/>
-                                                <TextBlock Text="Click to download &amp; install"
-                                                           Foreground="#99FFFFFF"
-                                                           FontSize="9.5"
-                                                           Margin="0,5,0,0"
-                                                           FontFamily="{StaticResource MainSystemFont}"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </ToolTip>
-                                </Border.ToolTip>
                                 <Border.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="UpdateNotificationScale" ScaleX="1" ScaleY="1"/>
@@ -1754,6 +1710,51 @@
                 </Grid>
             </Border>
         </Border>
+
+            <!-- Inline tooltip outside clip region to avoid being hidden/cropped -->
+            <Border x:Name="UpdateInlineTooltip"
+                    Grid.Column="1"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,34,10,0"
+                    Visibility="Collapsed"
+                    Opacity="0"
+                    IsHitTestVisible="False"
+                    Panel.ZIndex="3000">
+                <Border CornerRadius="10"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        Padding="10,8">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#F0222222" Offset="0"/>
+                            <GradientStop Color="#EA111111" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <StackPanel>
+                        <DockPanel LastChildFill="True">
+                            <Ellipse Width="7" Height="7" Fill="#30D158" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Ready To Update"
+                                       Foreground="White"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       FontFamily="SF Pro Text, SF Pro Display"/>
+                        </DockPanel>
+                        <TextBlock x:Name="UpdateInlineStatusText"
+                                   Text="Version v-"
+                                   Foreground="#CCFFFFFF"
+                                   FontSize="10.5"
+                                   Margin="0,4,0,0"
+                                   FontFamily="SF Pro Text, SF Pro Display"/>
+                        <TextBlock x:Name="UpdateInlineHintText"
+                                   Text="Click to download &amp; install"
+                                   Foreground="#99FFFFFF"
+                                   FontSize="9.5"
+                                   Margin="0,5,0,0"
+                                   FontFamily="SF Pro Text, SF Pro Display"/>
+                    </StackPanel>
+                </Border>
+            </Border>
 
             <Path x:Name="RightEar" 
                   Grid.Column="2" 
