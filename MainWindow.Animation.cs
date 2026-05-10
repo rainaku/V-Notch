@@ -152,6 +152,9 @@ public partial class MainWindow
             {
                 AnimationThumbnailImage.Source = CompactThumbnail.Source;
                 AnimationThumbnailBorder.Visibility = Visibility.Visible;
+                AnimationThumbnailBorder.CornerRadius = new CornerRadius(6);
+                AnimationThumbnailClip.RadiusX = 6;
+                AnimationThumbnailClip.RadiusY = 6;
                 AnimationThumbnailBorder.Width = 22;
                 AnimationThumbnailBorder.Height = 22;
                 AnimationThumbnailClip.Rect = new Rect(0, 0, 22, 22);
@@ -193,6 +196,7 @@ public partial class MainWindow
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightExpand);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+                AnimateThumbnailAnimationRadius(6, 12, thumbDur, thumbEase, thumbDelay);
 
                 AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectExpand);
 
@@ -378,6 +382,9 @@ public partial class MainWindow
 
                 AnimationThumbnailImage.Source = ThumbnailImage.Source;
                 AnimationThumbnailBorder.Visibility = Visibility.Visible;
+                AnimationThumbnailBorder.CornerRadius = new CornerRadius(12);
+                AnimationThumbnailClip.RadiusX = 12;
+                AnimationThumbnailClip.RadiusY = 12;
         AnimationThumbnailBorder.Width = 102;
         AnimationThumbnailBorder.Height = 102;
         AnimationThumbnailClip.Rect = new Rect(0, 0, 102, 102);
@@ -417,6 +424,7 @@ public partial class MainWindow
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightCollapse);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
+                AnimateThumbnailAnimationRadius(12, 6, thumbDur, thumbEase, thumbDelay);
 
                 AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
 

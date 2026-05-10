@@ -373,10 +373,11 @@
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Top"
                                 Width="22" Height="22"
-                                CornerRadius="6"
+                                CornerRadius="12"
                                 Background="#1A1A1A"
                                 BorderBrush="#333333"
                                 BorderThickness="0.5"
+                                ClipToBounds="True"
                                 Visibility="Collapsed"
                                 IsHitTestVisible="False"
                                 Margin="8,4,0,0"
@@ -386,7 +387,7 @@
                             </Border.RenderTransform>
                             <Image x:Name="AnimationThumbnailImage" Stretch="UniformToFill">
                                 <Image.Clip>
-                                    <RectangleGeometry x:Name="AnimationThumbnailClip" RadiusX="6" RadiusY="6" Rect="0,0,22,22"/>
+                                    <RectangleGeometry x:Name="AnimationThumbnailClip" RadiusX="12" RadiusY="12" Rect="0,0,22,22"/>
                                 </Image.Clip>
                             </Image>
                         </Border>
@@ -864,7 +865,7 @@
                                             Grid.Column="0" 
                                              Width="102" Height="102"
                                                VerticalAlignment="Center"
-                                              CornerRadius="6"
+                                              CornerRadius="12"
                                               Background="#222222"
                                               Margin="0,0,8,0"
                                              Cursor="Hand"
@@ -885,7 +886,7 @@
                                                    VerticalAlignment="Center"
                                                    Visibility="Collapsed">
                                                 <Image.Clip>
-                                                    <RectangleGeometry RadiusX="6" RadiusY="6" Rect="0,0,102,102"/>
+                                                    <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,102,102"/>
                                                 </Image.Clip>
                                             </Image>
 

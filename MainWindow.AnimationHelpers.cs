@@ -333,10 +333,20 @@ public partial class MainWindow
         DependencyProperty.Register("CurrentCornerRadius", typeof(double), typeof(MainWindow),
             new PropertyMetadata(0.0, OnCurrentCornerRadiusChanged));
 
+    public static readonly DependencyProperty CurrentThumbnailAnimationRadiusProperty =
+        DependencyProperty.Register("CurrentThumbnailAnimationRadius", typeof(double), typeof(MainWindow),
+            new PropertyMetadata(6.0, OnCurrentThumbnailAnimationRadiusChanged));
+
     public double CurrentCornerRadius
     {
         get => (double)GetValue(CurrentCornerRadiusProperty);
         set => SetValue(CurrentCornerRadiusProperty, value);
+    }
+
+    public double CurrentThumbnailAnimationRadius
+    {
+        get => (double)GetValue(CurrentThumbnailAnimationRadiusProperty);
+        set => SetValue(CurrentThumbnailAnimationRadiusProperty, value);
     }
 
     private static void OnCurrentCornerRadiusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -354,6 +364,28 @@ public partial class MainWindow
         }
     }
 
+    private static void OnCurrentThumbnailAnimationRadiusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not MainWindow window)
+        {
+            return;
+        }
+
+        double radius = (double)e.NewValue;
+        var cornerRadius = new CornerRadius(radius);
+
+        if (window.AnimationThumbnailBorder != null)
+        {
+            window.AnimationThumbnailBorder.CornerRadius = cornerRadius;
+        }
+
+        if (window.AnimationThumbnailClip != null)
+        {
+            window.AnimationThumbnailClip.RadiusX = radius;
+            window.AnimationThumbnailClip.RadiusY = radius;
+        }
+    }
+
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
     {
         double startRadius = NotchBorder.CornerRadius.BottomLeft;
@@ -364,6 +396,15 @@ public partial class MainWindow
 
         var anim = MakeAnim(startRadius, targetRadius, new Duration(duration), _easeExpOut6, null);
         this.BeginAnimation(CurrentCornerRadiusProperty, anim);
+    }
+
+    private void AnimateThumbnailAnimationRadius(double fromRadius, double toRadius, Duration duration, IEasingFunction easing, TimeSpan? beginTime = null)
+    {
+        CurrentThumbnailAnimationRadius = fromRadius;
+        this.BeginAnimation(CurrentThumbnailAnimationRadiusProperty, null);
+
+        var anim = MakeAnim(fromRadius, toRadius, duration, easing, beginTime);
+        this.BeginAnimation(CurrentThumbnailAnimationRadiusProperty, anim);
     }
 
     public void PlayTrackChangeBounce()
