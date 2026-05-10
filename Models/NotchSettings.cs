@@ -13,6 +13,7 @@ public class NotchSettings
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 16;
     public double Opacity { get; set; } = 1.0;
+    public double MediaBlurBrightnessBoost { get; set; } = 1.4;
 
     public int MonitorIndex { get; set; } = 0; 
 
@@ -54,6 +55,7 @@ public class NotchSettings
             Height = Height,
             CornerRadius = CornerRadius,
             Opacity = Opacity,
+            MediaBlurBrightnessBoost = MediaBlurBrightnessBoost,
             MonitorIndex = MonitorIndex,
             AutoStart = AutoStart,
             EnableHoverExpand = EnableHoverExpand,

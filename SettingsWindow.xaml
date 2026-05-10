@@ -81,6 +81,7 @@
             <Setter Property="Foreground" Value="{StaticResource MutedText}"/>
             <Setter Property="FontSize" Value="11.5"/>
             <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
 
         <Style x:Key="ValueText" TargetType="TextBlock">
@@ -849,7 +850,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                            <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
                                     <Grid Style="{StaticResource SliderLabelGrid}">
                                         <Grid.ColumnDefinitions>
@@ -870,6 +871,30 @@
                                             TickFrequency="5"
                                             IsSnapToTickEnabled="True"
                                             ValueChanged="OpacitySlider_ValueChanged"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SliderLabelGrid}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Blur Brightness" Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
+                                            <Run x:Name="BlurBrightnessValue" Text="140"/><Run Text=" %"/>
+                                        </TextBlock>
+                                    </Grid>
+                                    <TextBlock Text="Brighten the expanded media blur without changing the notch body opacity."
+                                               Style="{StaticResource SettingHintText}"/>
+                                    <Slider x:Name="BlurBrightnessSlider"
+                                            Minimum="100"
+                                            Maximum="200"
+                                            Value="140"
+                                            TickFrequency="5"
+                                            IsSnapToTickEnabled="True"
+                                            ValueChanged="BlurBrightnessSlider_ValueChanged"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

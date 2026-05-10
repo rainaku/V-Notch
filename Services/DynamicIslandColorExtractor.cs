@@ -302,12 +302,25 @@ internal static class DynamicIslandColorExtractor
     /// Opacity curve for the main media background. Bright palettes are dimmed
     /// slightly so text remains readable on top of them.
     /// </summary>
-    public static double GetAdaptiveBlurOpacity(double luminance)
+    public static double GetAdaptiveBlurOpacity(double luminance, double brightnessBoost = 1.0)
     {
-        const double brightnessBoost = 1.4;
-        if (luminance <= 0.72) return Math.Min(1.0, 0.90 * brightnessBoost);
-        double t = Math.Clamp((luminance - 0.72) / 0.28, 0.0, 1.0);
-        return Math.Min(1.0, (0.90 - t * 0.18) * brightnessBoost);
+        brightnessBoost = Math.Clamp(brightnessBoost, 0.5, 2.0);
+        // Map boost 0.5–2.0 to base opacity range 0.35–1.0
+        // At boost=1.0 (100%), base opacity is ~0.65 (default visible level)
+        // At boost=2.0 (200%), base opacity is 1.0 (maximum brightness)
+        // At boost=0.5 (50%), base opacity is 0.35 (dim)
+        double baseOpacity;
+        if (luminance <= 0.72)
+        {
+            baseOpacity = 0.35 + (brightnessBoost - 0.5) * (0.65 / 1.5);
+        }
+        else
+        {
+            double t = Math.Clamp((luminance - 0.72) / 0.28, 0.0, 1.0);
+            double fullBase = 0.35 + (brightnessBoost - 0.5) * (0.65 / 1.5);
+            baseOpacity = fullBase - t * 0.15;
+        }
+        return Math.Clamp(baseOpacity, 0.0, 1.0);
     }
 
     /// <summary>

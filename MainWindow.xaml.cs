@@ -754,6 +754,10 @@ public partial class MainWindow : Window
         MediaBackground2.CornerRadius = cr;
         UpdateMediaBackgroundFootprint();
         this.Opacity = _settings.Opacity;
+        if (_currentMediaInfo != null)
+        {
+            UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
+        }
 
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;

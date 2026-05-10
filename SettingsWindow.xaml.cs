@@ -80,6 +80,7 @@ public partial class SettingsWindow : Window
         HeightSlider.Value = _settings.Height;
         RadiusSlider.Value = _settings.CornerRadius;
         OpacitySlider.Value = _settings.Opacity * 100;
+        BlurBrightnessSlider.Value = _settings.MediaBlurBrightnessBoost * 100;
 
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
@@ -118,6 +119,12 @@ public partial class SettingsWindow : Window
     {
         if (OpacityValue != null)
             OpacityValue.Text = ((int)e.NewValue).ToString();
+    }
+
+    private void BlurBrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (BlurBrightnessValue != null)
+            BlurBrightnessValue.Text = ((int)e.NewValue).ToString();
     }
 
     private void HoverDelaySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -185,6 +192,7 @@ public partial class SettingsWindow : Window
         HeightSlider.Value = defaults.Height;
         RadiusSlider.Value = defaults.CornerRadius;
         OpacitySlider.Value = defaults.Opacity * 100;
+        BlurBrightnessSlider.Value = defaults.MediaBlurBrightnessBoost * 100;
 
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
         HoverDelaySlider.Value = defaults.HoverExpandDelay;
@@ -216,6 +224,7 @@ public partial class SettingsWindow : Window
         _settings.Height = (int)HeightSlider.Value;
         _settings.CornerRadius = (int)RadiusSlider.Value;
         _settings.Opacity = OpacitySlider.Value / 100.0;
+        _settings.MediaBlurBrightnessBoost = BlurBrightnessSlider.Value / 100.0;
 
         _settings.EnableHoverExpand = HoverExpandCheck.IsChecked ?? true;
         _settings.HoverExpandDelay = (int)HoverDelaySlider.Value;

@@ -14,7 +14,7 @@ public static class SettingsMigrator
     
     
     
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     
     
@@ -47,6 +47,14 @@ public static class SettingsMigrator
                 if (!root.ContainsKey(nameof(NotchSettings.IsShelfUploadLimitUnlocked)))
                 {
                     root[nameof(NotchSettings.IsShelfUploadLimitUnlocked)] = false;
+                }
+                return root;
+            },
+            [2] = root =>
+            {
+                if (!root.ContainsKey(nameof(NotchSettings.MediaBlurBrightnessBoost)))
+                {
+                    root[nameof(NotchSettings.MediaBlurBrightnessBoost)] = 1.4;
                 }
                 return root;
             },

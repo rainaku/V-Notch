@@ -88,7 +88,7 @@ public partial class MainWindow
         };
 
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh))
-            ? DynamicIslandColorExtractor.GetAdaptiveBlurOpacity(dominantLuminance)
+            ? DynamicIslandColorExtractor.GetAdaptiveBlurOpacity(dominantLuminance, _settings.MediaBlurBrightnessBoost)
             : 0;
         int animationVersion = ++_mediaBackgroundAnimationVersion;
 
