@@ -14,7 +14,7 @@ public static class SettingsMigrator
     
     
     
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     
     
@@ -39,6 +39,14 @@ public static class SettingsMigrator
                 if (!root.ContainsKey(nameof(NotchSettings.HoverZoneMargin)))
                 {
                     root[nameof(NotchSettings.HoverZoneMargin)] = 60;
+                }
+                return root;
+            },
+            [1] = root =>
+            {
+                if (!root.ContainsKey(nameof(NotchSettings.IsShelfUploadLimitUnlocked)))
+                {
+                    root[nameof(NotchSettings.IsShelfUploadLimitUnlocked)] = false;
                 }
                 return root;
             },

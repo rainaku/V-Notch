@@ -27,6 +27,10 @@ namespace VNotch;
 
 public partial class MainWindow
 {
+    private const int DefaultShelfFileLimit = 30;
+    private const int UnlockedShelfFileLimit = 999;
+    private int MaxShelfFiles => _settings.IsShelfUploadLimitUnlocked ? UnlockedShelfFileLimit : DefaultShelfFileLimit;
+
     private bool _isSecondaryView = false;
     private DateTime _lastViewSwitchUtc = DateTime.MinValue;
     private static readonly TimeSpan ViewSwitchCooldown = TimeSpan.FromMilliseconds(600);
@@ -47,6 +51,7 @@ public partial class MainWindow
     private bool _wasSelectedOnMouseDown = false;
 
     private readonly Dictionary<string, FileSystemWatcher> _shelfWatchers = new();
+    private readonly HashSet<string> _pendingShelfFileSet = new(StringComparer.OrdinalIgnoreCase);
     private bool _isCameraSectionExpanded = false;
     private int _cameraSectionAnimToken = 0;
     private double _cameraSectionCompactWidth = 0;
@@ -55,46 +60,301 @@ public partial class MainWindow
 
     #region File Shelf Logic
 
+    private static readonly SolidColorBrush _brushShelfNormalBg = CreateFrozenBrush(26, 26, 26);
+    private static readonly SolidColorBrush _brushShelfActiveBg = CreateFrozenBrush(42, 42, 42);
+    private static readonly SolidColorBrush _brushShelfErrorBg = CreateFrozenBrush(56, 24, 24);
+    private static readonly SolidColorBrush _brushShelfNormalBorder = CreateFrozenBrush(51, 51, 51);
+    private static readonly SolidColorBrush _brushShelfActiveBorder = CreateFrozenBrush(153, 255, 255, 255);
+    private static readonly SolidColorBrush _brushShelfErrorBorder = CreateFrozenBrush(255, 107, 107);
+    private static readonly SolidColorBrush _brushShelfStatusWarning = CreateFrozenBrush(255, 196, 120);
+    private static readonly SolidColorBrush _brushShelfStatusError = CreateFrozenBrush(255, 107, 107);
+
+    private int PendingShelfFileCount => _pendingShelfFileSet.Count;
+    private int ShelfOccupiedSlots => _shelfFiles.Count + PendingShelfFileCount;
+    private int ShelfRemainingSlots => Math.Max(0, MaxShelfFiles - ShelfOccupiedSlots);
+    private bool IsShelfFull => ShelfOccupiedSlots >= MaxShelfFiles;
+
+    private void ResetShelfDropVisualState()
+    {
+        FileShelf.Background = _brushShelfNormalBg;
+        FileShelfDashedBorder.Stroke = _brushShelfNormalBorder;
+        FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 4, 3 };
+        UpdateShelfCapacityIndicator();
+    }
+
+    private void SetShelfDropAcceptVisualState()
+    {
+        FileShelf.Background = _brushShelfActiveBg;
+        FileShelfDashedBorder.Stroke = _brushShelfActiveBorder;
+        FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 2, 1 };
+        UpdateShelfCapacityIndicator();
+    }
+
+    private void SetShelfDropRejectVisualState(string message)
+    {
+        FileShelf.Background = _brushShelfErrorBg;
+        FileShelfDashedBorder.Stroke = _brushShelfErrorBorder;
+        FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 2, 1 };
+        UpdateShelfCapacityIndicator(message, isError: true);
+    }
+
+    private static readonly SolidColorBrush _brushShelfUnlockHintBg = CreateFrozenBrush(42, 36, 20);
+    private static readonly SolidColorBrush _brushShelfUnlockHintBorder = CreateFrozenBrush(255, 196, 120);
+
+    private void SetShelfDropUnlockHintVisualState()
+    {
+        FileShelf.Background = _brushShelfUnlockHintBg;
+        FileShelfDashedBorder.Stroke = _brushShelfUnlockHintBorder;
+        FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 2, 1 };
+        UpdateShelfCapacityIndicator("Drop to unlock upload limit", isError: false);
+    }
+
+    private void UpdateShelfCapacityIndicator(string? transientMessage = null, bool isError = false)
+    {
+        if (ShelfStatusText == null || ShelfPlaceholder == null || ShelfCountText == null)
+            return;
+
+        const string defaultPlaceholderText = "Drag files here for temporary storage";
+        int currentCount = _shelfFiles.Count + PendingShelfFileCount;
+
+        ShelfPlaceholder.Text = defaultPlaceholderText;
+        ShelfPlaceholder.Visibility = _shelfFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_settings.IsShelfUploadLimitUnlocked)
+        {
+            ShelfCountText.Text = $"{currentCount}";
+            ShelfCountText.Foreground = Brushes.White;
+        }
+        else
+        {
+            int displayCount = Math.Min(MaxShelfFiles, ShelfOccupiedSlots);
+            ShelfCountText.Text = $"{displayCount}/{DefaultShelfFileLimit}";
+            ShelfCountText.Foreground = IsShelfFull ? _brushShelfStatusWarning : Brushes.White;
+        }
+
+        if (!string.IsNullOrWhiteSpace(transientMessage))
+        {
+            ShelfStatusText.Text = transientMessage;
+            ShelfStatusText.Foreground = isError ? _brushShelfStatusError : _brushShelfStatusWarning;
+            ShelfStatusText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        if (IsShelfFull && !_settings.IsShelfUploadLimitUnlocked)
+        {
+            ShelfStatusText.Text = $"Shelf full ({currentCount}/{DefaultShelfFileLimit}). Remove files before adding more.";
+            ShelfStatusText.Foreground = _brushShelfStatusWarning;
+            ShelfStatusText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        ShelfStatusText.Visibility = Visibility.Collapsed;
+    }
+
+    private bool TryGetShelfDropFiles(DragEventArgs e, out string[] newFiles, out string rejectionMessage)
+    {
+        newFiles = Array.Empty<string>();
+        rejectionMessage = string.Empty;
+
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+            return false;
+
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] files || files.Length == 0)
+        {
+            rejectionMessage = "No files detected.";
+            return false;
+        }
+
+        newFiles = files
+            .Where(static f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(f => !_shelfFiles.Contains(f, StringComparer.OrdinalIgnoreCase))
+            .Where(f => !_pendingShelfFileSet.Contains(f))
+            .ToArray();
+
+        if (newFiles.Length == 0)
+        {
+            rejectionMessage = "These files are already on the shelf.";
+            return false;
+        }
+
+        // When limit is unlocked, allow any number of files
+        if (_settings.IsShelfUploadLimitUnlocked)
+        {
+            return true;
+        }
+
+        // Limit is locked: check if total would exceed the default limit
+        int totalAfterDrop = ShelfOccupiedSlots + newFiles.Length;
+        if (totalAfterDrop > DefaultShelfFileLimit)
+        {
+            rejectionMessage = $"UNLOCK_PROMPT:{newFiles.Length}";
+            return false;
+        }
+
+        if (ShelfRemainingSlots <= 0)
+        {
+            rejectionMessage = $"Shelf full ({Math.Min(MaxShelfFiles, ShelfOccupiedSlots)}/{MaxShelfFiles}). Remove files before adding more.";
+            return false;
+        }
+
+        if (newFiles.Length > ShelfRemainingSlots)
+        {
+            rejectionMessage = $"Shelf limit is {MaxShelfFiles} files. Only {ShelfRemainingSlots} slot(s) left.";
+            return false;
+        }
+
+        return true;
+    }
+
     private void FileShelf_DragEnter(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        if (TryGetShelfDropFiles(e, out _, out var rejectionMessage))
         {
             e.Effects = DragDropEffects.Copy;
-            FileShelf.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#2A2A2A")!;
-            FileShelfDashedBorder.Stroke = (SolidColorBrush)new BrushConverter().ConvertFrom("#99FFFFFF")!;
-            FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 2, 1 };
+            SetShelfDropAcceptVisualState();
         }
+        else if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            if (rejectionMessage.StartsWith("UNLOCK_PROMPT:"))
+            {
+                // Show a warning-style visual (not error) to hint that unlock is available
+                e.Effects = DragDropEffects.Copy;
+                SetShelfDropUnlockHintVisualState();
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+                SetShelfDropRejectVisualState(rejectionMessage);
+            }
+        }
+
+        e.Handled = true;
     }
 
     private void FileShelf_DragOver(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        if (TryGetShelfDropFiles(e, out _, out var rejectionMessage))
         {
             e.Effects = DragDropEffects.Copy;
+            SetShelfDropAcceptVisualState();
         }
+        else if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            if (rejectionMessage.StartsWith("UNLOCK_PROMPT:"))
+            {
+                e.Effects = DragDropEffects.Copy;
+                SetShelfDropUnlockHintVisualState();
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+                SetShelfDropRejectVisualState(rejectionMessage);
+            }
+        }
+
+        e.Handled = true;
     }
 
     private void FileShelf_DragLeave(object sender, DragEventArgs e)
     {
-        FileShelf.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#1A1A1A")!;
-        FileShelfDashedBorder.Stroke = (SolidColorBrush)new BrushConverter().ConvertFrom("#333333")!;
-        FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 4, 3 };
+        ResetShelfDropVisualState();
+        e.Handled = true;
     }
 
     private void FileShelf_Drop(object sender, DragEventArgs e)
     {
-        FileShelf.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#1A1A1A")!;
-        FileShelfDashedBorder.Stroke = (SolidColorBrush)new BrushConverter().ConvertFrom("#333333")!;
-        FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 4, 3 };
+        ResetShelfDropVisualState();
 
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        if (TryGetShelfDropFiles(e, out var newFiles, out var rejectionMessage))
         {
-            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            
-            var newFiles = files.Where(f => !_shelfFiles.Contains(f)).ToArray();
-            if (newFiles.Length > 0)
-                AddFilesToShelfSequential(newFiles);
+            AddFilesToShelfSequential(newFiles);
         }
+        else if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            if (rejectionMessage.StartsWith("UNLOCK_PROMPT:"))
+            {
+                var countStr = rejectionMessage.Substring("UNLOCK_PROMPT:".Length);
+                int fileCount = int.TryParse(countStr, out var c) ? c : 0;
+                ShowShelfUnlockBanner(fileCount, e);
+            }
+            else
+            {
+                SetShelfDropRejectVisualState(rejectionMessage);
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private string[]? _pendingUnlockFiles = null;
+
+    private void ShowShelfUnlockBanner(int fileCount, DragEventArgs e)
+    {
+        // Store the files for later if user unlocks
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
+        {
+            _pendingUnlockFiles = files
+                .Where(static f => !string.IsNullOrWhiteSpace(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(f => !_shelfFiles.Contains(f, StringComparer.OrdinalIgnoreCase))
+                .Where(f => !_pendingShelfFileSet.Contains(f))
+                .ToArray();
+        }
+
+        ShelfUnlockBanner.Visibility = Visibility.Visible;
+        ShelfCountText.Visibility = Visibility.Collapsed;
+        ShelfPlaceholder.Visibility = Visibility.Collapsed;
+        ShelfUnlockMessageText.Text = $"You're uploading {fileCount} files. The safe limit is {DefaultShelfFileLimit} files.\nIf you'd like to upload more, you can unlock the upload limit right here.";
+        ShelfUnlockSettingsHint.Visibility = Visibility.Visible;
+
+        // Animate in
+        ShelfUnlockBanner.Opacity = 0;
+        var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        ShelfUnlockBanner.BeginAnimation(OpacityProperty, fadeIn);
+    }
+
+    private void ShelfUnlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Unlock the limit permanently
+        _settings.IsShelfUploadLimitUnlocked = true;
+        _settingsService.Save(_settings);
+
+        // Hide the banner
+        HideShelfUnlockBanner();
+
+        // Process the pending files
+        if (_pendingUnlockFiles != null && _pendingUnlockFiles.Length > 0)
+        {
+            AddFilesToShelfSequential(_pendingUnlockFiles);
+            _pendingUnlockFiles = null;
+        }
+
+        UpdateShelfCapacityIndicator();
+    }
+
+    private void ShelfUnlockDismiss_Click(object sender, RoutedEventArgs e)
+    {
+        _pendingUnlockFiles = null;
+        HideShelfUnlockBanner();
+    }
+
+    private void HideShelfUnlockBanner()
+    {
+        var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(150))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+        };
+        fadeOut.Completed += (s, e) =>
+        {
+            ShelfUnlockBanner.Visibility = Visibility.Collapsed;
+            ShelfCountText.Visibility = Visibility.Visible;
+            UpdateShelfCapacityIndicator();
+        };
+        ShelfUnlockBanner.BeginAnimation(OpacityProperty, fadeOut);
     }
 
     
@@ -104,7 +364,18 @@ public partial class MainWindow
     private void AddFilesToShelfSequential(string[] filePaths)
     {
         foreach (var f in filePaths)
+        {
+            if (IsShelfFull)
+                break;
+
+            if (_shelfFiles.Contains(f, StringComparer.OrdinalIgnoreCase) || _pendingShelfFileSet.Contains(f))
+                continue;
+
             _pendingShelfFiles.Enqueue(f);
+            _pendingShelfFileSet.Add(f);
+        }
+
+        UpdateShelfCapacityIndicator();
 
         if (!_isAddingSequential)
             ProcessNextPendingFile();
@@ -120,12 +391,13 @@ public partial class MainWindow
 
         _isAddingSequential = true;
         var filePath = _pendingShelfFiles.Dequeue();
+        _pendingShelfFileSet.Remove(filePath);
 
-        if (!_shelfFiles.Contains(filePath))
+        if (!IsShelfFull && !_shelfFiles.Contains(filePath, StringComparer.OrdinalIgnoreCase))
         {
             _shelfFiles.Add(filePath);
-            ShelfPlaceholder.Visibility = Visibility.Collapsed;
             WatchShelfDirectory(filePath);
+            UpdateShelfCapacityIndicator();
 
             
             RefreshShelfLayout();
@@ -241,10 +513,10 @@ public partial class MainWindow
 
     private void AddFileToShelf(string filePath)
     {
-        if (_shelfFiles.Contains(filePath)) return;
+        if (IsShelfFull || _shelfFiles.Contains(filePath, StringComparer.OrdinalIgnoreCase)) return;
         _shelfFiles.Add(filePath);
-        ShelfPlaceholder.Visibility = Visibility.Collapsed;
         WatchShelfDirectory(filePath);
+        UpdateShelfCapacityIndicator();
         RefreshShelfLayout();
     }
 
@@ -690,10 +962,7 @@ public partial class MainWindow
                 }
 
                 RefreshShelfLayout();
-                if (_shelfFiles.Count == 0)
-                {
-                    ShelfPlaceholder.Visibility = Visibility.Visible;
-                }
+                UpdateShelfCapacityIndicator();
                 _isAnimating = false;
             });
             e.Handled = true;
@@ -862,11 +1131,7 @@ public partial class MainWindow
             _selectedFiles.Remove(filePath);
             UnwatchShelfDirectory(filePath);
             RefreshShelfLayout();
-
-            if (_shelfFiles.Count == 0)
-            {
-                ShelfPlaceholder.Visibility = Visibility.Visible;
-            }
+            UpdateShelfCapacityIndicator();
             _isAnimating = false;
         });
     }
@@ -923,9 +1188,7 @@ public partial class MainWindow
                 _selectedFiles.Remove(e.FullPath);
                 UnwatchShelfDirectory(e.FullPath);
                 RefreshShelfLayout();
-
-                if (_shelfFiles.Count == 0)
-                    ShelfPlaceholder.Visibility = Visibility.Visible;
+                UpdateShelfCapacityIndicator();
             });
         });
     }
@@ -946,6 +1209,7 @@ public partial class MainWindow
             UnwatchShelfDirectory(e.OldFullPath);
 
             RefreshShelfLayout();
+            UpdateShelfCapacityIndicator();
         });
     }
 

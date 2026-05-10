@@ -62,7 +62,7 @@
         <Style x:Key="TitleText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
             <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
@@ -74,7 +74,7 @@
         <Style x:Key="SubtitleText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#B3FFFFFF"/> 
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="Regular"/>
+            <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
             <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
@@ -86,7 +86,7 @@
         <Style x:Key="SmallText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#A6FFFFFF"/> 
             <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontWeight" Value="Regular"/>
+            <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
             <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
@@ -97,7 +97,7 @@
 
         <Style x:Key="ProgressTimeText" TargetType="TextBlock" BasedOn="{StaticResource SmallText}">
             <Setter Property="FontSize" Value="10.5"/>
-            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
             <Setter Property="Typography.NumeralStyle" Value="Lining"/>
         </Style>
@@ -523,7 +523,7 @@
                                                Style="{StaticResource SubtitleText}"
                                                FontSize="10.36"
                                                Foreground="#CCFFFFFF"
-                                               FontWeight="Regular"
+                                               FontWeight="Bold"
                                                VerticalAlignment="Center"/>
                                     <Grid Margin="4.51,0,0,0">
                                         <!-- Battery Body -->
@@ -834,14 +834,14 @@
                                         <TextBlock Text="{Binding Text, ElementName=MediaAppName}" 
                                                    Style="{StaticResource SubtitleText}"
                                                    FontSize="10"
-                                                   FontWeight="Regular"
+                                                   FontWeight="Bold"
                                                    Foreground="#80000000"
                                                    Margin="0,1,0,0" />
                                         <TextBlock x:Name="MediaAppName" 
                                                    Text="Now Playing" 
                                                    Style="{StaticResource SubtitleText}"
                                                    FontSize="10"
-                                                   FontWeight="Regular"
+                                                   FontWeight="Bold"
                                                    Foreground="White" />
                                      </Grid>
 
@@ -976,7 +976,7 @@
                                                         
                                                         <TextBlock Text="{Binding Text, ElementName=TrackArtist}"
                                                                    Style="{StaticResource SubtitleText}"
-                                                                   FontWeight="Regular"
+                                                                   FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
                                                         
@@ -984,7 +984,7 @@
                                                                     Text="Open Spotify or YouTube"
                                                                      Style="{StaticResource SubtitleText}"
                                                                     Foreground="#BFFFFFFF"
-                                                                    FontWeight="Regular" />
+                                                                    FontWeight="Bold" />
                                                      </Grid>
 
                                                      <Grid Opacity="{Binding Opacity, ElementName=TrackArtistNext}">
@@ -997,7 +997,7 @@
                                                         
                                                         <TextBlock Text="{Binding Text, ElementName=TrackArtistNext}"
                                                                    Style="{StaticResource SubtitleText}"
-                                                                   FontWeight="Regular"
+                                                                   FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
                                                         
@@ -1005,7 +1005,7 @@
                                                                     Text=""
                                                                      Style="{StaticResource SubtitleText}"
                                                                     Foreground="#BFFFFFFF"
-                                                                    FontWeight="Regular" />
+                                                                    FontWeight="Bold" />
                                                      </Grid>
                                                 </Grid>
                                             </Canvas>
@@ -1485,6 +1485,7 @@
                                            Text="Enjoy your day!"
                                            Style="{StaticResource SmallText}"
                                            FontSize="10"
+                                           FontWeight="Bold"
                                            Margin="6,0,0,0"
                                            VerticalAlignment="Center"
                                            HorizontalAlignment="Left"
@@ -1535,7 +1536,7 @@
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                         <Path Data="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" 
                                               Fill="White" Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="Camera" Style="{StaticResource SmallText}" FontWeight="Regular" Foreground="White" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Camera" Style="{StaticResource SmallText}" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1590,6 +1591,33 @@
                                            HorizontalAlignment="Center" 
                                            VerticalAlignment="Center"
                                            Style="{StaticResource SubtitleText}"/>
+
+                                <Border HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Margin="0,10,12,0"
+                                        Panel.ZIndex="10"
+                                        Background="#22000000"
+                                        BorderBrush="#2FFFFFFF"
+                                        BorderThickness="1"
+                                        CornerRadius="9"
+                                        Padding="7,3">
+                                    <TextBlock x:Name="ShelfCountText"
+                                               Text="0/30"
+                                               Style="{StaticResource SmallText}"
+                                               Foreground="White"/>
+                                </Border>
+
+                                <TextBlock x:Name="ShelfStatusText"
+                                           Text="Shelf full"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Top"
+                                           Margin="16,10,16,0"
+                                           Panel.ZIndex="10"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed"
+                                           Style="{StaticResource SmallText}"
+                                           Foreground="#FFC478"/>
 
                                 <ScrollViewer x:Name="ShelfScrollViewer" 
                                              Background="Transparent" 
@@ -1665,6 +1693,60 @@
                                         Background="Transparent">
                                     <Border x:Name="SelectionRect" Background="#24FFFFFF" BorderBrush="#99FFFFFF" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top" CornerRadius="3"/>
                                 </Canvas>
+
+                                <!-- Shelf Upload Limit Unlock Banner -->
+                                <Border x:Name="ShelfUnlockBanner"
+                                        Visibility="Collapsed"
+                                        Background="#E6181818"
+                                        CornerRadius="14"
+                                        Padding="16,12"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Panel.ZIndex="3000"
+                                        MaxWidth="340">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock x:Name="ShelfUnlockMessageText"
+                                                   Text=""
+                                                   Style="{StaticResource SubtitleText}"
+                                                   FontSize="11"
+                                                   Foreground="#FFC478"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   Margin="0,0,0,10"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Border Background="#333333"
+                                                    CornerRadius="8"
+                                                    Padding="12,6"
+                                                    Cursor="Hand"
+                                                    MouseLeftButtonDown="ShelfUnlockButton_Click"
+                                                    Margin="0,0,8,0">
+                                                <TextBlock Text="Unlock Limit"
+                                                           Foreground="#AAAAAA"
+                                                           FontSize="11"
+                                                           FontWeight="Bold"
+                                                           FontFamily="{StaticResource MainSystemFont}"/>
+                                            </Border>
+                                            <Border Background="#333333"
+                                                    CornerRadius="8"
+                                                    Padding="12,6"
+                                                    Cursor="Hand"
+                                                    MouseLeftButtonDown="ShelfUnlockDismiss_Click">
+                                                <TextBlock Text="Dismiss"
+                                                           Foreground="#AAAAAA"
+                                                           FontSize="11"
+                                                           FontWeight="Bold"
+                                                           FontFamily="{StaticResource MainSystemFont}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock x:Name="ShelfUnlockSettingsHint"
+                                                   Text="You can also customize this in Settings."
+                                                   Style="{StaticResource SmallText}"
+                                                   FontSize="9.5"
+                                                   Foreground="#777777"
+                                                   TextAlignment="Center"
+                                                   Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                </Border>
                             </Grid>
                         </Border>
                     </Grid>
@@ -1746,12 +1828,14 @@
                                    Text="Version v-"
                                    Foreground="#CCFFFFFF"
                                    FontSize="10.5"
+                                   FontWeight="Bold"
                                    Margin="0,4,0,0"
                                    FontFamily="{StaticResource MainSystemFont}"/>
                         <TextBlock x:Name="UpdateInlineHintText"
                                    Text="Click to download &amp; install"
                                    Foreground="#99FFFFFF"
                                    FontSize="9.5"
+                                   FontWeight="Bold"
                                    Margin="0,5,0,0"
                                    FontFamily="{StaticResource MainSystemFont}"/>
                     </StackPanel>

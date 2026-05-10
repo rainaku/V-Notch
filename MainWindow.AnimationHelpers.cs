@@ -206,20 +206,33 @@ public partial class MainWindow
 
     private void PlayButtonPressAnimation(Border button)
     {
-        var scaleDown = MakeAnim(1d, 0.9d, _dur80, null, null);
-        var scaleUp = new DoubleAnimation(0.9, 1, _dur100) { BeginTime = TimeSpan.FromMilliseconds(80) };
-
         var transform = button.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
         button.RenderTransform = transform;
+        button.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        transform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);
-        transform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDown);
+        // Cancel any in-progress animations
+        transform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        transform.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
-        scaleDown.Completed += (s, e) =>
+        // Phase 1: Quick squish down (haptic press feel)
+        var squish = MakeAnim(1d, 0.82d, _dur80, _easeQuadIn, null);
+
+        // Phase 2: Spring bounce back with overshoot (haptic release)
+        var bounce = new DoubleAnimation(0.82, 1.0, _dur250)
         {
-            transform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleUp);
-            transform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleUp);
+            EasingFunction = _easeHapticBounce,
+            BeginTime = TimeSpan.Zero
         };
+        Timeline.SetDesiredFrameRate(bounce, 120);
+
+        squish.Completed += (s, e) =>
+        {
+            transform.BeginAnimation(ScaleTransform.ScaleXProperty, bounce);
+            transform.BeginAnimation(ScaleTransform.ScaleYProperty, bounce);
+        };
+
+        transform.BeginAnimation(ScaleTransform.ScaleXProperty, squish);
+        transform.BeginAnimation(ScaleTransform.ScaleYProperty, squish);
     }
 
     private void PlayNextSkipAnimation()

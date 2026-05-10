@@ -1011,6 +1011,16 @@
                                                Margin="0,8,0,0"/>
                                 </StackPanel>
                             </Border>
+
+                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <CheckBox x:Name="ShelfUnlockCheck" Content="Unlock shelf upload limit"/>
+                                    <TextBlock Text="Remove the 30-file safety limit on the shelf."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,8,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
                     </StackPanel>

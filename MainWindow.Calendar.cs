@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -102,7 +103,7 @@ public partial class MainWindow
     private void ApplyCalendarCenterVisualState(int centerIdx)
     {
         var highlightedDate = _lastCalendarUpdate.AddDays(centerIdx - 5);
-        string newMonth = highlightedDate.ToString("MMM");
+        string newMonth = highlightedDate.ToString("MMM", CultureInfo.InvariantCulture);
 
         if (MonthText.Text != newMonth)
         {

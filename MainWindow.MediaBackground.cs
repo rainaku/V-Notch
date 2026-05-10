@@ -29,9 +29,16 @@ public partial class MainWindow
 
     private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
-        if (info == null || info.Thumbnail == null || !info.IsAnyMediaPlaying)
+        if (info == null || !info.IsAnyMediaPlaying)
         {
             HideMediaBackground();
+            return;
+        }
+
+        // If thumbnail is temporarily null (e.g., during fetch), keep current
+        // colors rather than flashing white. Only hide if no media is playing.
+        if (info.Thumbnail == null)
+        {
             return;
         }
 
@@ -446,6 +453,12 @@ public partial class MainWindow
 
     private void TitleGradientTimer_Tick(object? sender, EventArgs e)
     {
+        if (!_titleGradientRunning)
+        {
+            _titleGradientTimer?.Stop();
+            return;
+        }
+
         _titleGradientPhase += 0.012;
         if (_titleGradientPhase > 2.0) _titleGradientPhase -= 2.0;
 

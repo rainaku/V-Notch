@@ -27,6 +27,7 @@ internal static class AnimationPrimitives
     public static readonly ElasticEase _easeMenuSpring = Freeze(new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 4 });
     public static readonly ElasticEase _easeThumbSpring = Freeze(new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 6.5 });
     public static readonly SineEase _easeSineInOut = Freeze(new SineEase { EasingMode = EasingMode.EaseInOut });
+    public static readonly ElasticEase _easeHapticBounce = Freeze(new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 });
 
     private static T Freeze<T>(T easing) where T : Freezable
     {

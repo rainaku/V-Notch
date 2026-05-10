@@ -91,6 +91,7 @@ public partial class SettingsWindow : Window
         AutoStartCheck.IsChecked = StartupManager.IsAutoStartEnabled();
         MusicNotifyCheck.IsChecked = _settings.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = _settings.ShowSystemNotifications;
+        ShelfUnlockCheck.IsChecked = _settings.IsShelfUploadLimitUnlocked;
     }
 
     #region Slider Value Changed Handlers
@@ -190,6 +191,7 @@ public partial class SettingsWindow : Window
 
         MusicNotifyCheck.IsChecked = defaults.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = defaults.ShowSystemNotifications;
+        ShelfUnlockCheck.IsChecked = defaults.IsShelfUploadLimitUnlocked;
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -222,6 +224,7 @@ public partial class SettingsWindow : Window
         _settings.AutoStart = AutoStartCheck.IsChecked ?? false;
         _settings.ShowMusicNotifications = MusicNotifyCheck.IsChecked ?? true;
         _settings.ShowSystemNotifications = SystemNotifyCheck.IsChecked ?? true;
+        _settings.IsShelfUploadLimitUnlocked = ShelfUnlockCheck.IsChecked ?? false;
 
         _settingsService.Save(_settings);
 

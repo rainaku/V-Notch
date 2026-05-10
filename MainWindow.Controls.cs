@@ -38,6 +38,7 @@ public partial class MainWindow
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
 
+        PlayButtonPressAnimation(NextButton);
         PlayNextSkipAnimation();
 
         if (_currentMediaInfo?.IsVideoSource == true)
@@ -57,6 +58,7 @@ public partial class MainWindow
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
 
+        PlayButtonPressAnimation(PrevButton);
         PlayPrevSkipAnimation();
 
         if (_currentMediaInfo?.IsVideoSource == true)
@@ -106,6 +108,7 @@ public partial class MainWindow
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
 
+        PlayButtonPressAnimation(InlineNextButton);
         PlayNextSkipAnimation(InlineNextArrow0, InlineNextArrow1, InlineNextArrow2);
 
         if (_currentMediaInfo?.IsVideoSource == true)
@@ -125,6 +128,7 @@ public partial class MainWindow
         if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
         _lastMediaActionTime = DateTime.Now;
 
+        PlayButtonPressAnimation(InlinePrevButton);
         PlayPrevSkipAnimation(InlinePrevArrow0, InlinePrevArrow1, InlinePrevArrow2);
 
         if (_currentMediaInfo?.IsVideoSource == true)

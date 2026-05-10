@@ -203,11 +203,11 @@ public partial class MainWindow : Window
         _hoverThumbnailDelayTimer.Tick += (s, e) =>
         {
             _hoverThumbnailDelayTimer.Stop();
-            if (_settings.EnableHoverExpand && !_isExpanded && !_isAnimating && !_isMusicCompactMode)
+            if (_settings.EnableHoverExpand && !_isExpanded && !_isAnimating)
             {
                 ExpandNotch();
             }
-            else if (CompactThumbnailBorder.IsMouseOver)
+            else if (!_settings.EnableHoverExpand && CompactThumbnailBorder.IsMouseOver)
             {
                 SetCompactThumbnailHover(true);
             }
@@ -365,10 +365,20 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        // Unsubscribe instance events
         _notchManager.HoverService.HoverEnter -= HoverService_HoverEnter;
         _notchManager.HoverService.HoverLeave -= HoverService_HoverLeave;
+        _mediaService.MediaChanged -= OnMediaChanged;
+        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
+        _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
+
+        // Unsubscribe static events
+        InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
+
         _hwndSource?.RemoveHook(WndProc);
         StopZOrderWatchdog();
+        StopTitleGradientShift();
+        _progressTimer?.Stop();
         _mediaService?.Dispose();
         _notchManager?.Dispose();
         TrayIcon?.Dispose();
@@ -1126,6 +1136,14 @@ public partial class MainWindow : Window
         _hwndSource?.RemoveHook(WndProc);
         StopZOrderWatchdog();
 
+        // Unsubscribe events before shutdown
+        _mediaService.MediaChanged -= OnMediaChanged;
+        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
+        _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
+        InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
+
+        StopTitleGradientShift();
+        _progressTimer.Stop();
         _mediaService.Dispose();
         _notchManager.Dispose();
         TrayIcon.Dispose();

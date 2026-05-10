@@ -304,9 +304,10 @@ internal static class DynamicIslandColorExtractor
     /// </summary>
     public static double GetAdaptiveBlurOpacity(double luminance)
     {
-        if (luminance <= 0.72) return 0.90;
+        const double brightnessBoost = 1.4;
+        if (luminance <= 0.72) return Math.Min(1.0, 0.90 * brightnessBoost);
         double t = Math.Clamp((luminance - 0.72) / 0.28, 0.0, 1.0);
-        return 0.90 - t * 0.18;
+        return Math.Min(1.0, (0.90 - t * 0.18) * brightnessBoost);
     }
 
     /// <summary>

@@ -40,6 +40,8 @@ public class NotchSettings
     public bool ShowSystemNotifications { get; set; } = true;
     public int NotificationDuration { get; set; } = 5000; 
 
+    public bool IsShelfUploadLimitUnlocked { get; set; } = false;
+
     [JsonIgnore]
     public bool IsDirty { get; set; } = false;
 
@@ -70,7 +72,8 @@ public class NotchSettings
             NotchStyle = NotchStyle,
             ShowMusicNotifications = ShowMusicNotifications,
             ShowSystemNotifications = ShowSystemNotifications,
-            NotificationDuration = NotificationDuration
+            NotificationDuration = NotificationDuration,
+            IsShelfUploadLimitUnlocked = IsShelfUploadLimitUnlocked
         };
     }
 }

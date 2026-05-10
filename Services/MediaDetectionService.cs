@@ -1467,8 +1467,13 @@ public class MediaDetectionService : IMediaDetectionService
                                 ClearSessionSourceOverride(sessionInstanceKey, sourceApp);
 
                                 _lastTrackSignature = "";
-                                _cachedThumbnail = null;
-                                _cachedThumbnailSource = "";
+                                // Only clear thumbnail cache if this is a different session
+                                // starting playback — not the current active session resuming.
+                                if (!ReferenceEquals(s, _activeDisplaySession))
+                                {
+                                    _cachedThumbnail = null;
+                                    _cachedThumbnailSource = "";
+                                }
                             }
 
                             _sessionPlayingStates[sessionInstanceKey] = isActive;
@@ -2115,8 +2120,16 @@ public class MediaDetectionService : IMediaDetectionService
 
             bool isYouTubeLikeSource = info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info));
             bool hasVerifiedYouTubeThumb = string.Equals(_cachedThumbnailSource, "YouTube", StringComparison.OrdinalIgnoreCase);
+            bool hasVerifiedSoundCloudThumbGlobal = string.Equals(_cachedThumbnailSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
             if (!forceRefresh && currentSignature == _lastTrackSignature && _cachedThumbnail != null)
             {
+                info.Thumbnail = _cachedThumbnail;
+            }
+            else if (!trackChangedForThisPass && _cachedThumbnail != null &&
+                     (hasVerifiedYouTubeThumb || hasVerifiedSoundCloudThumbGlobal))
+            {
+                // Same track, already have a verified high-quality thumbnail from
+                // YouTube/SoundCloud API — don't let the SMTC thumbnail overwrite it.
                 info.Thumbnail = _cachedThumbnail;
             }
             else
