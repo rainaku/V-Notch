@@ -15,206 +15,18 @@ using VNotch.Services;
 using VNotch.Models;
 using VNotch.Modules;
 using VNotch.Contracts;
+using static VNotch.Services.Win32Interop;
+using POINT = VNotch.Services.Win32Interop.POINT;
+using RECT = VNotch.Services.Win32Interop.RECT;
+using WINDOWPOS = VNotch.Services.Win32Interop.WINDOWPOS;
+using MONITORINFO = VNotch.Services.Win32Interop.MONITORINFO;
+using WINDOWPLACEMENT = VNotch.Services.Win32Interop.WINDOWPLACEMENT;
+using WinEventDelegate = VNotch.Services.Win32Interop.WinEventDelegate;
+using EnumWindowsProc = VNotch.Services.Win32Interop.EnumWindowsProc;
 namespace VNotch;
 
 public partial class MainWindow : Window
 {
-    #region Win32 API
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-    [DllImport("user32.dll")]
-    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-
-    [DllImport("user32.dll")]
-    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-    [DllImport("user32.dll")]
-    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int vKey);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetCursorPos(out POINT lpPoint);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr WindowFromPoint(POINT point);
-
-    [DllImport("user32.dll")]
-    private static extern uint GetDoubleClickTime();
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SetWinEventHook(
-        uint eventMin,
-        uint eventMax,
-        IntPtr hmodWinEventProc,
-        WinEventDelegate lpfnWinEventProc,
-        uint idProcess,
-        uint idThread,
-        uint dwFlags);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
-
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool IsWindowVisible(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool IsIconic(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT lpwndpl);
-
-    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern int GetWindowTextLength(IntPtr hWnd);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
-
-    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
-    private static extern int DwmGetWindowAttributeRect(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
-
-    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
-    private static extern int DwmGetWindowAttributeInt(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
-
-    private const uint GW_HWNDPREV = 3;
-    private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
-    private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
-    private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
-    private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
-
-    private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-    private const uint SWP_NOMOVE = 0x0002;
-    private const uint SWP_NOSIZE = 0x0001;
-    private const uint SWP_NOACTIVATE = 0x0010;
-    private const uint SWP_SHOWWINDOW = 0x0040;
-    private const int GWL_STYLE = -16;
-    private const int GWL_EXSTYLE = -20;
-    private const int SW_RESTORE = 9;
-    private const int SW_SHOW = 5;
-    private const int WS_CAPTION = 0x00C00000;
-    private const int WS_THICKFRAME = 0x00040000;
-    private const int WS_EX_TOOLWINDOW = 0x00000080;
-    private const int WS_EX_TOPMOST = 0x00000008;
-    private const int WS_EX_NOACTIVATE = 0x08000000;
-    private const int WS_EX_LAYERED = 0x00080000;
-    private const int WM_WINDOWPOSCHANGING = 0x0046;
-    private const int WM_ACTIVATE = 0x0006;
-    private const int WM_ACTIVATEAPP = 0x001C;
-    private const int WM_DISPLAYCHANGE = 0x007E;
-    private const byte VK_MEDIA_PLAY_PAUSE = 0xB3;
-    private const byte VK_MEDIA_NEXT_TRACK = 0xB0;
-    private const byte VK_MEDIA_PREV_TRACK = 0xB1;
-    private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
-    private const uint KEYEVENTF_KEYUP = 0x0002;
-    private const int VK_LBUTTON = 0x01;
-    private const int SW_SHOWMAXIMIZED = 3;
-    private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
-    private const int DWMWA_CLOAKED = 14;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WINDOWPOS
-    {
-        public IntPtr hwnd;
-        public IntPtr hwndInsertAfter;
-        public int x;
-        public int y;
-        public int cx;
-        public int cy;
-        public uint flags;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct POINT
-    {
-        public int X;
-        public int Y;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct MONITORINFO
-    {
-        public int cbSize;
-        public RECT rcMonitor;
-        public RECT rcWork;
-        public uint dwFlags;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WINDOWPLACEMENT
-    {
-        public int length;
-        public int flags;
-        public int showCmd;
-        public POINT ptMinPosition;
-        public POINT ptMaxPosition;
-        public RECT rcNormalPosition;
-    }
-
-    private delegate void WinEventDelegate(
-        IntPtr hWinEventHook,
-        uint eventType,
-        IntPtr hwnd,
-        int idObject,
-        int idChild,
-        uint idEventThread,
-        uint dwmsEventTime);
-
-    #endregion
-
     #region Fields
 
     private readonly SettingsService _settingsService;
@@ -787,7 +599,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (force || GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero)
+        if (force || Win32Interop.GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero)
         {
             _lastTopmostAssertUtc = now;
             SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
@@ -898,7 +710,7 @@ public partial class MainWindow : Window
         }
 
         var burstActive = DateTime.UtcNow <= _zOrderBurstUntilUtc;
-        var hasWindowAbove = GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero;
+        var hasWindowAbove = Win32Interop.GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero;
 
         if (burstActive || hasWindowAbove)
         {

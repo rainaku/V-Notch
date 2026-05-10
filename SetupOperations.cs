@@ -1,0 +1,296 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Threading.Tasks;
+using System.Windows;
+using Microsoft.Win32;
+
+namespace VNotch;
+
+internal sealed record SetupInstallOptions(
+    string SourceDirectory,
+    string InstallDirectory,
+    bool StartWithWindows);
+
+internal sealed record SetupProgressInfo(
+    string StatusText,
+    int CurrentStep = 0,
+    int TotalSteps = 0,
+    bool IsIndeterminate = false);
+
+internal static class SetupOperations
+{
+    private const string AppName = "V-Notch";
+    private const string AppExeName = "V-Notch.exe";
+    private const string Publisher = "rainaku";
+    private const string AppUrl = "https://github.com/rainaku/V-Notch";
+    private const string Version = "1.6";
+
+    public static async Task InstallAsync(SetupInstallOptions options, Action<SetupProgressInfo> reportProgress)
+    {
+        await Task.Run(() =>
+        {
+            var sourceDirectory = Path.GetFullPath(options.SourceDirectory);
+            var installDirectory = Path.GetFullPath(options.InstallDirectory);
+            var sourceExePath = Path.Combine(sourceDirectory, AppExeName);
+            if (!Directory.Exists(sourceDirectory))
+            {
+                throw new DirectoryNotFoundException($"Setup source folder was not found: {sourceDirectory}");
+            }
+
+            if (!File.Exists(sourceExePath))
+            {
+                throw new FileNotFoundException($"Setup source is missing {AppExeName}.", sourceExePath);
+            }
+
+            reportProgress(new SetupProgressInfo("Closing running V-Notch instances...", IsIndeterminate: true));
+            StopOtherRunningInstances();
+
+            reportProgress(new SetupProgressInfo("Preparing installation folder...", IsIndeterminate: true));
+            Directory.CreateDirectory(installDirectory);
+
+            var files = Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories);
+            if (files.Length == 0)
+            {
+                throw new InvalidOperationException("No install files were found in the setup payload.");
+            }
+
+            for (int i = 0; i < files.Length; i++)
+            {
+                var sourceFile = files[i];
+                var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
+                var destinationFile = Path.Combine(installDirectory, relativePath);
+                var destinationFolder = Path.GetDirectoryName(destinationFile);
+
+                if (!string.IsNullOrEmpty(destinationFolder))
+                {
+                    Directory.CreateDirectory(destinationFolder);
+                }
+
+                File.Copy(sourceFile, destinationFile, overwrite: true);
+                reportProgress(new SetupProgressInfo(
+                    $"Installing {relativePath}...",
+                    i + 1,
+                    files.Length));
+            }
+
+            var installedExePath = Path.Combine(installDirectory, AppExeName);
+            reportProgress(new SetupProgressInfo("Creating shortcuts...", files.Length, files.Length));
+            CreateShortcuts(installedExePath, installDirectory);
+
+            reportProgress(new SetupProgressInfo("Saving startup preference...", files.Length, files.Length));
+            ConfigureStartup(installedExePath, options.StartWithWindows);
+
+            reportProgress(new SetupProgressInfo("Registering uninstall information...", files.Length, files.Length));
+            RegisterUninstall(installedExePath, installDirectory);
+        });
+    }
+
+    public static void LaunchInstalledApp(string installDirectory)
+    {
+        var installedExePath = Path.Combine(installDirectory, AppExeName);
+        if (!File.Exists(installedExePath))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo(installedExePath)
+        {
+            UseShellExecute = true,
+            WorkingDirectory = installDirectory
+        });
+    }
+
+    public static void RunUninstallFlow()
+    {
+        var installDirectory = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var installedExePath = Path.Combine(installDirectory, AppExeName);
+
+        var confirmation = MessageBox.Show(
+            "Remove V-Notch from this computer?",
+            "Uninstall V-Notch",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            Application.Current.Shutdown(1);
+            return;
+        }
+
+        RemoveStartupRegistration();
+        RemoveUninstallRegistration();
+        RemoveShortcuts();
+
+        var cleanupScriptPath = Path.Combine(
+            Path.GetTempPath(),
+            $"v-notch-uninstall-{Guid.NewGuid():N}.cmd");
+
+        var scriptContents = string.Join(Environment.NewLine, new[]
+        {
+            "@echo off",
+            "setlocal",
+            "timeout /t 2 /nobreak >nul",
+            $"rmdir /S /Q \"{installDirectory}\"",
+            $"del /Q \"{cleanupScriptPath}\""
+        });
+
+        File.WriteAllText(cleanupScriptPath, scriptContents);
+
+        Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"{cleanupScriptPath}\"")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            WorkingDirectory = Path.GetTempPath()
+        });
+
+        Application.Current.Shutdown(0);
+    }
+
+    private static void StopOtherRunningInstances()
+    {
+        var currentProcessId = Environment.ProcessId;
+        foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(AppExeName)))
+        {
+            try
+            {
+                if (process.Id == currentProcessId)
+                {
+                    continue;
+                }
+
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(5000);
+            }
+            catch
+            {
+                // Ignore processes we couldn't close; file copy will surface any real issue.
+            }
+        }
+    }
+
+    private static void ConfigureStartup(string installedExePath, bool startWithWindows)
+    {
+        using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+        if (runKey == null)
+        {
+            throw new InvalidOperationException("Unable to open the Windows startup registry key.");
+        }
+
+        if (startWithWindows)
+        {
+            runKey.SetValue(AppName, $"\"{installedExePath}\"");
+        }
+        else
+        {
+            runKey.DeleteValue(AppName, false);
+        }
+    }
+
+    private static void RegisterUninstall(string installedExePath, string installDirectory)
+    {
+        using var uninstallKey = Registry.LocalMachine.CreateSubKey(
+            $@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{AppName}");
+
+        if (uninstallKey == null)
+        {
+            throw new InvalidOperationException("Unable to write uninstall information to the registry.");
+        }
+
+        uninstallKey.SetValue("DisplayName", AppName);
+        uninstallKey.SetValue("DisplayVersion", Version);
+        uninstallKey.SetValue("Publisher", Publisher);
+        uninstallKey.SetValue("URLInfoAbout", AppUrl);
+        uninstallKey.SetValue("DisplayIcon", installedExePath);
+        uninstallKey.SetValue("InstallLocation", installDirectory);
+        uninstallKey.SetValue("UninstallString", $"\"{installedExePath}\" --uninstall");
+        uninstallKey.SetValue("QuietUninstallString", $"\"{installedExePath}\" --uninstall");
+
+        using var appKey = Registry.CurrentUser.CreateSubKey($@"Software\{AppName}");
+        appKey?.SetValue("InstallDir", installDirectory);
+    }
+
+    private static void RemoveUninstallRegistration()
+    {
+        Registry.LocalMachine.DeleteSubKeyTree(
+            $@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{AppName}",
+            throwOnMissingSubKey: false);
+        Registry.CurrentUser.DeleteSubKeyTree($@"Software\{AppName}", throwOnMissingSubKey: false);
+    }
+
+    private static void RemoveStartupRegistration()
+    {
+        using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+        runKey?.DeleteValue(AppName, false);
+    }
+
+    private static void CreateShortcuts(string installedExePath, string installDirectory)
+    {
+        var desktopShortcutPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+            $"{AppName}.lnk");
+
+        var startMenuDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+            AppName);
+        Directory.CreateDirectory(startMenuDirectory);
+
+        var startMenuShortcutPath = Path.Combine(startMenuDirectory, $"{AppName}.lnk");
+
+        CreateShortcut(desktopShortcutPath, installedExePath, installDirectory);
+        CreateShortcut(startMenuShortcutPath, installedExePath, installDirectory);
+    }
+
+    private static void RemoveShortcuts()
+    {
+        var desktopShortcutPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+            $"{AppName}.lnk");
+        if (File.Exists(desktopShortcutPath))
+        {
+            File.Delete(desktopShortcutPath);
+        }
+
+        var startMenuDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+            AppName);
+        var startMenuShortcutPath = Path.Combine(startMenuDirectory, $"{AppName}.lnk");
+        if (File.Exists(startMenuShortcutPath))
+        {
+            File.Delete(startMenuShortcutPath);
+        }
+
+        if (Directory.Exists(startMenuDirectory))
+        {
+            Directory.Delete(startMenuDirectory, recursive: true);
+        }
+    }
+
+    private static void CreateShortcut(string shortcutPath, string targetPath, string workingDirectory)
+    {
+        var shellType = Type.GetTypeFromProgID("WScript.Shell");
+        if (shellType == null)
+        {
+            throw new InvalidOperationException("Windows Script Host is unavailable for creating shortcuts.");
+        }
+
+        dynamic shell = Activator.CreateInstance(shellType)!;
+        try
+        {
+            dynamic shortcut = shell.CreateShortcut(shortcutPath);
+            shortcut.TargetPath = targetPath;
+            shortcut.WorkingDirectory = workingDirectory;
+            shortcut.IconLocation = targetPath;
+            shortcut.Description = AppName;
+            shortcut.Save();
+        }
+        finally
+        {
+            if (shell is not null)
+            {
+                System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
+            }
+        }
+    }
+}

@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using VNotch.Services;
 using VNotch.Models;
+using static VNotch.Services.Win32Interop;
 
 namespace VNotch;
 

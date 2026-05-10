@@ -2,6 +2,7 @@ using System.Windows;
 using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using VNotch.Services;
+using System.Linq;
 
 namespace VNotch;
 
@@ -17,12 +18,19 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // Check for --setup argument to launch setup window
-        if (e.Args.Length > 0 && e.Args[0] == "--setup")
+        var setupSource = TryGetArgumentValue(e.Args, "--setup-source");
+        var launchSetup = e.Args.Contains("--setup") || !string.IsNullOrWhiteSpace(setupSource);
+        if (launchSetup)
         {
-            var setupWindow = new SetupWindow();
+            var setupWindow = new SetupWindow(setupSource);
             setupWindow.ShowDialog();
-            Shutdown();
+            Shutdown(setupWindow.ResultExitCode);
+            return;
+        }
+
+        if (e.Args.Contains("--uninstall"))
+        {
+            SetupOperations.RunUninstallFlow();
             return;
         }
         
@@ -91,5 +99,30 @@ public partial class App : Application
         _mutex?.ReleaseMutex();
         _mutex?.Dispose();
         base.OnExit(e);
+    }
+
+    private static string? TryGetArgumentValue(string[] args, string argumentName)
+    {
+        for (int i = 0; i < args.Length; i++)
+        {
+            var argument = args[i];
+            if (string.Equals(argument, argumentName, StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < args.Length)
+                {
+                    return args[i + 1];
+                }
+
+                return null;
+            }
+
+            var prefix = argumentName + "=";
+            if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return argument[prefix.Length..];
+            }
+        }
+
+        return null;
     }
 }

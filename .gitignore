@@ -56,3 +56,4 @@ V-Notch-Setup.nsi
 *.sqlite
 /.vs
 test-setup.ps1
+/release-debug

@@ -16,10 +16,10 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     
-    <Version>1.6.1</Version>
-    <AssemblyVersion>1.6.1.0</AssemblyVersion>
-    <FileVersion>1.6.1.0</FileVersion>
-    <InformationalVersion>1.6.1 Stable release</InformationalVersion>
+    <Version>1.6</Version>
+    <AssemblyVersion>1.6.0.0</AssemblyVersion>
+    <FileVersion>1.6.0.0</FileVersion>
+    <InformationalVersion>1.6 Stable release</InformationalVersion>
     <Authors>rainaku</Authors>
     <Company>V-Notch</Company>
     <Product>V-Notch</Product>
@@ -61,6 +61,12 @@
     <Resource Include="Services\icons\twitter.svg" />
     <Resource Include="Services\icons\youtube.svg" />
     <Resource Include="logo.ico" />
+    <Resource Include="Assets\logo.png" />
+    <Resource Include="Assets\finish-check.svg" />
+    <Resource Include="Assets\pause-button.svg" />
+    <Resource Include="Assets\play-button.svg" />
+    <Resource Include="Assets\play-and-pause.svg" />
+    <Resource Include="Assets\update-button.svg" />
   </ItemGroup>
 
 </Project>

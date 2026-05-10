@@ -8,6 +8,8 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using VNotch.Models;
 using VNotch.Services;
+using static VNotch.Services.Win32Interop;
+using POINT = VNotch.Services.Win32Interop.POINT;
 namespace VNotch;
 
 public partial class MainWindow
