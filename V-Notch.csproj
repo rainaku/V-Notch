@@ -29,7 +29,7 @@
     <RepositoryUrl>https://github.com/rainaku/V-Notch</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <Description>MacOS Notch for Windows - A beautiful and functional notch for your desktop</Description>
-    <ApplicationIcon>logo.ico</ApplicationIcon>
+    <ApplicationIcon>Services\icons\logo.ico</ApplicationIcon>
     
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
@@ -61,6 +61,10 @@
     <Resource Include="Services\icons\twitter.svg" />
     <Resource Include="Services\icons\youtube.svg" />
     <Resource Include="logo.ico" />
+    <None Include="Services\icons\logo.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>logo.ico</Link>
+    </None>
     <Resource Include="Assets\logo.png" />
     <Resource Include="Assets\finish-check.svg" />
     <Resource Include="Assets\pause-button.svg" />

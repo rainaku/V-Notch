@@ -3,5 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
+        <!-- Embedded SF Pro Display font - works on all machines without SF Pro installed -->
+        <FontFamily x:Key="SFProDisplay">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
+        <!-- SF Pro Text maps to Display since we only ship Display weights -->
+        <FontFamily x:Key="SFProText">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
     </Application.Resources>
 </Application>
