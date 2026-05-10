@@ -2186,7 +2186,7 @@ public class MediaDetectionService : IMediaDetectionService
                              chosenPosition.TotalSeconds > duration.TotalSeconds * 0.2);
                         bool staleTimelineAtTrackStart = timelineAge > TimeSpan.FromMilliseconds(900);
 
-                        if (suspiciousCarryOverPosition || staleTimelineAtTrackStart)
+                        if (suspiciousCarryOverPosition && staleTimelineAtTrackStart)
                         {
                             chosenPosition = TimeSpan.Zero;
                             forceStartPosition = true;
@@ -2203,11 +2203,29 @@ public class MediaDetectionService : IMediaDetectionService
                     {
                         var nowUpdatedUtc = DateTimeOffset.UtcNow;
                         var timelineLatency = nowUpdatedUtc - rawTimelineUpdatedUtc;
+                        var maxCompensationWindow = TimeSpan.FromSeconds(15);
+                        if (isBrowserTimelineTrack)
+                        {
+                            if (isInitialOrBigChange)
+                            {
+                                var durationWindow = duration > TimeSpan.Zero
+                                    ? duration + TimeSpan.FromSeconds(5)
+                                    : TimeSpan.FromMinutes(10);
+                                maxCompensationWindow = durationWindow < TimeSpan.FromHours(4)
+                                    ? durationWindow
+                                    : TimeSpan.FromHours(4);
+                            }
+                            else
+                            {
+                                maxCompensationWindow = TimeSpan.FromMinutes(2);
+                            }
+                        }
+
                         bool validTimelineTimestamp =
                             rawTimelineUpdatedUtc > DateTimeOffset.MinValue &&
                             rawTimelineUpdatedUtc <= nowUpdatedUtc.AddMilliseconds(250) &&
                             timelineLatency >= TimeSpan.Zero &&
-                            timelineLatency < TimeSpan.FromSeconds(15);
+                            timelineLatency <= maxCompensationWindow;
 
                         if (validTimelineTimestamp && timelineLatency.TotalMilliseconds > 100)
                         {

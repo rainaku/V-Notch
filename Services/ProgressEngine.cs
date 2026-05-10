@@ -90,6 +90,7 @@ public class ProgressEngine
             DateTime snapshotTsUtc = snapshot.Timestamp.Kind == DateTimeKind.Utc
                 ? snapshot.Timestamp
                 : snapshot.Timestamp.ToUniversalTime();
+            TimeSpan effectiveSnapshotPosition = GetEffectiveSnapshotPosition(snapshot, snapshotTsUtc, nowUtc);
 
             
             
@@ -124,7 +125,7 @@ public class ProgressEngine
             if (_baseTimeUtc != DateTime.MinValue && _isPlaying && _duration > TimeSpan.Zero)
             {
                 var currentPredicted = PredictPosition(nowUtc);
-                var snapshotPredicted = snapshot.Position + TimeSpan.FromSeconds((nowUtc - snapshotTsUtc).TotalSeconds * snapshot.PlaybackRate);
+                var snapshotPredicted = effectiveSnapshotPosition;
                 var backwardDiff = currentPredicted - snapshotPredicted;
                 
                 
@@ -135,7 +136,7 @@ public class ProgressEngine
                 // User seek detection: large backward jump in position
                 // Must be more tolerant than backward threshold to avoid false rejections
                 bool likelyUserSeekBackward = backwardDiff.TotalSeconds > 5.0 && 
-                    Math.Abs((snapshot.Position - _basePosition).TotalSeconds) > 5.0;
+                    Math.Abs((effectiveSnapshotPosition - _basePosition).TotalSeconds) > 5.0;
                 
                 // Platform-aware backward threshold
                 // Browser sources have higher latency but need balance
@@ -205,7 +206,7 @@ public class ProgressEngine
             if (durationChanged && snapshot.IsPlaying)
             {
                 TimeSpan predictedAtDurationChange = ClampPosition(PredictPosition(nowUtc));
-                bool likelyTrackRestart = snapshot.Position.TotalSeconds <=
+                bool likelyTrackRestart = effectiveSnapshotPosition.TotalSeconds <=
                     Math.Min(5.0, _duration.TotalSeconds > 0 ? _duration.TotalSeconds * 0.15 : 5.0);
                 bool predictedOutsideNewDuration =
                     _duration.TotalSeconds > 0 &&
@@ -213,7 +214,7 @@ public class ProgressEngine
 
                 if (likelyTrackRestart || predictedOutsideNewDuration)
                 {
-                    TimeSpan resetPos = ClampPosition(snapshot.Position);
+                    TimeSpan resetPos = ClampPosition(effectiveSnapshotPosition);
                     _basePosition = resetPos;
                     _baseTimeUtc = nowUtc;
                     _isPlaying = true;
@@ -296,7 +297,7 @@ public class ProgressEngine
             
             if (!_isPlaying || (_state != ProgressState.Playing && _state != ProgressState.Seeking))
             {
-                TimeSpan startPos = ClampPosition(snapshot.Position);
+                TimeSpan startPos = ClampPosition(effectiveSnapshotPosition);
                 if (_state == ProgressState.Paused && startPos < _basePosition - ResumeBackstepTolerance)
                 {
                     startPos = _basePosition;
@@ -328,7 +329,7 @@ public class ProgressEngine
                 _seekPauseGraceUntilUtc = DateTime.MinValue;
             }
 
-            TimeSpan observedPos = ClampPosition(snapshot.Position);
+            TimeSpan observedPos = ClampPosition(effectiveSnapshotPosition);
             TimeSpan predictedNow = ClampPosition(PredictPosition(nowUtc));
             TimeSpan diff = observedPos - predictedNow;
             double absDiffSeconds = Math.Abs(diff.TotalSeconds);
@@ -390,6 +391,57 @@ public class ProgressEngine
             _pendingPauseConfirmation = false;
             _pendingPauseStartedUtc = DateTime.MinValue;
         }
+    }
+
+    private static TimeSpan GetEffectiveSnapshotPosition(ProgressSnapshot snapshot, DateTime snapshotTsUtc, DateTime nowUtc)
+    {
+        TimeSpan effectivePosition = snapshot.Position;
+
+        if (!snapshot.IsPlaying || !snapshot.IsYouTube)
+        {
+            return effectivePosition;
+        }
+
+        if (snapshotTsUtc == DateTime.MinValue || snapshotTsUtc > nowUtc.AddMilliseconds(250))
+        {
+            return effectivePosition;
+        }
+
+        TimeSpan snapshotAge = nowUtc - snapshotTsUtc;
+        if (snapshotAge <= TimeSpan.FromMilliseconds(100))
+        {
+            return effectivePosition;
+        }
+
+        TimeSpan maxCompensationWindow = TimeSpan.FromMinutes(2);
+        if (snapshot.Duration > TimeSpan.Zero)
+        {
+            TimeSpan durationWindow = snapshot.Duration + TimeSpan.FromSeconds(5);
+            maxCompensationWindow = durationWindow < TimeSpan.FromHours(4)
+                ? durationWindow
+                : TimeSpan.FromHours(4);
+        }
+
+        if (snapshotAge > maxCompensationWindow)
+        {
+            return effectivePosition;
+        }
+
+        double playbackRate = snapshot.PlaybackRate;
+        if (double.IsNaN(playbackRate) || double.IsInfinity(playbackRate) || playbackRate <= 0)
+        {
+            playbackRate = 1.0;
+        }
+
+        playbackRate = Math.Clamp(playbackRate, 0.5, 2.5);
+        effectivePosition += TimeSpan.FromSeconds(snapshotAge.TotalSeconds * playbackRate);
+
+        if (snapshot.Duration > TimeSpan.Zero && effectivePosition > snapshot.Duration)
+        {
+            effectivePosition = snapshot.Duration;
+        }
+
+        return effectivePosition;
     }
 
     public void Reset()

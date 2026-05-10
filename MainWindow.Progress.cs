@@ -432,7 +432,7 @@ public partial class MainWindow
 
         var updatedUtc = info.LastUpdated.ToUniversalTime();
         var nowUtc = DateTimeOffset.UtcNow;
-        if (updatedUtc > nowUtc || (nowUtc - updatedUtc).TotalSeconds > 2.0)
+        if (updatedUtc > nowUtc.AddMilliseconds(250))
         {
             info.LastUpdated = nowUtc;
         }
