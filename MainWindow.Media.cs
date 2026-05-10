@@ -238,6 +238,11 @@ public partial class MainWindow
 
     private void AnimateThumbnailSwitchOnly(ImageSource newThumb)
     {
+        if (_isAnimating)
+        {
+            CancelThumbnailSwitchAnimations(newThumb);
+            return;
+        }
 
         var halfDur = TimeSpan.FromMilliseconds(180);
         var totalDur = TimeSpan.FromMilliseconds(360);
@@ -295,6 +300,34 @@ public partial class MainWindow
             ThumbnailImage.Source = newThumb;
             CompactThumbnail.Source = newThumb;
         };
+    }
+
+    private void CancelThumbnailSwitchAnimations(ImageSource? targetThumb = null)
+    {
+        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+
+        ThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+
+        ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
+        CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
+
+        ThumbnailFlip.ScaleX = 1.0;
+        CompactThumbnailFlip.ScaleX = 1.0;
+        ThumbnailScale.ScaleX = 1.0;
+        ThumbnailScale.ScaleY = 1.0;
+        CompactThumbnailScale.ScaleX = 1.0;
+        CompactThumbnailScale.ScaleY = 1.0;
+
+        var resolvedThumb = targetThumb ?? _currentMediaInfo?.Thumbnail ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
+        if (resolvedThumb != null)
+        {
+            ThumbnailImage.Source = resolvedThumb;
+            CompactThumbnail.Source = resolvedThumb;
+        }
     }
 
     #endregion

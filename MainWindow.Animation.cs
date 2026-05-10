@@ -61,6 +61,7 @@ public partial class MainWindow
     {
         if (_isAnimating || _isExpanded) return;
         _isAnimating = true;
+        CancelThumbnailSwitchAnimations();
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
@@ -278,6 +279,7 @@ public partial class MainWindow
     {
         if (_isAnimating || !_isExpanded) return;
         _isAnimating = true;
+        CancelThumbnailSwitchAnimations();
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
