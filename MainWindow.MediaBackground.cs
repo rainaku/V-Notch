@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Threading;
 using VNotch.Models;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
@@ -23,6 +24,8 @@ public partial class MainWindow
     private double _titleGradientPhase = 0.0;
     private Color _currentVibrantColor = Colors.White;
     private bool _titleGradientRunning = false;
+    private int _mediaBackgroundAnimationVersion = 0;
+    private int _mediaBackgroundRecoveryVersion = 0;
 
     private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
@@ -78,6 +81,7 @@ public partial class MainWindow
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh))
             ? DynamicIslandColorExtractor.GetAdaptiveBlurOpacity(dominantLuminance)
             : 0;
+        int animationVersion = ++_mediaBackgroundAnimationVersion;
 
         var opacityAnim = new DoubleAnimation
         {
@@ -88,6 +92,8 @@ public partial class MainWindow
 
         if (targetOpacity > 0)
         {
+            MediaBackground.BeginAnimation(OpacityProperty, null);
+            MediaBackground2.BeginAnimation(OpacityProperty, null);
             MediaBackground.Visibility = Visibility.Visible;
             MediaBackground2.Visibility = Visibility.Visible;
         }
@@ -95,7 +101,12 @@ public partial class MainWindow
         {
             opacityAnim.Completed += (s, e) =>
             {
-                if (MediaBackground.Opacity == 0)
+                if (animationVersion != _mediaBackgroundAnimationVersion)
+                {
+                    return;
+                }
+
+                if (MediaBackground.Opacity <= 0.001 && (!_isExpanded || _isAnimating))
                 {
                     MediaBackground.Visibility = Visibility.Collapsed;
                     MediaBackground2.Visibility = Visibility.Collapsed;
@@ -178,6 +189,12 @@ public partial class MainWindow
 
     private void FadeToBlackThenUpdate(MediaInfo info)
     {
+        int animationVersion = ++_mediaBackgroundAnimationVersion;
+        MediaBackground.BeginAnimation(OpacityProperty, null);
+        MediaBackground2.BeginAnimation(OpacityProperty, null);
+        MediaBackground.Visibility = Visibility.Visible;
+        MediaBackground2.Visibility = Visibility.Visible;
+
         var fadeToBlack = new DoubleAnimation(0, TimeSpan.FromMilliseconds(300))
         {
             EasingFunction = _easeQuadOut
@@ -185,6 +202,11 @@ public partial class MainWindow
 
         fadeToBlack.Completed += (s, e) =>
         {
+            if (animationVersion != _mediaBackgroundAnimationVersion)
+            {
+                return;
+            }
+
             _isFadingTrack = false;
             UpdateMediaBackground(info, forceRefresh: true);
         };
@@ -195,9 +217,10 @@ public partial class MainWindow
 
     private void HideMediaBackground()
     {
-        if (MediaBackground.Opacity == 0) return;
+        if (MediaBackground.Opacity == 0 && MediaBackground.Visibility != Visibility.Visible) return;
 
         _lastDominantColor = Colors.Transparent;
+        int animationVersion = ++_mediaBackgroundAnimationVersion;
         var opacityAnim = new DoubleAnimation(0, TimeSpan.FromMilliseconds(400))
         {
             EasingFunction = _easePowerIn2
@@ -205,7 +228,12 @@ public partial class MainWindow
 
         opacityAnim.Completed += (s, e) =>
         {
-            if (MediaBackground.Opacity == 0)
+            if (animationVersion != _mediaBackgroundAnimationVersion)
+            {
+                return;
+            }
+
+            if (MediaBackground.Opacity <= 0.001)
             {
                 MediaBackground.Visibility = Visibility.Collapsed;
                 MediaBackground2.Visibility = Visibility.Collapsed;
@@ -256,6 +284,67 @@ public partial class MainWindow
     private void ShowMediaBackground()
     {
         if (!_isExpanded || _isAnimating || _currentMediaInfo == null) return;
+
+        MediaBackground.BeginAnimation(OpacityProperty, null);
+        MediaBackground2.BeginAnimation(OpacityProperty, null);
+        MediaBackground.Visibility = Visibility.Visible;
+        MediaBackground2.Visibility = Visibility.Visible;
+
+        UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
+        ScheduleMediaBackgroundRecovery();
+    }
+
+    private void ScheduleMediaBackgroundRecovery()
+    {
+        int recoveryVersion = Interlocked.Increment(ref _mediaBackgroundRecoveryVersion);
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+        {
+            EnsureMediaBackgroundVisible(recoveryVersion);
+        }));
+
+        var recoveryTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(180)
+        };
+
+        recoveryTimer.Tick += (s, e) =>
+        {
+            recoveryTimer.Stop();
+            EnsureMediaBackgroundVisible(recoveryVersion);
+        };
+
+        recoveryTimer.Start();
+    }
+
+    private void EnsureMediaBackgroundVisible(int recoveryVersion)
+    {
+        if (recoveryVersion != _mediaBackgroundRecoveryVersion)
+        {
+            return;
+        }
+
+        if (!_isExpanded || _isAnimating || _currentMediaInfo?.Thumbnail == null || !_currentMediaInfo.IsAnyMediaPlaying)
+        {
+            return;
+        }
+
+        bool needsRecovery =
+            MediaBackground.Visibility != Visibility.Visible ||
+            MediaBackground2.Visibility != Visibility.Visible ||
+            MediaBackground.Opacity < 0.05 ||
+            MediaBackground2.Opacity < 0.05;
+
+        if (!needsRecovery)
+        {
+            return;
+        }
+
+        MediaBackground.BeginAnimation(OpacityProperty, null);
+        MediaBackground2.BeginAnimation(OpacityProperty, null);
+        MediaBackground.Visibility = Visibility.Visible;
+        MediaBackground2.Visibility = Visibility.Visible;
+
         UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
     }
 
