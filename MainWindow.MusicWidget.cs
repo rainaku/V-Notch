@@ -51,6 +51,10 @@ public partial class MainWindow
         fadeOutBattery.Completed += (s, e) => BatterySection.Visibility = Visibility.Collapsed;
         BatterySection.BeginAnimation(OpacityProperty, fadeOutBattery);
 
+        var fadeOutNavIcons = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
+        fadeOutNavIcons.Completed += (s, e) => NavIconsBackground.Visibility = Visibility.Collapsed;
+        NavIconsBackground.BeginAnimation(OpacityProperty, fadeOutNavIcons);
+
         // Fade out update notification if visible
         if (UpdateNotificationButton != null && UpdateNotificationButton.Visibility == Visibility.Visible)
         {
@@ -192,6 +196,12 @@ public partial class MainWindow
         BatterySection.Visibility = Visibility.Visible;
         var fadeInBattery = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
         BatterySection.BeginAnimation(OpacityProperty, fadeInBattery);
+
+        NavIconsBackground.BeginAnimation(OpacityProperty, null);
+        NavIconsBackground.Opacity = 0;
+        NavIconsBackground.Visibility = Visibility.Visible;
+        var fadeInNavIcons = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
+        NavIconsBackground.BeginAnimation(OpacityProperty, fadeInNavIcons);
 
         // Animate update notification if available
         if (_isUpdateAvailable && UpdateNotificationButton != null)

@@ -48,12 +48,32 @@ public partial class MainWindow
         e.Handled = true; 
     }
 
+    private void HomeIconButton_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_isSecondaryView && !_isAnimating)
+        {
+            SwitchToPrimaryView();
+        }
+    }
+
+    private void FileShelfIconButton_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (!_isSecondaryView && !_isAnimating)
+        {
+            SwitchToSecondaryView();
+        }
+    }
+
     private void SwitchToSecondaryView()
     {
         if (_isSecondaryView || _isAnimating) return;
         _isSecondaryView = true;
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
+
+        UpdateNavIconsActiveState();
 
         NotchBorder.IsHitTestVisible = false;
 
@@ -153,6 +173,8 @@ public partial class MainWindow
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
 
+        UpdateNavIconsActiveState();
+
         NotchBorder.IsHitTestVisible = false;
         ResetCameraSectionLayoutInstant();
 
@@ -235,6 +257,20 @@ public partial class MainWindow
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
         primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
+    }
+
+    private void UpdateNavIconsActiveState()
+    {
+        if (_isSecondaryView)
+        {
+            HomeIconButton.Opacity = 0.4;
+            FileShelfIconButton.Opacity = 1.0;
+        }
+        else
+        {
+            HomeIconButton.Opacity = 1.0;
+            FileShelfIconButton.Opacity = 0.4;
+        }
     }
 
 }

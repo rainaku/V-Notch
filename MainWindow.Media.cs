@@ -68,21 +68,29 @@ public partial class MainWindow
                 AppleMusicIcon.Visibility = Visibility.Collapsed;
                 BrowserIcon.Visibility = Visibility.Collapsed;
 
+                // Hide all platform overlay icons on thumbnail
+                PlatformSpotifyOverlay.Visibility = Visibility.Collapsed;
+                PlatformYouTubeOverlay.Visibility = Visibility.Collapsed;
+                PlatformAppleMusicOverlay.Visibility = Visibility.Collapsed;
+                PlatformBrowserOverlay.Visibility = Visibility.Collapsed;
+                PlatformSoundCloudOverlay.Visibility = Visibility.Collapsed;
+
                 if (!string.IsNullOrEmpty(renderedSource))
                 {
                     switch (renderedSource)
                     {
-                        case "Spotify": SpotifyIcon.Visibility = Visibility.Visible; break;
-                        case "YouTube": YouTubeIcon.Visibility = Visibility.Visible; break;
-                        case "SoundCloud": SoundCloudIcon.Visibility = Visibility.Visible; break;
-                        case "Facebook": FacebookIcon.Visibility = Visibility.Visible; break;
-                        case "TikTok": TikTokIcon.Visibility = Visibility.Visible; break;
-                        case "Instagram": InstagramIcon.Visibility = Visibility.Visible; break;
-                        case "Twitter": case "X": TwitterIcon.Visibility = Visibility.Visible; break;
-                        case "Apple Music": AppleMusicIcon.Visibility = Visibility.Visible; break;
-                        default: BrowserIcon.Visibility = Visibility.Visible; break;
+                        case "Spotify": SpotifyIcon.Visibility = Visibility.Visible; PlatformSpotifyOverlay.Visibility = Visibility.Visible; break;
+                        case "YouTube": YouTubeIcon.Visibility = Visibility.Visible; PlatformYouTubeOverlay.Visibility = Visibility.Visible; break;
+                        case "SoundCloud": SoundCloudIcon.Visibility = Visibility.Visible; PlatformSoundCloudOverlay.Visibility = Visibility.Visible; break;
+                        case "Facebook": FacebookIcon.Visibility = Visibility.Visible; PlatformBrowserOverlay.Visibility = Visibility.Visible; break;
+                        case "TikTok": TikTokIcon.Visibility = Visibility.Visible; PlatformBrowserOverlay.Visibility = Visibility.Visible; break;
+                        case "Instagram": InstagramIcon.Visibility = Visibility.Visible; PlatformBrowserOverlay.Visibility = Visibility.Visible; break;
+                        case "Twitter": case "X": TwitterIcon.Visibility = Visibility.Visible; PlatformBrowserOverlay.Visibility = Visibility.Visible; break;
+                        case "Apple Music": AppleMusicIcon.Visibility = Visibility.Visible; PlatformAppleMusicOverlay.Visibility = Visibility.Visible; break;
+                        default: BrowserIcon.Visibility = Visibility.Visible; PlatformBrowserOverlay.Visibility = Visibility.Visible; break;
                     }
                 }
+
             }
 
             string currentSig = info.GetSignature();
@@ -95,6 +103,12 @@ public partial class MainWindow
             // changes (title + artist).
             string trackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
             bool isNewTrack = trackIdentity != _lastAnimatedTrackSignature;
+
+            // Animate platform icon only when the platform source actually changes
+            if (renderedSource != _lastRenderedMediaSource)
+            {
+                AnimatePlatformIconIn();
+            }
 
             string titleText, artistText;
             if (hasRealTrack)

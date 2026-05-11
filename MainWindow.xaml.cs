@@ -69,7 +69,7 @@ public partial class MainWindow : Window
     private double _collapsedWidth;
     private double _collapsedHeight;
     private double _expandedWidth = 480;
-    private double _expandedHeight = 180;
+    private double _expandedHeight = 146;
     private double _cornerRadiusCollapsed;
     private double _cornerRadiusExpanded = 24;
 

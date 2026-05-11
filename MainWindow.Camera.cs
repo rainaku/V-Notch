@@ -45,7 +45,6 @@ public partial class MainWindow
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         CameraOverlay.BeginAnimation(OpacityProperty, null);
-        CameraLiveIndicator.BeginAnimation(OpacityProperty, null);
 
         CameraPreviewImage.Opacity = 0.0;
         CameraPreviewScale.ScaleX = 1.06;
@@ -54,9 +53,6 @@ public partial class MainWindow
 
         CameraOverlay.Visibility = Visibility.Visible;
         CameraOverlay.Opacity = 1.0;
-
-        CameraLiveIndicator.Visibility = Visibility.Collapsed;
-        CameraLiveIndicator.Opacity = 0.0;
     }
 
     private void AnimateCameraPreviewMorphIn()
@@ -82,15 +78,6 @@ public partial class MainWindow
             CameraOverlay.Opacity = 0.0;
         };
 
-        previewFadeIn.Completed += (s, e) =>
-        {
-            if (token != _cameraPreviewFadeToken || !_isCameraActive) return;
-            CameraLiveIndicator.Visibility = Visibility.Visible;
-            CameraLiveIndicator.BeginAnimation(OpacityProperty, null);
-            var liveFadeIn = MakeAnim(0.0, 1.0, new Duration(TimeSpan.FromMilliseconds(170)), _easePowerOut3, null);
-            CameraLiveIndicator.BeginAnimation(OpacityProperty, liveFadeIn, HandoffBehavior.SnapshotAndReplace);
-        };
-
         CameraPreviewImage.BeginAnimation(OpacityProperty, previewFadeIn, HandoffBehavior.SnapshotAndReplace);
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXIn, HandoffBehavior.SnapshotAndReplace);
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYIn, HandoffBehavior.SnapshotAndReplace);
@@ -100,16 +87,7 @@ public partial class MainWindow
 
     private double ComputeCameraCornerRadius(bool expandedToShelf)
     {
-        double notchRadius = NotchBorder.CornerRadius.BottomRight;
-        if (notchRadius <= 0)
-        {
-            notchRadius = _cornerRadiusExpanded;
-        }
-
-        double target = notchRadius - (expandedToShelf ? 5.0 : 7.0);
-        if (target < 14.0) target = 14.0;
-        if (target > 20.0) target = 20.0;
-        return target;
+        return 12.0;
     }
 
     private void ApplyCameraCornerRadius(bool expandedToShelf)
@@ -187,7 +165,7 @@ public partial class MainWindow
             PaginationDots.BeginAnimation(OpacityProperty, dotsFadeOut, HandoffBehavior.SnapshotAndReplace);
 
             var widthAnim = MakeAnim(compactWidth, targetWidth, duration, easing, null);
-            var marginAnim = new ThicknessAnimation(CameraSection.Margin, new Thickness(0), duration)
+            var marginAnim = new ThicknessAnimation(CameraSection.Margin, new Thickness(0, 0, 0, 0), duration)
             {
                 EasingFunction = easing
             };
@@ -452,8 +430,6 @@ public partial class MainWindow
         CameraOverlay.Visibility = Visibility.Visible;
         CameraOverlay.Opacity = 0.0;
         CameraErrorOverlay.Visibility = Visibility.Collapsed;
-        CameraLiveIndicator.BeginAnimation(OpacityProperty, null);
-        CameraLiveIndicator.Visibility = Visibility.Visible;
 
         CameraPreviewImage.BeginAnimation(OpacityProperty, null);
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -477,21 +453,6 @@ public partial class MainWindow
         overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(0.66), _easeSineInOut));
         overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeExpOut6));
         Timeline.SetDesiredFrameRate(overlayFadeIn, 120);
-
-        var liveFadeOut = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = new Duration(TimeSpan.FromMilliseconds(200))
-        };
-        liveFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraLiveIndicator.Opacity, KeyTime.FromPercent(0.0)));
-        liveFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0), _easeQuadOut));
-        Timeline.SetDesiredFrameRate(liveFadeOut, 120);
-        liveFadeOut.Completed += (s, e) =>
-        {
-            if (fadeToken != _cameraPreviewFadeToken) return;
-            CameraLiveIndicator.BeginAnimation(OpacityProperty, null);
-            CameraLiveIndicator.Visibility = Visibility.Collapsed;
-            CameraLiveIndicator.Opacity = 0.0;
-        };
 
         var previewScaleOutX = new DoubleAnimationUsingKeyFrames
         {
@@ -535,7 +496,6 @@ public partial class MainWindow
         };
         CameraPreviewImage.BeginAnimation(OpacityProperty, previewFadeOut, HandoffBehavior.SnapshotAndReplace);
         CameraOverlay.BeginAnimation(OpacityProperty, overlayFadeIn, HandoffBehavior.SnapshotAndReplace);
-        CameraLiveIndicator.BeginAnimation(OpacityProperty, liveFadeOut, HandoffBehavior.SnapshotAndReplace);
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, previewScaleOutX, HandoffBehavior.SnapshotAndReplace);
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, previewScaleOutY, HandoffBehavior.SnapshotAndReplace);
         CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, previewBlurOut, HandoffBehavior.SnapshotAndReplace);

@@ -483,6 +483,8 @@ public partial class MainWindow
 
         BatterySection.BeginAnimation(OpacityProperty, null);
         BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        NavIconsBackground.BeginAnimation(OpacityProperty, null);
+        NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, null);
         SettingsButton.BeginAnimation(OpacityProperty, null);
         SettingsTranslate.BeginAnimation(TranslateTransform.YProperty, null);
         SettingsScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -492,6 +494,7 @@ public partial class MainWindow
         if (show)
         {
             BatterySection.Visibility = Visibility.Visible;
+            NavIconsBackground.Visibility = Visibility.Visible;
             SettingsButton.Visibility = Visibility.Visible;
             SettingsScale.ScaleX = 0.86;
             SettingsScale.ScaleY = 0.86;
@@ -597,6 +600,17 @@ public partial class MainWindow
         // Apply animations
         BatterySection.BeginAnimation(OpacityProperty, batteryOpacityAnim);
         BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
+
+        if (!show)
+        {
+            batteryOpacityAnim.Completed += (s, e) =>
+            {
+                NavIconsBackground.BeginAnimation(OpacityProperty, null);
+                NavIconsBackground.Visibility = Visibility.Collapsed;
+            };
+        }
+        NavIconsBackground.BeginAnimation(OpacityProperty, batteryOpacityAnim);
+        NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
 
         SettingsButton.BeginAnimation(OpacityProperty, settingsOpacityAnim, HandoffBehavior.SnapshotAndReplace);
         SettingsTranslate.BeginAnimation(TranslateTransform.YProperty, settingsTranslateAnim, HandoffBehavior.SnapshotAndReplace);
