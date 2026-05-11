@@ -1,18 +1,12 @@
-# Visual Studio Essentials
+
 [Bb]in/
 [Oo]bj/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
-
-# Visual Studio Code
 .vscode/
-
-# Rider
 .idea/
-
-# Build Results
 [Dd]ebug/
 [Rr]elease/
 x64/
@@ -21,16 +15,10 @@ build/
 /installers
 /release_final
 /release_secure
-
-# OS generated files
 .DS_Store
 Thumbs.db
-
-# Environment variables
 .env
 .env.local
-
-# Temp and Log files
 *.tmp
 *.log
 debug_log.txt
@@ -38,8 +26,6 @@ build_output.txt
 build_output_clean.txt
 build_output_clean_final.txt
 *.txt
-
-# Project specific
 task.md
 *.iss
 *.md
@@ -51,9 +37,13 @@ r.ps1
 *.vsidx
 build-release.ps1
 build-installer.ps1
+build-msix.ps1
 V-Notch-Setup.nsi
 *.kiro
 *.sqlite
+*.pfx
+*.p12
+*.cer
 /.vs
 test-setup.ps1
 /release-debug

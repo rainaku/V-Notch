@@ -45,6 +45,8 @@ public sealed class ModuleLifecycleManager : IModuleLifecycleManager
 
     public void InitializeAll()
     {
+        if (_disposed) return;
+
         foreach (var module in _modules)
         {
             SafeInvoke(module, m => m.Initialize(), "Initialize");
@@ -53,6 +55,8 @@ public sealed class ModuleLifecycleManager : IModuleLifecycleManager
 
     public void StartAll()
     {
+        if (_disposed) return;
+
         InitializeAll();
 
         foreach (var module in _modules)
@@ -65,6 +69,8 @@ public sealed class ModuleLifecycleManager : IModuleLifecycleManager
 
     public void StopAll()
     {
+        if (_disposed) return;
+
         foreach (var module in _modules)
         {
             SafeInvoke(module, m => m.Stop(), "Stop");

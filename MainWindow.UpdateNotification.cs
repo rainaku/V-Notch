@@ -24,6 +24,7 @@ public partial class MainWindow
 
     private async void UpdateCheckTimer_Tick(object? sender, EventArgs e)
     {
+        if (_updateService == null) return;
         await CheckForUpdatesAsync();
     }
 

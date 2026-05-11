@@ -80,6 +80,8 @@ public class SettingsService : ISettingsService
 
     public void Save(NotchSettings settings)
     {
+        if (settings == null) throw new ArgumentNullException(nameof(settings));
+
         try
         {
             settings.SettingsVersion = SettingsMigrator.CurrentVersion;

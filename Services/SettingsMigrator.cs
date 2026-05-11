@@ -68,6 +68,9 @@ public static class SettingsMigrator
     
     public static (NotchSettings settings, bool migrated) Migrate(string rawJson)
     {
+        if (string.IsNullOrWhiteSpace(rawJson))
+            throw new JsonException("Settings JSON is null or empty");
+
         var node = JsonNode.Parse(rawJson)
                    ?? throw new JsonException("Settings JSON parsed to null root");
 

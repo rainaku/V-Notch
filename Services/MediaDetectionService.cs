@@ -142,10 +142,18 @@ public class MediaDetectionService : IMediaDetectionService
     private DateTime _cachedVolumeProcessIdsAtUtc = DateTime.MinValue;
     private HashSet<uint> _cachedVolumeProcessIds = new();
 
-    public async void Start()
+    public void Start()
     {
+        if (_disposed) return;
+        if (_sessionManager != null) return; // already started
+
         _startupProgressSyncUntilUtc = DateTime.UtcNow.AddSeconds(5);
 
+        _ = StartCoreAsync();
+    }
+
+    private async Task StartCoreAsync()
+    {
         try
         {
             _sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
@@ -189,6 +197,7 @@ public class MediaDetectionService : IMediaDetectionService
 
     public void Stop()
     {
+        if (_disposed) return;
         UnsubscribeFromSession();
         _bgCts?.Cancel();
     }
