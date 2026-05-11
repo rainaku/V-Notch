@@ -629,5 +629,148 @@ public partial class MainWindow
     }
 
     #endregion
+
+    #region Settings Absorb Animation
+
+    /// <summary>
+    /// Plays a notch "eject" animation when settings window launches from it.
+    /// The notch briefly expands then springs back as if releasing the panel.
+    /// </summary>
+    public void PlaySettingsEjectAnimation()
+    {
+        if (_isExpanded || _isAnimating) return;
+
+        const int fps = 144;
+
+        NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        NotchBorder.BeginAnimation(WidthProperty, null);
+        NotchBorder.BeginAnimation(HeightProperty, null);
+
+        var ejectDur = TimeSpan.FromMilliseconds(150);
+        var springDur = TimeSpan.FromMilliseconds(600);
+
+        // Notch width: expand then spring back
+        double currentWidth = _collapsedWidth;
+        double peakWidth = currentWidth + 40;
+
+        var widthAnim = new DoubleAnimationUsingKeyFrames();
+        widthAnim.KeyFrames.Add(new EasingDoubleKeyFrame(peakWidth,
+            KeyTime.FromTimeSpan(ejectDur),
+            new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        widthAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentWidth,
+            KeyTime.FromTimeSpan(ejectDur + springDur),
+            _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(widthAnim, fps);
+
+        // Notch height: expand then spring back
+        double currentHeight = _collapsedHeight;
+        double peakHeight = currentHeight + 8;
+
+        var heightAnim = new DoubleAnimationUsingKeyFrames();
+        heightAnim.KeyFrames.Add(new EasingDoubleKeyFrame(peakHeight,
+            KeyTime.FromTimeSpan(ejectDur),
+            new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        heightAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentHeight,
+            KeyTime.FromTimeSpan(ejectDur + springDur),
+            _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(heightAnim, fps);
+
+        // ScaleY: brief stretch downward (ejecting)
+        var scaleY = new DoubleAnimationUsingKeyFrames();
+        scaleY.KeyFrames.Add(new EasingDoubleKeyFrame(1.15,
+            KeyTime.FromTimeSpan(ejectDur),
+            new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        scaleY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
+            KeyTime.FromTimeSpan(ejectDur + springDur),
+            _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(scaleY, fps);
+
+        NotchBorder.BeginAnimation(WidthProperty, widthAnim);
+        NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
+    }
+
+    /// <summary>
+    /// Plays a notch "absorb" animation when the settings window flies into it.
+    /// The notch opens its curves wider (as if receiving the panel) then springs back.
+    /// </summary>
+    public void PlaySettingsAbsorbAnimation()
+    {
+        if (_isExpanded || _isAnimating) return;
+
+        const int fps = 144;
+
+        // Cancel any in-progress animations on the notch
+        NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        NotchBorder.BeginAnimation(WidthProperty, null);
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        var absorbDelay = TimeSpan.FromMilliseconds(480);
+        var openDur = TimeSpan.FromMilliseconds(200);
+        var springDur = TimeSpan.FromMilliseconds(700);
+
+        // --- Notch width: expand wider then spring back ---
+        double currentWidth = _collapsedWidth;
+        double peakWidth = currentWidth + 60; 
+
+        var widthAnim = new DoubleAnimationUsingKeyFrames { BeginTime = absorbDelay };
+        widthAnim.KeyFrames.Add(new EasingDoubleKeyFrame(peakWidth,
+            KeyTime.FromTimeSpan(openDur),
+            new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        widthAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentWidth,
+            KeyTime.FromTimeSpan(openDur + springDur),
+            _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(widthAnim, fps);
+
+        // --- Notch height: expand slightly then spring back ---
+        double currentHeight = _collapsedHeight;
+        double peakHeight = currentHeight + 10;
+
+        var heightAnim = new DoubleAnimationUsingKeyFrames { BeginTime = absorbDelay };
+        heightAnim.KeyFrames.Add(new EasingDoubleKeyFrame(peakHeight,
+            KeyTime.FromTimeSpan(openDur),
+            new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        heightAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentHeight,
+            KeyTime.FromTimeSpan(openDur + springDur),
+            _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(heightAnim, fps);
+
+        // --- Corner radius: open up (larger radius = more rounded/open) then back ---
+        double currentRadius = _cornerRadiusCollapsed;
+        double peakRadius = currentRadius + 6;
+
+        var radiusAnim = new DoubleAnimationUsingKeyFrames { BeginTime = absorbDelay };
+        radiusAnim.KeyFrames.Add(new EasingDoubleKeyFrame(peakRadius,
+            KeyTime.FromTimeSpan(openDur),
+            new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        radiusAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentRadius,
+            KeyTime.FromTimeSpan(openDur + springDur),
+            _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(radiusAnim, fps);
+
+        // --- Subtle scale Y stretch (notch "breathes in") ---
+        var scaleY = new DoubleAnimationUsingKeyFrames { BeginTime = absorbDelay };
+        scaleY.KeyFrames.Add(new EasingDoubleKeyFrame(1.12,
+            KeyTime.FromTimeSpan(openDur),
+            new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        scaleY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
+            KeyTime.FromTimeSpan(openDur + springDur),
+            _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(scaleY, fps);
+
+        NotchBorder.BeginAnimation(WidthProperty, widthAnim);
+        NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
+        this.BeginAnimation(CurrentCornerRadiusProperty, radiusAnim);
+    }
+
+    #endregion
 }
 

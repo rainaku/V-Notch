@@ -717,6 +717,36 @@ public partial class MainWindow : Window
         PositionAtTop();
     }
 
+    /// <summary>
+    /// Returns the notch's screen rectangle in WPF units (Left, Top, Width, Height).
+    /// Used by SettingsWindow to morph in/out of the notch.
+    /// </summary>
+    public (double Left, double Top, double Width, double Height, double CornerRadius) GetNotchScreenRect()
+    {
+        // Notch is centered in the MainWindow, which is at _fixedX, _fixedY
+        // NotchBorder actual size
+        double notchW = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
+        double notchH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight;
+
+        // DPI conversion: _fixedX/_fixedY are in screen pixels
+        var source = PresentationSource.FromVisual(this);
+        double dpiX = source?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
+        double dpiY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1.0;
+
+        // MainWindow position in WPF units
+        double winLeft = _fixedX * dpiX;
+        double winTop = _fixedY * dpiY;
+        double winWidth = _windowWidth * dpiX;
+
+        // Notch is centered horizontally in the window
+        double notchLeft = winLeft + (winWidth - notchW) / 2.0;
+        double notchTop = winTop;
+
+        double cr = _cornerRadiusCollapsed;
+
+        return (notchLeft, notchTop, notchW, notchH, cr);
+    }
+
     private void OpenAppSettings()
     {
         var settingsWindow = new SettingsWindow(_settings, _settingsService)
@@ -730,6 +760,35 @@ public partial class MainWindow : Window
             _notchManager.UpdateSettings(_settings);
             ApplySettings();
             ResetPosition();
+        };
+
+        // Keep notch visible — settings morphs from its position but notch stays shown
+        // (thumbnail and equalizer remain visible)
+
+        settingsWindow.AnimatedClosing += (s, e) =>
+        {
+            // Notch stays visible throughout
+        };
+
+        settingsWindow.Closed += (s, e) =>
+        {
+            // Subtle bounce when settings returns to notch
+            NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+
+            var bounceAnim = new DoubleAnimationUsingKeyFrames();
+            bounceAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.2,
+                KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120)),
+                new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+            bounceAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
+                KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(600)),
+                _easeSoftSpring));
+            Timeline.SetDesiredFrameRate(bounceAnim, 144);
+
+            NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceAnim);
+            NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceAnim);
         };
 
         settingsWindow.ShowDialog();

@@ -547,7 +547,7 @@
                         <!-- Status Bar: Battery + Update + Settings (Overlay on top) -->
                         <Grid x:Name="StatusBar" Grid.Column="0" Grid.ColumnSpan="3" 
                               HorizontalAlignment="Right" VerticalAlignment="Top" 
-                              Margin="0,0,8,0" Panel.ZIndex="100">
+                              Margin="0,0,5,0" Panel.ZIndex="100">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -1446,7 +1446,7 @@
 
                     </Grid>
 
-                        <Grid Grid.Column="2" Margin="0,20,-4,0" VerticalAlignment="Center" HorizontalAlignment="Right" Grid.IsSharedSizeScope="True" RenderOptions.ClearTypeHint="Enabled">
+                        <Grid Grid.Column="2" Margin="0,20,-1,0" VerticalAlignment="Center" HorizontalAlignment="Right" Grid.IsSharedSizeScope="True" RenderOptions.ClearTypeHint="Enabled">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
