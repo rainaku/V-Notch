@@ -247,12 +247,30 @@ public partial class SettingsWindow : Window
         // --- Staggered content reveal ---
         int contentDelay = 250;
         AnimateEntranceItem(SettingsHeader, HeaderTranslate, contentDelay);
+
+        // Social icons stagger (appear shortly after header)
+        int socialDelay = contentDelay + 80;
+        AnimateSocialIcon(SocialGitHub, SocialGitHubTranslate, socialDelay);
+        AnimateSocialIcon(SocialFacebook, SocialFacebookTranslate, socialDelay + 60);
+        AnimateSocialIcon(SocialDiscord, SocialDiscordTranslate, socialDelay + 120);
+
         AnimateEntranceItem(AppearanceCard, AppearanceCardTranslate, contentDelay + 40);
         AnimateEntranceItem(BehaviorCard, BehaviorCardTranslate, contentDelay + 80);
         AnimateEntranceItem(DisplayCard, DisplayCardTranslate, contentDelay + 120);
         AnimateEntranceItem(SystemCard, SystemCardTranslate, contentDelay + 160);
         AnimateEntranceItem(UpdatesCard, UpdatesCardTranslate, contentDelay + 200);
         AnimateEntranceItem(FooterBar, FooterTranslate, contentDelay + 240);
+
+        void AnimateSocialIcon(UIElement element, TranslateTransform translate, int delayMs)
+        {
+            var fade = CreateAnimation(0, 1, 350, itemEase);
+            fade.BeginTime = TimeSpan.FromMilliseconds(delayMs);
+            element.BeginAnimation(OpacityProperty, fade);
+
+            var slide = CreateAnimation(6, 0, 400, itemEase);
+            slide.BeginTime = TimeSpan.FromMilliseconds(delayMs);
+            translate.BeginAnimation(TranslateTransform.YProperty, slide);
+        }
 
         void AnimateEntranceItem(UIElement element, TranslateTransform translate, int delayMs)
         {

@@ -963,7 +963,7 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
 
         _sourceCard = CreateInfoCard(
             "Open source",
-            "Code, releases, and issues stay public on GitHub. V-Notch is MIT-licensed and free to use.");
+            "Code, releases, and issues stay public on GitHub. V-Notch is Apache-2.0 licensed and free to use.");
         Grid.SetRow(_sourceCard, 4);
         grid.Children.Add(_sourceCard);
 

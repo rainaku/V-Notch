@@ -778,8 +778,14 @@ public partial class MainWindow : Window
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
+            // Reset scale to 1.0 before bouncing to prevent leftover expanded state
+            NotchScale.ScaleX = 1.0;
+            NotchScale.ScaleY = 1.0;
+            NotchShadowScale.ScaleX = 1.0;
+            NotchShadowScale.ScaleY = 1.0;
+
             var bounceAnim = new DoubleAnimationUsingKeyFrames();
-            bounceAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.2,
+            bounceAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.12,
                 KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120)),
                 new QuadraticEase { EasingMode = EasingMode.EaseOut }));
             bounceAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
@@ -788,7 +794,9 @@ public partial class MainWindow : Window
             Timeline.SetDesiredFrameRate(bounceAnim, 144);
 
             NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceAnim);
+            NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceAnim);
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceAnim);
+            NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceAnim);
         };
 
         settingsWindow.ShowDialog();

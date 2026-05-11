@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -164,6 +165,32 @@ public partial class MainWindow
     {
         keybd_event(key, 0, KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero);
         keybd_event(key, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, UIntPtr.Zero);
+    }
+
+    private void MediaButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is Border button && button.RenderTransform is ScaleTransform transform)
+        {
+            var animX = new DoubleAnimation(transform.ScaleX, 1.18, _dur150) { EasingFunction = _easeQuadOut };
+            var animY = new DoubleAnimation(transform.ScaleY, 1.18, _dur150) { EasingFunction = _easeQuadOut };
+            Timeline.SetDesiredFrameRate(animX, 120);
+            Timeline.SetDesiredFrameRate(animY, 120);
+            transform.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+            transform.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
+        }
+    }
+
+    private void MediaButton_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (sender is Border button && button.RenderTransform is ScaleTransform transform)
+        {
+            var animX = new DoubleAnimation(transform.ScaleX, 1.0, _dur200) { EasingFunction = _easeQuadOut };
+            var animY = new DoubleAnimation(transform.ScaleY, 1.0, _dur200) { EasingFunction = _easeQuadOut };
+            Timeline.SetDesiredFrameRate(animX, 120);
+            Timeline.SetDesiredFrameRate(animY, 120);
+            transform.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+            transform.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
+        }
     }
 
     #endregion

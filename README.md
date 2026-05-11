@@ -179,7 +179,7 @@ Feel free to submit issues and pull requests!
 
 ## License
 
-MIT License - Feel free to use, modify, and distribute.
+Apache License 2.0 - See [LICENSE](LICENSE) for details.
 
 ---
 
