@@ -87,7 +87,6 @@ public partial class MainWindow
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
         MediaBackground.BeginAnimation(OpacityProperty, null);
         MediaBackground2.BeginAnimation(OpacityProperty, null);
-        PaginationDots.BeginAnimation(OpacityProperty, null);
 
         
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -109,10 +108,6 @@ public partial class MainWindow
 
         // Animate Status Bar (Battery + Settings) reveal
         AnimateStatusBarReveal(true);
-
-        PaginationDots.Visibility = Visibility.Visible;
-        PaginationDots.Opacity = 0;
-        UpdatePaginationDots();
 
         NotchBorder.IsHitTestVisible = false;
         var animFps = 144;
@@ -279,7 +274,6 @@ public partial class MainWindow
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
-        PaginationDots.BeginAnimation(OpacityProperty, fadeInAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
 
         
@@ -301,13 +295,20 @@ public partial class MainWindow
         // Hide Status Bar (Battery + Settings)
         AnimateStatusBarReveal(false);
 
+        // Immediately hide nav icons to prevent them staying visible during collapse
+        NavIconsBackground.BeginAnimation(OpacityProperty, null);
+        NavIconsBackground.Opacity = 0;
+        NavIconsBackground.Visibility = Visibility.Collapsed;
+        NavIconsPanel.BeginAnimation(OpacityProperty, null);
+        NavIconsPanel.Opacity = 0;
+        NavIconsPanel.Visibility = Visibility.Collapsed;
+
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         SecondaryContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
         ResetCalendarScroll();
         ResetCalendarHoverFocusVisualState();
         CollapsedContent.BeginAnimation(OpacityProperty, null);
-        PaginationDots.BeginAnimation(OpacityProperty, null);
         AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
         AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
@@ -498,7 +499,6 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
-        PaginationDots.BeginAnimation(OpacityProperty, fadeOutAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, slideOutAnim);
 
         

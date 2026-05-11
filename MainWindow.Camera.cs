@@ -155,15 +155,6 @@ public partial class MainWindow
             Grid.SetColumnSpan(CameraSection, 2);
             Panel.SetZIndex(CameraSection, 10);
 
-            PaginationDots.BeginAnimation(OpacityProperty, null);
-            var dotsFadeOut = MakeAnim(PaginationDots.Opacity, 0.0, new Duration(TimeSpan.FromMilliseconds(180)), _easeQuadOut, null);
-            dotsFadeOut.Completed += (s, e) =>
-            {
-                if (token != _cameraSectionAnimToken) return;
-                PaginationDots.Visibility = Visibility.Collapsed;
-            };
-            PaginationDots.BeginAnimation(OpacityProperty, dotsFadeOut, HandoffBehavior.SnapshotAndReplace);
-
             var widthAnim = MakeAnim(compactWidth, targetWidth, duration, easing, null);
             var marginAnim = new ThicknessAnimation(CameraSection.Margin, new Thickness(0, 0, 0, 0), duration)
             {
@@ -222,9 +213,6 @@ public partial class MainWindow
 
         FileShelf.Visibility = Visibility.Visible;
         FileShelf.IsHitTestVisible = false;
-        PaginationDots.Visibility = Visibility.Visible;
-        var dotsFadeIn = MakeAnim(PaginationDots.Opacity, 1.0, new Duration(TimeSpan.FromMilliseconds(220)), _easePowerOut3, null);
-        PaginationDots.BeginAnimation(OpacityProperty, dotsFadeIn, HandoffBehavior.SnapshotAndReplace);
         CameraSection.Width = currentWidth;
         CameraSection.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(CameraSection, 0);
@@ -293,10 +281,6 @@ public partial class MainWindow
 
         if (_isSecondaryView)
         {
-            PaginationDots.BeginAnimation(OpacityProperty, null);
-            PaginationDots.Visibility = Visibility.Visible;
-            PaginationDots.Opacity = 1.0;
-            UpdatePaginationDots();
         }
     }
 

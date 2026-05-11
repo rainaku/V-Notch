@@ -20,7 +20,8 @@ public partial class MainWindow
     {
         BatteryPercent.Text = battery.GetPercentageText();
 
-        double targetWidth = Math.Max(1.08, battery.Percentage / 100.0 * 22.8);
+        // Inner fill space = BatteryIcon.Width(27.08) - BorderThickness(1.36*2) - MarginLeft(1.36) = 23.0
+        double targetWidth = Math.Max(1.08, battery.Percentage / 100.0 * 23.0);
         var widthAnimation = new DoubleAnimation
         {
             To = targetWidth,

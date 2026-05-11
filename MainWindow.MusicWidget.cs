@@ -51,9 +51,13 @@ public partial class MainWindow
         fadeOutBattery.Completed += (s, e) => BatterySection.Visibility = Visibility.Collapsed;
         BatterySection.BeginAnimation(OpacityProperty, fadeOutBattery);
 
-        var fadeOutNavIcons = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
-        fadeOutNavIcons.Completed += (s, e) => NavIconsBackground.Visibility = Visibility.Collapsed;
-        NavIconsBackground.BeginAnimation(OpacityProperty, fadeOutNavIcons);
+        var fadeOutNavPanel = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
+        fadeOutNavPanel.Completed += (s, e) => NavIconsPanel.Visibility = Visibility.Collapsed;
+        NavIconsPanel.BeginAnimation(OpacityProperty, fadeOutNavPanel);
+
+        var fadeOutNavBg = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
+        fadeOutNavBg.Completed += (s, e) => NavIconsBackground.Visibility = Visibility.Collapsed;
+        NavIconsBackground.BeginAnimation(OpacityProperty, fadeOutNavBg);
 
         // Fade out update notification if visible
         if (UpdateNotificationButton != null && UpdateNotificationButton.Visibility == Visibility.Visible)
@@ -197,11 +201,20 @@ public partial class MainWindow
         var fadeInBattery = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
         BatterySection.BeginAnimation(OpacityProperty, fadeInBattery);
 
-        NavIconsBackground.BeginAnimation(OpacityProperty, null);
-        NavIconsBackground.Opacity = 0;
-        NavIconsBackground.Visibility = Visibility.Visible;
-        var fadeInNavIcons = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
-        NavIconsBackground.BeginAnimation(OpacityProperty, fadeInNavIcons);
+        NavIconsPanel.BeginAnimation(OpacityProperty, null);
+        NavIconsPanel.Opacity = 0;
+        NavIconsPanel.Visibility = Visibility.Visible;
+        var fadeInNavPanel = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
+        NavIconsPanel.BeginAnimation(OpacityProperty, fadeInNavPanel);
+
+        if (_isSecondaryView)
+        {
+            NavIconsBackground.BeginAnimation(OpacityProperty, null);
+            NavIconsBackground.Opacity = 0;
+            NavIconsBackground.Visibility = Visibility.Visible;
+            var fadeInNavBg = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
+            NavIconsBackground.BeginAnimation(OpacityProperty, fadeInNavBg);
+        }
 
         // Animate update notification if available
         if (_isUpdateAvailable && UpdateNotificationButton != null)

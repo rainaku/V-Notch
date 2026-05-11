@@ -74,6 +74,20 @@ public partial class MainWindow
         _lastViewSwitchUtc = DateTime.UtcNow;
 
         UpdateNavIconsActiveState();
+        NavIconsPanel.Visibility = Visibility.Visible;
+        NavIconsPanel.Opacity = 1;
+
+        // Delay background appearance with fade animation
+        NavIconsBackground.BeginAnimation(OpacityProperty, null);
+        NavIconsBackground.Opacity = 0;
+        NavIconsBackground.Visibility = Visibility.Visible;
+        var navBgFadeIn = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(300)))
+        {
+            EasingFunction = _easePowerOut3,
+            BeginTime = TimeSpan.FromMilliseconds(200)
+        };
+        Timeline.SetDesiredFrameRate(navBgFadeIn, 120);
+        NavIconsBackground.BeginAnimation(OpacityProperty, navBgFadeIn);
 
         NotchBorder.IsHitTestVisible = false;
 
@@ -140,7 +154,7 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(springScaleX, fps);
         Timeline.SetDesiredFrameRate(springScaleY, fps);
 
-        UpdatePaginationDots();
+
 
         fadeIn.Completed += (s, e) =>
         {
@@ -174,6 +188,9 @@ public partial class MainWindow
         _lastViewSwitchUtc = DateTime.UtcNow;
 
         UpdateNavIconsActiveState();
+        NavIconsBackground.BeginAnimation(OpacityProperty, null);
+        NavIconsBackground.Opacity = 0;
+        NavIconsBackground.Visibility = Visibility.Collapsed;
 
         NotchBorder.IsHitTestVisible = false;
         ResetCameraSectionLayoutInstant();
@@ -242,7 +259,7 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(springScaleX, fps);
         Timeline.SetDesiredFrameRate(springScaleY, fps);
 
-        UpdatePaginationDots();
+
 
         fadeIn.Completed += (s, e) =>
         {

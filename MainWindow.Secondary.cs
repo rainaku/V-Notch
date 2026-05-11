@@ -1085,41 +1085,6 @@ public partial class MainWindow
         return null;
     }
 
-    private void UpdatePaginationDots()
-    {
-        if (Dot1Scale == null || Dot2Scale == null) return;
-
-        var activeBrush = Brushes.White;
-        var inactiveBrush = new SolidColorBrush(Color.FromRgb(85, 85, 85)); 
-        inactiveBrush.Freeze();
-
-        var dur = new Duration(TimeSpan.FromMilliseconds(600)); 
-        var ease = _easeMenuSpring; 
-
-        if (_isSecondaryView)
-        {
-            Dot1.Fill = inactiveBrush;
-            Dot2.Fill = activeBrush;
-
-            Dot1Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(0.7, dur, ease));
-            Dot1Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(0.7, dur, ease));
-
-            Dot2Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(1.3, dur, ease));
-            Dot2Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(1.3, dur, ease));
-        }
-        else
-        {
-            Dot1.Fill = activeBrush;
-            Dot2.Fill = inactiveBrush;
-
-            Dot1Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(1.3, dur, ease));
-            Dot1Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(1.3, dur, ease));
-
-            Dot2Scale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(0.7, dur, ease));
-            Dot2Scale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(0.7, dur, ease));
-        }
-    }
-
     private void RemoveFileFromShelf(string filePath, Border item)
     {
         if (_isAnimating) return;

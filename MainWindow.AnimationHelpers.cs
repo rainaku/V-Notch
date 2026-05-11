@@ -483,6 +483,7 @@ public partial class MainWindow
 
         BatterySection.BeginAnimation(OpacityProperty, null);
         BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        NavIconsPanel.BeginAnimation(OpacityProperty, null);
         NavIconsBackground.BeginAnimation(OpacityProperty, null);
         NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, null);
         SettingsButton.BeginAnimation(OpacityProperty, null);
@@ -494,7 +495,9 @@ public partial class MainWindow
         if (show)
         {
             BatterySection.Visibility = Visibility.Visible;
-            NavIconsBackground.Visibility = Visibility.Visible;
+            NavIconsPanel.Visibility = Visibility.Visible;
+            if (_isSecondaryView)
+                NavIconsBackground.Visibility = Visibility.Visible;
             SettingsButton.Visibility = Visibility.Visible;
             SettingsScale.ScaleX = 0.86;
             SettingsScale.ScaleY = 0.86;
@@ -601,16 +604,22 @@ public partial class MainWindow
         BatterySection.BeginAnimation(OpacityProperty, batteryOpacityAnim);
         BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
 
-        if (!show)
-        {
-            batteryOpacityAnim.Completed += (s, e) =>
-            {
-                NavIconsBackground.BeginAnimation(OpacityProperty, null);
-                NavIconsBackground.Visibility = Visibility.Collapsed;
-            };
-        }
-        NavIconsBackground.BeginAnimation(OpacityProperty, batteryOpacityAnim);
+        // NavIconsPanel (icons themselves) always animate with expand/collapse
+        NavIconsPanel.BeginAnimation(OpacityProperty, batteryOpacityAnim);
         NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
+
+        // NavIconsBackground (black border) only in secondary view
+        if (_isSecondaryView)
+        {
+            var navBgOpacityAnim = new DoubleAnimation
+            {
+                To = show ? 1.0 : 0.0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(show ? 340 : 120)),
+                EasingFunction = easing
+            };
+            Timeline.SetDesiredFrameRate(navBgOpacityAnim, animFps);
+            NavIconsBackground.BeginAnimation(OpacityProperty, navBgOpacityAnim);
+        }
 
         SettingsButton.BeginAnimation(OpacityProperty, settingsOpacityAnim, HandoffBehavior.SnapshotAndReplace);
         SettingsTranslate.BeginAnimation(TranslateTransform.YProperty, settingsTranslateAnim, HandoffBehavior.SnapshotAndReplace);
