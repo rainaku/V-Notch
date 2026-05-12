@@ -21,7 +21,7 @@ public class UpdateService : IUpdateService
     private UpdateInfo? _cachedLatestRelease;
     private DateTime _lastCheckUtc = DateTime.MinValue;
 
-    public string CurrentVersion => "1.6.0";
+    public string CurrentVersion => "1.6.1";
 
     static UpdateService()
     {
