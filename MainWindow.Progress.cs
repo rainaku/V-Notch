@@ -911,12 +911,20 @@ public partial class MainWindow
 
     private void ProgressBar_MouseEnter(object sender, MouseEventArgs e)
     {
- 
+        var anim = new System.Windows.Media.Animation.DoubleAnimation(1.8, TimeSpan.FromMilliseconds(150))
+        {
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+        };
+        ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 
     private void ProgressBar_MouseLeave(object sender, MouseEventArgs e)
     {
-       
+        var anim = new System.Windows.Media.Animation.DoubleAnimation(1.0, TimeSpan.FromMilliseconds(200))
+        {
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+        };
+        ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 
     #endregion

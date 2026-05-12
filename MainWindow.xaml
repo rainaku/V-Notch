@@ -1089,12 +1089,12 @@
                                                     <ScaleTransform x:Name="ProgressBarMainScale" ScaleY="1"/>
                                                 </Grid.RenderTransform>
 
-                                                <Border x:Name="ProgressBarBg" Background="#333333" Height="4" CornerRadius="2" VerticalAlignment="Center"/>
+                                                <Border x:Name="ProgressBarBg" Background="#333333" Height="4" CornerRadius="99" VerticalAlignment="Center"/>
 
                                                 <Border x:Name="ProgressBar" 
                                                         Background="White" 
                                                         Height="4" 
-                                                        CornerRadius="2"
+                                                        CornerRadius="99"
                                                         HorizontalAlignment="Stretch"
                                                         VerticalAlignment="Center"
                                                         RenderTransformOrigin="0,0.5">
@@ -1106,7 +1106,7 @@
                                                 <Border x:Name="IndeterminateProgress" 
                                                         Background="White" 
                                                         Height="4" 
-                                                        CornerRadius="2"
+                                                        CornerRadius="99"
                                                         HorizontalAlignment="Stretch"
                                                         VerticalAlignment="Center"
                                                         Opacity="0"
@@ -1502,7 +1502,8 @@
                                   Background="Transparent"
                                   MouseLeftButtonDown="FileShelf_MouseDown"
                                   MouseMove="FileShelf_MouseMove"
-                                  MouseLeftButtonUp="FileShelf_MouseUp">
+                                  MouseLeftButtonUp="FileShelf_MouseUp"
+                                  LostMouseCapture="FileShelfGrid_LostMouseCapture">
 
                                 <Rectangle x:Name="FileShelfDashedBorder"
                                            Stroke="#333333" 

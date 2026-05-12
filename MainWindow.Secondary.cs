@@ -412,9 +412,9 @@ public partial class MainWindow
     private FrameworkElement CreateShelfItem(string filePath, bool isSmall)
     {
         var fileName = Path.GetFileName(filePath);
-        double width = isSmall ? 52 : 64;
-        double height = isSmall ? 52 : 80;
-        double iconSize = isSmall ? 28 : 36;
+        double width = isSmall ? 48 : 58;
+        double height = isSmall ? 48 : 74;
+        double iconSize = isSmall ? 26 : 34;
 
         var border = new Border
         {
@@ -704,6 +704,11 @@ public partial class MainWindow
                 HandleRectangleSelection(posInGrid);
             }
         }
+        else if (_isSelecting)
+        {
+            // Mouse button released outside (capture lost or missed MouseUp) — cancel lasso
+            CancelLassoSelection();
+        }
     }
 
     private void HandleRectangleSelection(Point currentPos)
@@ -779,11 +784,28 @@ public partial class MainWindow
         }
         _sweepStartFile = null;
 
-        if (!_isSelecting) return;
         _isSelecting = false;
         SelectionCanvas.Visibility = Visibility.Collapsed;
-        FileShelfGrid.ReleaseMouseCapture();
-        RefreshShelfLayout();
+
+        if (FileShelfGrid.IsMouseCaptured)
+            FileShelfGrid.ReleaseMouseCapture();
+    }
+
+    private void FileShelfGrid_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        // If mouse capture is lost (e.g. mouse leaves interaction zone), clean up lasso state
+        CancelLassoSelection();
+    }
+
+    private void CancelLassoSelection()
+    {
+        if (!_isSelecting && !FileShelfGrid.IsMouseCaptured) return;
+
+        _isSelecting = false;
+        SelectionCanvas.Visibility = Visibility.Collapsed;
+
+        if (FileShelfGrid.IsMouseCaptured)
+            FileShelfGrid.ReleaseMouseCapture();
     }
 
     #endregion

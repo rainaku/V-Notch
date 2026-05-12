@@ -1261,7 +1261,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             Title = Loc.Get("setup.directory.headline"),
-            FileName = "Select Folder",
+            FileName = "V-Notch",
             Filter = "Folder|*.none",
             CheckFileExists = false,
             CheckPathExists = false
@@ -1271,11 +1271,20 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         {
             if (_pathBox != null)
             {
+                // dialog.FileName will be something like "D:\SomeFolder\V-Notch.none"
+                // We want the directory part which gives us "D:\SomeFolder\V-Notch" 
+                // since FileName was set to "V-Notch"
                 var selectedPath = System.IO.Path.GetDirectoryName(dialog.FileName);
+                if (string.IsNullOrEmpty(selectedPath))
+                {
+                    // Root drive selected - use the path root directly
+                    selectedPath = System.IO.Path.GetPathRoot(dialog.FileName);
+                }
+
                 if (!string.IsNullOrEmpty(selectedPath))
                 {
                     // Append V-Notch subfolder if not already present
-                    var folderName = System.IO.Path.GetFileName(selectedPath);
+                    var folderName = System.IO.Path.GetFileName(selectedPath.TrimEnd('\\', '/'));
                     if (!string.Equals(folderName, "V-Notch", StringComparison.OrdinalIgnoreCase))
                     {
                         selectedPath = System.IO.Path.Combine(selectedPath, "V-Notch");

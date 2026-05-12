@@ -783,12 +783,20 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     private const double ScrollSensitivity = 1.2;
     private const double ScrollMinVelocity = 0.5;
 
+    private bool IsAnyComboBoxDropDownOpen()
+    {
+        return MonitorCombo.IsDropDownOpen || LanguageCombo.IsDropDownOpen;
+    }
+
     private void SettingsScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        e.Handled = true;
+        // If a ComboBox dropdown is open, don't intercept scroll - let the dropdown handle it
+        if (IsAnyComboBoxDropDownOpen())
+        {
+            return;
+        }
 
-        // Close any open ComboBox dropdowns when scrolling
-        CloseOpenComboBoxes();
+        e.Handled = true;
 
         double delta = -e.Delta * ScrollSensitivity;
 
@@ -814,16 +822,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
     private void SettingsScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        if (e.VerticalChange != 0)
-        {
-            CloseOpenComboBoxes();
-        }
-    }
-
-    private void CloseOpenComboBoxes()
-    {
-        if (MonitorCombo.IsDropDownOpen) MonitorCombo.IsDropDownOpen = false;
-        if (LanguageCombo.IsDropDownOpen) LanguageCombo.IsDropDownOpen = false;
+        // Don't close ComboBoxes from scroll changes triggered by smooth scroll animation
     }
 
     private void SmoothScroll_Tick(object? sender, EventArgs e)
