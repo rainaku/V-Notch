@@ -99,6 +99,8 @@ public partial class MainWindow
         Spring.SettleFrames = _springSettleFrames;
     }
 
+    private DateTime _lastVolumeSyncUtc = DateTime.MinValue;
+
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
         // Always render progress bar when expanded, regardless of play state
@@ -111,13 +113,19 @@ public partial class MainWindow
             }
         }
 
+        // Throttle volume sync to ~2Hz (every 500ms) instead of 60fps
         if (_isExpanded && _isMusicExpanded && !_isDraggingVolume)
         {
-            if (_mediaService.TryGetCurrentSessionVolume(out float volume, out bool isMuted))
+            var now = DateTime.UtcNow;
+            if ((now - _lastVolumeSyncUtc).TotalMilliseconds >= 500)
             {
-                _currentVolume = volume;
-                VolumeBarScale.ScaleX = _currentVolume;
-                UpdateVolumeIcon(_currentVolume, isMuted);
+                _lastVolumeSyncUtc = now;
+                if (_mediaService.TryGetCurrentSessionVolume(out float volume, out bool isMuted))
+                {
+                    _currentVolume = volume;
+                    VolumeBarScale.ScaleX = _currentVolume;
+                    UpdateVolumeIcon(_currentVolume, isMuted);
+                }
             }
         }
     }

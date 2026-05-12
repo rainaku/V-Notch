@@ -149,7 +149,7 @@ public partial class MainWindow
         {
             _updatePulseTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromMilliseconds(16)
+                Interval = TimeSpan.FromMilliseconds(33) // ~30fps is sufficient for color pulse
             };
             _updatePulseTimer.Tick += UpdatePulseTimer_Tick;
         }

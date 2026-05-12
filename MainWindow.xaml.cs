@@ -55,9 +55,20 @@ public partial class MainWindow : Window
     private readonly CalendarModule _calendarModule;
     private readonly IModuleLifecycleManager _moduleHost;
 
+    // ─── Notch State (centralized via NotchStateManager) ───
+    private readonly NotchStateManager _notchState = new();
 
+    // _isAnimating remains a simple flag — it guards ALL animations (expand, collapse, view switch, file delete)
+    // The state machine tracks logical state only.
     private bool _isAnimating = false;
-    private bool _isExpanded = false;
+
+    // Logical state reads delegate to the state machine
+    private bool _isExpanded
+    {
+        get => _notchState.IsExpanded;
+        set { /* no-op: state transitions handled explicitly */ }
+    }
+
     private bool _isStartupLayoutReady = false;
     private bool _pendingStartupClickToggle = false;
     private double _collapsedWidth;
@@ -265,7 +276,7 @@ public partial class MainWindow : Window
 
         // Start update check timer and perform initial check
         _updateCheckTimer.Start();
-        _ = CheckForUpdatesAsync();
+        CheckForUpdatesAsync().SafeFireAndForget("UPDATE-CHECK");
         
         if (IsEffectivelyNotchVisible)
         {

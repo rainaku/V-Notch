@@ -59,7 +59,7 @@ public partial class MainWindow
             return;
         }
 
-        _ = UpdateBlurredBackgroundAsync(info.Thumbnail);
+        UpdateBlurredBackgroundAsync(info.Thumbnail).SafeFireAndForget("MEDIA-BG-BLUR");
 
         if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49 && !isNewTrack)
         {
@@ -456,6 +456,12 @@ public partial class MainWindow
         if (!_titleGradientRunning)
         {
             _titleGradientTimer?.Stop();
+            return;
+        }
+
+        // Pause gradient animation when notch is collapsed (saves ~33 ticks/sec)
+        if (!_isExpanded && !_isMusicExpanded)
+        {
             return;
         }
 

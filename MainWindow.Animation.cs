@@ -6,6 +6,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Windows.Media.Effects;
 using VNotch.Controls;
+using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
@@ -60,7 +61,7 @@ public partial class MainWindow
     private void ExpandNotch()
     {
         if (_isAnimating || _isExpanded) return;
-        _isAnimating = true;
+        _notchState.TryTransitionTo(NotchState.Expanding);
         CancelThumbnailSwitchAnimations();
 
         UpdateZOrderTimerInterval();
@@ -206,6 +207,7 @@ public partial class MainWindow
         {
             _isAnimating = false;
             _isExpanded = true;
+            _notchState.TryTransitionTo(NotchState.Expanded);
             NotchBorder.IsHitTestVisible = true;
             UpdateProgressTimerState();
             UpdateBatteryInfo();
@@ -282,7 +284,7 @@ public partial class MainWindow
     private void CollapseNotch()
     {
         if (_isAnimating || !_isExpanded) return;
-        _isAnimating = true;
+        _notchState.TryTransitionTo(NotchState.Collapsing);
         CancelThumbnailSwitchAnimations();
 
         UpdateZOrderTimerInterval();
@@ -450,6 +452,7 @@ public partial class MainWindow
         {
             _isAnimating = false;
             _isExpanded = false;
+            _notchState.TryTransitionTo(NotchState.Collapsed);
             NotchBorder.IsHitTestVisible = true;
             UpdateProgressTimerState();
 

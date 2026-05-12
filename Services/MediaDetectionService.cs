@@ -103,7 +103,7 @@ public class MediaDetectionService : IMediaDetectionService
 
         _startupProgressSyncUntilUtc = DateTime.UtcNow.AddSeconds(5);
 
-        _ = StartCoreAsync();
+        StartCoreAsync().SafeFireAndForget("MEDIA-START");
     }
 
     private async Task StartCoreAsync()
@@ -115,11 +115,9 @@ public class MediaDetectionService : IMediaDetectionService
 
             await SubscribeToCurrentSession();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine("[MediaService] Failed to init SMTC");
-#endif
+            RuntimeLog.Log("MEDIA-INIT", $"Failed to init SMTC: {ex.Message}");
         }
 
         
@@ -170,16 +168,12 @@ public class MediaDetectionService : IMediaDetectionService
                 _currentSession.TimelinePropertiesChanged += OnTimelineChanged;
                 _currentSession.PlaybackInfoChanged += OnPlaybackChanged;
                 _currentSession.MediaPropertiesChanged += OnMediaPropertiesChanged;
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine($"[MediaService] Subscribed to session: {_currentSession.SourceAppUserModelId}");
-#endif
+                RuntimeLog.Log("MEDIA-SESSION", $"Subscribed to session: {_currentSession.SourceAppUserModelId}");
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine("[MediaService] Failed to subscribe to session");
-#endif
+            RuntimeLog.Log("MEDIA-SESSION", $"Failed to subscribe to session: {ex.Message}");
         }
     }
 
@@ -228,7 +222,6 @@ public class MediaDetectionService : IMediaDetectionService
     private void Log(string tag, string message)
     {
         RuntimeLog.Log($"MEDIA-{tag}", message);
-        System.Diagnostics.Debug.WriteLine($"[MediaService][{tag}] {message}");
     }
 
     #region Background Processing
@@ -279,8 +272,6 @@ public class MediaDetectionService : IMediaDetectionService
                 _ => TimeSpan.FromSeconds(3)
             };
 
-            System.Diagnostics.Debug.WriteLine($"[HEARTBEAT] Mode: {_currentMode}, Interval: {interval.TotalSeconds:F1}s");
-
             try
             {
                 await Task.Delay(interval, ct);
@@ -293,11 +284,9 @@ public class MediaDetectionService : IMediaDetectionService
                 && lastEvtTicks > 0
                 && (DateTime.UtcNow - new DateTime(lastEvtTicks)).TotalSeconds > 10)
             {
-                System.Diagnostics.Debug.WriteLine($"[HEARTBEAT] SKIPPED: Idle mode, no events for {(DateTime.UtcNow - new DateTime(lastEvtTicks)).TotalSeconds:F1}s");
                 continue;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[HEARTBEAT] Sending heartbeat");
             _changeChannel.Writer.TryWrite(ChangeType.Heartbeat);
         }
     }
@@ -321,8 +310,7 @@ public class MediaDetectionService : IMediaDetectionService
         
         if (oldMode != _currentMode)
         {
-            System.Diagnostics.Debug.WriteLine($"[DETECTION] Mode changed: {oldMode} -> {_currentMode} " +
-                $"(IsPlaying: {info.IsAnyMediaPlaying}, Track: '{info.CurrentTrack}', Throttled: {info.IsThrottled})");
+            RuntimeLog.Log("MEDIA-MODE", $"Detection mode: {oldMode} -> {_currentMode} (Playing={info.IsAnyMediaPlaying}, Track='{info.CurrentTrack}', Throttled={info.IsThrottled})");
         }
     }
 
@@ -1505,8 +1493,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 
                                 if (currentTimelineAge - timelineAge > 3.0)
                                 {
-                                    System.Diagnostics.Debug.WriteLine($"[DETECTION] Switching session due to fresh timeline: " +
-                                        $"New={timelineAge:F1}s old, Current={currentTimelineAge:F1}s old");
+                                    RuntimeLog.Log("MEDIA-SESSION", $"Switching session: fresh timeline New={timelineAge:F1}s vs Current={currentTimelineAge:F1}s");
                                     hasFreshTimeline = true;
                                 }
                             }

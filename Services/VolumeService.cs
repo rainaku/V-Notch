@@ -35,11 +35,11 @@ public class VolumeService : IVolumeService
             _endpointVolume = (IAudioEndpointVolume)endpointVolume;
             _isInitialized = true;
 
-            System.Diagnostics.Debug.WriteLine("[VolumeService] Initialized successfully");
+            RuntimeLog.Log("VOLUME", "Initialized successfully");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[VolumeService] Init error: {ex.Message}");
+            RuntimeLog.Log("VOLUME", $"Init error: {ex.Message}");
             _isInitialized = false;
         }
     }
@@ -58,7 +58,7 @@ public class VolumeService : IVolumeService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[VolumeService] GetVolume error: {ex.Message}");
+            RuntimeLog.Log("VOLUME", $"GetVolume error: {ex.Message}");
         }
 
         return 0.5f;
@@ -75,17 +75,16 @@ public class VolumeService : IVolumeService
 
             if (hr == 0)
             {
-                System.Diagnostics.Debug.WriteLine($"[VolumeService] Volume set to {volume:P0}");
                 return true;
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[VolumeService] SetVolume failed with HRESULT: {hr}");
+                RuntimeLog.Log("VOLUME", $"SetVolume failed with HRESULT: {hr}");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[VolumeService] SetVolume error: {ex.Message}");
+            RuntimeLog.Log("VOLUME", $"SetVolume error: {ex.Message}");
         }
 
         return false;

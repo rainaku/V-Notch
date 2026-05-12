@@ -36,7 +36,7 @@ public partial class SettingsWindow : Window
         _updateService = new UpdateService();
 
         LoadSettings();
-        _ = CheckForUpdatesAsync();
+        CheckForUpdatesAsync().SafeFireAndForget("SETTINGS-UPDATE-CHECK");
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)

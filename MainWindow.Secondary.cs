@@ -31,7 +31,17 @@ public partial class MainWindow
     private const int UnlockedShelfFileLimit = 999;
     private int MaxShelfFiles => _settings.IsShelfUploadLimitUnlocked ? UnlockedShelfFileLimit : DefaultShelfFileLimit;
 
-    private bool _isSecondaryView = false;
+    private bool _isSecondaryView
+    {
+        get => _notchState.IsSecondaryView;
+        set
+        {
+            if (value && !_notchState.IsSecondaryView)
+                _notchState.TryTransitionTo(NotchState.SecondaryView);
+            else if (!value && _notchState.IsSecondaryView)
+                _notchState.TryTransitionTo(NotchState.Expanded);
+        }
+    }
     private DateTime _lastViewSwitchUtc = DateTime.MinValue;
     private static readonly TimeSpan ViewSwitchCooldown = TimeSpan.FromMilliseconds(600);
     private readonly List<string> _shelfFiles = new List<string>();

@@ -28,6 +28,9 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() =>
         {
+            // Skip expensive UI updates when notch is collapsed and no compact thumbnail visible
+            bool isCollapsedWithoutCompact = !_isExpanded && !_isMusicExpanded && !_isMusicCompactMode;
+
             bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
             // Stable source for display purposes.

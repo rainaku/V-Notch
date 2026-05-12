@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using VNotch.Controls;
+using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
@@ -20,7 +21,7 @@ public partial class MainWindow
 {
     #region Expanded Music Player Animations
 
-    private bool _isMusicExpanded = false;
+    private bool _isMusicExpanded => _notchState.IsMusicExpanded;
     private bool _isMusicAnimating = false;
     private double _musicWidgetSmallWidth = 0;
 
@@ -28,7 +29,7 @@ public partial class MainWindow
     {
         if (_isMusicAnimating) return;
         _isMusicAnimating = true;
-        _isMusicExpanded = true;
+        _notchState.TryTransitionTo(NotchState.MusicExpanding);
         UpdateProgressSectionLayout();
 
         UpdateZOrderTimerInterval();
@@ -108,6 +109,7 @@ public partial class MainWindow
             MediaWidgetContainer.BeginAnimation(WidthProperty, null);
             MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             _isMusicAnimating = false;
+            _notchState.TryTransitionTo(NotchState.MusicExpanded);
         };
 
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
@@ -133,7 +135,7 @@ public partial class MainWindow
     {
         if (_isMusicAnimating) return;
         _isMusicAnimating = true;
-        _isMusicExpanded = false;
+        _notchState.TryTransitionTo(NotchState.MusicCollapsing);
         UpdateProgressSectionLayout();
 
         UpdateZOrderTimerInterval();
@@ -177,6 +179,7 @@ public partial class MainWindow
             MediaWidgetContainer.BeginAnimation(WidthProperty, null);
             MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             _isMusicAnimating = false;
+            _notchState.TryTransitionTo(NotchState.Expanded);
         };
 
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
