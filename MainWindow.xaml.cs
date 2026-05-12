@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
+using VNotch.Controllers;
 using VNotch.Services;
 using VNotch.Models;
 using VNotch.Modules;
@@ -235,6 +236,8 @@ public partial class MainWindow : Window
         Deactivated += MainWindow_Deactivated;
 
         _mediaService.MediaChanged += OnMediaChanged;
+
+        InitializeFileShelfController();
     }
 
 
