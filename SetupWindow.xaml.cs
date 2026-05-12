@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using VNotch.Services;
 using IOPath = System.IO.Path;
 
 namespace VNotch;
@@ -41,6 +42,7 @@ public partial class SetupWindow : Window
     private readonly InstallProgressPage _installProgressPage;
     private readonly FinishPage _finishPage;
     private readonly CancelSetupPage _cancelSetupPage;
+    private readonly LanguagePage _languagePage;
     private readonly string _sourceDirectory;
     private bool _isWelcomePage = true;
     private bool _isTransitioning;
@@ -62,6 +64,7 @@ public partial class SetupWindow : Window
 
         _sourceDirectory = sourceDirectory ?? AppContext.BaseDirectory;
         _introductionPage = new IntroductionPage();
+        _languagePage = new LanguagePage("en");
         _directoryPage = new DirectoryPage(SetupOperations.GetDefaultInstallDirectory());
         _startupOptionsPage = new StartupOptionsPage(startWithWindows: true);
         _installProgressPage = new InstallProgressPage();
@@ -70,6 +73,7 @@ public partial class SetupWindow : Window
 
         _pageFactories = new Func<UIElement>[]
         {
+            () => _languagePage,
             () => null!, // Welcome page uses built-in XAML
             () => _introductionPage,
             () => _directoryPage,
@@ -77,6 +81,39 @@ public partial class SetupWindow : Window
             () => _installProgressPage,
             () => _finishPage
         };
+
+        _languagePage.LanguageChanged += OnSetupLanguageChanged;
+    }
+
+    private void OnSetupLanguageChanged(string lang)
+    {
+        Loc.SetLanguage(lang);
+        ApplyLocalizationToSetupUi();
+    }
+
+    private void ApplyLocalizationToSetupUi()
+    {
+        // Welcome page (XAML elements)
+        HeadlineText.Text = Loc.Get("setup.welcome.headline");
+
+        // Step indicators (Language is now first)
+        Step1Text.Text = Loc.Get("setup.step.language");
+        Step2Text.Text = Loc.Get("setup.step.welcome");
+        Step3Text.Text = Loc.Get("setup.step.about");
+        Step4Text.Text = Loc.Get("setup.step.location");
+        Step5Text.Text = Loc.Get("setup.step.startup");
+        Step6Text.Text = Loc.Get("setup.step.install");
+        Step7Text.Text = Loc.Get("setup.step.finish");
+
+        // Navigation buttons
+        if (!_isShowingCancelSetupPage)
+        {
+            NextButton.Content = _currentPageIndex == _pageFactories.Length - 1
+                ? Loc.Get("setup.btn.finish")
+                : Loc.Get("setup.btn.continue");
+            BackButton.Content = Loc.Get("setup.btn.back");
+            CancelButton.Content = Loc.Get("setup.btn.cancel");
+        }
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -84,6 +121,20 @@ public partial class SetupWindow : Window
         var storyboard = (Storyboard)FindResource("WindowEntranceStoryboard");
         storyboard.Begin();
         ForceWindowToFront();
+
+        // Language is now the first page — show it after entrance animation
+        // Hide the XAML welcome elements and show the Language page
+        IconContainer.Visibility = Visibility.Collapsed;
+        HeadlineText.Visibility = Visibility.Collapsed;
+        BodyText.Visibility = Visibility.Collapsed;
+        _isWelcomePage = false;
+        _currentPageIndex = 0;
+
+        ContentPresenter.Content = _languagePage;
+        ContentPresenter.Visibility = Visibility.Visible;
+        ContentPresenter.Opacity = 1;
+        UpdateStepIndicators(0);
+        UpdateNavigationButtons(0);
     }
 
     protected override void OnContentRendered(EventArgs e)
@@ -205,7 +256,7 @@ public partial class SetupWindow : Window
             {
                 _currentPageIndex = index;
 
-                if (index == 0)
+                if (index == 1)
                 {
                     ShowWelcomePage(direction);
                 }
@@ -233,6 +284,9 @@ public partial class SetupWindow : Window
 
         _isWelcomePage = true;
 
+        // Apply localized text
+        HeadlineText.Text = Loc.Get("setup.welcome.headline");
+
         ResetElementForEntry(IconContainer, GetWelcomeOffset(direction));
         ResetElementForEntry(HeadlineText, GetWelcomeOffset(direction));
         ResetElementForEntry(BodyText, GetWelcomeOffset(direction));
@@ -256,13 +310,13 @@ public partial class SetupWindow : Window
 
     private void UpdateNavigationButtons(int index)
     {
-        BackButton.Content = "Back";
-        CancelButton.Content = "Cancel";
+        BackButton.Content = Loc.Get("setup.btn.back");
+        CancelButton.Content = Loc.Get("setup.btn.cancel");
 
         if (_isShowingCancelSetupPage)
         {
-            BackButton.Content = "Keep setup";
-            NextButton.Content = "Cancel setup";
+            BackButton.Content = Loc.Get("setup.btn.keepSetup");
+            NextButton.Content = Loc.Get("setup.btn.cancelSetup");
             BackButton.Visibility = Visibility.Visible;
             CancelButton.Visibility = Visibility.Collapsed;
             NextButton.Visibility = Visibility.Visible;
@@ -281,15 +335,15 @@ public partial class SetupWindow : Window
         }
         else if (index == _pageFactories.Length - 1)
         {
-            NextButton.Content = "Finish";
+            NextButton.Content = Loc.Get("setup.btn.finish");
         }
         else if (index == _pageFactories.Length - 3)
         {
-            NextButton.Content = "Install";
+            NextButton.Content = Loc.Get("setup.btn.continue");
         }
         else
         {
-            NextButton.Content = "Continue";
+            NextButton.Content = Loc.Get("setup.btn.continue");
         }
 
         BackButton.Visibility = showBack ? Visibility.Visible : Visibility.Collapsed;
@@ -557,6 +611,8 @@ public partial class SetupWindow : Window
         _isTransitioning = true;
         SetNavigationEnabled(false);
 
+        _cancelSetupPage.RefreshLocalization();
+
         AnimateCurrentViewOut(NavigationDirection.Forward, () =>
         {
             _isShowingCancelSetupPage = true;
@@ -718,7 +774,7 @@ public partial class SetupWindow : Window
 
     private void UpdateStepIndicators(int currentStep)
     {
-        var steps = new[] { Step1Text, Step2Text, Step3Text, Step4Text, Step5Text, Step6Text };
+        var steps = new[] { Step1Text, Step2Text, Step3Text, Step4Text, Step5Text, Step6Text, Step7Text };
         
         for (int i = 0; i < steps.Length; i++)
         {
@@ -869,7 +925,8 @@ public partial class SetupWindow : Window
             var installOptions = new SetupInstallOptions(
                 _sourceDirectory,
                 _directoryPage.InstallPath,
-                _startupOptionsPage.StartWithWindows);
+                _startupOptionsPage.StartWithWindows,
+                _languagePage.SelectedLanguage);
 
             await SetupOperations.InstallAsync(installOptions, progress =>
             {
@@ -1272,6 +1329,8 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
     private readonly TextBlock _headline;
     private readonly TextBlock _description;
     private readonly Border _warningCard;
+    private readonly TextBlock _warningTitle;
+    private readonly TextBlock _warningBody;
 
     public CancelSetupPage()
     {
@@ -1283,7 +1342,7 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
 
         _headline = new TextBlock
         {
-            Text = "Cancel setup?",
+            Text = Loc.Get("setup.cancel.headline"),
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
@@ -1295,7 +1354,7 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
 
         _description = new TextBlock
         {
-            Text = "V-Notch will not be installed and setup will close.",
+            Text = Loc.Get("setup.cancel.description"),
             FontSize = 14,
             LineHeight = 22,
             Foreground = new SolidColorBrush(Color.FromArgb(204, 255, 255, 255)),
@@ -1306,11 +1365,20 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
         Grid.SetRow(_description, 1);
         grid.Children.Add(_description);
 
-        _warningCard = CreateWarningCard();
+        _warningCard = CreateWarningCard(out _warningTitle, out _warningBody);
         Grid.SetRow(_warningCard, 2);
         grid.Children.Add(_warningCard);
 
         Content = grid;
+    }
+
+    /// <summary>Refreshes all text to current language. Call before showing.</summary>
+    public void RefreshLocalization()
+    {
+        _headline.Text = Loc.Get("setup.cancel.headline");
+        _description.Text = Loc.Get("setup.cancel.description");
+        _warningTitle.Text = Loc.Get("setup.cancel.warningTitle");
+        _warningBody.Text = Loc.Get("setup.cancel.warningBody");
     }
 
     public IReadOnlyList<UIElement> GetAnimatedElements()
@@ -1318,28 +1386,31 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
         return new UIElement[] { _headline, _description, _warningCard };
     }
 
-    private static Border CreateWarningCard()
+    private static Border CreateWarningCard(out TextBlock titleBlock, out TextBlock bodyBlock)
     {
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
+        titleBlock = new TextBlock
         {
-            Text = "You can go back and continue setup, or confirm to exit now.",
+            Text = Loc.Get("setup.cancel.warningTitle"),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
             Foreground = Brushes.White,
             FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
             Margin = new Thickness(0, 0, 0, 6),
             TextWrapping = TextWrapping.Wrap
-        });
-        stack.Children.Add(new TextBlock
+        };
+        stack.Children.Add(titleBlock);
+
+        bodyBlock = new TextBlock
         {
-            Text = "Choose Keep setup to return to the current step, or Cancel setup to close the installer.",
+            Text = Loc.Get("setup.cancel.warningBody"),
             FontSize = 13,
             LineHeight = 20,
             Foreground = new SolidColorBrush(Color.FromArgb(196, 255, 255, 255)),
             FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
             TextWrapping = TextWrapping.Wrap
-        });
+        };
+        stack.Children.Add(bodyBlock);
 
         return new Border
         {

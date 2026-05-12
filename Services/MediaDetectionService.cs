@@ -22,6 +22,8 @@ public class MediaDetectionService : IMediaDetectionService
     private readonly IMediaMetadataLookupService _metadataLookup;
     private readonly IMediaArtworkService _artworkService;
     private readonly IWindowTitleScanner _windowTitleScanner;
+    private readonly MediaSessionVolumeService _volumeService;
+    private readonly MediaTransportControlService _transportService;
 
     
     private readonly Channel<ChangeType> _changeChannel;
@@ -72,6 +74,8 @@ public class MediaDetectionService : IMediaDetectionService
         _metadataLookup = metadataLookup;
         _artworkService = artworkService;
         _windowTitleScanner = windowTitleScanner;
+        _volumeService = new MediaSessionVolumeService();
+        _transportService = new MediaTransportControlService(GetActiveSession);
 
         _changeChannel = Channel.CreateBounded<ChangeType>(
             new BoundedChannelOptions(16)
@@ -84,17 +88,16 @@ public class MediaDetectionService : IMediaDetectionService
         _sourceCache.Load();
     }
 
+    private GlobalSystemMediaTransportControlsSession? GetActiveSession()
+    {
+        return _activeDisplaySession ?? _currentSession ?? _sessionManager?.GetCurrentSession();
+    }
+
 
 
     private GlobalSystemMediaTransportControlsSession? _currentSession;
     private GlobalSystemMediaTransportControlsSession? _activeDisplaySession; 
     private DateTime _lastSessionSwitchTime = DateTime.MinValue;
-    private string _lastMatchedVolumeSessionId = "";
-    private uint _lastMatchedVolumeProcessId;
-    private string _lastMatchedVolumeSourceAppId = "";
-    private string _cachedVolumeProcessSourceAppId = "";
-    private DateTime _cachedVolumeProcessIdsAtUtc = DateTime.MinValue;
-    private HashSet<uint> _cachedVolumeProcessIds = new();
 
     public void Start()
     {
@@ -2336,128 +2339,20 @@ public class MediaDetectionService : IMediaDetectionService
 
     public bool TryGetCurrentSessionVolume(out float volume, out bool isMuted)
     {
-        float resolvedVolume = 0f;
-        bool resolvedMuted = false;
-
-        bool success = TryWithCurrentAudioSession(session =>
-        {
-            using var simpleVolume = session.SimpleAudioVolume;
-            resolvedVolume = Math.Clamp(simpleVolume.Volume, 0f, 1f);
-            resolvedMuted = simpleVolume.Mute;
-            return true;
-        });
-
-        volume = resolvedVolume;
-        isMuted = resolvedMuted;
-        return success;
+        string sourceAppId = GetActiveSourceAppId();
+        return _volumeService.TryGetVolume(sourceAppId, out volume, out isMuted);
     }
 
     public bool TrySetCurrentSessionVolume(float volume)
     {
-        float target = Math.Clamp(volume, 0f, 1f);
-
-        return TryWithCurrentAudioSession(session =>
-        {
-            using var simpleVolume = session.SimpleAudioVolume;
-            simpleVolume.Volume = target;
-            if (target > 0.001f && simpleVolume.Mute)
-            {
-                simpleVolume.Mute = false;
-            }
-            return true;
-        });
+        string sourceAppId = GetActiveSourceAppId();
+        return _volumeService.TrySetVolume(sourceAppId, volume);
     }
 
     public bool TryToggleCurrentSessionMute()
     {
-        return TryWithCurrentAudioSession(session =>
-        {
-            using var simpleVolume = session.SimpleAudioVolume;
-            simpleVolume.Mute = !simpleVolume.Mute;
-            return true;
-        });
-    }
-
-    private bool TryWithCurrentAudioSession(Func<AudioSessionControl, bool> action)
-    {
         string sourceAppId = GetActiveSourceAppId();
-        if (string.IsNullOrWhiteSpace(sourceAppId))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var deviceEnumerator = new MMDeviceEnumerator();
-            using var defaultDevice = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            var sessions = defaultDevice.AudioSessionManager.Sessions;
-            if (sessions == null || sessions.Count == 0)
-            {
-                return false;
-            }
-
-            var candidateProcessNames = GetProcessNameCandidates(sourceAppId);
-            var candidateProcessIds = GetCachedProcessIdsForSourceApp(sourceAppId, candidateProcessNames);
-            AudioSessionControl? targetSession = null;
-            double bestScore = double.MinValue;
-
-            for (int i = 0; i < sessions.Count; i++)
-            {
-                var session = sessions[i];
-                if (session == null || session.IsSystemSoundsSession)
-                {
-                    continue;
-                }
-
-                uint processId = session.GetProcessID;
-                bool matchedByProcess = candidateProcessIds.Contains(processId);
-                bool matchedByMetadata = SessionMatchesSourceAppId(session, sourceAppId);
-                if (!matchedByProcess && !matchedByMetadata)
-                {
-                    continue;
-                }
-
-                double score = 0;
-                if (matchedByProcess) score += 1000;
-                if (matchedByMetadata) score += 200;
-
-                if (string.Equals(sourceAppId, _lastMatchedVolumeSourceAppId, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (processId != 0 && processId == _lastMatchedVolumeProcessId) score += 300;
-                    if (string.Equals(session.GetSessionIdentifier, _lastMatchedVolumeSessionId, StringComparison.OrdinalIgnoreCase)) score += 400;
-                }
-
-                try
-                {
-                    score += session.AudioMeterInformation.MasterPeakValue * 100;
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Log("MEDIA-VOLUME-SCORE", ex.ToString());
-                }
-
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    targetSession = session;
-                }
-            }
-
-            if (targetSession == null)
-            {
-                return false;
-            }
-
-            _lastMatchedVolumeSourceAppId = sourceAppId;
-            _lastMatchedVolumeProcessId = targetSession.GetProcessID;
-            _lastMatchedVolumeSessionId = targetSession.GetSessionIdentifier ?? "";
-
-            return action(targetSession);
-        }
-        catch
-        {
-            return false;
-        }
+        return _volumeService.TryToggleMute(sourceAppId);
     }
 
     private string GetActiveSourceAppId()
@@ -2475,130 +2370,6 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    private static bool SessionMatchesSourceAppId(AudioSessionControl session, string sourceAppId)
-    {
-        if (string.IsNullOrWhiteSpace(sourceAppId))
-        {
-            return false;
-        }
-
-        return ContainsEitherWay(session.DisplayName, sourceAppId) ||
-               ContainsEitherWay(session.GetSessionIdentifier, sourceAppId) ||
-               ContainsEitherWay(session.GetSessionInstanceIdentifier, sourceAppId);
-    }
-
-    private static bool ContainsEitherWay(string? left, string? right)
-    {
-        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-        {
-            return false;
-        }
-
-        return left.Contains(right, StringComparison.OrdinalIgnoreCase) ||
-               right.Contains(left, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static HashSet<string> GetProcessNameCandidates(string sourceAppId)
-    {
-        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(sourceAppId))
-        {
-            return candidates;
-        }
-
-        foreach (Match match in Regex.Matches(sourceAppId, @"([A-Za-z0-9_\-]+)\.exe", RegexOptions.IgnoreCase))
-        {
-            string processName = match.Groups[1].Value.Trim();
-            if (!string.IsNullOrWhiteSpace(processName))
-            {
-                candidates.Add(processName);
-            }
-        }
-
-        AddProcessAliasIfContains(sourceAppId, candidates, "spotify", "Spotify");
-        AddProcessAliasIfContains(sourceAppId, candidates, "msedge", "msedge");
-        AddProcessAliasIfContains(sourceAppId, candidates, "edge", "msedge");
-        AddProcessAliasIfContains(sourceAppId, candidates, "chrome", "chrome");
-        AddProcessAliasIfContains(sourceAppId, candidates, "firefox", "firefox");
-        AddProcessAliasIfContains(sourceAppId, candidates, "opera", "opera");
-        AddProcessAliasIfContains(sourceAppId, candidates, "brave", "brave");
-        AddProcessAliasIfContains(sourceAppId, candidates, "vivaldi", "vivaldi");
-        AddProcessAliasIfContains(sourceAppId, candidates, "coccoc", "browser");
-        AddProcessAliasIfContains(sourceAppId, candidates, "arc", "arc");
-        AddProcessAliasIfContains(sourceAppId, candidates, "sidekick", "sidekick");
-        AddProcessAliasIfContains(sourceAppId, candidates, "applemusic", "AppleMusic");
-        AddProcessAliasIfContains(sourceAppId, candidates, "apple music", "AppleMusic");
-
-        return candidates;
-    }
-
-    private static void AddProcessAliasIfContains(string sourceAppId, ISet<string> candidates, string token, string processName)
-    {
-        if (sourceAppId.Contains(token, StringComparison.OrdinalIgnoreCase))
-        {
-            candidates.Add(processName);
-        }
-    }
-
-    private HashSet<uint> GetCachedProcessIdsForSourceApp(string sourceAppId, IEnumerable<string> processNames)
-    {
-        bool canUseCache =
-            string.Equals(sourceAppId, _cachedVolumeProcessSourceAppId, StringComparison.OrdinalIgnoreCase) &&
-            (DateTime.UtcNow - _cachedVolumeProcessIdsAtUtc).TotalMilliseconds < 1200;
-
-        if (canUseCache)
-        {
-            return _cachedVolumeProcessIds;
-        }
-
-        _cachedVolumeProcessSourceAppId = sourceAppId;
-        _cachedVolumeProcessIds = GetProcessIds(processNames);
-        _cachedVolumeProcessIdsAtUtc = DateTime.UtcNow;
-        return _cachedVolumeProcessIds;
-    }
-
-    private static HashSet<uint> GetProcessIds(IEnumerable<string> processNames)
-    {
-        var processIds = new HashSet<uint>();
-
-        foreach (string processName in processNames)
-        {
-            if (string.IsNullOrWhiteSpace(processName))
-            {
-                continue;
-            }
-
-            Process[] processes;
-            try
-            {
-                processes = Process.GetProcessesByName(processName);
-            }
-            catch (Exception ex)
-            {
-                RuntimeLog.Log("MEDIA-PID-LOOKUP", ex.ToString());
-                continue;
-            }
-
-            foreach (var process in processes)
-            {
-                try
-                {
-                    processIds.Add((uint)process.Id);
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Log("MEDIA-PID-COLLECT", ex.ToString());
-                }
-                finally
-                {
-                    process.Dispose();
-                }
-            }
-        }
-
-        return processIds;
-    }
-
     public void Dispose()
     {
         if (_disposed) return;
@@ -2612,122 +2383,15 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    public async Task PlayPauseAsync()
-    {
-        if (_sessionManager == null) return;
+    public Task PlayPauseAsync() => _transportService.PlayPauseAsync();
 
-        try
-        {
+    public Task NextTrackAsync() => _transportService.NextTrackAsync();
 
-            var session = _activeDisplaySession ?? _sessionManager.GetCurrentSession();
-            if (session != null)
-            {
-                await session.TryTogglePlayPauseAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("MEDIA-PLAYPAUSE", ex.ToString());
-        }
-    }
+    public Task PreviousTrackAsync() => _transportService.PreviousTrackAsync();
 
-    public async Task NextTrackAsync()
-    {
-        if (_sessionManager == null) return;
+    public Task SeekAsync(TimeSpan position) => _transportService.SeekAsync(position);
 
-        try
-        {
-
-            var session = _activeDisplaySession ?? _sessionManager.GetCurrentSession();
-            if (session != null)
-            {
-                await session.TrySkipNextAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("MEDIA-NEXT", ex.ToString());
-        }
-    }
-
-    public async Task PreviousTrackAsync()
-    {
-        if (_sessionManager == null) return;
-
-        try
-        {
-
-            var session = _activeDisplaySession ?? _sessionManager.GetCurrentSession();
-            if (session != null)
-            {
-                await session.TrySkipPreviousAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("MEDIA-PREV", ex.ToString());
-        }
-    }
-
-    public async Task SeekAsync(TimeSpan position)
-    {
-        if (_sessionManager == null) return;
-
-        try
-        {
-
-            var session = _activeDisplaySession ?? _sessionManager.GetCurrentSession();
-            if (session != null)
-            {
-                await session.TryChangePlaybackPositionAsync(position.Ticks);
-            }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("MEDIA-SEEK", ex.ToString());
-        }
-    }
-
-    public async Task SeekRelativeAsync(double seconds)
-    {
-        if (_sessionManager == null) return;
-
-        try
-        {
-            var session = _activeDisplaySession ?? _sessionManager.GetCurrentSession();
-            if (session != null)
-            {
-                var timeline = session.GetTimelineProperties();
-                if (timeline != null)
-                {
-                    var playbackInfo = session.GetPlaybackInfo();
-                    bool isPlaying = playbackInfo?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-
-                    var timeSinceUpdate = DateTimeOffset.Now - timeline.LastUpdatedTime;
-                    var currentPos = timeline.Position;
-
-                    if (isPlaying && timeSinceUpdate > TimeSpan.Zero && timeSinceUpdate < TimeSpan.FromHours(1))
-                    {
-                        currentPos += timeSinceUpdate;
-                    }
-
-                    var newPosTicks = currentPos.Ticks + TimeSpan.FromSeconds(seconds).Ticks;
-
-                    var duration = timeline.EndTime - timeline.StartTime;
-                    if (duration <= TimeSpan.Zero) duration = timeline.MaxSeekTime;
-
-                    if (newPosTicks < 0) newPosTicks = 0;
-                    if (duration.Ticks > 0 && newPosTicks > duration.Ticks) newPosTicks = duration.Ticks;
-
-                    await session.TryChangePlaybackPositionAsync(newPosTicks);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("MEDIA-SEEK-REL", ex.ToString());
-        }
-    }
+    public Task SeekRelativeAsync(double seconds) => _transportService.SeekRelativeAsync(seconds);
 }
 
 [Flags]

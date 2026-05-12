@@ -99,6 +99,12 @@ public event EventHandler? AnimatedClosing;
         SystemNotifyCheck.IsChecked = _settings.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = _settings.IsShelfUploadLimitUnlocked;
 
+        // Language combo
+        LanguageCombo.Items.Clear();
+        LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "English", Tag = "en" });
+        LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "Tiếng Việt", Tag = "vi" });
+        LanguageCombo.SelectedIndex = _settings.Language == "vi" ? 1 : 0;
+
         _isLoadingSettings = false;
     }
 
@@ -145,6 +151,18 @@ public event EventHandler? AnimatedClosing;
             HoverDelayValue.Text = ((int)e.NewValue).ToString();
         PushLivePreview();
     }
+
+    private void LanguageCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        if (LanguageCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is string lang)
+        {
+            _settings.Language = lang;
+            Loc.SetLanguage(lang);
+            _settingsService.Save(_settings);
+        }
+    }
+
 private void PushLivePreview()
     {
         if (_isLoadingSettings) return;
@@ -330,6 +348,7 @@ private void PushLivePreview()
         MusicNotifyCheck.IsChecked = defaults.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = defaults.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = defaults.IsShelfUploadLimitUnlocked;
+        LanguageCombo.SelectedIndex = defaults.Language == "vi" ? 1 : 0;
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -575,6 +594,10 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.ShowMusicNotifications = MusicNotifyCheck.IsChecked ?? true;
         _settings.ShowSystemNotifications = SystemNotifyCheck.IsChecked ?? true;
         _settings.IsShelfUploadLimitUnlocked = ShelfUnlockCheck.IsChecked ?? false;
+
+        // Language
+        if (LanguageCombo.SelectedItem is System.Windows.Controls.ComboBoxItem langItem && langItem.Tag is string langCode)
+            _settings.Language = langCode;
 
         if (persist)
         {

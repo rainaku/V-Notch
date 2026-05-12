@@ -1092,6 +1092,16 @@
                                                TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
+
+                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <TextBlock Text="Language" Style="{StaticResource SettingTitleText}"/>
+                                    <TextBlock Text="Choose the display language for V-Notch."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,6,0,8"/>
+                                    <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
                     </StackPanel>

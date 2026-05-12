@@ -82,7 +82,7 @@ public sealed class FileShelfController : IDisposable
     public DropValidation ValidateDrop(string[]? rawFiles)
     {
         if (rawFiles == null || rawFiles.Length == 0)
-            return new DropValidation(DropResult.NoFiles, Array.Empty<string>(), "No files detected.");
+            return new DropValidation(DropResult.NoFiles, Array.Empty<string>(), Loc.Get("shelf.noFiles"));
 
         var newFiles = rawFiles
             .Where(f => !string.IsNullOrWhiteSpace(f))
@@ -92,7 +92,7 @@ public sealed class FileShelfController : IDisposable
             .ToArray();
 
         if (newFiles.Length == 0)
-            return new DropValidation(DropResult.AlreadyOnShelf, Array.Empty<string>(), "These files are already on the shelf.");
+            return new DropValidation(DropResult.AlreadyOnShelf, Array.Empty<string>(), Loc.Get("shelf.alreadyOnShelf"));
 
         if (_settings.IsShelfUploadLimitUnlocked)
             return new DropValidation(DropResult.Accept, newFiles, string.Empty);
@@ -103,11 +103,11 @@ public sealed class FileShelfController : IDisposable
 
         if (RemainingSlots <= 0)
             return new DropValidation(DropResult.ShelfFull, Array.Empty<string>(),
-                $"Shelf full ({Math.Min(MaxFiles, OccupiedSlots)}/{MaxFiles}). Remove files before adding more.");
+                Loc.Get("shelf.full", Math.Min(MaxFiles, OccupiedSlots), MaxFiles));
 
         if (newFiles.Length > RemainingSlots)
             return new DropValidation(DropResult.ExceedsLimit, Array.Empty<string>(),
-                $"Shelf limit is {MaxFiles} files. Only {RemainingSlots} slot(s) left.");
+                Loc.Get("shelf.exceedsLimit", MaxFiles, RemainingSlots));
 
         return new DropValidation(DropResult.Accept, newFiles, string.Empty);
     }
@@ -343,7 +343,7 @@ public sealed class FileShelfController : IDisposable
         if (IsFull && !_settings.IsShelfUploadLimitUnlocked)
         {
             int currentCount = _files.Count + _pendingFiles.Count;
-            return $"Shelf full ({currentCount}/{DefaultFileLimit}). Remove files before adding more.";
+            return Loc.Get("shelf.full", currentCount, DefaultFileLimit);
         }
         return null;
     }

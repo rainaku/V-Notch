@@ -12,7 +12,8 @@ namespace VNotch;
 internal sealed record SetupInstallOptions(
     string SourceDirectory,
     string InstallDirectory,
-    bool StartWithWindows);
+    bool StartWithWindows,
+    string Language = "en");
 
 internal sealed record SetupProgressInfo(
     string StatusText,
@@ -143,6 +144,10 @@ internal static class SetupOperations
 
             reportProgress(new SetupProgressInfo("Registering uninstall information...", files.Length, files.Length));
             RegisterUninstall(installedExePath, installDirectory);
+
+            // Save initial settings with language preference
+            reportProgress(new SetupProgressInfo("Saving preferences...", files.Length, files.Length));
+            SaveInitialSettings(options.Language);
         });
     }
 
@@ -255,6 +260,27 @@ internal static class SetupOperations
         else
         {
             runKey.DeleteValue(AppName, false);
+        }
+    }
+
+    private static void SaveInitialSettings(string language)
+    {
+        try
+        {
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appFolder = Path.Combine(appDataPath, "V-Notch");
+            Directory.CreateDirectory(appFolder);
+
+            var settingsPath = Path.Combine(appFolder, "settings.json");
+            if (File.Exists(settingsPath)) return; // Don't overwrite existing settings
+
+            var settings = new Models.NotchSettings { Language = language };
+            var json = System.Text.Json.JsonSerializer.Serialize(settings,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(settingsPath, json);
+        }
+        catch
+        {
         }
     }
 

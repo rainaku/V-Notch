@@ -48,6 +48,11 @@ public partial class App : Application
         RuntimeLog.InitializeNewSession("vnotch-debug.log");
         RuntimeLog.Log("SYSTEM", $"Application startup. Log file: {RuntimeLog.LogPath}");
 
+        // Load language preference early
+        var earlySettings = new SettingsService();
+        var loadedSettings = earlySettings.Load();
+        Loc.SetLanguage(loadedSettings.Language);
+
         // ─── Global Error Handlers ───
         DispatcherUnhandledException += (s, args) =>
         {

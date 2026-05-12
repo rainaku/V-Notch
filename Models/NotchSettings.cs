@@ -9,23 +9,23 @@ public class NotchSettings
     
     public int SettingsVersion { get; set; } = 0;
 
-    public int Width { get; set; } = 360;
+    public int Width { get; set; } = 230;
     public int Height { get; set; } = 32;
-    public int CornerRadius { get; set; } = 16;
+    public int CornerRadius { get; set; } = 8;
     public double Opacity { get; set; } = 1.0;
-    public double MediaBlurBrightnessBoost { get; set; } = 1.4;
+    public double MediaBlurBrightnessBoost { get; set; } = 2.0;
 
     public int MonitorIndex { get; set; } = 0; 
 
-    public bool AutoStart { get; set; } = false;
-    public bool EnableHoverExpand { get; set; } = true;
-    public bool EnableCursorBypass { get; set; } = true;
+    public bool AutoStart { get; set; } = true;
+    public bool EnableHoverExpand { get; set; } = false;
+    public bool EnableCursorBypass { get; set; } = false;
     public bool EnableAnimations { get; set; } = true;
 
-    public double AnimationSpeed { get; set; } = 1.0;
+    public double AnimationSpeed { get; set; } = 2.0;
     public bool EnableBounceEffect { get; set; } = true;
 
-    public int HoverExpandDelay { get; set; } = 100; 
+    public int HoverExpandDelay { get; set; } = 500; 
     public int HoverCollapseDelay { get; set; } = 500; 
     public int HoverZoneMargin { get; set; } = 60; 
 
@@ -41,7 +41,9 @@ public class NotchSettings
     public bool ShowSystemNotifications { get; set; } = true;
     public int NotificationDuration { get; set; } = 5000; 
 
-    public bool IsShelfUploadLimitUnlocked { get; set; } = false;
+    public bool IsShelfUploadLimitUnlocked { get; set; } = true;
+
+    public string Language { get; set; } = "en"; // "en" or "vi"
 
     [JsonIgnore]
     public bool IsDirty { get; set; } = false;
@@ -75,7 +77,8 @@ public class NotchSettings
             ShowMusicNotifications = ShowMusicNotifications,
             ShowSystemNotifications = ShowSystemNotifications,
             NotificationDuration = NotificationDuration,
-            IsShelfUploadLimitUnlocked = IsShelfUploadLimitUnlocked
+            IsShelfUploadLimitUnlocked = IsShelfUploadLimitUnlocked,
+            Language = Language
         };
     }
 }

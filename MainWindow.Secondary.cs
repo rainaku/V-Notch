@@ -207,7 +207,7 @@ public partial class MainWindow
 
         const string defaultPlaceholderText = "Drag files here for temporary storage";
 
-        ShelfPlaceholder.Text = defaultPlaceholderText;
+        ShelfPlaceholder.Text = Loc.Get("shelf.placeholder");
         ShelfPlaceholder.Visibility = _fileShelf.FileCount == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         ShelfCountText.Text = _fileShelf.GetCountDisplayText();
@@ -336,7 +336,7 @@ public partial class MainWindow
         ShelfUnlockBanner.Visibility = Visibility.Visible;
         ShelfCountText.Visibility = Visibility.Collapsed;
         ShelfPlaceholder.Visibility = Visibility.Collapsed;
-        ShelfUnlockMessageText.Text = $"You're uploading {fileCount} files. The safe limit is 30 files.\nIf you'd like to upload more, you can unlock the upload limit right here.";
+        ShelfUnlockMessageText.Text = Loc.Get("shelf.unlockMessage", fileCount);
         ShelfUnlockSettingsHint.Visibility = Visibility.Visible;
 
         ShelfUnlockBanner.Opacity = 0;

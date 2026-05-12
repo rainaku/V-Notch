@@ -382,12 +382,13 @@
                             <TextBlock Text="V-Notch" FontSize="18" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"/>
                             <TextBlock Text="Dynamic Island for Windows" FontSize="11.5" Foreground="#99FFFFFF" TextWrapping="Wrap" LineHeight="16" Margin="0,4,0,18"/>
                             <StackPanel>
-                                <TextBlock x:Name="Step1Text" Text="01  Welcome" Foreground="#FFFFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
-                                <TextBlock x:Name="Step2Text" Text="02  About" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
-                                <TextBlock x:Name="Step3Text" Text="03  Location" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
-                                <TextBlock x:Name="Step4Text" Text="04  Startup" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
-                                <TextBlock x:Name="Step5Text" Text="05  Install" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
-                                <TextBlock x:Name="Step6Text" Text="06  Finish" Foreground="#88FFFFFF" FontSize="11.5"/>
+                                <TextBlock x:Name="Step1Text" Text="01  Language" Foreground="#FFFFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="Step2Text" Text="02  Welcome" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="Step3Text" Text="03  About" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="Step4Text" Text="04  Location" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="Step5Text" Text="05  Startup" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="Step6Text" Text="06  Install" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="Step7Text" Text="07  Finish" Foreground="#88FFFFFF" FontSize="11.5"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -405,7 +406,7 @@
                             </Image.RenderTransform>
                         </Image>
                         
-                        <TextBlock x:Name="HeadlineText" Grid.Row="1" Text="Install V-Notch" FontSize="34" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif" Margin="0,0,0,12" Opacity="0">
+                        <TextBlock x:Name="HeadlineText" Grid.Row="1" Text="Welcome to V-Notch ✨" FontSize="34" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif" Margin="0,0,0,12" Opacity="0">
                             <TextBlock.RenderTransform>
                                 <TranslateTransform x:Name="HeadlineTranslate" Y="8"/>
                             </TextBlock.RenderTransform>
@@ -415,11 +416,11 @@
                             <TextBlock.RenderTransform>
                                 <TranslateTransform x:Name="BodyTranslate" Y="8"/>
                             </TextBlock.RenderTransform>
-                            <Run Text="V-Notch brings a Dynamic Island-inspired experience to Windows."/>
+                            <Run Text="Hey there! Thanks for choosing V-Notch."/>
                             <LineBreak/><LineBreak/>
-                            <Run Text="It creates a compact surface for media controls, notifications, battery, calendar, and quick actions, all in one place at the top of your desktop."/>
+                            <Run Text="We're about to set up a sleek little notch at the top of your screen — it handles your music, battery, calendar, file shelf, and more. Think of it as a tiny command center that stays out of your way until you need it."/>
                             <LineBreak/><LineBreak/>
-                            <Run Text="Continue to set up V-Notch and make it part of your everyday workflow."/>
+                            <Run Text="This will only take a minute. Let's get started!" FontWeight="Medium"/>
                         </TextBlock>
                         
                         <ContentPresenter x:Name="ContentPresenter" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed"/>
