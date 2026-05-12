@@ -1644,7 +1644,8 @@
                                                     Cursor="Hand"
                                                     MouseLeftButtonDown="ShelfUnlockButton_Click"
                                                     Margin="0,0,8,0">
-                                                <TextBlock Text="Unlock Limit"
+                                                <TextBlock x:Name="ShelfUnlockButtonText"
+                                                           Text="Unlock Limit"
                                                            Foreground="#AAAAAA"
                                                            FontSize="11"
                                                            FontWeight="Bold"
@@ -1655,7 +1656,8 @@
                                                     Padding="12,6"
                                                     Cursor="Hand"
                                                     MouseLeftButtonDown="ShelfUnlockDismiss_Click">
-                                                <TextBlock Text="Dismiss"
+                                                <TextBlock x:Name="ShelfUnlockDismissText"
+                                                           Text="Dismiss"
                                                            Foreground="#AAAAAA"
                                                            FontSize="11"
                                                            FontWeight="Bold"

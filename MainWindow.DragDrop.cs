@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
+using VNotch.Controllers;
 
 namespace VNotch;
 public partial class MainWindow
@@ -72,10 +73,82 @@ public partial class MainWindow
 
     private void NotchWrapper_DragDrop(object sender, DragEventArgs e)
     {
-        
         _dragWaitTimer?.Stop();
         _dragCollapseTimer?.Stop();
         _dragAutoExpanded = false;
+
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = DragDropEffects.Copy;
+        e.Handled = true;
+
+        var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+        var validation = _fileShelf.ValidateDrop(files);
+
+        // Ensure the notch is expanded and file shelf is visible
+        if (!_isExpanded)
+        {
+            ExpandNotch();
+        }
+
+        // Wait for expansion/animation to finish, then process the drop
+        var dropProcessTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(40)
+        };
+        dropProcessTimer.Tick += (s, args) =>
+        {
+            if (!_isAnimating)
+            {
+                dropProcessTimer.Stop();
+
+                if (!_isSecondaryView)
+                {
+                    SwitchToSecondaryView();
+                    // Wait for secondary view to be ready, then process
+                    var shelfReadyTimer = new DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromMilliseconds(40)
+                    };
+                    shelfReadyTimer.Tick += (s2, args2) =>
+                    {
+                        if (!_isAnimating)
+                        {
+                            shelfReadyTimer.Stop();
+                            ProcessDroppedFiles(validation);
+                        }
+                    };
+                    shelfReadyTimer.Start();
+                }
+                else
+                {
+                    ProcessDroppedFiles(validation);
+                }
+            }
+        };
+        dropProcessTimer.Start();
+    }
+
+    private void ProcessDroppedFiles(FileShelfController.DropValidation validation)
+    {
+        switch (validation.Result)
+        {
+            case FileShelfController.DropResult.Accept:
+                _fileShelf.EnqueueFiles(validation.NewFiles);
+                break;
+            case FileShelfController.DropResult.UnlockPrompt:
+                _pendingUnlockFiles = validation.NewFiles;
+                ShowShelfUnlockBanner(validation.FileCount);
+                break;
+            default:
+                if (!string.IsNullOrEmpty(validation.Message))
+                    SetShelfDropRejectVisualState(validation.Message);
+                break;
+        }
     }
 
     

@@ -340,6 +340,9 @@ public partial class MainWindow
         ShelfCountText.Visibility = Visibility.Collapsed;
         ShelfPlaceholder.Visibility = Visibility.Collapsed;
         ShelfUnlockMessageText.Text = Loc.Get("shelf.unlockMessage", fileCount);
+        ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
+        ShelfUnlockDismissText.Text = Loc.Get("shelf.unlockDismiss");
+        ShelfUnlockSettingsHint.Text = Loc.Get("shelf.unlockSettingsHint");
         ShelfUnlockSettingsHint.Visibility = Visibility.Visible;
 
         ShelfUnlockBanner.Opacity = 0;

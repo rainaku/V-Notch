@@ -325,6 +325,12 @@ public sealed class FileShelfController : IDisposable
         CapacityChanged?.Invoke();
     }
 
+    public void UpdateSettings(NotchSettings newSettings)
+    {
+        _settings.IsShelfUploadLimitUnlocked = newSettings.IsShelfUploadLimitUnlocked;
+        CapacityChanged?.Invoke();
+    }
+
     // ─── Capacity Info (for UI) ───
 
     public string GetCountDisplayText()

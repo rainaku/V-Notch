@@ -1273,7 +1273,15 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             {
                 var selectedPath = System.IO.Path.GetDirectoryName(dialog.FileName);
                 if (!string.IsNullOrEmpty(selectedPath))
+                {
+                    // Append V-Notch subfolder if not already present
+                    var folderName = System.IO.Path.GetFileName(selectedPath);
+                    if (!string.Equals(folderName, "V-Notch", StringComparison.OrdinalIgnoreCase))
+                    {
+                        selectedPath = System.IO.Path.Combine(selectedPath, "V-Notch");
+                    }
                     _pathBox.Text = selectedPath;
+                }
             }
         }
     }

@@ -617,6 +617,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             bool languageChanged = newSettings.Language != _settings.Language;
             _settings = newSettings.Clone();
             _notchManager.UpdateSettings(_settings);
+            _fileShelf.UpdateSettings(_settings);
             ApplySettings(sizeChanged);
 
             if (languageChanged)
@@ -793,6 +794,11 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         // Refresh camera label
         CameraLabel.Text = Loc.Get("notch.camera");
+
+        // Refresh shelf unlock banner texts
+        ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
+        ShelfUnlockDismissText.Text = Loc.Get("shelf.unlockDismiss");
+        ShelfUnlockSettingsHint.Text = Loc.Get("shelf.unlockSettingsHint");
     }
 
     #endregion
