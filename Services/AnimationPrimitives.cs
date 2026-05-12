@@ -3,14 +3,6 @@ using System.Windows;
 using System.Windows.Media.Animation;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Shared, frozen easing functions, cached durations, and animation factory helpers.
-/// Extracted from MainWindow to keep animation primitives reusable across controllers.
-/// Identifier names intentionally preserve the original underscore-prefixed casing so
-/// that existing call sites in the MainWindow partials continue to compile via
-/// <c>using static VNotch.Services.AnimationPrimitives;</c>.
-/// </summary>
 internal static class AnimationPrimitives
 {
     #region Cached Easing Functions (Frozen - Thread Safe)

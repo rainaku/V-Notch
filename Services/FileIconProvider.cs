@@ -9,17 +9,6 @@ using Windows.Storage;
 using Windows.Storage.FileProperties;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Obtains a thumbnail / icon for an arbitrary file path. Uses the Shell
-/// <c>IShellItemImageFactory</c> API first (high-quality thumbnails for
-/// images / videos / documents), then falls back to
-/// <see cref="System.Drawing.Icon.ExtractAssociatedIcon"/>.
-///
-/// Extracted from <c>MainWindow.Secondary.cs</c>. The <see cref="MainWindow"/>
-/// used to carry these native P/Invokes and COM interop directly; now it just
-/// calls <see cref="GetFileIcon"/>.
-/// </summary>
 internal static class FileIconProvider
 {
     #region Native interop
@@ -53,12 +42,7 @@ internal static class FileIconProvider
     private static readonly Guid _shellItemImageFactoryIid = new Guid("bcc18b79-ba16-442f-80c4-8746c1f01a3b");
 
     #endregion
-
-    /// <summary>
-    /// Returns a frozen <see cref="ImageSource"/> suitable for binding to a UI
-    /// element, or <c>null</c> if no icon could be obtained.
-    /// </summary>
-    public static ImageSource? GetFileIcon(string filePath)
+public static ImageSource? GetFileIcon(string filePath)
     {
         try
         {

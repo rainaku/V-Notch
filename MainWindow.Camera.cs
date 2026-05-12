@@ -16,14 +16,6 @@ using Windows.Media.MediaProperties;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
-
-/// <summary>
-/// Camera preview inside the secondary view: corner-radius shaping, expand /
-/// collapse animations vs. the file shelf, <see cref="MediaCapture"/>
-/// lifecycle, frame reader -> <c>WriteableBitmap</c> pump, and the "preview
-/// morph-in" blur-to-crisp transition.
-/// Split out of <see cref="MainWindow"/> .Secondary partial for readability.
-/// </summary>
 public partial class MainWindow
 {
     #region Camera Logic

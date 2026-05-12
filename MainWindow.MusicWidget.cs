@@ -9,14 +9,6 @@ using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
-
-/// <summary>
-/// Expand / collapse of the compact music widget (the smaller notch state
-/// between "idle" and "fully expanded"). Owns the widget's own state flag
-/// (_isMusicExpanded / _isMusicAnimating), the animation plumbing, and the
-/// progress-section layout tweaks that piggyback on the widget's size.
-/// Split out of <see cref="MainWindow"/> .Animation partial for readability.
-/// </summary>
 public partial class MainWindow
 {
     #region Expanded Music Player Animations

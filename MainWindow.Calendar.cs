@@ -9,14 +9,6 @@ using VNotch.Modules;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
-
-/// <summary>
-/// Calendar strip UI: lazy initialisation of the 11-day roll, month morph,
-/// highlight pulse, hover focus (blur battery + greeting), and mouse-wheel
-/// scrubbing.
-/// Split out of <see cref="MainWindow"/> xaml.cs for readability. All state
-/// and XAML element access remain on the MainWindow partial class.
-/// </summary>
 public partial class MainWindow
 {
     #region Calendar Rendering

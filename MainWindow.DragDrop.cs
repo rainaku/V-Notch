@@ -5,14 +5,6 @@ using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace VNotch;
-
-/// <summary>
-/// Drag-to-open behaviour on the collapsed notch:
-/// when the user drags files over the notch while collapsed, it auto-expands
-/// into the secondary view (shelf) so the files can be dropped. A fallback
-/// auto-collapse timer re-collapses the notch if the drag is aborted.
-/// Split out of <see cref="MainWindow"/> .Secondary partial for readability.
-/// </summary>
 public partial class MainWindow
 {
     #region Drag-to-Open

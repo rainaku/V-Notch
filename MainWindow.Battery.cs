@@ -6,12 +6,6 @@ using System.Windows.Media.Animation;
 using VNotch.Models;
 
 namespace VNotch;
-
-/// <summary>
-/// Battery icon rendering: fill width, colour (low / charging / normal),
-/// charging-bolt overlay, and the subtle pulse while charging.
-/// Split out of <see cref="MainWindow"/> xaml.cs for readability.
-/// </summary>
 public partial class MainWindow
 {
     private Storyboard? _chargingPulseStoryboard;

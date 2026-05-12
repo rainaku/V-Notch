@@ -4,18 +4,6 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Critically-damped spring that follows the progress-bar target ratio during
-/// user seeks. Hooks <see cref="CompositionTarget.Rendering"/> for per-frame
-/// updates and drives a hidden 144fps animation to pin the render thread at
-/// high frame rate. When the spring settles (or its safety timeout elapses)
-/// the loop unhooks itself automatically.
-///
-/// Extracted from <c>MainWindow.Progress.cs</c> so the physics, the render
-/// hook plumbing, and the fps-boost animation no longer live on
-/// <see cref="VNotch.MainWindow"/>.
-/// </summary>
 internal sealed class ProgressSpringRenderer
 {
     #region Tuning
@@ -102,30 +90,20 @@ internal sealed class ProgressSpringRenderer
     #endregion
 
     #region Public API
-
-    /// <summary>
-    /// Start a new spring animation. The caller is expected to have already set
-    /// <see cref="DisplayRatio"/>, <see cref="TargetRatio"/> and
-    /// <see cref="SpringTargetRatio"/>.
-    /// </summary>
-    public void Start()
+public void Start()
     {
         _active = true;
         _startTimeUtc = DateTime.UtcNow;
         Hook();
     }
-
-    /// <summary>Stop the spring render hook and release the fps-boost animation.</summary>
-    public void Stop()
+public void Stop()
     {
         _active = false;
         _settleFrames = 0;
         _velocity = 0;
         Unhook();
     }
-
-    /// <summary>Hook the render callback if not already hooked.</summary>
-    public void Hook()
+public void Hook()
     {
         if (_hooked) return;
         _hooked = true;
@@ -144,9 +122,7 @@ internal sealed class ProgressSpringRenderer
         _fpsBoostTarget.BeginAnimation(TranslateTransform.XProperty, _fpsBoostAnim);
         CompositionTarget.Rendering += OnRendering;
     }
-
-    /// <summary>Unhook the render callback.</summary>
-    public void Unhook()
+public void Unhook()
     {
         if (!_hooked) return;
         _hooked = false;

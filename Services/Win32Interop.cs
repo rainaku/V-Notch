@@ -3,11 +3,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Centralized Win32 P/Invoke declarations, structs, constants, and delegates used by the notch
-/// window for z-order management, fullscreen detection, foreground tracking, and media keys.
-/// </summary>
 internal static class Win32Interop
 {
     #region user32.dll

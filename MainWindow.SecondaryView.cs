@@ -8,13 +8,6 @@ using System.Windows.Media.Effects;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
-
-/// <summary>
-/// Secondary-view switch: scroll-wheel gesture on the notch toggles between the
-/// "music/expanded" primary view and the "shelf/camera" secondary view, with a
-/// cross-fade + spring scale transition between the two contents.
-/// Split out of <see cref="MainWindow"/> .Secondary partial for readability.
-/// </summary>
 public partial class MainWindow
 {
     private void NotchWrapper_MouseWheel(object sender, MouseWheelEventArgs e)

@@ -10,15 +10,6 @@ using VNotch.Controls;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
-
-/// <summary>
-/// Reusable animation primitives on top of <see cref="VNotch.Services.AnimationPrimitives"/>:
-/// notch hover, thumbnail hover, button-press squash, icon swaps, skip arrow
-/// animations, corner-radius morph, progress-bar hover lift, appearance
-/// animation and the status-bar reveal (battery / settings / update badge
-/// fly-in when the notch expands).
-/// Split out of <see cref="MainWindow"/> .Animation partial for readability.
-/// </summary>
 public partial class MainWindow
 {
     #region Hover Animations
@@ -631,12 +622,7 @@ public partial class MainWindow
     #endregion
 
     #region Settings Absorb Animation
-
-    /// <summary>
-    /// Plays a notch "eject" animation when settings window launches from it.
-    /// The notch briefly expands then springs back as if releasing the panel.
-    /// </summary>
-    public void PlaySettingsEjectAnimation()
+public void PlaySettingsEjectAnimation()
     {
         if (_isExpanded || _isAnimating) return;
 
@@ -693,12 +679,7 @@ public partial class MainWindow
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
     }
-
-    /// <summary>
-    /// Plays a notch "absorb" animation when the settings window flies into it.
-    /// The notch opens its curves wider (as if receiving the panel) then springs back.
-    /// </summary>
-    public void PlaySettingsAbsorbAnimation()
+public void PlaySettingsAbsorbAnimation()
     {
         if (_isExpanded || _isAnimating) return;
 

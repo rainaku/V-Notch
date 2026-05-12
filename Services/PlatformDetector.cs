@@ -3,12 +3,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Identifies the media platform (YouTube, Spotify, SoundCloud, etc.) from
-/// window titles, SMTC app IDs, and track metadata. Replaces scattered string
-/// matching throughout MediaDetectionService with a centralized, testable class.
-/// </summary>
 public static class PlatformDetector
 {
     // ─── App ID → Platform mapping ───
@@ -47,11 +41,7 @@ public static class PlatformDetector
     };
 
     // ─── Public API ───
-
-    /// <summary>
-    /// Detect platform from a SMTC source app ID.
-    /// </summary>
-    public static MediaPlatform DetectFromAppId(string? sourceAppId)
+public static MediaPlatform DetectFromAppId(string? sourceAppId)
     {
         if (string.IsNullOrEmpty(sourceAppId))
             return MediaPlatform.Unknown;
@@ -64,11 +54,7 @@ public static class PlatformDetector
 
         return MediaPlatform.Unknown;
     }
-
-    /// <summary>
-    /// Check if a source app ID belongs to a web browser.
-    /// </summary>
-    public static bool IsBrowserApp(string? sourceAppId)
+public static bool IsBrowserApp(string? sourceAppId)
     {
         if (string.IsNullOrEmpty(sourceAppId))
             return false;
@@ -81,12 +67,7 @@ public static class PlatformDetector
 
         return false;
     }
-
-    /// <summary>
-    /// Detect the most likely platform from a collection of window titles.
-    /// YouTube takes priority; other platforms are fallback.
-    /// </summary>
-    public static MediaPlatform DetectFromWindowTitles(IEnumerable<string> windowTitles)
+public static MediaPlatform DetectFromWindowTitles(IEnumerable<string> windowTitles)
     {
         MediaPlatform fallback = MediaPlatform.Unknown;
 
@@ -113,22 +94,12 @@ public static class PlatformDetector
 
         return fallback;
     }
-
-    /// <summary>
-    /// Get the platform hint string (for backward compatibility with existing code).
-    /// Returns empty string for Unknown.
-    /// </summary>
-    public static string DetectPlatformHint(IEnumerable<string> windowTitles)
+public static string DetectPlatformHint(IEnumerable<string> windowTitles)
     {
         var platform = DetectFromWindowTitles(windowTitles);
         return platform.ToDisplayString();
     }
-
-    /// <summary>
-    /// Check if a track is likely playing on a specific platform by matching
-    /// the track name against window titles containing the platform name.
-    /// </summary>
-    public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, string track, MediaPlatform platform)
+public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, string track, MediaPlatform platform)
     {
         if (string.IsNullOrWhiteSpace(track))
             return false;
@@ -153,11 +124,7 @@ public static class PlatformDetector
 
         return false;
     }
-
-    /// <summary>
-    /// Overload accepting platform as string for backward compatibility.
-    /// </summary>
-    public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, string track, string platformName)
+public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, string track, string platformName)
     {
         if (string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(platformName))
             return false;
@@ -178,20 +145,11 @@ public static class PlatformDetector
 
         return false;
     }
-
-    /// <summary>
-    /// Extract the video/track title from a browser window title by stripping
-    /// platform suffixes, notification counts, and play state indicators.
-    /// </summary>
-    public static string ExtractTitleFromWindow(string windowTitle, MediaPlatform platform)
+public static string ExtractTitleFromWindow(string windowTitle, MediaPlatform platform)
     {
         return ExtractTitleFromWindow(windowTitle, platform.ToDisplayString());
     }
-
-    /// <summary>
-    /// Extract the video/track title from a browser window title (string platform overload).
-    /// </summary>
-    public static string ExtractTitleFromWindow(string windowTitle, string platformFallback)
+public static string ExtractTitleFromWindow(string windowTitle, string platformFallback)
     {
         var title = windowTitle;
 
@@ -219,12 +177,7 @@ public static class PlatformDetector
 
         return string.IsNullOrEmpty(title) ? platformFallback : title;
     }
-
-    /// <summary>
-    /// Parse a Spotify window title into artist and track.
-    /// Format: "Artist - Track" or just "Track".
-    /// </summary>
-    public static (string Artist, string Track) ParseSpotifyTitle(string title)
+public static (string Artist, string Track) ParseSpotifyTitle(string title)
     {
         var parts = title.Split(" - ", 2);
         if (parts.Length == 2)
@@ -234,11 +187,7 @@ public static class PlatformDetector
 
         return ("Spotify", title.Trim());
     }
-
-    /// <summary>
-    /// Normalize a string for loose matching: strip diacritics, lowercase, keep only letters/digits/spaces.
-    /// </summary>
-    public static string NormalizeForLooseMatch(string value)
+public static string NormalizeForLooseMatch(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
@@ -272,10 +221,6 @@ public static class PlatformDetector
 }
 
 // ─── Platform Enum ───
-
-/// <summary>
-/// Known media platforms that V-Notch can detect and display.
-/// </summary>
 public enum MediaPlatform
 {
     Unknown,
@@ -289,16 +234,9 @@ public enum MediaPlatform
     Instagram,
     Twitter
 }
-
-/// <summary>
-/// Extension methods for MediaPlatform enum.
-/// </summary>
 public static class MediaPlatformExtensions
 {
-    /// <summary>
-    /// Get the user-facing display string for a platform.
-    /// </summary>
-    public static string ToDisplayString(this MediaPlatform platform) => platform switch
+public static string ToDisplayString(this MediaPlatform platform) => platform switch
     {
         MediaPlatform.Spotify => "Spotify",
         MediaPlatform.YouTube => "YouTube",
@@ -311,11 +249,7 @@ public static class MediaPlatformExtensions
         MediaPlatform.Twitter => "Twitter",
         _ => ""
     };
-
-    /// <summary>
-    /// Parse a display string back to a MediaPlatform enum.
-    /// </summary>
-    public static MediaPlatform ParsePlatform(string? value)
+public static MediaPlatform ParsePlatform(string? value)
     {
         if (string.IsNullOrEmpty(value)) return MediaPlatform.Unknown;
 

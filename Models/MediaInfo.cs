@@ -34,13 +34,7 @@ public class MediaInfo
     public bool IsIndeterminate { get; set; }
     public bool IsSeekEnabled { get; set; }
     public bool IsThrottled { get; set; }
-
-    /// <summary>
-    /// When true, this MediaChanged event was fired only to deliver updated metadata
-    /// (thumbnail, source, artist) from a background fetch. The Position/LastUpdated
-    /// fields are stale and must NOT be used to update progress tracking.
-    /// </summary>
-    public bool IsThumbnailOnlyUpdate { get; set; }
+public bool IsThumbnailOnlyUpdate { get; set; }
 
     public double Progress => Duration.TotalSeconds > 0 ? Position.TotalSeconds / Duration.TotalSeconds : 0;
     public bool HasTimeline => Duration.TotalSeconds > 0 && !IsIndeterminate;

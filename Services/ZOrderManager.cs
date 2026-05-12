@@ -2,12 +2,6 @@ using System.Windows.Threading;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Manages window z-order (topmost) enforcement for the notch overlay.
-/// Extracted from MainWindow to reduce god-object complexity.
-/// Handles: watchdog timer, fast burst timer, foreground window hook, topmost assertion.
-/// </summary>
 public class ZOrderManager : IDisposable
 {
     private readonly Func<IntPtr> _getHwnd;
@@ -26,11 +20,7 @@ public class ZOrderManager : IDisposable
     private DateTime _lastTopmostAssertUtc = DateTime.MinValue;
 
     private static readonly TimeSpan TopmostThrottle = TimeSpan.FromMilliseconds(80);
-
-    /// <summary>
-    /// Creates a new ZOrderManager.
-    /// </summary>
-    /// <param name="getHwnd">Returns the window handle (must be called on UI thread).</param>
+/// <param name="getHwnd">Returns the window handle (must be called on UI thread).</param>
     /// <param name="isEffectivelyVisible">Returns whether the notch should be visible.</param>
     /// <param name="isSuspended">Returns whether topmost assertion is temporarily suspended (tooltip, tray menu).</param>
     /// <param name="onForegroundChanged">Callback when foreground window changes (receives the new foreground hwnd).</param>
@@ -57,49 +47,7 @@ public class ZOrderManager : IDisposable
         };
         _fastTimer.Tick += FastTimer_Tick;
     }
-
-    /// <summary>Start monitoring z-order and hook foreground window changes.</summary>
-    public void Start()
-    {
-        var hwnd = _getHwnd();
-        if (hwnd == IntPtr.Zero || _foregroundWinEventHook != IntPtr.Zero)
-            return;
-
-        _foregroundWinEventProc = ForegroundWindowChanged;
-        _foregroundWinEventHook = SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND,
-            EVENT_SYSTEM_FOREGROUND,
-            IntPtr.Zero,
-            _foregroundWinEventProc,
-            0,
-            0,
-            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
-
-        TriggerBurst(TimeSpan.FromSeconds(2));
-        EnsureTopmost(force: true);
-        _watchdogTimer.Start();
-    }
-
-    /// <summary>Stop all timers and unhook events.</summary>
-    public void Stop()
-    {
-        _fastTimer.Stop();
-        _watchdogTimer.Stop();
-
-        if (_foregroundWinEventHook != IntPtr.Zero)
-        {
-            UnhookWinEvent(_foregroundWinEventHook);
-            _foregroundWinEventHook = IntPtr.Zero;
-        }
-
-        _foregroundWinEventProc = null;
-    }
-
-    /// <summary>
-    /// Trigger a burst of topmost assertions for the given duration.
-    /// Use aggressive=true for known problematic apps (e.g. MyDockFinder).
-    /// </summary>
-    public void TriggerBurst(TimeSpan duration, bool aggressive = false)
+public void TriggerBurst(TimeSpan duration, bool aggressive = false)
     {
         var now = DateTime.UtcNow;
         var until = now + duration;
@@ -121,23 +69,7 @@ public class ZOrderManager : IDisposable
                 _fastTimer.Start();
         }
     }
-
-    /// <summary>Assert topmost position immediately (bypasses throttle).</summary>
-    public void AssertNow()
-    {
-        if (_isSuspended()) return;
-
-        var hwnd = _getHwnd();
-        if (hwnd == IntPtr.Zero || !_isEffectivelyVisible()) return;
-
-        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-    }
-
-    /// <summary>
-    /// Ensure the window is topmost, with optional throttling.
-    /// </summary>
-    public void EnsureTopmost(bool force = false)
+public void EnsureTopmost(bool force = false)
     {
         if (_isSuspended()) return;
 
@@ -217,5 +149,36 @@ public class ZOrderManager : IDisposable
     public void Dispose()
     {
         Stop();
+    }
+
+    public void Start()
+    {
+        if (_foregroundWinEventHook == IntPtr.Zero)
+        {
+            _foregroundWinEventProc = ForegroundWindowChanged;
+            _foregroundWinEventHook = SetWinEventHook(
+                EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+                IntPtr.Zero, _foregroundWinEventProc,
+                0, 0, WINEVENT_OUTOFCONTEXT);
+        }
+        _watchdogTimer.Start();
+    }
+
+    public void Stop()
+    {
+        _watchdogTimer.Stop();
+        _fastTimer.Stop();
+
+        if (_foregroundWinEventHook != IntPtr.Zero)
+        {
+            UnhookWinEvent(_foregroundWinEventHook);
+            _foregroundWinEventHook = IntPtr.Zero;
+        }
+        _foregroundWinEventProc = null;
+    }
+
+    public void AssertNow()
+    {
+        EnsureTopmost(force: true);
     }
 }

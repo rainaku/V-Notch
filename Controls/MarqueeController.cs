@@ -6,13 +6,6 @@ using System.Windows.Media.Animation;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch.Controls;
-
-/// <summary>
-/// Encapsulates the track title/artist marquee (pause-travel-pause loop) and the
-/// two-TextBlock morph transition played when the underlying text changes. Extracted
-/// from <c>MainWindow.Marquee.cs</c> so the notch window no longer owns this state
-/// directly.
-/// </summary>
 internal sealed class MarqueeController
 {
     #region Dependencies
@@ -54,16 +47,12 @@ internal sealed class MarqueeController
     }
 
     #region Public API
-
-    /// <summary>Rebuilds the scrolling loop for the currently displayed title and artist.</summary>
-    public void RefreshMediaMarquee()
+public void RefreshMediaMarquee()
     {
         RestartMarqueeFor(_title, _isTitleActiveA, isTitle: true);
         RestartMarqueeFor(_artist, _isArtistActiveA, isTitle: false);
     }
-
-    /// <summary>Animates a title text change (crossfade + slide) and restarts the marquee.</summary>
-    public void UpdateTitleText(string newText)
+public void UpdateTitleText(string newText)
     {
         if (newText == _lastTitleText) return;
         if ((DateTime.Now - _lastTitleMorphTime).TotalMilliseconds < 400) return;
@@ -74,9 +63,7 @@ internal sealed class MarqueeController
         MorphAndRestart(_title, ref _isTitleActiveA, newText,
             setDistance: d => _titleScrollDistance = d);
     }
-
-    /// <summary>Animates an artist text change (crossfade + slide) and restarts the marquee.</summary>
-    public void UpdateArtistText(string newText)
+public void UpdateArtistText(string newText)
     {
         if (newText == _lastArtistText) return;
         if ((DateTime.Now - _lastArtistMorphTime).TotalMilliseconds < 400) return;
@@ -87,9 +74,7 @@ internal sealed class MarqueeController
         MorphAndRestart(_artist, ref _isArtistActiveA, newText,
             setDistance: d => _artistScrollDistance = d);
     }
-
-    /// <summary>Starts a marquee animation on an arbitrary transform (used for the compact widget title).</summary>
-    public static void StartMarqueeAnimation(TranslateTransform transform, double distance, double durationPerPixel = 40)
+public static void StartMarqueeAnimation(TranslateTransform transform, double distance, double durationPerPixel = 40)
     {
         transform.BeginAnimation(TranslateTransform.XProperty, null);
         transform.X = 0;
@@ -219,9 +204,7 @@ internal sealed class MarqueeController
     }
 
     #endregion
-
-    /// <summary>Holds the two TextBlocks, their marquee translates, and their morph translates for a single crossfading line (title or artist).</summary>
-    private sealed record MarqueeTargets(
+private sealed record MarqueeTargets(
         TextBlock TextA, TranslateTransform MarqueeA, TranslateTransform MorphA,
         TextBlock TextB, TranslateTransform MarqueeB, TranslateTransform MorphB);
 }

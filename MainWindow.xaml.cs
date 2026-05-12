@@ -559,12 +559,7 @@ public partial class MainWindow : Window
     {
         PositionAtTop();
     }
-
-    /// <summary>
-    /// Returns the notch's screen rectangle in WPF units (Left, Top, Width, Height).
-    /// Used by SettingsWindow to morph in/out of the notch.
-    /// </summary>
-    public (double Left, double Top, double Width, double Height, double CornerRadius) GetNotchScreenRect()
+public (double Left, double Top, double Width, double Height, double CornerRadius) GetNotchScreenRect()
     {
         // Notch is centered in the MainWindow, which is at _fixedX, _fixedY
         // NotchBorder actual size

@@ -11,13 +11,6 @@ using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
-
-/// <summary>
-/// Update-check polling + "new version available" badge rendering.
-/// Split out of <see cref="MainWindow"/> xaml.cs for readability. Still a
-/// partial because it drives several named XAML elements directly
-/// (UpdateNotificationButton, UpdateIconBrush, UpdateInlineTooltip, etc.).
-/// </summary>
 public partial class MainWindow
 {
     #region Update Notification Handlers

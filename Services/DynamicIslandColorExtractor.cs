@@ -5,30 +5,13 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Pure palette and color-extraction utilities used by the media background.
-///
-/// Extracted from <c>MainWindow.MediaBackground.cs</c> so that palette selection,
-/// HSL conversions, contrast ratios, dominant-hue bucketing, and adaptive opacity
-/// curves no longer live on the <see cref="VNotch.MainWindow"/> god-object.
-///
-/// Nothing here touches WPF elements or shared window state: callers pass a
-/// <see cref="BitmapSource"/> / <see cref="Color"/> in, and get a computed value
-/// back. Everything is deterministic and side-effect free.
-/// </summary>
 internal static class DynamicIslandColorExtractor
 {
     public readonly record struct Palette(Color Main, Color Sub);
     public readonly record struct PaletteColor(Color Color, int Population, double Score);
 
     #region Public entry points
-
-    /// <summary>
-    /// Returns a <see cref="Palette"/> suitable for the "dynamic island" backdrop
-    /// and a legible light-on-dark sub color for text / chrome tinting.
-    /// </summary>
-    public static Palette GetDynamicIslandPalette(BitmapSource bitmap)
+public static Palette GetDynamicIslandPalette(BitmapSource bitmap)
     {
         var palette = ExtractPalette(bitmap, 8);
         if (palette.Count == 0)
@@ -51,13 +34,7 @@ internal static class DynamicIslandColorExtractor
         var sub = EnsureTextOnDarkBackground(subCandidate, darkUiBackground, 4.5);
         return new Palette(main, sub);
     }
-
-    /// <summary>
-    /// Hue-bucketed dominant color of the bitmap. Prefers colorful, mid-luminance
-    /// regions near the center of the image, and forces white for truly
-    /// monochrome or fully-black artwork.
-    /// </summary>
-    public static Color GetDominantColor(BitmapSource bitmap)
+public static Color GetDominantColor(BitmapSource bitmap)
     {
         try
         {
@@ -243,12 +220,7 @@ internal static class DynamicIslandColorExtractor
             return Color.FromRgb(30, 30, 30);
         }
     }
-
-    /// <summary>
-    /// Brightens deep colors so they stay readable as text; returns the original
-    /// color unchanged if already bright enough.
-    /// </summary>
-    public static Color EnsureBrightColor(Color c)
+public static Color EnsureBrightColor(Color c)
     {
         double luminance = (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255.0;
         if (luminance < 0.5)
@@ -261,13 +233,7 @@ internal static class DynamicIslandColorExtractor
         }
         return c;
     }
-
-    /// <summary>
-    /// Returns a desaturated-lift for near-monochrome inputs and a vibrant
-    /// mid-L version of the hue otherwise. Used to tint UI chrome without
-    /// losing legibility.
-    /// </summary>
-    public static Color GetVibrantColor(Color c)
+public static Color GetVibrantColor(Color c)
     {
         double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
         double max = Math.Max(r, Math.Max(g, b));
@@ -297,12 +263,7 @@ internal static class DynamicIslandColorExtractor
 
         return HslToColor(h, s, l);
     }
-
-    /// <summary>
-    /// Opacity curve for the main media background. Bright palettes are dimmed
-    /// slightly so text remains readable on top of them.
-    /// </summary>
-    public static double GetAdaptiveBlurOpacity(double luminance, double brightnessBoost = 1.0)
+public static double GetAdaptiveBlurOpacity(double luminance, double brightnessBoost = 1.0)
     {
         brightnessBoost = Math.Clamp(brightnessBoost, 0.5, 2.0);
         // Map boost 0.5–2.0 to base opacity range 0.35–1.0
@@ -322,12 +283,7 @@ internal static class DynamicIslandColorExtractor
         }
         return Math.Clamp(baseOpacity, 0.0, 1.0);
     }
-
-    /// <summary>
-    /// Opacity curve for the blurred image layer. Keeps normal covers crisp
-    /// while dimming extremely bright palettes.
-    /// </summary>
-    public static double GetAdaptiveBlurImageOpacity(double luminance)
+public static double GetAdaptiveBlurImageOpacity(double luminance)
     {
         if (luminance <= 0.70) return 0.80;
         double t = Math.Clamp((luminance - 0.70) / 0.30, 0.0, 1.0);

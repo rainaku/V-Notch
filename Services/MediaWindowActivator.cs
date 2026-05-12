@@ -8,24 +8,9 @@ using VNotch.Models;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Pure helpers that decide which OS window belongs to the currently-playing
-/// media session and attempt to bring it to the foreground.
-///
-/// Extracted from <c>MainWindow.Controls.cs</c>. This type does not depend on
-/// any WPF elements or window state; callers pass a <see cref="MediaInfo"/> and
-/// either get a boolean "activated?" result back, or a list of candidate
-/// process names.
-/// </summary>
 internal static class MediaWindowActivator
 {
-    /// <summary>
-    /// Tries to focus the window that best matches the currently-playing media.
-    /// Preference order is: the session's actual process → any browser tab
-    /// whose title matches the track metadata.
-    /// </summary>
-    public static bool TryActivateForMedia(MediaInfo info)
+public static bool TryActivateForMedia(MediaInfo info)
     {
         var candidates = GetProcessCandidates(info).ToList();
         var processNames = new HashSet<string>(candidates, StringComparer.OrdinalIgnoreCase);
@@ -67,12 +52,7 @@ internal static class MediaWindowActivator
 
         return TryActivateBestMatchingWindow(info, processNames, out _);
     }
-
-    /// <summary>
-    /// Candidate process names that could host the given media. Browser names
-    /// are included when the source is a generic web source (YouTube, SoundCloud, etc.).
-    /// </summary>
-    public static IEnumerable<string> GetProcessCandidates(MediaInfo info)
+public static IEnumerable<string> GetProcessCandidates(MediaInfo info)
     {
         var candidates = new List<string>();
 
@@ -127,12 +107,7 @@ internal static class MediaWindowActivator
 
         return candidates;
     }
-
-    /// <summary>
-    /// Scores open top-level windows against the track metadata and brings the
-    /// best match to the foreground.
-    /// </summary>
-    public static bool TryActivateBestMatchingWindow(MediaInfo info, ISet<string> processNames, out bool usedBrowser)
+public static bool TryActivateBestMatchingWindow(MediaInfo info, ISet<string> processNames, out bool usedBrowser)
     {
         usedBrowser = false;
         IntPtr bestHwnd = IntPtr.Zero;
@@ -170,9 +145,7 @@ internal static class MediaWindowActivator
         usedBrowser = IsBrowserProcess(bestProcessName);
         return bestHwnd != IntPtr.Zero && TryActivateWindow(bestHwnd);
     }
-
-    /// <summary>Restore-if-minimized then foreground the window.</summary>
-    public static bool TryActivateWindow(IntPtr hwnd)
+public static bool TryActivateWindow(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero) return false;
 

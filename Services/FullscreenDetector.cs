@@ -4,25 +4,9 @@ using System.Text;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Decides whether a given top-level window is in real fullscreen (covers its
-/// monitor) or windowed-fullscreen (borderless + matches work area). Used by
-/// the notch to auto-hide while games / videos are fullscreened.
-///
-/// Extracted from <c>MainWindow.xaml.cs</c>. All methods are pure and depend
-/// only on <see cref="Win32Interop"/>.
-/// </summary>
 internal static class FullscreenDetector
 {
-    /// <summary>
-    /// Returns <c>true</c> when <paramref name="hwnd"/> is the desktop's
-    /// fullscreen window (fullscreen game, fullscreen video, borderless-
-    /// maximized app) and therefore should cause the notch to hide.
-    /// <paramref name="notchHwnd"/> is the notch's own handle and is always
-    /// excluded from the check.
-    /// </summary>
-    public static bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchHwnd)
+public static bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchHwnd)
     {
         if (hwnd == IntPtr.Zero || hwnd == notchHwnd)
         {
@@ -97,12 +81,7 @@ internal static class FullscreenDetector
 
         return isWindowedFullscreen;
     }
-
-    /// <summary>
-    /// Returns the process name for <paramref name="hwnd"/>, or empty string
-    /// on any failure. Never throws.
-    /// </summary>
-    public static string TryGetProcessName(IntPtr hwnd)
+public static string TryGetProcessName(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
         {

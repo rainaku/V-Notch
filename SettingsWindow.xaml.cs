@@ -19,12 +19,7 @@ public partial class SettingsWindow : Window
     private bool _isLoadingSettings = true;
 
     public event EventHandler<NotchSettings>? SettingsChanged;
-
-    /// <summary>
-    /// Fired at the start of the close animation so the owner notch can react
-    /// before the window actually disappears.
-    /// </summary>
-    public event EventHandler? AnimatedClosing;
+public event EventHandler? AnimatedClosing;
 
     public SettingsWindow(NotchSettings settings, SettingsService settingsService)
     {
@@ -150,12 +145,7 @@ public partial class SettingsWindow : Window
             HoverDelayValue.Text = ((int)e.NewValue).ToString();
         PushLivePreview();
     }
-
-    /// <summary>
-    /// Push current UI state to the notch as a live preview without saving to disk.
-    /// Skipped while LoadSettings is populating controls.
-    /// </summary>
-    private void PushLivePreview()
+private void PushLivePreview()
     {
         if (_isLoadingSettings) return;
         if (!IsLoaded) return;
@@ -349,12 +339,7 @@ public partial class SettingsWindow : Window
         RevertLivePreviewIfNeeded();
         CloseWithAnimation();
     }
-
-    /// <summary>
-    /// Re-applies the last persisted/original settings to the notch so live-preview
-    /// changes don't stick after Cancel.
-    /// </summary>
-    private void RevertLivePreviewIfNeeded()
+private void RevertLivePreviewIfNeeded()
     {
         SettingsChanged?.Invoke(this, _originalSettings.Clone());
     }
@@ -396,11 +381,7 @@ public partial class SettingsWindow : Window
         ApplySettingsFromUi(persist: true);
         CloseWithAnimation();
     }
-
-    /// <summary>
-    /// Plays the reverse of the entrance animation — collapses back into the notch.
-    /// </summary>
-    private void CloseWithAnimation()
+private void CloseWithAnimation()
     {
         // Prevent double-trigger
         if (_isClosing) return;
@@ -558,11 +539,7 @@ public partial class SettingsWindow : Window
 
     private bool _isClosing = false;
     private double _shellCornerRadius = 24;
-
-    /// <summary>
-    /// Dependency property to animate MainShell's CornerRadius (all corners uniform).
-    /// </summary>
-    public static readonly DependencyProperty ShellCornerRadiusProperty =
+public static readonly DependencyProperty ShellCornerRadiusProperty =
         DependencyProperty.Register("ShellCornerRadius", typeof(double), typeof(SettingsWindow),
             new PropertyMetadata(24.0, OnShellCornerRadiusChanged));
 
