@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using VNotch.Services;
 
 namespace VNotch;
 
@@ -8,6 +9,7 @@ public partial class UpdateDownloadWindow : Window
     public UpdateDownloadWindow()
     {
         InitializeComponent();
+        TitleText.Text = Loc.Get("update.installingTitle");
     }
 
     public void SetStatus(string text)

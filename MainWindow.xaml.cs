@@ -614,9 +614,16 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             bool sizeChanged = newSettings.Width != _settings.Width
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
+            bool languageChanged = newSettings.Language != _settings.Language;
             _settings = newSettings.Clone();
             _notchManager.UpdateSettings(_settings);
             ApplySettings(sizeChanged);
+
+            if (languageChanged)
+            {
+                Loc.SetLanguage(_settings.Language);
+                RefreshNotchLocalization();
+            }
         };
 
         // Keep notch visible — settings morphs from its position but notch stays shown
@@ -774,6 +781,18 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         {
             SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
         }
+    }
+
+    private void RefreshNotchLocalization()
+    {
+        // Refresh shelf placeholder and capacity text
+        UpdateShelfCapacityIndicator();
+
+        // Refresh greeting/event text
+        EventText.Text = Loc.Get("greeting.enjoyDay");
+
+        // Refresh camera label
+        CameraLabel.Text = Loc.Get("notch.camera");
     }
 
     #endregion

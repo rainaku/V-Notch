@@ -106,6 +106,67 @@ public event EventHandler? AnimatedClosing;
         LanguageCombo.SelectedIndex = _settings.Language == "vi" ? 1 : 0;
 
         _isLoadingSettings = false;
+        ApplyLocalization();
+    }
+
+    private void ApplyLocalization()
+    {
+        // Header
+        SettingsTitleText.Text = Loc.Get("settings.title");
+        SettingsSubtitleText.Text = Loc.Get("settings.subtitle");
+
+        // Section headers
+        AppearanceHeader.Text = Loc.Get("settings.appearance");
+        BehaviorHeader.Text = Loc.Get("settings.behavior");
+        UpdatesHeader.Text = Loc.Get("settings.updates");
+        DisplayHeader.Text = Loc.Get("settings.display");
+        SystemHeader.Text = Loc.Get("settings.system");
+
+        // Appearance labels & hints
+        WidthLabel.Text = Loc.Get("settings.width");
+        WidthHint.Text = Loc.Get("settings.width.hint");
+        HeightLabel.Text = Loc.Get("settings.height");
+        HeightHint.Text = Loc.Get("settings.height.hint");
+        RadiusLabel.Text = Loc.Get("settings.cornerRadius");
+        RadiusHint.Text = Loc.Get("settings.cornerRadius.hint");
+        OpacityLabel.Text = Loc.Get("settings.opacity");
+        OpacityHint.Text = Loc.Get("settings.opacity.hint");
+        BlurLabel.Text = Loc.Get("settings.blurBrightness");
+        BlurHint.Text = Loc.Get("settings.blurBrightness.hint");
+
+        // Behavior labels & hints
+        HoverExpandCheck.Content = Loc.Get("settings.hoverExpand");
+        HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint");
+        ExpandDelayLabel.Text = Loc.Get("settings.expandDelay");
+        ExpandDelayHint.Text = Loc.Get("settings.expandDelay.hint");
+
+        // Updates & Report Bug
+        CheckUpdateButton.Content = Loc.Get("settings.checkUpdate");
+        UpdateStatusText.Text = Loc.Get("settings.upToDate");
+        CurrentVersionText.Text = Loc.Get("settings.currentVersion", "1.6.0");
+        ReportBugLabel.Text = Loc.Get("settings.reportBug");
+        ReportBugHint.Text = Loc.Get("settings.reportBug.hint");
+
+        // Display
+        MonitorLabel.Text = Loc.Get("settings.activeMonitor");
+        MonitorHint.Text = Loc.Get("settings.activeMonitor.hint");
+
+        // Footer buttons
+        ResetButton.Content = Loc.Get("settings.btn.reset");
+        ApplyButton.Content = Loc.Get("settings.btn.apply");
+        SaveButton.Content = Loc.Get("settings.btn.save");
+
+        // System checkboxes & hints
+        AutoStartCheck.Content = Loc.Get("settings.autoStart");
+        AutoStartHint.Text = Loc.Get("settings.autoStart.hint");
+        MusicNotifyCheck.Content = Loc.Get("settings.musicNotify");
+        MusicNotifyHint.Text = Loc.Get("settings.musicNotify.hint");
+        SystemNotifyCheck.Content = Loc.Get("settings.systemNotify");
+        SystemNotifyHint.Text = Loc.Get("settings.systemNotify.hint");
+        ShelfUnlockCheck.Content = Loc.Get("settings.shelfUnlock");
+        ShelfUnlockHint.Text = Loc.Get("settings.shelfUnlock.hint");
+        LanguageLabel.Text = Loc.Get("settings.language");
+        LanguageHint.Text = Loc.Get("settings.language.hint");
     }
 
     #region Slider Value Changed Handlers
@@ -157,9 +218,14 @@ public event EventHandler? AnimatedClosing;
         if (_isLoadingSettings) return;
         if (LanguageCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is string lang)
         {
+            if (lang == _settings.Language) return;
+
             _settings.Language = lang;
             Loc.SetLanguage(lang);
             _settingsService.Save(_settings);
+            _originalSettings = _settings.Clone();
+            ApplyLocalization();
+            SettingsChanged?.Invoke(this, _settings);
         }
     }
 
@@ -333,6 +399,13 @@ private void PushLivePreview()
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
+        var result = MessageBox.Show(
+            Loc.Get("settings.reset.confirm"),
+            Loc.Get("settings.reset.title"),
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes) return;
 
         var defaults = new NotchSettings();
 
@@ -386,6 +459,15 @@ private void RevertLivePreviewIfNeeded()
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = "https://www.facebook.com/rain.107/",
+            UseShellExecute = true
+        });
+    }
+
+    private void ReportBug_Click(object sender, RoutedEventArgs e)
+    {
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "https://github.com/rainaku/V-Notch/issues/new",
             UseShellExecute = true
         });
     }
@@ -618,7 +700,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     {
         try
         {
-            UpdateStatusText.Text = "Checking for updates...";
+            UpdateStatusText.Text = Loc.Get("settings.checkingUpdates");
             CheckUpdateButton.IsEnabled = false;
             DownloadUpdateButton.Visibility = Visibility.Collapsed;
 
@@ -626,19 +708,19 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
             if (_availableUpdate == null)
             {
-                UpdateStatusText.Text = "Check for updates";
+                UpdateStatusText.Text = Loc.Get("settings.checkUpdate");
                 CheckUpdateButton.IsEnabled = true;
                 return;
             }
 
             if (_availableUpdate.IsNewerVersion)
             {
-                UpdateStatusText.Text = $"New version {_availableUpdate.Version} available!";
+                UpdateStatusText.Text = Loc.Get("settings.updateAvailable", _availableUpdate.Version);
                 DownloadUpdateButton.Visibility = Visibility.Visible;
             }
             else
             {
-                UpdateStatusText.Text = "You're up to date";
+                UpdateStatusText.Text = Loc.Get("settings.upToDate");
             }
 
             CheckUpdateButton.IsEnabled = true;
@@ -705,6 +787,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     {
         e.Handled = true;
 
+        // Close any open ComboBox dropdowns when scrolling
+        CloseOpenComboBoxes();
+
         double delta = -e.Delta * ScrollSensitivity;
 
         if (!_isScrollAnimating)
@@ -725,6 +810,20 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             _isScrollAnimating = true;
             CompositionTarget.Rendering += SmoothScroll_Tick;
         }
+    }
+
+    private void SettingsScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.VerticalChange != 0)
+        {
+            CloseOpenComboBoxes();
+        }
+    }
+
+    private void CloseOpenComboBoxes()
+    {
+        if (MonitorCombo.IsDropDownOpen) MonitorCombo.IsDropDownOpen = false;
+        if (LanguageCombo.IsDropDownOpen) LanguageCombo.IsDropDownOpen = false;
     }
 
     private void SmoothScroll_Tick(object? sender, EventArgs e)

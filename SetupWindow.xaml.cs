@@ -286,6 +286,8 @@ public partial class SetupWindow : Window
 
         // Apply localized text
         HeadlineText.Text = Loc.Get("setup.welcome.headline");
+        BodyText.Inlines.Clear();
+        BodyText.Text = Loc.Get("setup.welcome.body");
 
         ResetElementForEntry(IconContainer, GetWelcomeOffset(direction));
         ResetElementForEntry(HeadlineText, GetWelcomeOffset(direction));
@@ -297,7 +299,14 @@ public partial class SetupWindow : Window
 
     private void ShowDynamicPage(int index, NavigationDirection direction)
     {
-        ShowDynamicContent(_pageFactories[index](), direction, () =>
+        var page = _pageFactories[index]();
+
+        // Refresh localization on pages that support it
+        if (page is IntroductionPage intro) intro.RefreshLocalization();
+        else if (page is DirectoryPage dir) dir.RefreshLocalization();
+        else if (page is StartupOptionsPage startup) startup.RefreshLocalization();
+
+        ShowDynamicContent(page, direction, () =>
         {
             CompleteTransition();
 
@@ -635,7 +644,7 @@ public partial class SetupWindow : Window
         {
             _isShowingCancelSetupPage = false;
 
-            if (_currentPageIndex == 0)
+            if (_currentPageIndex == 1)
             {
                 ShowWelcomePage(NavigationDirection.Backward);
             }
@@ -971,6 +980,11 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
     private readonly TextBlock _lead;
     private readonly Border _projectCard;
     private readonly Border _sourceCard;
+    private readonly TextBlock _eyebrowText;
+    private readonly TextBlock _projectTitle;
+    private readonly TextBlock _projectBody;
+    private readonly TextBlock _sourceTitle;
+    private readonly TextBlock _sourceBody;
 
     public IntroductionPage()
     {
@@ -982,13 +996,13 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        _eyebrow = CreateEyebrow("About the project");
+        _eyebrow = CreateEyebrow(Loc.Get("setup.intro.eyebrow"), out _eyebrowText);
         Grid.SetRow(_eyebrow, 0);
         grid.Children.Add(_eyebrow);
 
         _headline = new TextBlock
         {
-            Text = "Built by rainaku",
+            Text = Loc.Get("setup.intro.headline"),
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
@@ -1001,7 +1015,7 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
 
         _lead = new TextBlock
         {
-            Text = "V-Notch is an independent Windows project inspired by Dynamic Island and built in public.",
+            Text = Loc.Get("setup.intro.lead"),
             FontSize = 14,
             LineHeight = 21,
             Foreground = new SolidColorBrush(Color.FromArgb(204, 255, 255, 255)),
@@ -1012,19 +1026,26 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
         Grid.SetRow(_lead, 2);
         grid.Children.Add(_lead);
 
-        _projectCard = CreateInfoCard(
-            "Independent project",
-            "Designed and maintained by rainaku for media, notifications, battery, calendar, and quick controls.");
+        _projectCard = CreateInfoCard(Loc.Get("setup.intro.projectTitle"), Loc.Get("setup.intro.projectBody"), out _projectTitle, out _projectBody);
         Grid.SetRow(_projectCard, 3);
         grid.Children.Add(_projectCard);
 
-        _sourceCard = CreateInfoCard(
-            "Open source",
-            "Code, releases, and issues stay public on GitHub. V-Notch is Apache-2.0 licensed and free to use.");
+        _sourceCard = CreateInfoCard(Loc.Get("setup.intro.sourceTitle"), Loc.Get("setup.intro.sourceBody"), out _sourceTitle, out _sourceBody);
         Grid.SetRow(_sourceCard, 4);
         grid.Children.Add(_sourceCard);
 
         Content = grid;
+    }
+
+    public void RefreshLocalization()
+    {
+        _eyebrowText.Text = Loc.Get("setup.intro.eyebrow");
+        _headline.Text = Loc.Get("setup.intro.headline");
+        _lead.Text = Loc.Get("setup.intro.lead");
+        _projectTitle.Text = Loc.Get("setup.intro.projectTitle");
+        _projectBody.Text = Loc.Get("setup.intro.projectBody");
+        _sourceTitle.Text = Loc.Get("setup.intro.sourceTitle");
+        _sourceBody.Text = Loc.Get("setup.intro.sourceBody");
     }
 
     public IReadOnlyList<UIElement> GetAnimatedElements()
@@ -1032,8 +1053,16 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
         return new UIElement[] { _eyebrow, _headline, _lead, _projectCard, _sourceCard };
     }
 
-    private static Border CreateEyebrow(string text)
+    private static Border CreateEyebrow(string text, out TextBlock textBlock)
     {
+        textBlock = new TextBlock
+        {
+            Text = text,
+            FontSize = 11.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromArgb(224, 255, 255, 255)),
+            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
+        };
         return new Border
         {
             Background = Brushes.Transparent,
@@ -1043,21 +1072,14 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
             Padding = new Thickness(0),
             Margin = new Thickness(0, 0, 0, 18),
             HorizontalAlignment = HorizontalAlignment.Left,
-            Child = new TextBlock
-            {
-                Text = text,
-                FontSize = 11.5,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromArgb(224, 255, 255, 255)),
-                FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
-            }
+            Child = textBlock
         };
     }
 
-    private static Border CreateInfoCard(string title, string body)
+    private static Border CreateInfoCard(string title, string body, out TextBlock titleBlock, out TextBlock bodyBlock)
     {
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
+        titleBlock = new TextBlock
         {
             Text = title,
             FontSize = 13,
@@ -1065,8 +1087,10 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
             Foreground = Brushes.White,
             FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
             Margin = new Thickness(0, 0, 0, 7)
-        });
-        stack.Children.Add(new TextBlock
+        };
+        stack.Children.Add(titleBlock);
+
+        bodyBlock = new TextBlock
         {
             Text = body,
             FontSize = 13,
@@ -1074,7 +1098,8 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.FromArgb(196, 255, 255, 255)),
             FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
-        });
+        };
+        stack.Children.Add(bodyBlock);
 
         return new Border
         {
@@ -1095,6 +1120,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
     private readonly TextBlock _headline;
     private readonly TextBlock _description;
     private readonly Border _container;
+    private readonly TextBlock _browseText;
     
     public DirectoryPage(string initialInstallPath)
     {
@@ -1106,7 +1132,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         
         _headline = new TextBlock
         {
-            Text = "Choose Install Location",
+            Text = Loc.Get("setup.directory.headline"),
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = System.Windows.Media.Brushes.White,
@@ -1118,7 +1144,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         
         _description = new TextBlock
         {
-            Text = "Select the folder where V-Notch will be installed.",
+            Text = Loc.Get("setup.directory.description"),
             FontSize = 14,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 255, 255)),
             FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
@@ -1127,7 +1153,6 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         Grid.SetRow(_description, 1);
         grid.Children.Add(_description);
         
-        // Container with folder icon and path input
         _container = new Border
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(255, 26, 26, 26)),
@@ -1142,7 +1167,6 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         pathPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         pathPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
         
-        // Folder icon
         var folderIcon = new TextBlock
         {
             Text = "\uE8B7",
@@ -1169,7 +1193,6 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         Grid.SetColumn(_pathBox, 1);
         pathPanel.Children.Add(_pathBox);
         
-        // Browse button with icon
         var browseButton = new Button
         {
             Height = 32,
@@ -1184,31 +1207,24 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             Cursor = Cursors.Hand
         };
         
-        var buttonContent = new StackPanel { Orientation = Orientation.Horizontal };
-        
-        var buttonText = new TextBlock
+        _browseText = new TextBlock
         {
-            Text = "Browse",
+            Text = Loc.Get("setup.directory.browse"),
             VerticalAlignment = VerticalAlignment.Center
         };
-        buttonContent.Children.Add(buttonText);
-        
-        browseButton.Content = buttonContent;
+        browseButton.Content = _browseText;
         browseButton.Click += BrowseButton_Click;
         
-        // Simple button template with rounded corners
         var buttonTemplate = new ControlTemplate(typeof(Button));
         var buttonBorder = new FrameworkElementFactory(typeof(Border));
         buttonBorder.Name = "border";
         buttonBorder.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
         buttonBorder.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
         buttonBorder.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Button.PaddingProperty));
-        
         var contentPresenter = new FrameworkElementFactory(typeof(ContentPresenter));
         contentPresenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
         contentPresenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
         buttonBorder.AppendChild(contentPresenter);
-        
         buttonTemplate.VisualTree = buttonBorder;
         browseButton.Template = buttonTemplate;
         
@@ -1222,6 +1238,13 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         Content = grid;
     }
 
+    public void RefreshLocalization()
+    {
+        _headline.Text = Loc.Get("setup.directory.headline");
+        _description.Text = Loc.Get("setup.directory.description");
+        _browseText.Text = Loc.Get("setup.directory.browse");
+    }
+
     public IReadOnlyList<UIElement> GetAnimatedElements()
     {
         return new UIElement[] { _headline, _description, _container };
@@ -1230,20 +1253,14 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
     public string InstallPath
     {
         get => _pathBox?.Text ?? string.Empty;
-        set
-        {
-            if (_pathBox != null)
-            {
-                _pathBox.Text = value;
-            }
-        }
+        set { if (_pathBox != null) _pathBox.Text = value; }
     }
     
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "Select Installation Folder",
+            Title = Loc.Get("setup.directory.headline"),
             FileName = "Select Folder",
             Filter = "Folder|*.none",
             CheckFileExists = false,
@@ -1256,9 +1273,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             {
                 var selectedPath = System.IO.Path.GetDirectoryName(dialog.FileName);
                 if (!string.IsNullOrEmpty(selectedPath))
-                {
                     _pathBox.Text = selectedPath;
-                }
             }
         }
     }
@@ -1281,7 +1296,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
         
         _headline = new TextBlock
         {
-            Text = "Startup Options",
+            Text = Loc.Get("setup.startup.headline"),
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = System.Windows.Media.Brushes.White,
@@ -1293,7 +1308,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
         
         _description = new TextBlock
         {
-            Text = "Configure how V-Notch starts with your system.",
+            Text = Loc.Get("setup.startup.description"),
             FontSize = 14,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 255, 255)),
             FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
@@ -1304,7 +1319,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
         
         _checkbox = new CheckBox
         {
-            Content = "Launch V-Notch when Windows starts",
+            Content = Loc.Get("setup.startup.checkbox"),
             IsChecked = startWithWindows,
             FontSize = 14,
             Foreground = System.Windows.Media.Brushes.White,
@@ -1314,6 +1329,13 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
         grid.Children.Add(_checkbox);
         
         Content = grid;
+    }
+
+    public void RefreshLocalization()
+    {
+        _headline.Text = Loc.Get("setup.startup.headline");
+        _description.Text = Loc.Get("setup.startup.description");
+        _checkbox.Content = Loc.Get("setup.startup.checkbox");
     }
 
     public IReadOnlyList<UIElement> GetAnimatedElements()
@@ -1612,7 +1634,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
         
         _headline = new TextBlock
         {
-            Text = "Installation Complete",
+            Text = Loc.Get("setup.finish.headline"),
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = System.Windows.Media.Brushes.White,
@@ -1624,7 +1646,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
         
         _description = new TextBlock
         {
-            Text = "V-Notch has been successfully installed on your computer.\n\nClick Finish to close the installer and launch V-Notch.",
+            Text = Loc.Get("setup.finish.description"),
             FontSize = 14,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 255, 255)),
             FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
@@ -1637,7 +1659,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
         
         _checkbox = new CheckBox
         {
-            Content = "Launch V-Notch now",
+            Content = Loc.Get("setup.finish.launch"),
             IsChecked = launchAfterInstall,
             FontSize = 14,
             Foreground = System.Windows.Media.Brushes.White,

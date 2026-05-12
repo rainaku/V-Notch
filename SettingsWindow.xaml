@@ -315,10 +315,33 @@
 
         <Style TargetType="ComboBoxItem">
             <Setter Property="Foreground" Value="#F5F8FB"/>
-            <Setter Property="Background" Value="#1B2129"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontFamily" Value="{StaticResource SettingsFont}"/>
-            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Margin="4,2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#1AFFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#22FFFFFF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="ComboBox">
@@ -417,13 +440,23 @@
                                    Placement="Bottom"
                                    IsOpen="{TemplateBinding IsDropDownOpen}"
                                    AllowsTransparency="True"
-                                   Focusable="False">
-                                <Border Background="#101010"
+                                   Focusable="False"
+                                   PopupAnimation="Fade"
+                                   StaysOpen="False">
+                                <Border x:Name="DropdownBorder"
+                                        Background="#0F0F12"
                                         BorderBrush="#2A2A2A"
                                         BorderThickness="1"
                                         CornerRadius="12"
-                                        MinWidth="{TemplateBinding ActualWidth}">
-                                    <ScrollViewer MaxHeight="180">
+                                        Margin="0,4,0,0"
+                                        Padding="0,4"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        RenderTransformOrigin="0.5,0"
+                                        Effect="{x:Null}">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                    </Border.RenderTransform>
+                                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
                                         <ItemsPresenter/>
                                     </ScrollViewer>
                                 </Border>
@@ -736,11 +769,11 @@
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Notch Settings"
+                            <TextBlock x:Name="SettingsTitleText" Text="Notch Settings"
                                        FontSize="19"
                                        FontWeight="Bold"
                                        Foreground="#F8FBFF"/>
-                            <TextBlock Text="Tune behavior, visuals, and system integration."
+                            <TextBlock x:Name="SettingsSubtitleText" Text="Tune behavior, visuals, and system integration."
                                        Style="{StaticResource SettingHintText}"
                                        Margin="0,4,0,0"/>
                         </StackPanel>
@@ -808,7 +841,8 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="20,18,14,14"
-                          PreviewMouseWheel="SettingsScrollViewer_PreviewMouseWheel">
+                          PreviewMouseWheel="SettingsScrollViewer_PreviewMouseWheel"
+                          ScrollChanged="SettingsScrollViewer_ScrollChanged">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -822,7 +856,7 @@
                             <TranslateTransform x:Name="AppearanceCardTranslate" Y="12"/>
                         </Border.RenderTransform>
                         <StackPanel>
-                            <TextBlock Text="APPEARANCE" Style="{StaticResource SectionHeader}"/>
+                            <TextBlock x:Name="AppearanceHeader" Text="APPEARANCE" Style="{StaticResource SectionHeader}"/>
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
@@ -831,12 +865,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Width" Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock x:Name="WidthLabel" Text="Width" Style="{StaticResource SettingTitleText}"/>
                                         <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
                                             <Run x:Name="WidthValue" Text="360"/><Run Text=" px"/>
                                         </TextBlock>
                                     </Grid>
-                                    <TextBlock Text="How wide the compact notch should sit on screen."
+                                    <TextBlock x:Name="WidthHint" Text="How wide the compact notch should sit on screen."
                                                Style="{StaticResource SettingHintText}"/>
                                     <Slider x:Name="WidthSlider"
                                             Minimum="100"
@@ -855,12 +889,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Height" Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock x:Name="HeightLabel" Text="Height" Style="{StaticResource SettingTitleText}"/>
                                         <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
                                             <Run x:Name="HeightValue" Text="32"/><Run Text=" px"/>
                                         </TextBlock>
                                     </Grid>
-                                    <TextBlock Text="Controls the compact profile thickness."
+                                    <TextBlock x:Name="HeightHint" Text="Controls the compact profile thickness."
                                                Style="{StaticResource SettingHintText}"/>
                                     <Slider x:Name="HeightSlider"
                                             Minimum="20"
@@ -879,12 +913,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Corner Radius" Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock x:Name="RadiusLabel" Text="Corner Radius" Style="{StaticResource SettingTitleText}"/>
                                         <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
                                             <Run x:Name="RadiusValue" Text="16"/><Run Text=" px"/>
                                         </TextBlock>
                                     </Grid>
-                                    <TextBlock Text="Sharper for utility, softer for an island-like feel."
+                                    <TextBlock x:Name="RadiusHint" Text="Sharper for utility, softer for an island-like feel."
                                                Style="{StaticResource SettingHintText}"/>
                                     <Slider x:Name="RadiusSlider"
                                             Minimum="0"
@@ -903,12 +937,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Opacity" Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock x:Name="OpacityLabel" Text="Opacity" Style="{StaticResource SettingTitleText}"/>
                                         <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
                                             <Run x:Name="OpacityValue" Text="100"/><Run Text=" %"/>
                                         </TextBlock>
                                     </Grid>
-                                    <TextBlock Text="Blend the notch into the desktop or keep it crisp and solid."
+                                    <TextBlock x:Name="OpacityHint" Text="Blend the notch into the desktop or keep it crisp and solid."
                                                Style="{StaticResource SettingHintText}"/>
                                     <Slider x:Name="OpacitySlider"
                                             Minimum="50"
@@ -927,12 +961,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Blur Brightness" Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock x:Name="BlurLabel" Text="Blur Brightness" Style="{StaticResource SettingTitleText}"/>
                                         <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
                                             <Run x:Name="BlurBrightnessValue" Text="140"/><Run Text=" %"/>
                                         </TextBlock>
                                     </Grid>
-                                    <TextBlock Text="Brighten the expanded media blur without changing the notch body opacity."
+                                    <TextBlock x:Name="BlurHint" Text="Brighten the expanded media blur without changing the notch body opacity."
                                                Style="{StaticResource SettingHintText}"/>
                                     <Slider x:Name="BlurBrightnessSlider"
                                             Minimum="100"
@@ -951,12 +985,12 @@
                             <TranslateTransform x:Name="BehaviorCardTranslate" Y="12"/>
                         </Border.RenderTransform>
                         <StackPanel>
-                            <TextBlock Text="BEHAVIOR" Style="{StaticResource SectionHeader}"/>
+                            <TextBlock x:Name="BehaviorHeader" Text="BEHAVIOR" Style="{StaticResource SectionHeader}"/>
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
-                                    <CheckBox x:Name="HoverExpandCheck" Content="Expand on hover"/>
-                                    <TextBlock Text="Open the notch automatically when the pointer lingers nearby."
+                                    <CheckBox x:Name="HoverExpandCheck" x:Uid="hoverExpand" Content="Expand on hover"/>
+                                    <TextBlock x:Name="HoverExpandHint" Text="Open the notch automatically when the pointer lingers nearby."
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,8,0,0"/>
                                 </StackPanel>
@@ -969,12 +1003,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Expand Delay" Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock x:Name="ExpandDelayLabel" Text="Expand Delay" Style="{StaticResource SettingTitleText}"/>
                                         <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
                                             <Run x:Name="HoverDelayValue" Text="100"/><Run Text=" ms"/>
                                         </TextBlock>
                                     </Grid>
-                                    <TextBlock Text="Delay before hover opens the notch."
+                                    <TextBlock x:Name="ExpandDelayHint" Text="Delay before hover opens the notch."
                                                Style="{StaticResource SettingHintText}"/>
                                     <Slider x:Name="HoverDelaySlider"
                                             Minimum="0"
@@ -993,7 +1027,7 @@
                             <TranslateTransform x:Name="UpdatesCardTranslate" Y="12"/>
                         </Border.RenderTransform>
                         <StackPanel>
-                            <TextBlock Text="UPDATES" Style="{StaticResource SectionHeader}"/>
+                            <TextBlock x:Name="UpdatesHeader" Text="UPDATES &amp; REPORT BUG" Style="{StaticResource SectionHeader}"/>
 
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,12">
                                 <Grid>
@@ -1005,7 +1039,8 @@
                                     <StackPanel Margin="0,0,12,0">
                                         <TextBlock x:Name="UpdateStatusText"
                                                    Text="Checking for updates..."
-                                                   Style="{StaticResource SettingTitleText}"/>
+                                                   Style="{StaticResource SettingTitleText}"
+                                                   TextWrapping="Wrap"/>
                                         <TextBlock x:Name="CurrentVersionText"
                                                    Text="Current version: 1.6.0"
                                                    Style="{StaticResource SettingHintText}"
@@ -1026,6 +1061,37 @@
                                     Visibility="Collapsed"
                                     Click="DownloadUpdate_Click"
                                     Style="{StaticResource PrimaryButton}"/>
+
+                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,12,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock x:Name="ReportBugLabel" Text="Report a bug"
+                                                   Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock x:Name="ReportBugHint" Text="Found something broken? Let us know on GitHub."
+                                                   Style="{StaticResource SettingHintText}"
+                                                   Margin="0,6,0,0"/>
+                                    </StackPanel>
+
+                                    <Button Grid.Column="1"
+                                            Width="40"
+                                            Height="40"
+                                            Click="ReportBug_Click"
+                                            ToolTip="Report Bug on GitHub"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Cursor="Hand">
+                                        <Viewbox Width="36" Height="36" Stretch="Uniform">
+                                            <Path Data="M198.844 64.75c-.985 0-1.974.03-2.97.094-15.915 1.015-32.046 11.534-37.78 26.937-34.072 91.532-51.085 128.865-61.5 222.876 14.633 13.49 31.63 26.45 50.25 38.125l66.406-196.467 17.688 5.968L163.28 362.5c19.51 10.877 40.43 20.234 62 27.28l75.407-201.53 17.5 6.53-74.937 200.282c19.454 5.096 39.205 8.2 58.78 8.875L381.345 225.5l17.094 7.594-75.875 170.656c21.82-1.237 43.205-5.768 63.437-14.28 43.317-53.844 72.633-109.784 84.5-172.69 5.092-26.992-14.762-53.124-54.22-54.81l-6.155-.282-2.188-5.75c-8.45-22.388-19.75-30.093-31.5-32.47-11.75-2.376-25.267 1.535-35.468 7.376l-13.064 7.47-.906-15c-.99-16.396-10.343-29.597-24.313-35.626-13.97-6.03-33.064-5.232-54.812 9.906l-10.438 7.25-3.812-12.125c-6.517-20.766-20.007-27.985-34.78-27.97zM103.28 188.344C71.143 233.448 47.728 299.56 51.407 359.656c27.54 21.84 54.61 33.693 80.063 35.438 14.155.97 27.94-1.085 41.405-6.438-35.445-17.235-67.36-39.533-92.594-63.53l-3.343-3.157.5-4.595c5.794-54.638 13.946-91.5 25.844-129.03z"
+                                                  Fill="White"/>
+                                        </Viewbox>
+                                    </Button>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </Border>
                     </StackPanel>
@@ -1036,11 +1102,11 @@
                             <TranslateTransform x:Name="DisplayCardTranslate" Y="12"/>
                         </Border.RenderTransform>
                         <StackPanel>
-                            <TextBlock Text="DISPLAY" Style="{StaticResource SectionHeader}"/>
+                            <TextBlock x:Name="DisplayHeader" Text="DISPLAY" Style="{StaticResource SectionHeader}"/>
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
                                 <StackPanel>
-                                    <TextBlock Text="Active Monitor" Style="{StaticResource SettingTitleText}"/>
-                                    <TextBlock Text="Choose which screen anchors the notch."
+                                    <TextBlock x:Name="MonitorLabel" Text="Active Monitor" Style="{StaticResource SettingTitleText}"/>
+                                    <TextBlock x:Name="MonitorHint" Text="Choose which screen anchors the notch."
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,6,0,0"/>
                                     <ComboBox x:Name="MonitorCombo"/>
@@ -1054,12 +1120,12 @@
                             <TranslateTransform x:Name="SystemCardTranslate" Y="12"/>
                         </Border.RenderTransform>
                         <StackPanel>
-                            <TextBlock Text="SYSTEM" Style="{StaticResource SectionHeader}"/>
+                            <TextBlock x:Name="SystemHeader" Text="SYSTEM" Style="{StaticResource SectionHeader}"/>
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
-                                    <CheckBox x:Name="AutoStartCheck" Content="Start with Windows"/>
-                                    <TextBlock Text="Launch automatically when you sign in."
+                                    <CheckBox x:Name="AutoStartCheck" x:Uid="autoStart" Content="Start with Windows"/>
+                                    <TextBlock x:Name="AutoStartHint" Text="Launch automatically when you sign in."
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,8,0,0"/>
                                 </StackPanel>
@@ -1067,8 +1133,8 @@
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
-                                    <CheckBox x:Name="MusicNotifyCheck" Content="Show music notifications"/>
-                                    <TextBlock Text="Keep the media widget responsive to playback changes."
+                                    <CheckBox x:Name="MusicNotifyCheck" x:Uid="musicNotify" Content="Show music notifications"/>
+                                    <TextBlock x:Name="MusicNotifyHint" Text="Keep the media widget responsive to playback changes."
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,8,0,0"/>
                                 </StackPanel>
@@ -1076,8 +1142,8 @@
 
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
                                 <StackPanel>
-                                    <CheckBox x:Name="SystemNotifyCheck" Content="Show system notifications"/>
-                                    <TextBlock Text="Allow the notch to surface device and system signals."
+                                    <CheckBox x:Name="SystemNotifyCheck" x:Uid="systemNotify" Content="Show system notifications"/>
+                                    <TextBlock x:Name="SystemNotifyHint" Text="Allow the notch to surface device and system signals."
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,8,0,0"/>
                                 </StackPanel>
@@ -1085,8 +1151,8 @@
 
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
                                 <StackPanel>
-                                    <CheckBox x:Name="ShelfUnlockCheck" Content="Unlock shelf upload limit"/>
-                                    <TextBlock Text="Remove the 30-file safety limit on the shelf."
+                                    <CheckBox x:Name="ShelfUnlockCheck" x:Uid="shelfUnlock" Content="Unlock shelf upload limit"/>
+                                    <TextBlock x:Name="ShelfUnlockHint" Text="Remove the 30-file safety limit on the shelf."
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,8,0,0"
                                                TextWrapping="Wrap"/>
@@ -1095,8 +1161,8 @@
 
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
                                 <StackPanel>
-                                    <TextBlock Text="Language" Style="{StaticResource SettingTitleText}"/>
-                                    <TextBlock Text="Choose the display language for V-Notch."
+                                    <TextBlock x:Name="LanguageLabel" Text="Language" Style="{StaticResource SettingTitleText}"/>
+                                    <TextBlock x:Name="LanguageHint" Text="Choose the display language for V-Notch."
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,6,0,8"/>
                                     <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged"/>
@@ -1126,15 +1192,15 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <Button Grid.Column="0"
+                    <Button x:Name="ResetButton" Grid.Column="0"
                             Margin="0,0,8,0"
                             Content="Reset"
                             Click="Reset_Click"/>
-                    <Button Grid.Column="1"
+                    <Button x:Name="ApplyButton" Grid.Column="1"
                             Margin="4,0"
                             Content="Apply"
                             Click="Apply_Click"/>
-                    <Button Grid.Column="2"
+                    <Button x:Name="SaveButton" Grid.Column="2"
                             Margin="8,0,0,0"
                             Content="Save"
                             Style="{StaticResource PrimaryButton}"

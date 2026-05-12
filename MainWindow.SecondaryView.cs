@@ -66,6 +66,9 @@ public partial class MainWindow
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
 
+        // Refresh shelf text to current language
+        UpdateShelfCapacityIndicator();
+
         UpdateNavIconsActiveState();
         NavIconsPanel.Visibility = Visibility.Visible;
         NavIconsPanel.Opacity = 1;

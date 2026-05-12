@@ -30,7 +30,7 @@
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="8" Height="8" Fill="#30D158" Margin="0,0,8,0"/>
-                    <TextBlock Text="Installing Update"
+                    <TextBlock x:Name="TitleText" Text="Installing Update"
                                Foreground="White"
                                FontSize="13.5"
                                FontWeight="SemiBold"/>

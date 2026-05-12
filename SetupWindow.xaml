@@ -406,7 +406,7 @@
                             </Image.RenderTransform>
                         </Image>
                         
-                        <TextBlock x:Name="HeadlineText" Grid.Row="1" Text="Welcome to V-Notch ✨" FontSize="34" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif" Margin="0,0,0,12" Opacity="0">
+                        <TextBlock x:Name="HeadlineText" Grid.Row="1" Text="Welcome to V-Notch" FontSize="34" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif" Margin="0,0,0,12" Opacity="0">
                             <TextBlock.RenderTransform>
                                 <TranslateTransform x:Name="HeadlineTranslate" Y="8"/>
                             </TextBlock.RenderTransform>

@@ -1422,7 +1422,8 @@
                                            Margin="6,0,0,0"
                                            VerticalAlignment="Center"
                                            HorizontalAlignment="Left"
-                                           Foreground="#99FFFFFF"/>
+                                           Foreground="#99FFFFFF"
+                                           TextWrapping="Wrap"/>
                             </Grid>
                         </Grid>
                     </Grid>
@@ -1469,7 +1470,7 @@
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                         <Path Data="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" 
                                               Fill="White" Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="Camera" Style="{StaticResource SmallText}" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
+                                        <TextBlock x:Name="CameraLabel" Text="Camera" Style="{StaticResource SmallText}" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1510,7 +1511,7 @@
                                            RadiusX="16" RadiusY="16"/>
 
                                 <TextBlock x:Name="ShelfPlaceholder"
-                                           Text="Drag files here for temporary storage"
+                                           Text=""
                                            HorizontalAlignment="Center" 
                                            VerticalAlignment="Center"
                                            Style="{StaticResource SubtitleText}"/>

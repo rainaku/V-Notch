@@ -3,10 +3,6 @@ using System.Collections.Generic;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Lightweight localization service for V-Notch.
-/// Supports English ("en") and Vietnamese ("vi").
-/// </summary>
 public static class Loc
 {
     private static string _currentLanguage = "en";
@@ -19,11 +15,6 @@ public static class Loc
         _currentLanguage = language == "vi" ? "vi" : "en";
     }
 
-    /// <summary>
-    /// Gets the localized string for the given key.
-    /// Falls back to English if the key is not found in the current language.
-    /// Falls back to the key itself if not found at all.
-    /// </summary>
     public static string Get(string key)
     {
         if (_strings.TryGetValue(_currentLanguage, out var langDict) && langDict.TryGetValue(key, out var value))
@@ -60,7 +51,7 @@ public static class Loc
             ["settings.subtitle"] = "Tune behavior, visuals, and system integration.",
             ["settings.appearance"] = "APPEARANCE",
             ["settings.behavior"] = "BEHAVIOR",
-            ["settings.updates"] = "UPDATES",
+            ["settings.updates"] = "UPDATES & REPORT BUG",
             ["settings.display"] = "DISPLAY",
             ["settings.system"] = "SYSTEM",
             ["settings.width"] = "Width",
@@ -82,15 +73,27 @@ public static class Loc
             ["settings.autoStart"] = "Start with Windows",
             ["settings.autoStart.hint"] = "Launch automatically when you sign in.",
             ["settings.musicNotify"] = "Show music notifications",
+            ["settings.musicNotify.hint"] = "Keep the media widget responsive to playback changes.",
             ["settings.systemNotify"] = "Show system notifications",
+            ["settings.systemNotify.hint"] = "Allow the notch to surface device and system signals.",
             ["settings.shelfUnlock"] = "Unlock shelf upload limit",
+            ["settings.shelfUnlock.hint"] = "Remove the 30-file safety limit on the shelf.",
+            ["settings.language"] = "Language",
+            ["settings.language.hint"] = "Choose the display language for V-Notch.",
             ["settings.checkingUpdates"] = "Checking for updates...",
             ["settings.upToDate"] = "You're up to date",
             ["settings.updateAvailable"] = "Update available: v{0}",
             ["settings.currentVersion"] = "Current version: {0}",
             ["settings.checkUpdate"] = "Check",
             ["settings.download"] = "Download",
+            ["settings.reportBug"] = "Report a bug",
+            ["settings.reportBug.hint"] = "Found something broken? Let us know on GitHub.",
             ["settings.reset"] = "Reset to defaults",
+            ["settings.reset.confirm"] = "Reset all settings to defaults? This cannot be undone.",
+            ["settings.reset.title"] = "Reset Settings",
+            ["settings.btn.reset"] = "Reset",
+            ["settings.btn.apply"] = "Apply",
+            ["settings.btn.save"] = "Save",
 
             // ─── Tray Menu ───
             ["tray.hide"] = "Hide Notch",
@@ -121,7 +124,7 @@ public static class Loc
             ["setup.step.startup"] = "05  Startup",
             ["setup.step.install"] = "06  Install",
             ["setup.step.finish"] = "07  Finish",
-            ["setup.welcome.headline"] = "Welcome to V-Notch ✨",
+            ["setup.welcome.headline"] = "Welcome to V-Notch",
             ["setup.welcome.body"] = "Hey there! Thanks for choosing V-Notch.\n\nWe're about to set up a sleek little notch at the top of your screen — it handles your music, battery, calendar, file shelf, and more. Think of it as a tiny command center that stays out of your way until you need it.\n\nThis will only take a minute. Let's get started!",
             ["setup.btn.continue"] = "Continue",
             ["setup.btn.back"] = "Back",
@@ -158,11 +161,25 @@ public static class Loc
             ["error.alreadyRunning"] = "V-Notch is already running!",
             ["error.updateFailed"] = "Unable to download/install update right now. Please try again.",
             ["error.updateFailedTitle"] = "Update Failed",
+            ["error.updateError"] = "Update process failed unexpectedly. Please try again.",
+            ["error.updateErrorTitle"] = "Update Error",
+
+            // ─── Update Notification ───
+            ["update.version"] = "Version v{0}",
+            ["update.clickToInstall"] = "Click to download & install",
+            ["update.preparing"] = "Preparing download...",
+            ["update.openingUpdater"] = "Opening updater...",
+            ["update.downloading"] = "Downloading update...",
+            ["update.downloadingPercent"] = "Downloading... {0}%",
+            ["update.pleaseWait"] = "Please wait...",
+            ["update.installingTitle"] = "Installing Update",
 
             // ─── Misc ───
             ["greeting.morning"] = "Good morning",
             ["greeting.afternoon"] = "Good afternoon",
             ["greeting.evening"] = "Good evening",
+            ["greeting.enjoyDay"] = "Enjoy your day!",
+            ["notch.camera"] = "Camera",
         };
     }
 
@@ -175,7 +192,7 @@ public static class Loc
             ["settings.subtitle"] = "Tùy chỉnh hành vi, giao diện và tích hợp hệ thống.",
             ["settings.appearance"] = "GIAO DIỆN",
             ["settings.behavior"] = "HÀNH VI",
-            ["settings.updates"] = "CẬP NHẬT",
+            ["settings.updates"] = "CẬP NHẬT & BÁO LỖI",
             ["settings.display"] = "MÀN HÌNH",
             ["settings.system"] = "HỆ THỐNG",
             ["settings.width"] = "Chiều rộng",
@@ -197,15 +214,27 @@ public static class Loc
             ["settings.autoStart"] = "Khởi động cùng Windows",
             ["settings.autoStart.hint"] = "Tự động chạy khi bạn đăng nhập.",
             ["settings.musicNotify"] = "Hiện thông báo nhạc",
+            ["settings.musicNotify.hint"] = "Giữ widget media phản hồi với thay đổi phát nhạc.",
             ["settings.systemNotify"] = "Hiện thông báo hệ thống",
+            ["settings.systemNotify.hint"] = "Cho phép notch hiển thị tín hiệu thiết bị và hệ thống.",
             ["settings.shelfUnlock"] = "Mở khóa giới hạn tải lên shelf",
+            ["settings.shelfUnlock.hint"] = "Bỏ giới hạn an toàn 30 file trên shelf.",
+            ["settings.language"] = "Ngôn ngữ",
+            ["settings.language.hint"] = "Chọn ngôn ngữ hiển thị cho V-Notch.",
             ["settings.checkingUpdates"] = "Đang kiểm tra cập nhật...",
             ["settings.upToDate"] = "Bạn đang dùng phiên bản mới nhất",
             ["settings.updateAvailable"] = "Có bản cập nhật: v{0}",
             ["settings.currentVersion"] = "Phiên bản hiện tại: {0}",
             ["settings.checkUpdate"] = "Kiểm tra",
             ["settings.download"] = "Tải xuống",
+            ["settings.reportBug"] = "Báo lỗi",
+            ["settings.reportBug.hint"] = "Phát hiện lỗi? Báo cho chúng mình trên GitHub.",
             ["settings.reset"] = "Khôi phục mặc định",
+            ["settings.reset.confirm"] = "Khôi phục tất cả cài đặt về mặc định? Không thể hoàn tác.",
+            ["settings.reset.title"] = "Khôi phục cài đặt",
+            ["settings.btn.reset"] = "Đặt lại",
+            ["settings.btn.apply"] = "Áp dụng",
+            ["settings.btn.save"] = "Lưu",
 
             // ─── Tray Menu ───
             ["tray.hide"] = "Ẩn Notch",
@@ -236,8 +265,8 @@ public static class Loc
             ["setup.step.startup"] = "05  Khởi động",
             ["setup.step.install"] = "06  Cài đặt",
             ["setup.step.finish"] = "07  Hoàn tất",
-            ["setup.welcome.headline"] = "Chào mừng đến với V-Notch ✨",
-            ["setup.welcome.body"] = "Xin chào! Cảm ơn bạn đã chọn V-Notch.\n\nChúng mình sắp thiết lập một thanh notch nhỏ gọn ở đầu màn hình — nó quản lý nhạc, pin, lịch, file shelf và nhiều thứ khác. Hãy nghĩ nó như một trung tâm điều khiển mini, luôn ở đó khi bạn cần.\n\nChỉ mất một phút thôi. Bắt đầu nào!",
+            ["setup.welcome.headline"] = "Chào mừng đến với V-Notch",
+            ["setup.welcome.body"] = "Góc nhỏ trên màn hình của bạn, nay trở thành trung tâm của mọi thứ.\n\nV-Notch ở đó lặng lẽ — cho đến khi bạn cần.",
             ["setup.btn.continue"] = "Tiếp tục",
             ["setup.btn.back"] = "Quay lại",
             ["setup.btn.cancel"] = "Hủy",
@@ -273,11 +302,25 @@ public static class Loc
             ["error.alreadyRunning"] = "V-Notch đang chạy rồi!",
             ["error.updateFailed"] = "Không thể tải/cài đặt bản cập nhật. Vui lòng thử lại.",
             ["error.updateFailedTitle"] = "Cập nhật thất bại",
+            ["error.updateError"] = "Quá trình cập nhật gặp lỗi. Vui lòng thử lại.",
+            ["error.updateErrorTitle"] = "Lỗi cập nhật",
+
+            // ─── Update Notification ───
+            ["update.version"] = "Phiên bản v{0}",
+            ["update.clickToInstall"] = "Nhấn để tải và cài đặt",
+            ["update.preparing"] = "Đang chuẩn bị tải...",
+            ["update.openingUpdater"] = "Đang mở trình cập nhật...",
+            ["update.downloading"] = "Đang tải cập nhật...",
+            ["update.downloadingPercent"] = "Đang tải... {0}%",
+            ["update.pleaseWait"] = "Vui lòng chờ...",
+            ["update.installingTitle"] = "Đang cài đặt bản cập nhật",
 
             // ─── Misc ───
             ["greeting.morning"] = "Chào buổi sáng",
             ["greeting.afternoon"] = "Chào buổi chiều",
             ["greeting.evening"] = "Chào buổi tối",
+            ["greeting.enjoyDay"] = "Chúc bạn một ngày tốt lành!",
+            ["notch.camera"] = "Máy ảnh",
         };
     }
 }

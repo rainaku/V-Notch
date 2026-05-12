@@ -83,6 +83,9 @@ public partial class MainWindow
         _fileShelf.LayoutRefreshRequested += OnShelfLayoutRefreshRequested;
         _fileShelf.FileExternallyRemoved += OnShelfFileExternallyRemoved;
         _fileShelf.FileExternallyRenamed += OnShelfFileExternallyRenamed;
+
+        // Set initial localized text
+        UpdateShelfCapacityIndicator();
     }
 
     private void OnShelfFileReadyToAdd(string filePath)

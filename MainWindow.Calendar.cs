@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using VNotch.Modules;
+using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
@@ -78,7 +79,7 @@ public partial class MainWindow
         }
 
         UpdateCalendarHighlight(animate: false, pulse: false);
-        EventText.Text = "Enjoy your day!";
+        EventText.Text = Loc.Get("greeting.enjoyDay");
     }
 
     private int GetCalendarCenterIndexFromStripX(double stripX)

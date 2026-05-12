@@ -58,12 +58,12 @@ public partial class MainWindow
         bool wasVisible = UpdateNotificationButton.Visibility == Visibility.Visible;
         UpdateNotificationButton.Visibility = Visibility.Visible;
         UpdateNotificationButton.IsHitTestVisible = true;
-        UpdateNotificationButton.Tag = $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}";
+        UpdateNotificationButton.Tag = Loc.Get("update.version", _availableUpdate?.Version?.ToString() ?? "-");
         UpdateNotificationButton.Cursor = Cursors.Hand;
         UpdateNotificationButton.Opacity = 1.0;
         SetUpdateInlineTooltipContent(
-            $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}",
-            "Click to download & install");
+            Loc.Get("update.version", _availableUpdate?.Version?.ToString() ?? "-"),
+            Loc.Get("update.clickToInstall"));
 
         if (wasVisible)
         {
@@ -193,31 +193,31 @@ public partial class MainWindow
         if (_availableUpdate == null || _isUpdateInstalling) return;
 
         _isUpdateInstalling = true;
-        UpdateNotificationButton.Tag = "Preparing download...";
+        UpdateNotificationButton.Tag = Loc.Get("update.preparing");
         UpdateNotificationButton.Cursor = Cursors.Wait;
         UpdateNotificationButton.Opacity = 0.95;
         StopUpdatePulseAnimation();
-        SetUpdateInlineTooltipContent("Preparing download...", "Opening updater...");
+        SetUpdateInlineTooltipContent(Loc.Get("update.preparing"), Loc.Get("update.openingUpdater"));
         ShowUpdateInlineTooltip();
 
         var updateProgressWindow = new UpdateDownloadWindow();
-        updateProgressWindow.SetIndeterminate("Preparing download...");
+        updateProgressWindow.SetIndeterminate(Loc.Get("update.preparing"));
         updateProgressWindow.Show();
 
         var downloadProgress = new Progress<double>(p =>
         {
             if (p < 0)
             {
-                updateProgressWindow.SetIndeterminate("Downloading update...");
-                UpdateNotificationButton.Tag = "Downloading update...";
-                SetUpdateInlineTooltipContent("Downloading update...", "Please wait...");
+                updateProgressWindow.SetIndeterminate(Loc.Get("update.downloading"));
+                UpdateNotificationButton.Tag = Loc.Get("update.downloading");
+                SetUpdateInlineTooltipContent(Loc.Get("update.downloading"), Loc.Get("update.pleaseWait"));
                 return;
             }
 
-            updateProgressWindow.SetStatus($"Downloading update... {p:0}%");
+            updateProgressWindow.SetStatus(Loc.Get("update.downloadingPercent", (int)p));
             updateProgressWindow.SetProgress(p);
-            UpdateNotificationButton.Tag = $"Downloading... {p:0}%";
-            SetUpdateInlineTooltipContent($"Downloading... {p:0}%", "Please wait...");
+            UpdateNotificationButton.Tag = Loc.Get("update.downloadingPercent", (int)p);
+            SetUpdateInlineTooltipContent(Loc.Get("update.downloadingPercent", (int)p), Loc.Get("update.pleaseWait"));
         });
 
         try
@@ -228,16 +228,16 @@ public partial class MainWindow
             {
                 updateProgressWindow.Close();
                 _isUpdateInstalling = false;
-                UpdateNotificationButton.Tag = $"Version v{_availableUpdate.Version}";
+                UpdateNotificationButton.Tag = Loc.Get("update.version", _availableUpdate.Version);
                 UpdateNotificationButton.Cursor = Cursors.Hand;
                 UpdateNotificationButton.Opacity = 1.0;
                 SetUpdateInlineTooltipContent(
-                    $"Version v{_availableUpdate.Version}",
-                    "Click to download & install");
+                    Loc.Get("update.version", _availableUpdate.Version),
+                    Loc.Get("update.clickToInstall"));
                 StartUpdatePulseAnimation();
                 MessageBox.Show(
-                    "Unable to download/install update right now. Please try again.",
-                    "Update Failed",
+                    Loc.Get("error.updateFailed"),
+                    Loc.Get("error.updateFailedTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
             }
@@ -246,16 +246,16 @@ public partial class MainWindow
         {
             updateProgressWindow.Close();
             _isUpdateInstalling = false;
-            UpdateNotificationButton.Tag = $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}";
+            UpdateNotificationButton.Tag = Loc.Get("update.version", _availableUpdate?.Version?.ToString() ?? "-");
             UpdateNotificationButton.Cursor = Cursors.Hand;
             UpdateNotificationButton.Opacity = 1.0;
             SetUpdateInlineTooltipContent(
-                $"Version v{_availableUpdate?.Version?.ToString() ?? "-"}",
-                "Click to download & install");
+                Loc.Get("update.version", _availableUpdate?.Version?.ToString() ?? "-"),
+                Loc.Get("update.clickToInstall"));
             StartUpdatePulseAnimation();
             MessageBox.Show(
-                "Update process failed unexpectedly. Please try again.",
-                "Update Error",
+                Loc.Get("error.updateError"),
+                Loc.Get("error.updateErrorTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
@@ -269,10 +269,10 @@ public partial class MainWindow
 
         if (_availableUpdate != null && !_isUpdateInstalling)
         {
-            UpdateNotificationButton.Tag = $"Version v{_availableUpdate.Version}";
+            UpdateNotificationButton.Tag = Loc.Get("update.version", _availableUpdate.Version);
             SetUpdateInlineTooltipContent(
-                $"Version v{_availableUpdate.Version}",
-                "Click to download & install");
+                Loc.Get("update.version", _availableUpdate.Version),
+                Loc.Get("update.clickToInstall"));
         }
     }
 
