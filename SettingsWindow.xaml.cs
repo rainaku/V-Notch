@@ -143,7 +143,7 @@ public event EventHandler? AnimatedClosing;
         // Updates & Report Bug
         CheckUpdateButton.Content = Loc.Get("settings.checkUpdate");
         UpdateStatusText.Text = Loc.Get("settings.upToDate");
-        CurrentVersionText.Text = Loc.Get("settings.currentVersion", "1.6.0");
+        CurrentVersionText.Text = Loc.Get("settings.currentVersion", "1.6.1");
         ReportBugLabel.Text = Loc.Get("settings.reportBug");
         ReportBugHint.Text = Loc.Get("settings.reportBug.hint");
 
