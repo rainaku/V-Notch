@@ -803,10 +803,12 @@
                 </Grid>
             </Border>
 
-            <ScrollViewer Grid.Row="1"
+            <ScrollViewer x:Name="SettingsScrollViewer"
+                          Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
-                          Padding="20,18,14,14">
+                          Padding="20,18,14,14"
+                          PreviewMouseWheel="SettingsScrollViewer_PreviewMouseWheel">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

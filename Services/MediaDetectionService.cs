@@ -50,8 +50,7 @@ public class MediaDetectionService : IMediaDetectionService
     private readonly Dictionary<string, DateTime> _sessionPlayStartTimes = new();
     private readonly Dictionary<string, bool> _sessionPlayingStates = new();
     private readonly Dictionary<string, string> _sessionSourceOverrides = new();
-    private readonly Dictionary<string, string> _trackSourceCache = new();
-    private readonly string _cachePath;
+    private readonly MediaSourceCache _sourceCache;
     private string _latestPlayingSessionKey = "";
     private DateTime _latestPlayingSessionStartUtc = DateTime.MinValue;
 
@@ -90,44 +89,8 @@ public class MediaDetectionService : IMediaDetectionService
                 SingleReader = true
             });
 
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var dir = Path.Combine(appData, "V-Notch");
-        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-        _cachePath = Path.Combine(dir, "source_cache.json");
-        LoadSourceCache();
-    }
-
-    private void LoadSourceCache()
-    {
-        try
-        {
-            if (File.Exists(_cachePath))
-            {
-                var json = File.ReadAllText(_cachePath);
-                var data = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                if (data != null)
-                {
-                    foreach (var kvp in data) _trackSourceCache[kvp.Key] = kvp.Value;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("MEDIA-CACHE-LOAD", ex.ToString());
-        }
-    }
-
-    private void SaveSourceCache()
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(_trackSourceCache);
-            File.WriteAllText(_cachePath, json);
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("MEDIA-CACHE-SAVE", ex.ToString());
-        }
+        _sourceCache = new MediaSourceCache();
+        _sourceCache.Load();
     }
 
 
@@ -798,9 +761,8 @@ public class MediaDetectionService : IMediaDetectionService
 
                                         SetSessionSourceOverride(info, "YouTube");
 
-                                        _trackSourceCache[trackDuringFetch] = "YouTube";
-                                        _trackSourceCache[BuildTrackIdentity(trackDuringFetch, artistDuringFetch)] = "YouTube";
-                                        SaveSourceCache();
+                                        _sourceCache.SetBoth(trackDuringFetch, BuildTrackIdentity(trackDuringFetch, artistDuringFetch), "YouTube");
+                                        _sourceCache.Save();
                                     }
 
                                     if (!string.IsNullOrEmpty(result.Author) && result.Author != "YouTube")
@@ -955,9 +917,8 @@ public class MediaDetectionService : IMediaDetectionService
                                 string currentTrackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
                                 if (!string.IsNullOrEmpty(currentTrackIdentity))
                                 {
-                                    _trackSourceCache[currentTrackIdentity] = "SoundCloud";
-                                    _trackSourceCache[currentTrackOnlyIdentity] = "SoundCloud";
-                                    SaveSourceCache();
+                                    _sourceCache.SetBoth(currentTrackIdentity, currentTrackOnlyIdentity, "SoundCloud");
+                                    _sourceCache.Save();
                                 }
                             }
                             info.Thumbnail = frameBitmap;
@@ -1086,37 +1047,17 @@ public class MediaDetectionService : IMediaDetectionService
     private static bool IsTrackCompatibleWithWindowTitle(string track, string windowTitle)
     {
         if (string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(windowTitle))
-        {
             return false;
-        }
 
-        string normalizedTrack = NormalizeForLooseMatch(track);
-        string normalizedWindowTitle = NormalizeForLooseMatch(windowTitle);
+        string normalizedTrack = PlatformDetector.NormalizeForLooseMatch(track);
+        string normalizedWindowTitle = PlatformDetector.NormalizeForLooseMatch(windowTitle);
         return !string.IsNullOrEmpty(normalizedTrack) &&
                normalizedWindowTitle.Contains(normalizedTrack, StringComparison.Ordinal);
     }
 
     private static bool HasReliablePlatformWindowMatch(IEnumerable<string> windowTitles, string track, string platform)
     {
-        if (string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(platform))
-        {
-            return false;
-        }
-
-        foreach (var title in windowTitles)
-        {
-            if (!title.Contains(platform, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (IsTrackCompatibleWithWindowTitle(track, title))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return PlatformDetector.HasReliableWindowMatch(windowTitles, track, platform);
     }
 
     private bool TryGetSessionSourceOverride(MediaInfo info, out string sessionOverride)
@@ -1170,74 +1111,17 @@ public class MediaDetectionService : IMediaDetectionService
 
     private static bool IsBrowserSourceApp(string sourceAppId)
     {
-        return sourceAppId.Contains("Chrome", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Edge", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Firefox", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("MS-Edge", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("msedge", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Opera", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Brave", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Vivaldi", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Coccoc", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Arc", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Sidekick", StringComparison.OrdinalIgnoreCase) ||
-               sourceAppId.Contains("Browser", StringComparison.OrdinalIgnoreCase);
+        return PlatformDetector.IsBrowserApp(sourceAppId);
     }
 
     private static string DetectPlatformHint(IEnumerable<string> windowTitles)
     {
-        string fallback = "";
-        foreach (var title in windowTitles)
-        {
-            var lower = title.ToLower();
-            if (lower.Contains("youtube") && !lower.StartsWith("youtube -") && lower != "youtube") return "YouTube";
-            if (lower.Contains("soundcloud") && string.IsNullOrEmpty(fallback)) fallback = "SoundCloud";
-            else if ((lower.Contains("apple music") || lower.Contains("music.apple.com")) && string.IsNullOrEmpty(fallback)) fallback = "Apple Music";
-            else if (lower.Contains("facebook") && (lower.Contains("watch") || lower.Contains("video")) && string.IsNullOrEmpty(fallback)) fallback = "Facebook";
-            else if (lower.Contains("tiktok") && lower.Contains(" | ") && string.IsNullOrEmpty(fallback)) fallback = "TikTok";
-            else if (lower.Contains("instagram") && (lower.Contains("reel") || lower.Contains("video")) && string.IsNullOrEmpty(fallback)) fallback = "Instagram";
-            else if ((lower.Contains("twitter") || lower.Contains(" / x")) && (lower.Contains("video") || lower.Contains("watch")) && string.IsNullOrEmpty(fallback)) fallback = "Twitter";
-        }
-
-        return fallback;
+        return PlatformDetector.DetectPlatformHint(windowTitles);
     }
 
     private static string NormalizeForLooseMatch(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        string folded = value.Normalize(NormalizationForm.FormD);
-        var sb = new StringBuilder(folded.Length);
-        bool lastWasSpace = false;
-
-        foreach (var ch in folded)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark)
-            {
-                continue;
-            }
-
-            if (char.IsLetterOrDigit(ch))
-            {
-                sb.Append(char.ToLowerInvariant(ch));
-                lastWasSpace = false;
-            }
-            else if (!lastWasSpace)
-            {
-                sb.Append(' ');
-                lastWasSpace = true;
-            }
-        }
-
-        if (sb.Length > 0 && sb[sb.Length - 1] == ' ')
-        {
-            sb.Length--;
-        }
-
-        return sb.ToString();
+        return PlatformDetector.NormalizeForLooseMatch(value);
     }
 
     private static bool IsLikelySoundCloudPlaceholderThumbnail(BitmapImage? thumbnail)
@@ -1952,8 +1836,8 @@ public class MediaDetectionService : IMediaDetectionService
                 if ((info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource)) &&
                     !string.IsNullOrEmpty(info.CurrentTrack))
                 {
-                    bool hasCachedSource = _trackSourceCache.TryGetValue(currentTrackIdentity, out var cachedSource) ||
-                                           _trackSourceCache.TryGetValue(trackOnlyIdentity, out cachedSource);
+                    bool hasCachedSource = _sourceCache.TryGet(currentTrackIdentity, out var cachedSource) ||
+                                           _sourceCache.TryGet(trackOnlyIdentity, out cachedSource);
 
                     if (hasCachedSource &&
                         string.Equals(cachedSource, "SoundCloud", StringComparison.OrdinalIgnoreCase) &&
@@ -2107,17 +1991,16 @@ public class MediaDetectionService : IMediaDetectionService
                 if (!string.IsNullOrEmpty(info.CurrentTrack))
                 {
                     string trackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
-                    bool cacheChanged = !_trackSourceCache.TryGetValue(_stableSourceTrackIdentity, out var cachedSource) ||
+                    bool cacheChanged = !_sourceCache.TryGet(_stableSourceTrackIdentity, out var cachedSource) ||
                                         !string.Equals(cachedSource, info.MediaSource, StringComparison.Ordinal) ||
-                                        !_trackSourceCache.TryGetValue(trackOnlyIdentity, out var cachedTrackOnlySource) ||
+                                        !_sourceCache.TryGet(trackOnlyIdentity, out var cachedTrackOnlySource) ||
                                         !string.Equals(cachedTrackOnlySource, info.MediaSource, StringComparison.Ordinal);
                     if (cacheChanged)
                     {
-                        _trackSourceCache[_stableSourceTrackIdentity] = info.MediaSource;
-                        _trackSourceCache[trackOnlyIdentity] = info.MediaSource;
+                        _sourceCache.SetBoth(_stableSourceTrackIdentity, trackOnlyIdentity, info.MediaSource);
                         if (info.MediaSource == "YouTube" || info.MediaSource == "SoundCloud")
                         {
-                            SaveSourceCache();
+                            _sourceCache.Save();
                         }
                     }
                 }
@@ -2423,10 +2306,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                 string trackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
                 string trackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
-                bool hasYouTubeTrackCache = (_trackSourceCache.TryGetValue(trackIdentity, out var cachedSource) &&
-                                             string.Equals(cachedSource, "YouTube", StringComparison.OrdinalIgnoreCase)) ||
-                                            (_trackSourceCache.TryGetValue(trackOnlyIdentity, out cachedSource) &&
-                                             string.Equals(cachedSource, "YouTube", StringComparison.OrdinalIgnoreCase));
+                bool hasYouTubeTrackCache = _sourceCache.HasSource(trackIdentity, trackOnlyIdentity, "YouTube");
                 if (hasYouTubeTrackCache)
                 {
                     return true;
@@ -2539,56 +2419,14 @@ public class MediaDetectionService : IMediaDetectionService
 
     private void ParseSpotifyTitle(string title, MediaInfo info)
     {
-        var parts = title.Split(" - ", 2);
-        if (parts.Length == 2)
-        {
-            info.CurrentArtist = parts[0].Trim();
-            info.CurrentTrack = parts[1].Trim();
-        }
-        else
-        {
-            info.CurrentTrack = title;
-            info.CurrentArtist = "Spotify";
-        }
+        var (artist, track) = PlatformDetector.ParseSpotifyTitle(title);
+        info.CurrentArtist = artist;
+        info.CurrentTrack = track;
     }
 
     private string ExtractVideoTitle(string windowTitle, string platform)
     {
-        var title = windowTitle;
-
-        
-        
-        title = Regex.Replace(title, @"^\(\d+\+?\)\s*", "");
-        title = Regex.Replace(title, @"^[▶⏸▶️⏸️\s]*", "");
-
-        
-        title = Regex.Replace(title, @"^[▶⏸\s\d:]+\|", "").Trim();
-
-        
-        var separators = new[] {
-            " - YouTube", " – YouTube", " - SoundCloud", " | Facebook",
-            " - TikTok", " / X", " | TikTok", " • Instagram",
-            " - Apple Music", " – Apple Music",
-            " - Google Chrome", " - Microsoft​ Edge", " - Microsoft Edge",
-            " - Mozilla Firefox", " - Opera", " - Brave", " - Cốc Cốc",
-            " - Browser", " – Current browser"
-        };
-
-        foreach (var sep in separators)
-        {
-            int idx = title.IndexOf(sep, StringComparison.OrdinalIgnoreCase);
-            if (idx > 0)
-            {
-                title = title.Substring(0, idx);
-            }
-        }
-
-        title = title.Trim();
-
-        
-        title = Regex.Replace(title, @"\s+[\-\|–•]\s*$", "");
-
-        return string.IsNullOrEmpty(title) ? platform : title;
+        return PlatformDetector.ExtractTitleFromWindow(windowTitle, platform);
     }
 
     public bool TryGetCurrentSessionVolume(out float volume, out bool isMuted)

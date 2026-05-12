@@ -71,14 +71,6 @@ public class NotchManager : INotchManager
         _currentScreen = GetTargetScreen();
         var workingArea = _currentScreen.Bounds;
 
-        double maxWidth = _settings.Width * 2.5; 
-        double maxHeight = _settings.Height * 3;
-
-        _window.Width = maxWidth;
-        _window.Height = maxHeight;
-        _window.Left = workingArea.Left + (workingArea.Width - maxWidth) / 2;
-        _window.Top = workingArea.Top;
-
         double notchLeft = workingArea.Left + (workingArea.Width - _settings.Width) / 2;
         _hoverService.UpdateNotchBounds(notchLeft, workingArea.Top, _settings.Width, _settings.Height);
 

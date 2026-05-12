@@ -12,9 +12,11 @@ namespace VNotch;
 public partial class SettingsWindow : Window
 {
     private readonly NotchSettings _settings;
+    private NotchSettings _originalSettings;
     private readonly SettingsService _settingsService;
     private readonly IUpdateService _updateService;
     private UpdateInfo? _availableUpdate;
+    private bool _isLoadingSettings = true;
 
     public event EventHandler<NotchSettings>? SettingsChanged;
 
@@ -29,6 +31,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
 
         _settings = settings.Clone();
+        _originalSettings = settings.Clone();
         _settingsService = settingsService;
         _updateService = new UpdateService();
 
@@ -81,6 +84,7 @@ public partial class SettingsWindow : Window
 
     private void LoadSettings()
     {
+        _isLoadingSettings = true;
 
         WidthSlider.Value = _settings.Width;
         HeightSlider.Value = _settings.Height;
@@ -99,6 +103,8 @@ public partial class SettingsWindow : Window
         MusicNotifyCheck.IsChecked = _settings.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = _settings.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = _settings.IsShelfUploadLimitUnlocked;
+
+        _isLoadingSettings = false;
     }
 
     #region Slider Value Changed Handlers
@@ -107,36 +113,54 @@ public partial class SettingsWindow : Window
     {
         if (WidthValue != null)
             WidthValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
     }
 
     private void HeightSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (HeightValue != null)
             HeightValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
     }
 
     private void RadiusSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (RadiusValue != null)
             RadiusValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
     }
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (OpacityValue != null)
             OpacityValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
     }
 
     private void BlurBrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (BlurBrightnessValue != null)
             BlurBrightnessValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
     }
 
     private void HoverDelaySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (HoverDelayValue != null)
             HoverDelayValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
+    }
+
+    /// <summary>
+    /// Push current UI state to the notch as a live preview without saving to disk.
+    /// Skipped while LoadSettings is populating controls.
+    /// </summary>
+    private void PushLivePreview()
+    {
+        if (_isLoadingSettings) return;
+        if (!IsLoaded) return;
+
+        ApplySettingsFromUi(persist: false);
     }
 
     #endregion
@@ -320,7 +344,19 @@ public partial class SettingsWindow : Window
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
+        // If the user dragged sliders (live preview), revert the notch to the
+        // last-persisted state before closing.
+        RevertLivePreviewIfNeeded();
         CloseWithAnimation();
+    }
+
+    /// <summary>
+    /// Re-applies the last persisted/original settings to the notch so live-preview
+    /// changes don't stick after Cancel.
+    /// </summary>
+    private void RevertLivePreviewIfNeeded()
+    {
+        SettingsChanged?.Invoke(this, _originalSettings.Clone());
     }
 
     private void SocialLink_GitHub_Click(object sender, RoutedEventArgs e)
@@ -352,12 +388,12 @@ public partial class SettingsWindow : Window
 
     private void Apply_Click(object sender, RoutedEventArgs e)
     {
-        ApplySettingsFromUi();
+        ApplySettingsFromUi(persist: true);
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        ApplySettingsFromUi();
+        ApplySettingsFromUi(persist: true);
         CloseWithAnimation();
     }
 
@@ -546,7 +582,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void ApplySettingsFromUi()
+    private void ApplySettingsFromUi(bool persist = true)
     {
         _settings.Width = (int)WidthSlider.Value;
         _settings.Height = (int)HeightSlider.Value;
@@ -563,9 +599,13 @@ public partial class SettingsWindow : Window
         _settings.ShowSystemNotifications = SystemNotifyCheck.IsChecked ?? true;
         _settings.IsShelfUploadLimitUnlocked = ShelfUnlockCheck.IsChecked ?? false;
 
-        _settingsService.Save(_settings);
-
-        StartupManager.SetAutoStart(_settings.AutoStart);
+        if (persist)
+        {
+            _settingsService.Save(_settings);
+            StartupManager.SetAutoStart(_settings.AutoStart);
+            // Refresh baseline so Cancel after Apply doesn't revert persisted state.
+            _originalSettings = _settings.Clone();
+        }
 
         SettingsChanged?.Invoke(this, _settings);
     }
@@ -640,6 +680,69 @@ public partial class SettingsWindow : Window
                 DownloadUpdateButton.IsEnabled = true;
                 MessageBox.Show("Failed to download or install the update. Please try again later.", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+    }
+
+    #endregion
+
+    #region Smooth Scroll
+
+    private double _scrollVelocity;
+    private double _scrollTarget;
+    private bool _isScrollAnimating;
+    private const double ScrollFriction = 0.85;
+    private const double ScrollSensitivity = 1.2;
+    private const double ScrollMinVelocity = 0.5;
+
+    private void SettingsScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        e.Handled = true;
+
+        double delta = -e.Delta * ScrollSensitivity;
+
+        if (!_isScrollAnimating)
+        {
+            _scrollTarget = SettingsScrollViewer.VerticalOffset;
+        }
+
+        // Add velocity based on scroll direction
+        _scrollVelocity += delta * 0.3;
+        _scrollTarget += delta;
+
+        // Clamp target to valid range
+        double maxScroll = SettingsScrollViewer.ScrollableHeight;
+        _scrollTarget = Math.Clamp(_scrollTarget, 0, maxScroll);
+
+        if (!_isScrollAnimating)
+        {
+            _isScrollAnimating = true;
+            CompositionTarget.Rendering += SmoothScroll_Tick;
+        }
+    }
+
+    private void SmoothScroll_Tick(object? sender, EventArgs e)
+    {
+        double current = SettingsScrollViewer.VerticalOffset;
+        double diff = _scrollTarget - current;
+
+        // Apply velocity with friction
+        _scrollVelocity *= ScrollFriction;
+
+        // Lerp towards target
+        double step = diff * 0.15 + _scrollVelocity * 0.5;
+        double newOffset = current + step;
+
+        // Clamp
+        newOffset = Math.Clamp(newOffset, 0, SettingsScrollViewer.ScrollableHeight);
+        SettingsScrollViewer.ScrollToVerticalOffset(newOffset);
+
+        // Stop when close enough and velocity is negligible
+        if (Math.Abs(diff) < ScrollMinVelocity && Math.Abs(_scrollVelocity) < ScrollMinVelocity)
+        {
+            SettingsScrollViewer.ScrollToVerticalOffset(_scrollTarget);
+            _scrollVelocity = 0;
+            _isScrollAnimating = false;
+            CompositionTarget.Rendering -= SmoothScroll_Tick;
         }
     }
 

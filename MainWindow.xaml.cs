@@ -36,8 +36,7 @@ public partial class MainWindow : Window
     private readonly IUpdateService _updateService;
     private readonly DispatcherTimer _updateTimer;
     private readonly DispatcherTimer _updateCheckTimer;
-    private readonly DispatcherTimer _zOrderWatchdogTimer;
-    private readonly DispatcherTimer _zOrderFastTimer;
+    private readonly ZOrderManager _zOrderManager;
     private readonly DispatcherTimer _hoverCollapseTimer;
     private readonly DispatcherTimer _hoverThumbnailDelayTimer;
     private readonly DispatcherTimer _compactThumbnailHoverLeaveTimer;
@@ -49,11 +48,6 @@ public partial class MainWindow : Window
     private bool _isHiddenByFullscreen = false;
     private IntPtr _hwnd;
     private HwndSource? _hwndSource;
-    private IntPtr _foregroundWinEventHook = IntPtr.Zero;
-    private WinEventDelegate? _foregroundWinEventProc;
-    private DateTime _zOrderBurstUntilUtc = DateTime.MinValue;
-    private DateTime _zOrderFastUntilUtc = DateTime.MinValue;
-    private DateTime _lastTopmostAssertUtc = DateTime.MinValue;
     private DateTime _lastFullscreenCheckUtc = DateTime.MinValue;
     private bool _isTrayMenuOpen = false;
 
@@ -164,16 +158,11 @@ public partial class MainWindow : Window
         };
         _updateCheckTimer.Tick += UpdateCheckTimer_Tick;
 
-        _zOrderWatchdogTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(250)
-        };
-        _zOrderWatchdogTimer.Tick += ZOrderWatchdogTimer_Tick;
-        _zOrderFastTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(16)
-        };
-        _zOrderFastTimer.Tick += ZOrderFastTimer_Tick;
+        _zOrderManager = new ZOrderManager(
+            getHwnd: () => _hwnd,
+            isEffectivelyVisible: () => IsEffectivelyNotchVisible,
+            isSuspended: () => _isTrayMenuOpen || _isUpdateTooltipOpen || DateTime.UtcNow < _suspendTopmostUntilUtc,
+            onForegroundChanged: OnForegroundWindowChanged);
 
         _progressTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
@@ -381,6 +370,7 @@ public partial class MainWindow : Window
         _progressTimer?.Stop();
         _mediaService?.Dispose();
         _notchManager?.Dispose();
+        _zOrderManager?.Dispose();
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
         _updateCheckTimer?.Stop();
@@ -401,7 +391,7 @@ public partial class MainWindow : Window
         exStyle |= WS_EX_NOACTIVATE;
         exStyle |= WS_EX_LAYERED;
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
-        EnsureTopmost(force: true);
+        _zOrderManager.EnsureTopmost(force: true);
     }
 
     private void EnableKeyboardInput()
@@ -479,38 +469,12 @@ public partial class MainWindow : Window
 
     private void EnsureTopmost()
     {
-        EnsureTopmost(force: false);
+        _zOrderManager.EnsureTopmost(force: false);
     }
 
     private void EnsureTopmost(bool force)
     {
-        if (_isTrayMenuOpen)
-        {
-            return;
-        }
-
-        if (_isUpdateTooltipOpen || DateTime.UtcNow < _suspendTopmostUntilUtc)
-        {
-            return;
-        }
-
-        if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
-        {
-            return;
-        }
-
-        var now = DateTime.UtcNow;
-        if (!force && (now - _lastTopmostAssertUtc) < TimeSpan.FromMilliseconds(80))
-        {
-            return;
-        }
-
-        if (force || Win32Interop.GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero)
-        {
-            _lastTopmostAssertUtc = now;
-            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-        }
+        _zOrderManager.EnsureTopmost(force: force);
     }
 
     private void UpdateZOrderTimerInterval()
@@ -520,174 +484,42 @@ public partial class MainWindow : Window
 
     private void StartZOrderWatchdog()
     {
-        if (_hwnd == IntPtr.Zero || _foregroundWinEventHook != IntPtr.Zero)
-        {
-            return;
-        }
-
-        _foregroundWinEventProc = ForegroundWindowChanged;
-        _foregroundWinEventHook = SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND,
-            EVENT_SYSTEM_FOREGROUND,
-            IntPtr.Zero,
-            _foregroundWinEventProc,
-            0,
-            0,
-            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
-
-        TriggerZOrderBurst(TimeSpan.FromSeconds(2));
-        EnsureTopmost(force: true);
-        _zOrderWatchdogTimer.Start();
+        _zOrderManager.Start();
     }
 
     private void StopZOrderWatchdog()
     {
-        _zOrderFastTimer.Stop();
-        _zOrderWatchdogTimer.Stop();
-
-        if (_foregroundWinEventHook != IntPtr.Zero)
-        {
-            UnhookWinEvent(_foregroundWinEventHook);
-            _foregroundWinEventHook = IntPtr.Zero;
-        }
-
-        _foregroundWinEventProc = null;
+        _zOrderManager.Stop();
     }
 
-    private void ForegroundWindowChanged(
-        IntPtr hWinEventHook,
-        uint eventType,
-        IntPtr hwnd,
-        int idObject,
-        int idChild,
-        uint idEventThread,
-        uint dwmsEventTime)
+    private void OnForegroundWindowChanged(IntPtr hwnd)
     {
-        if (eventType != EVENT_SYSTEM_FOREGROUND || hwnd == IntPtr.Zero || hwnd == _hwnd)
-        {
-            return;
-        }
+        if (_hwnd == IntPtr.Zero) return;
+
+        UpdateFullscreenAutoHideState(hwnd, force: true);
+        if (!IsEffectivelyNotchVisible) return;
 
         var processName = TryGetProcessName(hwnd);
-        var isMyDockFinder = IsMyDockFinder(processName);
-
-        Dispatcher.BeginInvoke(new Action(() =>
+        if (IsMyDockFinder(processName))
         {
-            if (_hwnd == IntPtr.Zero)
-            {
-                return;
-            }
-
-            UpdateFullscreenAutoHideState(hwnd, force: true);
-            if (!IsEffectivelyNotchVisible)
-            {
-                return;
-            }
-
-            if (isMyDockFinder)
-            {
-                TriggerZOrderBurst(TimeSpan.FromSeconds(4), aggressive: true);
-            }
-            else
-            {
-                TriggerZOrderBurst(TimeSpan.FromMilliseconds(1200));
-            }
-
-            EnsureTopmost(force: true);
-        }), DispatcherPriority.Send);
-    }
-
-    private void ZOrderWatchdogTimer_Tick(object? sender, EventArgs e)
-    {
-        if (_isTrayMenuOpen)
+            _zOrderManager.TriggerBurst(TimeSpan.FromSeconds(4), aggressive: true);
+        }
+        else
         {
-            return;
+            _zOrderManager.TriggerBurst(TimeSpan.FromMilliseconds(1200));
         }
 
-        if (_hwnd == IntPtr.Zero)
-        {
-            return;
-        }
-
-        UpdateFullscreenAutoHideState();
-        if (!IsEffectivelyNotchVisible)
-        {
-            return;
-        }
-
-        var burstActive = DateTime.UtcNow <= _zOrderBurstUntilUtc;
-        var hasWindowAbove = Win32Interop.GetWindow(_hwnd, GW_HWNDPREV) != IntPtr.Zero;
-
-        if (burstActive || hasWindowAbove)
-        {
-            EnsureTopmost(force: burstActive);
-        }
-    }
-
-    private void ZOrderFastTimer_Tick(object? sender, EventArgs e)
-    {
-        if (_isTrayMenuOpen)
-        {
-            return;
-        }
-
-        if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
-        {
-            _zOrderFastTimer.Stop();
-            return;
-        }
-
-        if (DateTime.UtcNow > _zOrderFastUntilUtc)
-        {
-            _zOrderFastTimer.Stop();
-            return;
-        }
-
-        EnsureTopmost(force: true);
+        _zOrderManager.EnsureTopmost(force: true);
     }
 
     private void TriggerZOrderBurst(TimeSpan duration, bool aggressive = false)
     {
-        var now = DateTime.UtcNow;
-        var until = now + duration;
-        if (until > _zOrderBurstUntilUtc)
-        {
-            _zOrderBurstUntilUtc = until;
-        }
-
-        if (aggressive)
-        {
-            var fastDuration = duration.TotalMilliseconds >= 800
-                ? TimeSpan.FromMilliseconds(800)
-                : duration;
-            var fastUntil = now + fastDuration;
-
-            if (fastUntil > _zOrderFastUntilUtc)
-            {
-                _zOrderFastUntilUtc = fastUntil;
-            }
-
-            if (!_zOrderFastTimer.IsEnabled)
-            {
-                _zOrderFastTimer.Start();
-            }
-        }
+        _zOrderManager.TriggerBurst(duration, aggressive);
     }
 
     private void AssertTopmostNow()
     {
-        if (_isUpdateTooltipOpen || DateTime.UtcNow < _suspendTopmostUntilUtc)
-        {
-            return;
-        }
-
-        if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible)
-        {
-            return;
-        }
-
-        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        _zOrderManager.AssertNow();
     }
 
     private static string TryGetProcessName(IntPtr hwnd) => FullscreenDetector.TryGetProcessName(hwnd);
@@ -756,10 +588,12 @@ public partial class MainWindow : Window
 
         settingsWindow.SettingsChanged += (s, newSettings) =>
         {
+            bool sizeChanged = newSettings.Width != _settings.Width
+                            || newSettings.Height != _settings.Height
+                            || newSettings.CornerRadius != _settings.CornerRadius;
             _settings = newSettings.Clone();
             _notchManager.UpdateSettings(_settings);
-            ApplySettings();
-            ResetPosition();
+            ApplySettings(sizeChanged);
         };
 
         // Keep notch visible — settings morphs from its position but notch stays shown
@@ -802,35 +636,121 @@ public partial class MainWindow : Window
         settingsWindow.ShowDialog();
     }
 
-    private void ApplySettings()
+    private void ApplySettings(bool animatePulse = false)
     {
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
         _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
-        if (_hwnd != IntPtr.Zero)
-        {
-            ConfigureOverlayWindow();
-        }
 
-        NotchBorder.Width = _settings.Width;
-        NotchBorder.Height = _settings.Height;
-        var cr = new CornerRadius(0, 0, _settings.CornerRadius, _settings.CornerRadius);
-        NotchBorder.CornerRadius = cr;
-        InnerClipBorder.CornerRadius = cr;
-        UpdateNotchClip();
-        MediaBackground.CornerRadius = cr;
-        MediaBackground2.CornerRadius = cr;
-        UpdateMediaBackgroundFootprint();
-        this.Opacity = _settings.Opacity;
-        if (_currentMediaInfo != null)
-        {
-            UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
-        }
-
+        // Update internal state
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;
         _cornerRadiusCollapsed = _settings.CornerRadius;
         _cachedThumbnailExpandTarget = null;
 
+        // Only update visual dimensions when collapsed — setting these while expanded
+        // causes a 1-frame glitch as the notch snaps to collapsed size then re-expands
+        if (!_isExpanded && !_isAnimating)
+        {
+            // Clear any held animations on Width/Height so the new local value takes effect.
+            // (WPF animations have higher priority than local values; without clearing,
+            // the set below would be silently overridden by a completed/held animation.)
+            NotchBorder.BeginAnimation(WidthProperty, null);
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            this.BeginAnimation(CurrentCornerRadiusProperty, null);
+
+            // Animate to new size for a smooth live-preview feel
+            var dur = _dur200;
+            var easing = _easeExpOut6;
+            const int fps = 144;
+
+            var widthAnim = new DoubleAnimation(NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _settings.Width, _settings.Width, dur)
+            {
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            };
+            Timeline.SetDesiredFrameRate(widthAnim, fps);
+            widthAnim.Completed += (s, e) =>
+            {
+                NotchBorder.BeginAnimation(WidthProperty, null);
+                NotchBorder.Width = _settings.Width;
+            };
+
+            var heightAnim = new DoubleAnimation(NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _settings.Height, _settings.Height, dur)
+            {
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            };
+            Timeline.SetDesiredFrameRate(heightAnim, fps);
+            heightAnim.Completed += (s, e) =>
+            {
+                NotchBorder.BeginAnimation(HeightProperty, null);
+                NotchBorder.Height = _settings.Height;
+            };
+
+            NotchBorder.BeginAnimation(WidthProperty, widthAnim);
+            NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+
+            // Animate corner radius via the dependency property (updates all related borders)
+            double currentRadius = NotchBorder.CornerRadius.BottomLeft;
+            double targetRadius = _settings.CornerRadius;
+            if (Math.Abs(targetRadius - currentRadius) > 0.5)
+            {
+                CurrentCornerRadius = currentRadius;
+                var radiusAnim = new DoubleAnimation(currentRadius, targetRadius, dur)
+                {
+                    EasingFunction = easing
+                };
+                Timeline.SetDesiredFrameRate(radiusAnim, fps);
+                this.BeginAnimation(CurrentCornerRadiusProperty, radiusAnim);
+            }
+            else
+            {
+                var cr = new CornerRadius(0, 0, _settings.CornerRadius, _settings.CornerRadius);
+                NotchBorder.CornerRadius = cr;
+                InnerClipBorder.CornerRadius = cr;
+                NotchBorderShadow.CornerRadius = cr;
+                MediaBackground.CornerRadius = cr;
+                MediaBackground2.CornerRadius = cr;
+            }
+
+            UpdateNotchClip();
+            UpdateMediaBackgroundFootprint();
+
+            // Subtle scale pulse to give tactile feedback while dragging size sliders
+            if (animatePulse)
+            {
+                NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+
+                var pulse = new DoubleAnimationUsingKeyFrames();
+                pulse.KeyFrames.Add(new EasingDoubleKeyFrame(1.04,
+                    KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(80)),
+                    new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+                pulse.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
+                    KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(300)),
+                    _easeSoftSpring));
+                Timeline.SetDesiredFrameRate(pulse, fps);
+
+                NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
+                NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
+                NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
+                NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
+            }
+        }
+
+        this.Opacity = _settings.Opacity;
+        if (_currentMediaInfo != null && !_isExpanded)
+        {
+            UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
+        }
+
+        // Re-assert position without re-applying window styles (avoids 1-frame glitch)
+        if (_hwnd != IntPtr.Zero)
+        {
+            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        }
     }
 
     #endregion
@@ -1166,7 +1086,6 @@ public partial class MainWindow : Window
     private void TrayContextMenu_Opened(object sender, RoutedEventArgs e)
     {
         _isTrayMenuOpen = true;
-        _zOrderFastTimer.Stop();
     }
 
     private void TrayContextMenu_Closed(object sender, RoutedEventArgs e)
@@ -1217,6 +1136,7 @@ public partial class MainWindow : Window
         _progressTimer.Stop();
         _mediaService.Dispose();
         _notchManager.Dispose();
+        _zOrderManager.Dispose();
         TrayIcon.Dispose();
         _updateTimer.Stop();
         DisposeAllShelfWatchers();
