@@ -13,6 +13,7 @@ using Windows.Media;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Media.MediaProperties;
+using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
@@ -342,10 +343,31 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            StopCameraPreview();
+            StopCameraPreviewSafe();
             CameraOverlay.Visibility = Visibility.Collapsed;
             CameraErrorOverlay.Visibility = Visibility.Visible;
-            Console.WriteLine("Camera error: " + ex.Message);
+            RuntimeLog.Error("CAMERA", ex, "Camera initialization failed");
+        }
+    }
+
+    /// <summary>Safe synchronous cleanup when camera start fails (avoids async void re-entry).</summary>
+    private void StopCameraPreviewSafe()
+    {
+        _isCameraActive = false;
+        _cameraPreviewMorphPending = false;
+        _cameraPreviewFadeToken++;
+
+        if (_frameReader != null)
+        {
+            _frameReader.FrameArrived -= FrameReader_FrameArrived;
+            _frameReader.Dispose();
+            _frameReader = null;
+        }
+
+        if (_mediaCapture != null)
+        {
+            _mediaCapture.Dispose();
+            _mediaCapture = null;
         }
     }
 
@@ -387,7 +409,7 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Frame update error: " + ex.Message);
+            RuntimeLog.Error("CAMERA", ex, "Frame update failed");
             }
             finally
             {
@@ -398,10 +420,12 @@ public partial class MainWindow
 
     private async void StopCameraPreview()
     {
-        AnimateCameraSectionToShelf(false);
-        _isCameraActive = false;
-        _cameraPreviewMorphPending = false;
-        int fadeToken = ++_cameraPreviewFadeToken;
+        try
+        {
+            AnimateCameraSectionToShelf(false);
+            _isCameraActive = false;
+            _cameraPreviewMorphPending = false;
+            int fadeToken = ++_cameraPreviewFadeToken;
         CameraOverlay.BeginAnimation(OpacityProperty, null);
         CameraOverlay.Visibility = Visibility.Visible;
         CameraOverlay.Opacity = 0.0;
@@ -488,6 +512,12 @@ public partial class MainWindow
         {
             _mediaCapture.Dispose();
             _mediaCapture = null;
+        }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("CAMERA", ex, "StopCameraPreview failed");
+            StopCameraPreviewSafe();
         }
     }
 

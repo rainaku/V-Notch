@@ -48,12 +48,36 @@ public partial class App : Application
         RuntimeLog.InitializeNewSession("vnotch-debug.log");
         RuntimeLog.Log("SYSTEM", $"Application startup. Log file: {RuntimeLog.LogPath}");
 
+        // ─── Global Error Handlers ───
         DispatcherUnhandledException += (s, args) =>
         {
-            RuntimeLog.Log("UNHANDLED", args.Exception.ToString());
-            MessageBox.Show($"Error: {args.Exception.Message}", "V-Notch Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            RuntimeLog.Error("UNHANDLED-UI", args.Exception);
+            // Don't show MessageBox for animation/rendering errors — they're recoverable
+            if (IsRecoverableException(args.Exception))
+            {
+                args.Handled = true;
+                return;
+            }
+            MessageBox.Show($"An unexpected error occurred: {args.Exception.Message}",
+                "V-Notch Error", MessageBoxButton.OK, MessageBoxImage.Error);
             args.Handled = true;
+        };
+
+        // Catch exceptions from background threads (Task.Run, async void, etc.)
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+            {
+                RuntimeLog.Error("UNHANDLED-BG", ex, "Background thread crash");
+            }
+        };
+
+        // Catch unobserved Task exceptions (forgotten awaits)
+        System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, args) =>
+        {
+            RuntimeLog.Error("UNOBSERVED-TASK", args.Exception?.InnerException ?? args.Exception!,
+                "Unobserved task exception");
+            args.SetObserved(); // Prevent process termination
         };
 
         
@@ -111,6 +135,27 @@ public partial class App : Application
         _mutex?.ReleaseMutex();
         _mutex?.Dispose();
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Determines if an exception is recoverable (app can continue running).
+    /// Animation, rendering, and media errors are typically recoverable.
+    /// </summary>
+    private static bool IsRecoverableException(Exception ex)
+    {
+        // Animation/rendering errors — WPF can recover
+        if (ex is InvalidOperationException && ex.Message.Contains("animation"))
+            return true;
+
+        // Media session errors — non-fatal
+        if (ex.GetType().FullName?.Contains("Windows.Media") == true)
+            return true;
+
+        // COM errors from media/camera — non-fatal
+        if (ex is System.Runtime.InteropServices.COMException)
+            return true;
+
+        return false;
     }
 
     private static string? TryGetArgumentValue(string[] args, string argumentName)

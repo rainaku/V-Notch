@@ -629,7 +629,14 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
     private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
     {
-        await CheckForUpdatesAsync();
+        try
+        {
+            await CheckForUpdatesAsync();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("SETTINGS", ex, "CheckUpdate failed");
+        }
     }
 
     private async void DownloadUpdate_Click(object sender, RoutedEventArgs e)

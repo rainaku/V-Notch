@@ -21,54 +21,72 @@ public partial class MainWindow
     private async void PlayPauseButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        try
+        {
+            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
+            _lastMediaActionTime = DateTime.Now;
 
-        if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-        _lastMediaActionTime = DateTime.Now;
+            _isPlaying = !_isPlaying;
+            UpdatePlayPauseIcon();
+            PlayButtonPressAnimation(PlayPauseButton);
 
-        _isPlaying = !_isPlaying;
-        UpdatePlayPauseIcon();
-        PlayButtonPressAnimation(PlayPauseButton);
-
-        await _mediaService.PlayPauseAsync();
+            await _mediaService.PlayPauseAsync();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("MEDIA-CTRL", ex, "PlayPause failed");
+        }
     }
 
     private async void NextButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-
-        if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-        _lastMediaActionTime = DateTime.Now;
-
-        PlayButtonPressAnimation(NextButton);
-        PlayNextSkipAnimation();
-
-        if (_currentMediaInfo?.IsVideoSource == true)
+        try
         {
-            await SeekRelative(15);
+            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
+            _lastMediaActionTime = DateTime.Now;
+
+            PlayButtonPressAnimation(NextButton);
+            PlayNextSkipAnimation();
+
+            if (_currentMediaInfo?.IsVideoSource == true)
+            {
+                await SeekRelative(15);
+            }
+            else
+            {
+                await _mediaService.NextTrackAsync();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await _mediaService.NextTrackAsync();
+            RuntimeLog.Error("MEDIA-CTRL", ex, "NextTrack failed");
         }
     }
 
     private async void PrevButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-
-        if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-        _lastMediaActionTime = DateTime.Now;
-
-        PlayButtonPressAnimation(PrevButton);
-        PlayPrevSkipAnimation();
-
-        if (_currentMediaInfo?.IsVideoSource == true)
+        try
         {
-            await SeekRelative(-15);
+            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
+            _lastMediaActionTime = DateTime.Now;
+
+            PlayButtonPressAnimation(PrevButton);
+            PlayPrevSkipAnimation();
+
+            if (_currentMediaInfo?.IsVideoSource == true)
+            {
+                await SeekRelative(-15);
+            }
+            else
+            {
+                await _mediaService.PreviousTrackAsync();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await _mediaService.PreviousTrackAsync();
+            RuntimeLog.Error("MEDIA-CTRL", ex, "PrevTrack failed");
         }
     }
 
@@ -91,54 +109,72 @@ public partial class MainWindow
     private async void InlinePlayPauseButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        try
+        {
+            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
+            _lastMediaActionTime = DateTime.Now;
 
-        if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-        _lastMediaActionTime = DateTime.Now;
+            _isPlaying = !_isPlaying;
+            UpdatePlayPauseIcon();
+            PlayButtonPressAnimation(InlinePlayPauseButton);
 
-        _isPlaying = !_isPlaying;
-        UpdatePlayPauseIcon();
-        PlayButtonPressAnimation(InlinePlayPauseButton);
-
-        await _mediaService.PlayPauseAsync();
+            await _mediaService.PlayPauseAsync();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("MEDIA-CTRL", ex, "InlinePlayPause failed");
+        }
     }
 
     private async void InlineNextButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-
-        if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-        _lastMediaActionTime = DateTime.Now;
-
-        PlayButtonPressAnimation(InlineNextButton);
-        PlayNextSkipAnimation(InlineNextArrow0, InlineNextArrow1, InlineNextArrow2);
-
-        if (_currentMediaInfo?.IsVideoSource == true)
+        try
         {
-            await SeekRelative(15);
+            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
+            _lastMediaActionTime = DateTime.Now;
+
+            PlayButtonPressAnimation(InlineNextButton);
+            PlayNextSkipAnimation(InlineNextArrow0, InlineNextArrow1, InlineNextArrow2);
+
+            if (_currentMediaInfo?.IsVideoSource == true)
+            {
+                await SeekRelative(15);
+            }
+            else
+            {
+                await _mediaService.NextTrackAsync();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await _mediaService.NextTrackAsync();
+            RuntimeLog.Error("MEDIA-CTRL", ex, "InlineNext failed");
         }
     }
 
     private async void InlinePrevButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-
-        if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-        _lastMediaActionTime = DateTime.Now;
-
-        PlayButtonPressAnimation(InlinePrevButton);
-        PlayPrevSkipAnimation(InlinePrevArrow0, InlinePrevArrow1, InlinePrevArrow2);
-
-        if (_currentMediaInfo?.IsVideoSource == true)
+        try
         {
-            await SeekRelative(-15);
+            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
+            _lastMediaActionTime = DateTime.Now;
+
+            PlayButtonPressAnimation(InlinePrevButton);
+            PlayPrevSkipAnimation(InlinePrevArrow0, InlinePrevArrow1, InlinePrevArrow2);
+
+            if (_currentMediaInfo?.IsVideoSource == true)
+            {
+                await SeekRelative(-15);
+            }
+            else
+            {
+                await _mediaService.PreviousTrackAsync();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await _mediaService.PreviousTrackAsync();
+            RuntimeLog.Error("MEDIA-CTRL", ex, "InlinePrev failed");
         }
     }
 
@@ -154,11 +190,12 @@ public partial class MainWindow
         OpenCurrentMediaSourceFromThumbnail();
     }
 
-    private async void OpenCurrentMediaSourceFromThumbnail()
+    private void OpenCurrentMediaSourceFromThumbnail()
     {
         var info = _currentMediaInfo;
         if (info == null || !info.IsAnyMediaPlaying) return;
-        await Task.Run(() => MediaWindowActivator.TryActivateForMedia(info));
+        Task.Run(() => MediaWindowActivator.TryActivateForMedia(info))
+            .SafeFireAndForget("MEDIA-ACTIVATE");
     }
 
     private void SendMediaKey(byte key)

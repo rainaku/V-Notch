@@ -1,3 +1,4 @@
+using System;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -6,6 +7,7 @@ public class NotchStateManager
     private NotchState _currentState = NotchState.Collapsed;
     private NotchState _previousState = NotchState.Collapsed;
     private readonly object _stateLock = new();
+    private DateTime _lastTransitionUtc = DateTime.MinValue;
 
     public event EventHandler<NotchStateChangedEventArgs>? StateChanged;
 
@@ -14,9 +16,18 @@ public class NotchStateManager
         get { lock (_stateLock) return _currentState; }
     }
 
+    public NotchState PreviousState
+    {
+        get { lock (_stateLock) return _previousState; }
+    }
+
+    /// <summary>Time since last state transition (useful for detecting stuck states).</summary>
+    public TimeSpan TimeSinceLastTransition => DateTime.UtcNow - _lastTransitionUtc;
+
     public bool IsExpanded => CurrentState == NotchState.Expanded || CurrentState == NotchState.SecondaryView || CurrentState == NotchState.CameraExpanded;
     public bool IsMusicExpanded => CurrentState == NotchState.MusicExpanded;
     public bool IsSecondaryView => CurrentState == NotchState.SecondaryView;
+    public bool IsTransitioning => CurrentState is NotchState.Expanding or NotchState.Collapsing or NotchState.MusicExpanding or NotchState.MusicCollapsing;
 
     public bool CanTransitionTo(NotchState target)
     {
@@ -40,10 +51,15 @@ public bool TryTransitionTo(NotchState target)
     {
         lock (_stateLock)
         {
-            if (!CanTransitionTo(target)) return false;
+            if (!CanTransitionTo(target))
+            {
+                RuntimeLog.Warn("STATE", $"Invalid transition: {_currentState} → {target}");
+                return false;
+            }
 
             _previousState = _currentState;
             _currentState = target;
+            _lastTransitionUtc = DateTime.UtcNow;
         }
 
         // Fire event outside lock to avoid deadlocks
@@ -56,9 +72,33 @@ public void ForceState(NotchState target)
         {
             _previousState = _currentState;
             _currentState = target;
+            _lastTransitionUtc = DateTime.UtcNow;
         }
 
+        RuntimeLog.Log("STATE", $"Forced: {_previousState} → {target}");
         StateChanged?.Invoke(this, new NotchStateChangedEventArgs(_previousState, target));
+    }
+
+    /// <summary>
+    /// Recovers from a stuck transitioning state (e.g., animation completed callback never fired).
+    /// Call this if IsTransitioning is true for longer than expected.
+    /// </summary>
+    public void RecoverFromStuckTransition()
+    {
+        var current = CurrentState;
+        if (!IsTransitioning) return;
+
+        var recoveryTarget = current switch
+        {
+            NotchState.Expanding => NotchState.Collapsed,
+            NotchState.Collapsing => NotchState.Collapsed,
+            NotchState.MusicExpanding => NotchState.Collapsed,
+            NotchState.MusicCollapsing => NotchState.Collapsed,
+            _ => NotchState.Collapsed
+        };
+
+        RuntimeLog.Warn("STATE", $"Recovering from stuck state: {current} → {recoveryTarget} (stuck for {TimeSinceLastTransition.TotalMilliseconds:0}ms)");
+        ForceState(recoveryTarget);
     }
 public NotchState GetCollapseTarget()
     {
