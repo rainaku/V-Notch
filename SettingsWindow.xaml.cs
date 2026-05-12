@@ -109,6 +109,12 @@ public event EventHandler? AnimatedClosing;
         ApplyLocalization();
     }
 
+    private static string GetAppVersion()
+    {
+        var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        return v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "1.6.2";
+    }
+
     private void ApplyLocalization()
     {
         // Header
@@ -143,7 +149,7 @@ public event EventHandler? AnimatedClosing;
         // Updates & Report Bug
         CheckUpdateButton.Content = Loc.Get("settings.checkUpdate");
         UpdateStatusText.Text = Loc.Get("settings.upToDate");
-        CurrentVersionText.Text = Loc.Get("settings.currentVersion", "1.6.1");
+        CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion());
         ReportBugLabel.Text = Loc.Get("settings.reportBug");
         ReportBugHint.Text = Loc.Get("settings.reportBug.hint");
 
@@ -270,7 +276,7 @@ public event EventHandler? AnimatedClosing;
 
             // Updates
             (UpdateStatusText, () => UpdateStatusText.Text = Loc.Get("settings.upToDate")),
-            (CurrentVersionText, () => CurrentVersionText.Text = Loc.Get("settings.currentVersion", "1.6.1")),
+            (CurrentVersionText, () => CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion())),
             (ReportBugLabel, () => ReportBugLabel.Text = Loc.Get("settings.reportBug")),
             (ReportBugHint, () => ReportBugHint.Text = Loc.Get("settings.reportBug.hint")),
 

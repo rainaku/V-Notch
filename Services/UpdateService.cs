@@ -21,7 +21,10 @@ public class UpdateService : IUpdateService
     private UpdateInfo? _cachedLatestRelease;
     private DateTime _lastCheckUtc = DateTime.MinValue;
 
-    public string CurrentVersion => "1.6.1";
+    public string CurrentVersion =>
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version is { } v
+            ? $"{v.Major}.{v.Minor}.{v.Build}"
+            : "1.6.2";
 
     static UpdateService()
     {
