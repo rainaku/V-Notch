@@ -100,8 +100,6 @@ public partial class MainWindow
 
         SecondaryContent.Visibility = Visibility.Collapsed;
 
-        // Hide platform overlay so it doesn't show during expand animation
-        PlatformIconOverlay.Opacity = 0;
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
@@ -257,8 +255,6 @@ public partial class MainWindow
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             }
 
-            // Animate platform overlay icon after expand completes
-            AnimatePlatformOverlayIn();
 
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
@@ -522,60 +518,6 @@ public partial class MainWindow
 
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
         AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(400));
-    }
-
-    #endregion
-
-    #region Platform Icon Animation
-
-    /// <summary>
-    /// Animates both the header platform icon and thumbnail overlay icon.
-    /// Called when track/platform changes.
-    /// </summary>
-    private void AnimatePlatformIconIn()
-    {
-        var fadeDur = _dur250;
-        var scaleDur = _dur350;
-        var fadeEase = _easePowerOut3;
-        var scaleEase = _easeThumbSpring;
-
-        // --- Header platform icon (animate immediately) ---
-        var fadeIn = new DoubleAnimation(0, 1, fadeDur) { EasingFunction = fadeEase };
-        var scaleXIn = new DoubleAnimation(0.6, 1.0, scaleDur) { EasingFunction = scaleEase };
-        var scaleYIn = new DoubleAnimation(0.6, 1.0, scaleDur) { EasingFunction = scaleEase };
-        Timeline.SetDesiredFrameRate(fadeIn, 120);
-        Timeline.SetDesiredFrameRate(scaleXIn, 120);
-        Timeline.SetDesiredFrameRate(scaleYIn, 120);
-
-        PlatformIconContainer.BeginAnimation(OpacityProperty, fadeIn);
-        PlatformIconScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXIn);
-        PlatformIconScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYIn);
-
-        // --- Thumbnail overlay icon (delayed for thumbnail flip sync) ---
-        AnimatePlatformOverlayIn();
-    }
-
-    /// <summary>
-    /// Animates just the platform overlay icon on the thumbnail.
-    /// Called on expand complete and on track change.
-    /// </summary>
-    private void AnimatePlatformOverlayIn()
-    {
-        var fadeDur = _dur250;
-        var scaleDur = _dur350;
-        var fadeEase = _easePowerOut3;
-        var scaleEase = _easeThumbSpring;
-
-        var overlayFadeIn = new DoubleAnimation(0, 1, fadeDur) { EasingFunction = fadeEase };
-        var overlayScaleXIn = new DoubleAnimation(0.6, 1.0, scaleDur) { EasingFunction = scaleEase };
-        var overlayScaleYIn = new DoubleAnimation(0.6, 1.0, scaleDur) { EasingFunction = scaleEase };
-        Timeline.SetDesiredFrameRate(overlayFadeIn, 120);
-        Timeline.SetDesiredFrameRate(overlayScaleXIn, 120);
-        Timeline.SetDesiredFrameRate(overlayScaleYIn, 120);
-
-        PlatformIconOverlay.BeginAnimation(OpacityProperty, overlayFadeIn);
-        PlatformOverlayScale.BeginAnimation(ScaleTransform.ScaleXProperty, overlayScaleXIn);
-        PlatformOverlayScale.BeginAnimation(ScaleTransform.ScaleYProperty, overlayScaleYIn);
     }
 
     #endregion

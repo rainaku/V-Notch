@@ -56,22 +56,13 @@ public class MediaDetectionService : IMediaDetectionService
 
     private DateTime _lastMetadataChangeTime = DateTime.MinValue;
     private string _lastTrackName = "";
-    private TimeSpan _lastObservedPosition = TimeSpan.Zero;
-    private DateTime _lastPositionChangeTime = DateTime.MinValue;
-    private bool _isThrottled;
-    private TimeSpan _recoveredDuration = TimeSpan.Zero;
-    private BitmapImage? _recoveredThumbnail;
+    private readonly MediaTimelineSimulator _timelineSimulator = new();
     private string _lastSoundCloudArtworkIdentity = "";
     private DateTime _lastSoundCloudArtworkAttemptTimeUtc = DateTime.MinValue;
     private string _soundCloudFetchIdentity = "";
     private int _soundCloudFetchGeneration = 0;
     private int _soundCloudFetchInFlight = 0;
     private static readonly TimeSpan SoundCloudArtworkRetryInterval = TimeSpan.FromSeconds(1.1);
-
-    private DateTime _simBaseWallTimeUtc = DateTime.MinValue;
-    private TimeSpan _simBasePosition = TimeSpan.Zero;
-    private double _simBasePlaybackRate = 1.0;
-    private string _simSignature = "";
 
     public MediaDetectionService(
         IMediaMetadataLookupService metadataLookup,
@@ -444,15 +435,11 @@ public class MediaDetectionService : IMediaDetectionService
             if (isVideoSource && info.IsPlaying)
             {
 
-                if (info.Position != _lastObservedPosition)
-                {
-                    _lastObservedPosition = info.Position;
-                    _lastPositionChangeTime = DateTime.Now;
-                }
+                _timelineSimulator.UpdateObservedPosition(info.Position);
 
                 double progress = info.Duration.TotalSeconds > 0 ? info.Position.TotalSeconds / info.Duration.TotalSeconds : 0;
-                bool positionStuck = (DateTime.Now - _lastPositionChangeTime).TotalSeconds > 1.5;
-                bool atEndStuck = progress > 0.98 && (DateTime.Now - _lastMetadataChangeTime).TotalSeconds > 1.2;
+                bool positionStuck = _timelineSimulator.IsPositionStuck(TimeSpan.FromSeconds(1.5));
+                bool atEndStuck = _timelineSimulator.IsAtEndStuck(progress, _lastMetadataChangeTime, TimeSpan.FromSeconds(1.2));
 
                 if (positionStuck || atEndStuck)
                 {
@@ -464,7 +451,7 @@ public class MediaDetectionService : IMediaDetectionService
                         info.MediaSource = "YouTube";
                         info.IsYouTubeRunning = true;
 
-                        ApplySimulatedTimeline(info, atEndStuck);
+                        _timelineSimulator.ApplySimulatedTimeline(info, atEndStuck);
                         foundRecovery = true;
                     }
 
@@ -499,10 +486,9 @@ public class MediaDetectionService : IMediaDetectionService
                                     info.MediaSource = "YouTube";
                                     info.IsYouTubeRunning = true;
                                     info.IsThrottled = true;
-                                    _isThrottled = true;
+                                    _timelineSimulator.EnterThrottledMode();
 
-                                    _recoveredDuration = TimeSpan.Zero;
-                                    _recoveredThumbnail = null;
+                                    _timelineSimulator.ResetRecoveredData();
                                     info.Duration = TimeSpan.Zero;
 
                                     info.Position = TimeSpan.FromSeconds(1.5);
@@ -510,7 +496,7 @@ public class MediaDetectionService : IMediaDetectionService
                                     foundRecovery = true;
                                     break;
                                 }
-                                else if (positionStuck || _isThrottled)
+                                else if (positionStuck || _timelineSimulator.IsThrottled)
                                 {
 
                                     info.CurrentTrack = trackName;
@@ -518,11 +504,11 @@ public class MediaDetectionService : IMediaDetectionService
                                     info.MediaSource = "YouTube";
                                     info.IsYouTubeRunning = true;
                                     info.IsThrottled = true;
-                                    _isThrottled = true;
+                                    _timelineSimulator.EnterThrottledMode();
 
-                                    if (_recoveredDuration.TotalSeconds > 0)
+                                    if (_timelineSimulator.RecoveredDuration.TotalSeconds > 0)
                                     {
-                                        info.Duration = _recoveredDuration;
+                                        info.Duration = _timelineSimulator.RecoveredDuration;
                                     }
                                     else
                                     {
@@ -530,7 +516,7 @@ public class MediaDetectionService : IMediaDetectionService
                                         info.Duration = TimeSpan.Zero;
                                     }
 
-                                    if (_recoveredThumbnail != null) info.Thumbnail = _recoveredThumbnail;
+                                    if (_timelineSimulator.RecoveredThumbnail != null) info.Thumbnail = _timelineSimulator.RecoveredThumbnail;
 
                                     var timeOnTrack = DateTime.Now - _lastMetadataChangeTime;
                                     info.Position = timeOnTrack;
@@ -542,45 +528,19 @@ public class MediaDetectionService : IMediaDetectionService
                         }
                     }
 
-                    if (!foundRecovery && _isThrottled)
+                    if (!foundRecovery && _timelineSimulator.IsThrottled)
                     {
-
-                        if ((DateTime.Now - _lastPositionChangeTime).TotalSeconds > 3.5)
-                        {
-                            _isThrottled = false;
-                            _recoveredDuration = TimeSpan.Zero;
-                            _recoveredThumbnail = null;
-
-                            _simBaseWallTimeUtc = DateTime.MinValue;
-                            _simBasePosition = TimeSpan.Zero;
-                            _simSignature = "";
-                        }
+                        _timelineSimulator.TryExitThrottleIfStalled(TimeSpan.FromSeconds(3.5));
                     }
                 }
-                else if (_isThrottled)
+                else if (_timelineSimulator.IsThrottled)
                 {
-
-                    if ((DateTime.Now - _lastPositionChangeTime).TotalMilliseconds < 500)
-                    {
-                        _isThrottled = false;
-                        _recoveredDuration = TimeSpan.Zero;
-                        _recoveredThumbnail = null;
-
-                        _simBaseWallTimeUtc = DateTime.MinValue;
-                        _simBasePosition = TimeSpan.Zero;
-                        _simSignature = "";
-                    }
+                    _timelineSimulator.TryExitThrottleIfPositionResumed(TimeSpan.FromMilliseconds(500));
                 }
             }
             else
             {
-                _isThrottled = false;
-                _recoveredDuration = TimeSpan.Zero;
-                _recoveredThumbnail = null;
-
-                _simBaseWallTimeUtc = DateTime.MinValue;
-                _simBasePosition = TimeSpan.Zero;
-                _simSignature = "";
+                _timelineSimulator.Reset();
             }
 
             if (info.CurrentTrack != _lastTrackName)
@@ -588,7 +548,7 @@ public class MediaDetectionService : IMediaDetectionService
                 _lastTrackName = info.CurrentTrack;
                 _lastMetadataChangeTime = DateTime.Now;
 
-                if (_isThrottled) _isThrottled = false;
+                if (_timelineSimulator.IsThrottled) _timelineSimulator.Reset();
             }
 
             if (ShouldPreserveSoundCloudSourceDuringTrackSwitch(info))
@@ -604,7 +564,7 @@ public class MediaDetectionService : IMediaDetectionService
                 }
             }
 
-            info.IsThrottled = _isThrottled;
+            info.IsThrottled = _timelineSimulator.IsThrottled;
             currentSignature = info.GetSignature(); 
 
             if (string.IsNullOrEmpty(info.CurrentTrack))
@@ -719,7 +679,7 @@ public class MediaDetectionService : IMediaDetectionService
 
             bool forceFetchForTrackChange = isNewTrackForThumbnail;
             bool needsFetch = forceFetchForTrackChange || (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
-            if (_isThrottled && _recoveredThumbnail != null && !forceFetchForTrackChange) needsFetch = false;
+            if (_timelineSimulator.IsThrottled && _timelineSimulator.RecoveredThumbnail != null && !forceFetchForTrackChange) needsFetch = false;
 
             if (isPotentialYouTube && !string.IsNullOrEmpty(info.CurrentTrack) && needsFetch)
             {
@@ -773,7 +733,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                                     if (result.Duration.TotalSeconds > 0)
                                     {
-                                        _recoveredDuration = result.Duration;
+                                        _timelineSimulator.RecoveredDuration = result.Duration;
                                         info.Duration = result.Duration;
                                     }
                                 }
@@ -799,7 +759,7 @@ public class MediaDetectionService : IMediaDetectionService
                                         if (IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                         {
                                             frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
-                                            _recoveredThumbnail = frameBitmap;
+                                            _timelineSimulator.RecoveredThumbnail = frameBitmap;
                                             _cachedThumbnail = frameBitmap;
                                             _cachedThumbnailSource = "YouTube";
                                             info.Thumbnail = frameBitmap;
@@ -904,7 +864,7 @@ public class MediaDetectionService : IMediaDetectionService
                             }
 
                             frameBitmap = CropToSquare(frameBitmap, "SoundCloud") ?? frameBitmap;
-                            _recoveredThumbnail = frameBitmap;
+                            _timelineSimulator.RecoveredThumbnail = frameBitmap;
                             _cachedThumbnail = frameBitmap;
                             _cachedThumbnailSource = "SoundCloud";
                             if (info.MediaSource == "Browser")
@@ -2288,7 +2248,7 @@ public class MediaDetectionService : IMediaDetectionService
         => _artworkService.ConvertToWpfBitmapAsync(stream, ct);
 
     private List<string> GetAllWindowTitles()
-        => _windowTitleScanner.GetAllWindowTitles(_isThrottled);
+        => _windowTitleScanner.GetAllWindowTitles(_timelineSimulator.IsThrottled);
 
     private bool IsLikelyYouTube(MediaInfo info)
     {
@@ -2372,49 +2332,7 @@ public class MediaDetectionService : IMediaDetectionService
 
     private void ApplySimulatedTimeline(MediaInfo info, bool atEndStuck)
     {
-        var nowUtc = DateTime.UtcNow;
-
-        
-        var sig = info.GetSignature();
-        if (_simSignature != sig || _simBaseWallTimeUtc == DateTime.MinValue)
-        {
-            _simSignature = sig;
-            _simBaseWallTimeUtc = nowUtc;
-
-            
-            _simBasePosition = _lastObservedPosition != TimeSpan.Zero ? _lastObservedPosition : info.Position;
-
-            _simBasePlaybackRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
-        }
-
-        var elapsed = nowUtc - _simBaseWallTimeUtc;
-        var sim = _simBasePosition + TimeSpan.FromSeconds(elapsed.TotalSeconds * _simBasePlaybackRate);
-
-        
-        if (!atEndStuck && info.Duration > TimeSpan.Zero && sim > info.Duration)
-            sim = info.Duration;
-
-        info.Position = sim;
-
-        info.IsThrottled = true;
-        _isThrottled = true;
-
-        
-        if (atEndStuck)
-        {
-            if (_recoveredDuration > TimeSpan.Zero) info.Duration = _recoveredDuration;
-            else info.Duration = TimeSpan.Zero;
-        }
-        else
-        {
-            if (info.Duration <= TimeSpan.Zero && _recoveredDuration > TimeSpan.Zero)
-                info.Duration = _recoveredDuration;
-        }
-
-        if (info.Thumbnail == null && _recoveredThumbnail != null)
-            info.Thumbnail = _recoveredThumbnail;
-
-        info.LastUpdated = DateTimeOffset.Now;
+        _timelineSimulator.ApplySimulatedTimeline(info, atEndStuck);
     }
 
     private void ParseSpotifyTitle(string title, MediaInfo info)
