@@ -59,6 +59,12 @@ public partial class MainWindow : Window
     // ─── Notch State (centralized via NotchStateManager) ───
     private readonly NotchStateManager _notchState = new();
 
+    // ─── Controllers (Phase 2-5 refactoring) ───
+    private readonly NotchAnimationController _animController;
+    private readonly MusicWidgetController _musicController;
+    private readonly CameraPreviewController _cameraController;
+    private readonly TimerManager _timerManager;
+
     // _isAnimating remains a simple flag — it guards ALL animations (expand, collapse, view switch, file delete)
     // The state machine tracks logical state only.
     private bool _isAnimating = false;
@@ -146,6 +152,12 @@ public partial class MainWindow : Window
         _notchManager = new NotchManager(this, _settings);
         _mediaService = (MediaDetectionService)mediaService;
         _updateService = updateService;
+
+        // Initialize controllers
+        _animController = new NotchAnimationController(_notchState);
+        _musicController = new MusicWidgetController(_notchState);
+        _cameraController = new CameraPreviewController();
+        _timerManager = new TimerManager(Dispatcher);
 
         _moduleHost = moduleHost;
         _batteryModule = batteryModule;
@@ -389,6 +401,8 @@ public partial class MainWindow : Window
         _updateTimer?.Stop();
         _updateCheckTimer?.Stop();
         _moduleHost?.Dispose();
+        _cameraController?.Dispose();
+        _timerManager?.Dispose();
         DisposeAllShelfWatchers();
         base.OnClosed(e);
     }
