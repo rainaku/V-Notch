@@ -531,8 +531,7 @@ public partial class MainWindow
             {
                 if (!_wasSelectedOnMouseDown)
                 {
-                    _fileShelf.ClearSelection();
-                    _fileShelf.Select(filePath, false);
+                    _fileShelf.Select(filePath);
                 }
             }
 
@@ -567,8 +566,7 @@ public partial class MainWindow
 
             if (!isCtrl && _fileShelf.SelectedFiles.Count > 1 && _wasSelectedOnMouseDown)
             {
-                _fileShelf.ClearSelection();
-                _fileShelf.Select(filePath, false);
+                _fileShelf.Select(filePath);
                 foreach (var child in ShelfItemsContainer.Children)
                 {
                     if (child is Border b && b.Tag is string p)
@@ -737,7 +735,7 @@ public partial class MainWindow
         bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
 
         // Determine which items intersect the selection rectangle
-        var intersected = new List<string>();
+        var intersected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var child in ShelfItemsContainer.Children)
         {
             if (child is Border item && item.Tag is string path)

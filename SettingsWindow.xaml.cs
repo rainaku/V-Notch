@@ -224,9 +224,200 @@ public event EventHandler? AnimatedClosing;
             Loc.SetLanguage(lang);
             _settingsService.Save(_settings);
             _originalSettings = _settings.Clone();
-            ApplyLocalization();
+            AnimateLocalizationChange();
             SettingsChanged?.Invoke(this, _settings);
         }
+    }
+
+    private void AnimateLocalizationChange()
+    {
+        var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        const int fps = 60;
+        const double slideDist = 3.0;
+        int staggerMs = 0;
+        const int staggerStep = 20;
+
+        // Collect all text elements that need animated update
+        var textUpdates = new (FrameworkElement element, Action update)[]
+        {
+            // Header
+            (SettingsTitleText, () => SettingsTitleText.Text = Loc.Get("settings.title")),
+            (SettingsSubtitleText, () => SettingsSubtitleText.Text = Loc.Get("settings.subtitle")),
+
+            // Section headers
+            (AppearanceHeader, () => AppearanceHeader.Text = Loc.Get("settings.appearance")),
+            (BehaviorHeader, () => BehaviorHeader.Text = Loc.Get("settings.behavior")),
+            (UpdatesHeader, () => UpdatesHeader.Text = Loc.Get("settings.updates")),
+            (DisplayHeader, () => DisplayHeader.Text = Loc.Get("settings.display")),
+            (SystemHeader, () => SystemHeader.Text = Loc.Get("settings.system")),
+
+            // Appearance
+            (WidthLabel, () => WidthLabel.Text = Loc.Get("settings.width")),
+            (WidthHint, () => WidthHint.Text = Loc.Get("settings.width.hint")),
+            (HeightLabel, () => HeightLabel.Text = Loc.Get("settings.height")),
+            (HeightHint, () => HeightHint.Text = Loc.Get("settings.height.hint")),
+            (RadiusLabel, () => RadiusLabel.Text = Loc.Get("settings.cornerRadius")),
+            (RadiusHint, () => RadiusHint.Text = Loc.Get("settings.cornerRadius.hint")),
+            (OpacityLabel, () => OpacityLabel.Text = Loc.Get("settings.opacity")),
+            (OpacityHint, () => OpacityHint.Text = Loc.Get("settings.opacity.hint")),
+            (BlurLabel, () => BlurLabel.Text = Loc.Get("settings.blurBrightness")),
+            (BlurHint, () => BlurHint.Text = Loc.Get("settings.blurBrightness.hint")),
+
+            // Behavior
+            (HoverExpandHint, () => HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint")),
+            (ExpandDelayLabel, () => ExpandDelayLabel.Text = Loc.Get("settings.expandDelay")),
+            (ExpandDelayHint, () => ExpandDelayHint.Text = Loc.Get("settings.expandDelay.hint")),
+
+            // Updates
+            (UpdateStatusText, () => UpdateStatusText.Text = Loc.Get("settings.upToDate")),
+            (CurrentVersionText, () => CurrentVersionText.Text = Loc.Get("settings.currentVersion", "1.6.1")),
+            (ReportBugLabel, () => ReportBugLabel.Text = Loc.Get("settings.reportBug")),
+            (ReportBugHint, () => ReportBugHint.Text = Loc.Get("settings.reportBug.hint")),
+
+            // Display
+            (MonitorLabel, () => MonitorLabel.Text = Loc.Get("settings.activeMonitor")),
+            (MonitorHint, () => MonitorHint.Text = Loc.Get("settings.activeMonitor.hint")),
+
+            // System
+            (AutoStartHint, () => AutoStartHint.Text = Loc.Get("settings.autoStart.hint")),
+            (MusicNotifyHint, () => MusicNotifyHint.Text = Loc.Get("settings.musicNotify.hint")),
+            (SystemNotifyHint, () => SystemNotifyHint.Text = Loc.Get("settings.systemNotify.hint")),
+            (ShelfUnlockHint, () => ShelfUnlockHint.Text = Loc.Get("settings.shelfUnlock.hint")),
+            (LanguageLabel, () => LanguageLabel.Text = Loc.Get("settings.language")),
+            (LanguageHint, () => LanguageHint.Text = Loc.Get("settings.language.hint")),
+        };
+
+        // Also update buttons (ContentControl-based, animate parent)
+        AnimateContentChange(CheckUpdateButton, () => CheckUpdateButton.Content = Loc.Get("settings.checkUpdate"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(ResetButton, () => ResetButton.Content = Loc.Get("settings.btn.reset"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(ApplyButton, () => ApplyButton.Content = Loc.Get("settings.btn.apply"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(SaveButton, () => SaveButton.Content = Loc.Get("settings.btn.save"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+
+        // Checkboxes (Content property)
+        AnimateContentChange(AutoStartCheck, () => AutoStartCheck.Content = Loc.Get("settings.autoStart"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(MusicNotifyCheck, () => MusicNotifyCheck.Content = Loc.Get("settings.musicNotify"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(SystemNotifyCheck, () => SystemNotifyCheck.Content = Loc.Get("settings.systemNotify"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(ShelfUnlockCheck, () => ShelfUnlockCheck.Content = Loc.Get("settings.shelfUnlock"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(HoverExpandCheck, () => HoverExpandCheck.Content = Loc.Get("settings.hoverExpand"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+
+        foreach (var (element, update) in textUpdates)
+        {
+            if (element == null) continue;
+            AnimateTextSwap(element, update, staggerMs, easeOut, fps, slideDist);
+            staggerMs += staggerStep;
+        }
+    }
+
+    private void AnimateTextSwap(FrameworkElement element, Action updateText, int delayMs, IEasingFunction easing, int fps, double slideDist)
+    {
+        var translate = element.RenderTransform as TranslateTransform;
+        if (translate == null)
+        {
+            translate = new TranslateTransform(0, 0);
+            element.RenderTransform = translate;
+        }
+
+        element.BeginAnimation(OpacityProperty, null);
+        translate.BeginAnimation(TranslateTransform.XProperty, null);
+
+        // Phase 1: Blur out — fade + slide right + slight scale feel via X offset
+        var fadeOut = new DoubleAnimation
+        {
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(120),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+            BeginTime = TimeSpan.FromMilliseconds(delayMs)
+        };
+        Timeline.SetDesiredFrameRate(fadeOut, fps);
+
+        var slideOut = new DoubleAnimation
+        {
+            To = -14,
+            Duration = TimeSpan.FromMilliseconds(120),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+            BeginTime = TimeSpan.FromMilliseconds(delayMs)
+        };
+        Timeline.SetDesiredFrameRate(slideOut, fps);
+
+        fadeOut.Completed += (s, e) =>
+        {
+            updateText();
+
+            // Phase 2: Slide in from right with overshoot spring
+            translate.X = 18;
+
+            var fadeIn = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromMilliseconds(280),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Timeline.SetDesiredFrameRate(fadeIn, fps);
+
+            var slideIn = new DoubleAnimation
+            {
+                From = 18,
+                To = 0,
+                Duration = TimeSpan.FromMilliseconds(380),
+                EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 8 }
+            };
+            Timeline.SetDesiredFrameRate(slideIn, fps);
+
+            slideIn.Completed += (s2, e2) =>
+            {
+                // Clear animation and snap to final position to prevent residual offset
+                translate.BeginAnimation(TranslateTransform.XProperty, null);
+                translate.X = 0;
+            };
+
+            element.BeginAnimation(OpacityProperty, fadeIn);
+            translate.BeginAnimation(TranslateTransform.XProperty, slideIn);
+        };
+
+        element.BeginAnimation(OpacityProperty, fadeOut);
+        translate.BeginAnimation(TranslateTransform.XProperty, slideOut);
+    }
+
+    private void AnimateContentChange(FrameworkElement element, Action updateContent, int delayMs, IEasingFunction easing, int fps, double slideDist)
+    {
+        element.BeginAnimation(OpacityProperty, null);
+
+        var fadeOut = new DoubleAnimation
+        {
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(120),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+            BeginTime = TimeSpan.FromMilliseconds(delayMs)
+        };
+        Timeline.SetDesiredFrameRate(fadeOut, fps);
+
+        fadeOut.Completed += (s, e) =>
+        {
+            updateContent();
+
+            var fadeIn = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromMilliseconds(280),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Timeline.SetDesiredFrameRate(fadeIn, fps);
+
+            element.BeginAnimation(OpacityProperty, fadeIn);
+        };
+
+        element.BeginAnimation(OpacityProperty, fadeOut);
     }
 
 private void PushLivePreview()

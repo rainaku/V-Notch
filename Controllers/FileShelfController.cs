@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Windows.Threading;
 using VNotch.Models;
 using VNotch.Services;
 
@@ -14,23 +15,47 @@ public sealed class FileShelfController : IDisposable
 
     private readonly NotchSettings _settings;
     private readonly ISettingsService _settingsService;
-    private readonly List<string> _files = new();
+    private readonly List<string> _filesList = new();           // ordered (for UI index/iteration)
+    private readonly HashSet<string> _filesSet = new(StringComparer.OrdinalIgnoreCase); // O(1) lookup
     private readonly HashSet<string> _selectedFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _pendingFiles = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, FileSystemWatcher> _watchers = new();
+    private readonly Dictionary<string, FileSystemWatcher> _watchers = new(); // UI-thread only
     private readonly Queue<string> _addQueue = new();
+    private readonly object _lock = new();
+    private readonly Dispatcher _dispatcher;
     private bool _isProcessingQueue = false;
 
-    // ─── Public State ───
+    // Cached snapshots — invalidated on mutation, avoids allocating on every property read.
+    private List<string>? _filesSnapshot;
+    private int _snapshotVersion;
+    private int _lastSnapshotVersion = -1;
 
-    public IReadOnlyList<string> Files => _files;
-    public IReadOnlyCollection<string> SelectedFiles => _selectedFiles;
-    public int FileCount => _files.Count;
-    public int PendingCount => _pendingFiles.Count;
-    public int OccupiedSlots => _files.Count + _pendingFiles.Count;
+    // ─── Public State ───
+    // NOTE: Properties that read _filesList/_pendingFiles are guarded by _lock.
+    // _watchers is only accessed from the UI thread (via Dispatcher marshalling).
+
+    public IReadOnlyList<string> Files
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (_filesSnapshot == null || _lastSnapshotVersion != _snapshotVersion)
+                {
+                    _filesSnapshot = _filesList.ToList();
+                    _lastSnapshotVersion = _snapshotVersion;
+                }
+                return _filesSnapshot;
+            }
+        }
+    }
+    public IReadOnlyCollection<string> SelectedFiles { get { lock (_lock) return _selectedFiles.ToHashSet(); } }
+    public int FileCount { get { lock (_lock) return _filesList.Count; } }
+    public int PendingCount { get { lock (_lock) return _pendingFiles.Count; } }
+    public int OccupiedSlots { get { lock (_lock) return _filesList.Count + _pendingFiles.Count; } }
     public int MaxFiles => _settings.IsShelfUploadLimitUnlocked ? UnlockedFileLimit : DefaultFileLimit;
-    public int RemainingSlots => Math.Max(0, MaxFiles - OccupiedSlots);
-    public bool IsFull => OccupiedSlots >= MaxFiles;
+    public int RemainingSlots { get { lock (_lock) return Math.Max(0, MaxFiles - (_filesList.Count + _pendingFiles.Count)); } }
+    public bool IsFull { get { lock (_lock) return (_filesList.Count + _pendingFiles.Count) >= MaxFiles; } }
     public bool IsLimitUnlocked => _settings.IsShelfUploadLimitUnlocked;
 
     // ─── Events ───
@@ -53,6 +78,9 @@ public sealed class FileShelfController : IDisposable
     /// <summary>Raised when a file is externally renamed (old path removed, new path added).</summary>
     public event Action<string, string>? FileExternallyRenamed;
 
+    /// <summary>Raised when a directory watcher fails to initialize (path may be invalid or inaccessible).</summary>
+    public event Action<string, Exception>? FileWatchFailed;
+
     /// <summary>Request the next queued file to be processed (called by UI after animation delay).</summary>
     public event Action? ProcessNextRequested;
 
@@ -60,7 +88,11 @@ public sealed class FileShelfController : IDisposable
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _dispatcher = Dispatcher.CurrentDispatcher;
     }
+
+    /// <summary>Call inside _lock whenever _filesList is mutated.</summary>
+    private void InvalidateSnapshot() => _snapshotVersion++;
 
     // ─── Drop Validation ───
 
@@ -84,32 +116,37 @@ public sealed class FileShelfController : IDisposable
         if (rawFiles == null || rawFiles.Length == 0)
             return new DropValidation(DropResult.NoFiles, Array.Empty<string>(), Loc.Get("shelf.noFiles"));
 
-        var newFiles = rawFiles
-            .Where(f => !string.IsNullOrWhiteSpace(f))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(f => !_files.Contains(f, StringComparer.OrdinalIgnoreCase))
-            .Where(f => !_pendingFiles.Contains(f))
-            .ToArray();
+        lock (_lock)
+        {
+            var newFiles = rawFiles
+                .Where(f => !string.IsNullOrWhiteSpace(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(f => !_filesSet.Contains(f))
+                .Where(f => !_pendingFiles.Contains(f))
+                .ToArray();
 
-        if (newFiles.Length == 0)
-            return new DropValidation(DropResult.AlreadyOnShelf, Array.Empty<string>(), Loc.Get("shelf.alreadyOnShelf"));
+            if (newFiles.Length == 0)
+                return new DropValidation(DropResult.AlreadyOnShelf, Array.Empty<string>(), Loc.Get("shelf.alreadyOnShelf"));
 
-        if (_settings.IsShelfUploadLimitUnlocked)
+            if (_settings.IsShelfUploadLimitUnlocked)
+                return new DropValidation(DropResult.Accept, newFiles, string.Empty);
+
+            int occupiedSlots = _filesList.Count + _pendingFiles.Count;
+            int totalAfterDrop = occupiedSlots + newFiles.Length;
+            if (totalAfterDrop > DefaultFileLimit)
+                return new DropValidation(DropResult.UnlockPrompt, newFiles, string.Empty, newFiles.Length);
+
+            int remainingSlots = Math.Max(0, MaxFiles - occupiedSlots);
+            if (remainingSlots <= 0)
+                return new DropValidation(DropResult.ShelfFull, Array.Empty<string>(),
+                    Loc.Get("shelf.full", Math.Min(MaxFiles, occupiedSlots), MaxFiles));
+
+            if (newFiles.Length > remainingSlots)
+                return new DropValidation(DropResult.ExceedsLimit, Array.Empty<string>(),
+                    Loc.Get("shelf.exceedsLimit", MaxFiles, remainingSlots));
+
             return new DropValidation(DropResult.Accept, newFiles, string.Empty);
-
-        int totalAfterDrop = OccupiedSlots + newFiles.Length;
-        if (totalAfterDrop > DefaultFileLimit)
-            return new DropValidation(DropResult.UnlockPrompt, newFiles, string.Empty, newFiles.Length);
-
-        if (RemainingSlots <= 0)
-            return new DropValidation(DropResult.ShelfFull, Array.Empty<string>(),
-                Loc.Get("shelf.full", Math.Min(MaxFiles, OccupiedSlots), MaxFiles));
-
-        if (newFiles.Length > RemainingSlots)
-            return new DropValidation(DropResult.ExceedsLimit, Array.Empty<string>(),
-                Loc.Get("shelf.exceedsLimit", MaxFiles, RemainingSlots));
-
-        return new DropValidation(DropResult.Accept, newFiles, string.Empty);
+        }
     }
 
     // ─── File Add (Sequential Queue) ───
@@ -119,19 +156,27 @@ public sealed class FileShelfController : IDisposable
     /// </summary>
     public void EnqueueFiles(string[] filePaths)
     {
-        foreach (var f in filePaths)
-        {
-            if (IsFull) break;
-            if (_files.Contains(f, StringComparer.OrdinalIgnoreCase) || _pendingFiles.Contains(f))
-                continue;
+        bool shouldProcess = false;
 
-            _addQueue.Enqueue(f);
-            _pendingFiles.Add(f);
+        lock (_lock)
+        {
+            foreach (var f in filePaths)
+            {
+                if ((_filesList.Count + _pendingFiles.Count) >= MaxFiles) break;
+                if (_filesSet.Contains(f) || _pendingFiles.Contains(f))
+                    continue;
+
+                _addQueue.Enqueue(f);
+                _pendingFiles.Add(f);
+            }
+
+            if (!_isProcessingQueue)
+                shouldProcess = true;
         }
 
         CapacityChanged?.Invoke();
 
-        if (!_isProcessingQueue)
+        if (shouldProcess)
             ProcessNext();
     }
 
@@ -140,27 +185,60 @@ public sealed class FileShelfController : IDisposable
     /// </summary>
     public void ProcessNext()
     {
-        if (_addQueue.Count == 0)
+        string? filePath = null;
+        bool queueEmpty = false;
+
+        // Phase 1: dequeue under lock
+        lock (_lock)
         {
-            _isProcessingQueue = false;
+            if (_addQueue.Count == 0)
+            {
+                _isProcessingQueue = false;
+                queueEmpty = true;
+            }
+            else
+            {
+                _isProcessingQueue = true;
+                filePath = _addQueue.Dequeue();
+                _pendingFiles.Remove(filePath);
+            }
+        }
+
+        if (queueEmpty)
+        {
             AddQueueDrained?.Invoke();
             return;
         }
 
-        _isProcessingQueue = true;
-        var filePath = _addQueue.Dequeue();
-        _pendingFiles.Remove(filePath);
+        // Phase 2: I/O check outside lock (avoids blocking other threads on disk access)
+        bool fileExists = File.Exists(filePath!) || Directory.Exists(filePath!);
 
-        if (!IsFull && !_files.Contains(filePath, StringComparer.OrdinalIgnoreCase))
+        // Phase 3: commit under lock
+        bool shouldAdd = false;
+        if (fileExists)
         {
-            _files.Add(filePath);
-            WatchDirectory(filePath);
+            lock (_lock)
+            {
+                if ((_filesList.Count + _pendingFiles.Count) < MaxFiles
+                    && !_filesSet.Contains(filePath!))
+                {
+                    _filesList.Add(filePath!);
+                    _filesSet.Add(filePath!);
+                    InvalidateSnapshot();
+                    shouldAdd = true;
+                }
+            }
+        }
+
+        if (shouldAdd)
+        {
+            WatchDirectory(filePath!);
             CapacityChanged?.Invoke();
-            FileReadyToAdd?.Invoke(filePath);
+            FileReadyToAdd?.Invoke(filePath!);
         }
         else
         {
-            // Skip this file, try next
+            // File gone or duplicate — skip, try next
             ProcessNextRequested?.Invoke();
         }
     }
@@ -170,8 +248,29 @@ public sealed class FileShelfController : IDisposable
     /// </summary>
     public void AddFileDirect(string filePath)
     {
-        if (IsFull || _files.Contains(filePath, StringComparer.OrdinalIgnoreCase)) return;
-        _files.Add(filePath);
+        // Quick duplicate/capacity check before I/O
+        lock (_lock)
+        {
+            if ((_filesList.Count + _pendingFiles.Count) >= MaxFiles
+                || _filesSet.Contains(filePath))
+                return;
+        }
+
+        // I/O outside lock
+        if (!File.Exists(filePath) && !Directory.Exists(filePath))
+            return;
+
+        // Commit under lock (re-check since state may have changed)
+        lock (_lock)
+        {
+            if ((_filesList.Count + _pendingFiles.Count) >= MaxFiles
+                || _filesSet.Contains(filePath))
+                return;
+
+            _filesList.Add(filePath);
+            _filesSet.Add(filePath);
+            InvalidateSnapshot();
+        }
         WatchDirectory(filePath);
         CapacityChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
@@ -179,18 +278,12 @@ public sealed class FileShelfController : IDisposable
 
     // ─── Selection ───
 
-    public bool IsSelected(string path) => _selectedFiles.Contains(path);
+    public bool IsSelected(string path) { lock (_lock) return _selectedFiles.Contains(path); }
 
-    public void Select(string path, bool additive)
+    /// <summary>Selects a single file, clearing any previous selection.</summary>
+    public void Select(string path)
     {
-        if (additive)
-        {
-            if (_selectedFiles.Contains(path))
-                _selectedFiles.Remove(path);
-            else
-                _selectedFiles.Add(path);
-        }
-        else
+        lock (_lock)
         {
             _selectedFiles.Clear();
             _selectedFiles.Add(path);
@@ -199,62 +292,69 @@ public sealed class FileShelfController : IDisposable
 
     public void SelectAll()
     {
-        _selectedFiles.Clear();
-        foreach (var f in _files)
-            _selectedFiles.Add(f);
+        lock (_lock)
+        {
+            _selectedFiles.Clear();
+            foreach (var f in _filesList)
+                _selectedFiles.Add(f);
+        }
     }
 
     public void ClearSelection()
     {
-        _selectedFiles.Clear();
-    }
-
-    public void DeselectAll()
-    {
-        _selectedFiles.Clear();
+        lock (_lock) _selectedFiles.Clear();
     }
 
     public void SetSelection(IEnumerable<string> paths)
     {
-        _selectedFiles.Clear();
-        foreach (var p in paths)
-            _selectedFiles.Add(p);
+        lock (_lock)
+        {
+            _selectedFiles.Clear();
+            foreach (var p in paths)
+                _selectedFiles.Add(p);
+        }
     }
 
     public void ToggleSelection(string path)
     {
-        if (_selectedFiles.Contains(path))
-            _selectedFiles.Remove(path);
-        else
-            _selectedFiles.Add(path);
+        lock (_lock)
+        {
+            if (_selectedFiles.Contains(path))
+                _selectedFiles.Remove(path);
+            else
+                _selectedFiles.Add(path);
+        }
     }
 
     /// <summary>
     /// Performs rectangle/sweep selection logic.
     /// </summary>
-    public void ApplyRectangleSelection(IEnumerable<string> intersectedPaths, bool isCtrl, HashSet<string> initialState)
+    public void ApplyRectangleSelection(HashSet<string> intersectedPaths, bool isCtrl, HashSet<string> initialState)
     {
-        foreach (var path in _files)
+        lock (_lock)
         {
-            bool intersects = intersectedPaths.Contains(path);
-
-            if (isCtrl)
+            foreach (var path in _filesList)
             {
-                if (intersects)
+                bool intersects = intersectedPaths.Contains(path);
+
+                if (isCtrl)
                 {
-                    if (initialState.Contains(path)) _selectedFiles.Remove(path);
-                    else _selectedFiles.Add(path);
+                    if (intersects)
+                    {
+                        if (initialState.Contains(path)) _selectedFiles.Remove(path);
+                        else _selectedFiles.Add(path);
+                    }
+                    else
+                    {
+                        if (initialState.Contains(path)) _selectedFiles.Add(path);
+                        else _selectedFiles.Remove(path);
+                    }
                 }
                 else
                 {
-                    if (initialState.Contains(path)) _selectedFiles.Add(path);
+                    if (intersects) _selectedFiles.Add(path);
                     else _selectedFiles.Remove(path);
                 }
-            }
-            else
-            {
-                if (intersects) _selectedFiles.Add(path);
-                else _selectedFiles.Remove(path);
             }
         }
     }
@@ -266,12 +366,16 @@ public sealed class FileShelfController : IDisposable
     /// </summary>
     public void RemoveFiles(IEnumerable<string> filePaths)
     {
-        foreach (var file in filePaths)
+        var toRemove = new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
+        lock (_lock)
         {
-            _files.Remove(file);
-            _selectedFiles.Remove(file);
-            UnwatchDirectory(file);
+            _filesList.RemoveAll(f => toRemove.Contains(f));
+            _filesSet.ExceptWith(toRemove);
+            _selectedFiles.ExceptWith(toRemove);
+            InvalidateSnapshot();
         }
+        foreach (var file in toRemove)
+            UnwatchDirectory(file);
         CapacityChanged?.Invoke();
     }
 
@@ -280,8 +384,13 @@ public sealed class FileShelfController : IDisposable
     /// </summary>
     public void RemoveFile(string filePath)
     {
-        _files.Remove(filePath);
-        _selectedFiles.Remove(filePath);
+        lock (_lock)
+        {
+            _filesList.Remove(filePath);
+            _filesSet.Remove(filePath);
+            _selectedFiles.Remove(filePath);
+            InvalidateSnapshot();
+        }
         UnwatchDirectory(filePath);
         CapacityChanged?.Invoke();
     }
@@ -289,26 +398,30 @@ public sealed class FileShelfController : IDisposable
     /// <summary>
     /// Gets the list of currently selected files for deletion.
     /// </summary>
-    public List<string> GetSelectedForDeletion() => _selectedFiles.ToList();
+    public List<string> GetSelectedForDeletion() { lock (_lock) return _selectedFiles.ToList(); }
 
     // ─── Drag Out ───
 
     /// <summary>
     /// Gets the files to include in a drag-out operation.
     /// </summary>
-    public string[] GetDragFiles() => _selectedFiles.ToArray();
+    public string[] GetDragFiles() { lock (_lock) return _selectedFiles.ToArray(); }
 
     /// <summary>
     /// Handles a successful drag-move out of the shelf.
     /// </summary>
     public void HandleDragMoveOut(string[] draggedFiles)
     {
-        foreach (var f in draggedFiles)
+        var toRemove = new HashSet<string>(draggedFiles, StringComparer.OrdinalIgnoreCase);
+        lock (_lock)
         {
-            _files.Remove(f);
-            _selectedFiles.Remove(f);
-            UnwatchDirectory(f);
+            _filesList.RemoveAll(f => toRemove.Contains(f));
+            _filesSet.ExceptWith(toRemove);
+            _selectedFiles.ExceptWith(toRemove);
+            InvalidateSnapshot();
         }
+        foreach (var f in toRemove)
+            UnwatchDirectory(f);
         CapacityChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
     }
@@ -327,6 +440,7 @@ public sealed class FileShelfController : IDisposable
 
     public void UpdateSettings(NotchSettings newSettings)
     {
+        // Only sync the fields this controller cares about
         _settings.IsShelfUploadLimitUnlocked = newSettings.IsShelfUploadLimitUnlocked;
         CapacityChanged?.Invoke();
     }
@@ -335,34 +449,49 @@ public sealed class FileShelfController : IDisposable
 
     public string GetCountDisplayText()
     {
-        int currentCount = _files.Count + _pendingFiles.Count;
-        if (_settings.IsShelfUploadLimitUnlocked)
-            return $"{currentCount}";
-        int displayCount = Math.Min(DefaultFileLimit, OccupiedSlots);
-        return $"{displayCount}/{DefaultFileLimit}";
+        lock (_lock)
+        {
+            int currentCount = _filesList.Count + _pendingFiles.Count;
+            if (_settings.IsShelfUploadLimitUnlocked)
+                return $"{currentCount}";
+            int displayCount = Math.Min(DefaultFileLimit, currentCount);
+            return $"{displayCount}/{DefaultFileLimit}";
+        }
     }
 
-    public bool IsCountWarning => IsFull && !_settings.IsShelfUploadLimitUnlocked;
+    public bool IsCountWarning { get { lock (_lock) return (_filesList.Count + _pendingFiles.Count) >= MaxFiles && !_settings.IsShelfUploadLimitUnlocked; } }
 
     public string? GetStatusMessage()
     {
-        if (IsFull && !_settings.IsShelfUploadLimitUnlocked)
+        lock (_lock)
         {
-            int currentCount = _files.Count + _pendingFiles.Count;
-            return Loc.Get("shelf.full", currentCount, DefaultFileLimit);
+            int occupiedSlots = _filesList.Count + _pendingFiles.Count;
+            if (occupiedSlots >= MaxFiles && !_settings.IsShelfUploadLimitUnlocked)
+            {
+                return Loc.Get("shelf.full", occupiedSlots, DefaultFileLimit);
+            }
+            return null;
         }
-        return null;
     }
 
     // ─── File Rename (external) ───
 
     public void HandleExternalRename(string oldPath, string newPath)
     {
-        int idx = _files.IndexOf(oldPath);
-        if (idx >= 0) _files[idx] = newPath;
+        lock (_lock)
+        {
+            int idx = _filesList.IndexOf(oldPath);
+            if (idx >= 0)
+            {
+                _filesList[idx] = newPath;
+                _filesSet.Remove(oldPath);
+                _filesSet.Add(newPath);
+                InvalidateSnapshot();
+            }
 
-        if (_selectedFiles.Remove(oldPath))
-            _selectedFiles.Add(newPath);
+            if (_selectedFiles.Remove(oldPath))
+                _selectedFiles.Add(newPath);
+        }
 
         WatchDirectory(newPath);
         UnwatchDirectory(oldPath);
@@ -371,9 +500,14 @@ public sealed class FileShelfController : IDisposable
     }
 
     // ─── File Watching ───
+    // IMPORTANT: WatchDirectory/UnwatchDirectory access _watchers without _lock.
+    // They must only be called from the UI thread (which is guaranteed because all
+    // public methods are called from UI, and watcher events are marshalled via Dispatcher).
 
     private void WatchDirectory(string filePath)
     {
+        System.Diagnostics.Debug.Assert(_dispatcher.CheckAccess(), "WatchDirectory must be called on UI thread");
+
         var dir = Path.GetDirectoryName(filePath);
         if (string.IsNullOrEmpty(dir) || _watchers.ContainsKey(dir)) return;
 
@@ -390,17 +524,25 @@ public sealed class FileShelfController : IDisposable
         }
         catch (Exception ex)
         {
+            // Directory may not exist, be inaccessible, or on a non-watchable filesystem (network share)
             RuntimeLog.Log("SHELF-WATCH", ex.ToString());
+            FileWatchFailed?.Invoke(dir, ex);
         }
     }
 
     private void UnwatchDirectory(string filePath)
     {
+        System.Diagnostics.Debug.Assert(_dispatcher.CheckAccess(), "UnwatchDirectory must be called on UI thread");
+
         var dir = Path.GetDirectoryName(filePath);
         if (string.IsNullOrEmpty(dir)) return;
 
-        bool hasOtherFiles = _files.Any(f =>
-            string.Equals(Path.GetDirectoryName(f), dir, StringComparison.OrdinalIgnoreCase));
+        bool hasOtherFiles;
+        lock (_lock)
+        {
+            hasOtherFiles = _filesList.Any(f =>
+                string.Equals(Path.GetDirectoryName(f), dir, StringComparison.OrdinalIgnoreCase));
+        }
 
         if (!hasOtherFiles && _watchers.TryGetValue(dir, out var watcher))
         {
@@ -414,14 +556,32 @@ public sealed class FileShelfController : IDisposable
 
     private void OnFileExternallyDeleted(object sender, FileSystemEventArgs e)
     {
-        if (!_files.Contains(e.FullPath) || _isProcessingQueue) return;
-        FileExternallyRemoved?.Invoke(e.FullPath);
+        // FileSystemWatcher fires on a thread pool thread — marshal to UI thread
+        _dispatcher.BeginInvoke(() =>
+        {
+            bool shouldNotify;
+            lock (_lock)
+            {
+                shouldNotify = _filesSet.Contains(e.FullPath) && !_isProcessingQueue;
+            }
+            if (shouldNotify)
+                FileExternallyRemoved?.Invoke(e.FullPath);
+        });
     }
 
     private void OnFileExternallyRenamed(object sender, RenamedEventArgs e)
     {
-        if (!_files.Contains(e.OldFullPath)) return;
-        FileExternallyRenamed?.Invoke(e.OldFullPath, e.FullPath);
+        // FileSystemWatcher fires on a thread pool thread — marshal to UI thread
+        _dispatcher.BeginInvoke(() =>
+        {
+            bool shouldNotify;
+            lock (_lock)
+            {
+                shouldNotify = _filesSet.Contains(e.OldFullPath);
+            }
+            if (shouldNotify)
+                FileExternallyRenamed?.Invoke(e.OldFullPath, e.FullPath);
+        });
     }
 
     // ─── Dispose ───
