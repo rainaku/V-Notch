@@ -99,6 +99,14 @@ internal static class Win32Interop
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
+
     #endregion
 
     #region dwmapi.dll
@@ -140,6 +148,7 @@ internal static class Win32Interop
     public const int WM_ACTIVATE = 0x0006;
     public const int WM_ACTIVATEAPP = 0x001C;
     public const int WM_DISPLAYCHANGE = 0x007E;
+    public const int WM_CLIPBOARDUPDATE = 0x031D;
     public const byte VK_MEDIA_PLAY_PAUSE = 0xB3;
     public const byte VK_MEDIA_NEXT_TRACK = 0xB0;
     public const byte VK_MEDIA_PREV_TRACK = 0xB1;

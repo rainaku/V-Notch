@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using VNotch.Models;
 using VNotch.Services;
 using static VNotch.Services.Win32Interop;
@@ -235,6 +236,230 @@ public partial class MainWindow
     #region Volume Control
 
     private float _currentVolume = 0.5f;
+    private const float VolumeScrollStep = 0.05f; // 5% per scroll tick
+    private DispatcherTimer? _volumeIndicatorHideTimer;
+    private bool _isVolumeIndicatorActive = false;
+    private bool _volumeSynced = false;
+
+    /// <summary>
+    /// Adjusts system volume by scroll delta. Proportional to scroll amount for smooth control.
+    /// </summary>
+    private void AdjustVolumeByScroll(int delta)
+    {
+        // Sync current volume from system only once per scroll session
+        if (!_volumeSynced)
+        {
+            if (_mediaService.TryGetCurrentSessionVolume(out float vol, out _))
+            {
+                _currentVolume = vol;
+            }
+            _volumeSynced = true;
+        }
+
+        // Proportional: 120 delta (one tick) = VolumeScrollStep
+        float step = (delta / 120f) * VolumeScrollStep;
+        float newVolume = Math.Clamp(_currentVolume + step, 0f, 1f);
+        _currentVolume = newVolume;
+
+        // Update visual indicator instantly
+        ShowVolumeIndicator(newVolume);
+
+        // Apply volume to system on thread pool (non-blocking)
+        float volumeToSet = newVolume;
+        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+        {
+            _mediaService.TrySetCurrentSessionVolume(volumeToSet);
+        });
+
+        // Update expanded UI if visible
+        if (_isExpanded)
+        {
+            VolumeBarScale.ScaleX = newVolume;
+            UpdateVolumeIcon(newVolume, false);
+        }
+    }
+
+    /// <summary>
+    /// Shows the volume indicator bar on the notch (only in compact music pill mode).
+    /// Hides compact content (thumbnail + equalizer) with animation, shows indicator.
+    /// Auto-hides after 1.2 seconds of inactivity.
+    /// </summary>
+    private void ShowVolumeIndicator(float volume)
+    {
+        if (VolumeIndicatorContainer == null || VolumeIndicatorFill == null) return;
+        if (!_isMusicCompactMode) return;
+
+        // ─── First time showing: hide compact content ───
+        if (!_isVolumeIndicatorActive)
+        {
+            _isVolumeIndicatorActive = true;
+
+            // Set initial fill width immediately (no animation from 0)
+            double initContainerWidth = _collapsedWidth - 32;
+            VolumeIndicatorFill.Width = Math.Max(0, initContainerWidth * volume);
+
+            // Hide MusicViz + thumbnail instantly to avoid animation conflicts during scroll
+            MusicViz.BeginAnimation(OpacityProperty, null);
+            MusicViz.Opacity = 0;
+            MusicViz.Visibility = Visibility.Collapsed;
+
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+            CompactThumbnailBorder.Opacity = 0;
+            CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+
+            // Show indicator container with fade in
+            VolumeIndicatorContainer.Visibility = Visibility.Visible;
+            VolumeIndicatorContainer.Opacity = 1;
+            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
+
+            // Notch expand slightly
+            NotchBorder.BeginAnimation(WidthProperty, null);
+            var expandAnim = MakeAnim(_collapsedWidth, _collapsedWidth + 20, _dur350, _easeExpOut6);
+            expandAnim.FillBehavior = FillBehavior.Stop;
+            Timeline.SetDesiredFrameRate(expandAnim, 144);
+            expandAnim.Completed += (s, e) =>
+            {
+                if (_isVolumeIndicatorActive)
+                {
+                    NotchBorder.BeginAnimation(WidthProperty, null);
+                    NotchBorder.Width = _collapsedWidth + 20;
+                }
+            };
+            NotchBorder.BeginAnimation(WidthProperty, expandAnim);
+        }
+
+        // ─── Update fill width directly — instant, no animation ───
+        double containerWidth = VolumeIndicatorContainer.ActualWidth;
+        if (containerWidth <= 0)
+        {
+            containerWidth = _collapsedWidth - 32;
+        }
+        VolumeIndicatorFill.Width = Math.Max(0, containerWidth * volume);
+
+        // ─── Reset hide timer (reuse instance) ───
+        if (_volumeIndicatorHideTimer == null)
+        {
+            _volumeIndicatorHideTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(1200)
+            };
+            _volumeIndicatorHideTimer.Tick += (s, e) =>
+            {
+                _volumeIndicatorHideTimer.Stop();
+                HideVolumeIndicator();
+            };
+        }
+        _volumeIndicatorHideTimer.Stop();
+        _volumeIndicatorHideTimer.Start();
+    }
+
+    /// <summary>
+    /// Hides volume indicator and restores compact content with reversed animation.
+    /// </summary>
+    private void HideVolumeIndicator()
+    {
+        if (VolumeIndicatorContainer == null) return;
+        _isVolumeIndicatorActive = false;
+        _volumeSynced = false;
+
+        // Notch shrink back to collapsed width
+        NotchBorder.BeginAnimation(WidthProperty, null);
+        var shrinkAnim = MakeAnim(_collapsedWidth + 20, _collapsedWidth, _dur350, _easeExpOut6);
+        shrinkAnim.FillBehavior = FillBehavior.Stop;
+        Timeline.SetDesiredFrameRate(shrinkAnim, 144);
+        shrinkAnim.Completed += (s, e) =>
+        {
+            NotchBorder.BeginAnimation(WidthProperty, null);
+            NotchBorder.Width = _collapsedWidth;
+        };
+        NotchBorder.BeginAnimation(WidthProperty, shrinkAnim);
+
+        // Fade out indicator
+        VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
+        var fadeOut = MakeAnim(1.0, 0.0, _dur250, _easeQuadOut);
+        fadeOut.Completed += (s, e) =>
+        {
+            if (!_isVolumeIndicatorActive)
+                VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
+        };
+        VolumeIndicatorContainer.BeginAnimation(OpacityProperty, fadeOut);
+
+        // Restore thumbnail
+        CompactThumbnailBorder.Visibility = Visibility.Visible;
+        CompactThumbnailBorder.Opacity = 0;
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+        var thumbIn = MakeAnim(0.0, 1.0, _dur250, _easeQuadOut);
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbIn);
+
+        // Restore MusicViz
+        MusicViz.Visibility = Visibility.Visible;
+        MusicViz.Opacity = 0;
+        MusicViz.BeginAnimation(OpacityProperty, null);
+        var vizIn = MakeAnim(0.0, 1.0, _dur100, _easeQuadOut);
+        MusicViz.BeginAnimation(OpacityProperty, vizIn);
+    }
+
+    #region Volume Indicator Drag
+
+    private bool _isDraggingVolumeIndicator = false;
+
+    private void VolumeIndicator_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        _isDraggingVolumeIndicator = true;
+        VolumeIndicatorContainer.CaptureMouse();
+        SetVolumeFromIndicatorPosition(e);
+
+        // Stop the hide timer while dragging
+        _volumeIndicatorHideTimer?.Stop();
+    }
+
+    private void VolumeIndicator_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_isDraggingVolumeIndicator || e.LeftButton != MouseButtonState.Pressed) return;
+        e.Handled = true;
+        SetVolumeFromIndicatorPosition(e);
+    }
+
+    private void VolumeIndicator_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isDraggingVolumeIndicator) return;
+        e.Handled = true;
+        _isDraggingVolumeIndicator = false;
+        VolumeIndicatorContainer.ReleaseMouseCapture();
+
+        // Restart hide timer
+        _volumeIndicatorHideTimer?.Stop();
+        _volumeIndicatorHideTimer?.Start();
+    }
+
+    private void SetVolumeFromIndicatorPosition(MouseEventArgs e)
+    {
+        var pos = e.GetPosition(VolumeIndicatorContainer);
+        double containerWidth = VolumeIndicatorContainer.ActualWidth;
+        if (containerWidth <= 0) containerWidth = _collapsedWidth - 32;
+
+        float newVolume = (float)Math.Clamp(pos.X / containerWidth, 0.0, 1.0);
+        _currentVolume = newVolume;
+
+        // Update visual
+        VolumeIndicatorFill.Width = Math.Max(0, containerWidth * newVolume);
+
+        // Apply to system on thread pool
+        float volumeToSet = newVolume;
+        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+        {
+            _mediaService.TrySetCurrentSessionVolume(volumeToSet);
+        });
+
+        if (_isExpanded)
+        {
+            VolumeBarScale.ScaleX = newVolume;
+            UpdateVolumeIcon(newVolume, false);
+        }
+    }
+
+    #endregion
 
     private void VolumeIcon_MouseDown(object sender, MouseButtonEventArgs e)
     {

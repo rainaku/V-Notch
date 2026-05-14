@@ -261,6 +261,7 @@ public partial class MainWindow : Window
         _hwnd = new WindowInteropHelper(this).Handle;
         _hwndSource = HwndSource.FromHwnd(_hwnd);
         _hwndSource?.AddHook(WndProc);
+        RegisterClipboardListener();
 
         try
         {
@@ -359,6 +360,10 @@ public partial class MainWindow : Window
             case WM_DISPLAYCHANGE:
                 Dispatcher.BeginInvoke(() => PositionAtTop());
                 break;
+
+            case WM_CLIPBOARDUPDATE:
+                HandleClipboardUpdate();
+                break;
         }
 
         return IntPtr.Zero;
@@ -391,6 +396,7 @@ public partial class MainWindow : Window
         // Unsubscribe static events
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
 
+        UnregisterClipboardListener();
         _hwndSource?.RemoveHook(WndProc);
         StopZOrderWatchdog();
         StopTitleGradientShift();
@@ -961,6 +967,13 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             return;
         }
 
+        // Don't open notch while volume indicator is active (dragging)
+        if (_isVolumeIndicatorActive || _isDraggingVolumeIndicator)
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (!_isStartupLayoutReady)
         {
             if (!_pendingStartupClickToggle)
@@ -1319,6 +1332,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
+        UnregisterClipboardListener();
         _hwndSource?.RemoveHook(WndProc);
         StopZOrderWatchdog();
 

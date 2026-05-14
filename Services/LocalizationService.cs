@@ -184,6 +184,7 @@ public static class Loc
             ["greeting.evening"] = "Good evening",
             ["greeting.enjoyDay"] = "Enjoy your day!",
             ["notch.camera"] = "Camera",
+            ["clipboard.copied"] = "Copied",
         };
     }
 
@@ -329,6 +330,7 @@ public static class Loc
             ["greeting.evening"] = "Chào buổi tối",
             ["greeting.enjoyDay"] = "Chúc bạn một ngày tốt lành!",
             ["notch.camera"] = "Máy ảnh",
+            ["clipboard.copied"] = "Đã sao chép",
         };
     }
 }

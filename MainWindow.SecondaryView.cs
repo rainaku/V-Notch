@@ -12,6 +12,19 @@ public partial class MainWindow
 {
     private void NotchWrapper_MouseWheel(object sender, MouseWheelEventArgs e)
     {
+        // ─── Collapsed: scroll to adjust volume ───
+        if (!_isExpanded && !_isAnimating)
+        {
+            // Don't handle scroll-volume when hover-to-expand is enabled
+            // (scroll would conflict with hover interaction)
+            if (_settings.EnableHoverExpand) return;
+
+            e.Handled = true;
+            AdjustVolumeByScroll(e.Delta);
+            return;
+        }
+
+        // ─── Expanded: scroll to switch views ───
         if (!_isExpanded || _isAnimating) return;
         if (e.Handled) return;
 
