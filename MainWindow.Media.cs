@@ -17,6 +17,7 @@ public partial class MainWindow
     private string _lastRenderedMediaSource = "";
     private ImageSource? _pendingFlipThumbnail;
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
+    private int _thumbnailSwitchGeneration = 0;
 
     private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
 
@@ -223,6 +224,14 @@ public partial class MainWindow
             return;
         }
 
+        // Cancel any in-progress thumbnail switch animation to prevent stale
+        // Completed handlers from resetting scale mid-animation when spamming
+        // next/prev buttons rapidly.
+        CancelThumbnailSwitchAnimations();
+
+        var generation = ++_thumbnailSwitchGeneration;
+        bool isHovered = _isCompactThumbnailHovered;
+
         var halfDur = TimeSpan.FromMilliseconds(180);
         var totalDur = TimeSpan.FromMilliseconds(360);
 
@@ -248,12 +257,19 @@ public partial class MainWindow
         ThumbnailImage.BeginAnimation(Image.SourceProperty, sourceAnim);
 
         CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
-        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
-        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
+        // Skip pulse on CompactThumbnailScale when hovered — hover already
+        // scales it to 1.6 and the pulse would override that causing a visible
+        // shrink-then-grow glitch.
+        if (!isHovered)
+        {
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
+        }
         CompactThumbnail.BeginAnimation(Image.SourceProperty, sourceAnim);
 
         flipAnim.Completed += (s, e) =>
         {
+            if (_thumbnailSwitchGeneration != generation) return;
             ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             ThumbnailFlip.ScaleX = 1.0;
@@ -262,18 +278,24 @@ public partial class MainWindow
 
         pulseAnim.Completed += (s, e) =>
         {
+            if (_thumbnailSwitchGeneration != generation) return;
             ThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             ThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             ThumbnailScale.ScaleX = 1.0;
             ThumbnailScale.ScaleY = 1.0;
-            CompactThumbnailScale.ScaleX = 1.0;
-            CompactThumbnailScale.ScaleY = 1.0;
+            // Only reset CompactThumbnailScale if not currently hovered
+            if (!_isCompactThumbnailHovered)
+            {
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                CompactThumbnailScale.ScaleX = 1.0;
+                CompactThumbnailScale.ScaleY = 1.0;
+            }
         };
 
         sourceAnim.Completed += (s, e) =>
         {
+            if (_thumbnailSwitchGeneration != generation) return;
             ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
             CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
             ThumbnailImage.Source = newThumb;
@@ -288,8 +310,6 @@ public partial class MainWindow
 
         ThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         ThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
         ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
         CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
@@ -298,8 +318,17 @@ public partial class MainWindow
         CompactThumbnailFlip.ScaleX = 1.0;
         ThumbnailScale.ScaleX = 1.0;
         ThumbnailScale.ScaleY = 1.0;
-        CompactThumbnailScale.ScaleX = 1.0;
-        CompactThumbnailScale.ScaleY = 1.0;
+
+        // Only cancel CompactThumbnailScale pulse animations if not hovered.
+        // When hovered, the hover animation owns CompactThumbnailScale and
+        // resetting it here would cause the thumbnail to shrink unexpectedly.
+        if (!_isCompactThumbnailHovered)
+        {
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            CompactThumbnailScale.ScaleX = 1.0;
+            CompactThumbnailScale.ScaleY = 1.0;
+        }
 
         var resolvedThumb = targetThumb ?? _currentMediaInfo?.Thumbnail ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
         if (resolvedThumb != null)
