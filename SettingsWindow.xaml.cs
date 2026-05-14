@@ -95,6 +95,8 @@ public event EventHandler? AnimatedClosing;
         MonitorCombo.SelectedIndex = Math.Min(_settings.MonitorIndex, monitors.Length - 1);
 
         AutoStartCheck.IsChecked = StartupManager.IsAutoStartEnabled();
+        HideOnExclusiveFullscreenCheck.IsChecked = _settings.HideOnExclusiveFullscreen;
+        HideOnWindowedFullscreenCheck.IsChecked = _settings.HideOnWindowedFullscreen;
         MusicNotifyCheck.IsChecked = _settings.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = _settings.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = _settings.IsShelfUploadLimitUnlocked;
@@ -112,7 +114,7 @@ public event EventHandler? AnimatedClosing;
     private static string GetAppVersion()
     {
         var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-        return v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "1.6.2";
+        return v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "1.6.3";
     }
 
     private void ApplyLocalization()
@@ -165,6 +167,10 @@ public event EventHandler? AnimatedClosing;
         // System checkboxes & hints
         AutoStartCheck.Content = Loc.Get("settings.autoStart");
         AutoStartHint.Text = Loc.Get("settings.autoStart.hint");
+        HideOnExclusiveFullscreenCheck.Content = Loc.Get("settings.hideExclusiveFs");
+        HideOnExclusiveFullscreenHint.Text = Loc.Get("settings.hideExclusiveFs.hint");
+        HideOnWindowedFullscreenCheck.Content = Loc.Get("settings.hideWindowedFs");
+        HideOnWindowedFullscreenHint.Text = Loc.Get("settings.hideWindowedFs.hint");
         MusicNotifyCheck.Content = Loc.Get("settings.musicNotify");
         MusicNotifyHint.Text = Loc.Get("settings.musicNotify.hint");
         SystemNotifyCheck.Content = Loc.Get("settings.systemNotify");
@@ -286,6 +292,8 @@ public event EventHandler? AnimatedClosing;
 
             // System
             (AutoStartHint, () => AutoStartHint.Text = Loc.Get("settings.autoStart.hint")),
+            (HideOnExclusiveFullscreenHint, () => HideOnExclusiveFullscreenHint.Text = Loc.Get("settings.hideExclusiveFs.hint")),
+            (HideOnWindowedFullscreenHint, () => HideOnWindowedFullscreenHint.Text = Loc.Get("settings.hideWindowedFs.hint")),
             (MusicNotifyHint, () => MusicNotifyHint.Text = Loc.Get("settings.musicNotify.hint")),
             (SystemNotifyHint, () => SystemNotifyHint.Text = Loc.Get("settings.systemNotify.hint")),
             (ShelfUnlockHint, () => ShelfUnlockHint.Text = Loc.Get("settings.shelfUnlock.hint")),
@@ -305,6 +313,10 @@ public event EventHandler? AnimatedClosing;
 
         // Checkboxes (Content property)
         AnimateContentChange(AutoStartCheck, () => AutoStartCheck.Content = Loc.Get("settings.autoStart"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(HideOnExclusiveFullscreenCheck, () => HideOnExclusiveFullscreenCheck.Content = Loc.Get("settings.hideExclusiveFs"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(HideOnWindowedFullscreenCheck, () => HideOnWindowedFullscreenCheck.Content = Loc.Get("settings.hideWindowedFs"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(MusicNotifyCheck, () => MusicNotifyCheck.Content = Loc.Get("settings.musicNotify"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
@@ -618,6 +630,8 @@ private void PushLivePreview()
         MusicNotifyCheck.IsChecked = defaults.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = defaults.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = defaults.IsShelfUploadLimitUnlocked;
+        HideOnExclusiveFullscreenCheck.IsChecked = defaults.HideOnExclusiveFullscreen;
+        HideOnWindowedFullscreenCheck.IsChecked = defaults.HideOnWindowedFullscreen;
         LanguageCombo.SelectedIndex = defaults.Language == "vi" ? 1 : 0;
     }
 
@@ -870,6 +884,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
         _settings.MonitorIndex = MonitorCombo.SelectedIndex;
         _settings.AutoStart = AutoStartCheck.IsChecked ?? false;
+        _settings.HideOnExclusiveFullscreen = HideOnExclusiveFullscreenCheck.IsChecked ?? true;
+        _settings.HideOnWindowedFullscreen = HideOnWindowedFullscreenCheck.IsChecked ?? true;
         _settings.ShowMusicNotifications = MusicNotifyCheck.IsChecked ?? true;
         _settings.ShowSystemNotifications = SystemNotifyCheck.IsChecked ?? true;
         _settings.IsShelfUploadLimitUnlocked = ShelfUnlockCheck.IsChecked ?? false;

@@ -24,7 +24,7 @@ public class UpdateService : IUpdateService
     public string CurrentVersion =>
         System.Reflection.Assembly.GetExecutingAssembly().GetName().Version is { } v
             ? $"{v.Major}.{v.Minor}.{v.Build}"
-            : "1.6.2";
+            : "1.6.3";
 
     static UpdateService()
     {

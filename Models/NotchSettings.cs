@@ -37,6 +37,9 @@ public class NotchSettings
     public bool EnableGlowOnHover { get; set; } = true;
     public string NotchStyle { get; set; } = "default"; 
 
+    public bool HideOnExclusiveFullscreen { get; set; } = true;
+    public bool HideOnWindowedFullscreen { get; set; } = true;
+
     public bool ShowMusicNotifications { get; set; } = true;
     public bool ShowSystemNotifications { get; set; } = true;
     public int NotificationDuration { get; set; } = 5000; 
@@ -74,6 +77,8 @@ public class NotchSettings
             EnableShadow = EnableShadow,
             EnableGlowOnHover = EnableGlowOnHover,
             NotchStyle = NotchStyle,
+            HideOnExclusiveFullscreen = HideOnExclusiveFullscreen,
+            HideOnWindowedFullscreen = HideOnWindowedFullscreen,
             ShowMusicNotifications = ShowMusicNotifications,
             ShowSystemNotifications = ShowSystemNotifications,
             NotificationDuration = NotificationDuration,

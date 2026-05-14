@@ -4,30 +4,38 @@ using System.Text;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Services;
+
+internal enum FullscreenType
+{
+    None,
+    ExclusiveFullscreen,
+    WindowedFullscreen
+}
+
 internal static class FullscreenDetector
 {
-public static bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchHwnd)
+public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
     {
         if (hwnd == IntPtr.Zero || hwnd == notchHwnd)
         {
-            return false;
+            return FullscreenType.None;
         }
 
         if (!IsWindowVisible(hwnd) || IsIconic(hwnd) || IsWindowCloaked(hwnd))
         {
-            return false;
+            return FullscreenType.None;
         }
 
         if (!TryGetWindowBounds(hwnd, out var windowRect))
         {
-            return false;
+            return FullscreenType.None;
         }
 
         int width = windowRect.Right - windowRect.Left;
         int height = windowRect.Bottom - windowRect.Top;
         if (width < 200 || height < 120)
         {
-            return false;
+            return FullscreenType.None;
         }
 
         var classNameBuilder = new StringBuilder(128);
@@ -38,14 +46,14 @@ public static bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchHwnd)
                 string.Equals(className, "WorkerW", StringComparison.Ordinal) ||
                 string.Equals(className, "Shell_TrayWnd", StringComparison.Ordinal))
             {
-                return false;
+                return FullscreenType.None;
             }
         }
 
         IntPtr monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         if (monitor == IntPtr.Zero)
         {
-            return false;
+            return FullscreenType.None;
         }
 
         var monitorInfo = new MONITORINFO
@@ -54,20 +62,29 @@ public static bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchHwnd)
         };
         if (!GetMonitorInfo(monitor, ref monitorInfo))
         {
-            return false;
+            return FullscreenType.None;
         }
 
         var monitorRect = monitorInfo.rcMonitor;
         const int fullscreenTolerancePx = 4;
         if (RectCoversArea(windowRect, monitorRect, fullscreenTolerancePx))
         {
-            return true;
+            // Window covers entire monitor - check if it's truly exclusive or windowed fullscreen
+            int style = GetWindowLong(hwnd, GWL_STYLE);
+            bool hasCaption = (style & WS_CAPTION) == WS_CAPTION;
+            bool hasResizeFrame = (style & WS_THICKFRAME) != 0;
+            // If window has caption/border but still covers full monitor, it's windowed fullscreen
+            if (hasCaption || hasResizeFrame)
+            {
+                return FullscreenType.WindowedFullscreen;
+            }
+            return FullscreenType.ExclusiveFullscreen;
         }
 
-        int style = GetWindowLong(hwnd, GWL_STYLE);
-        bool hasCaption = (style & WS_CAPTION) == WS_CAPTION;
-        bool hasResizeFrame = (style & WS_THICKFRAME) != 0;
-        bool isBorderless = !hasCaption && !hasResizeFrame;
+        int styleWf = GetWindowLong(hwnd, GWL_STYLE);
+        bool hasCaptionWf = (styleWf & WS_CAPTION) == WS_CAPTION;
+        bool hasResizeFrameWf = (styleWf & WS_THICKFRAME) != 0;
+        bool isBorderless = !hasCaptionWf && !hasResizeFrameWf;
 
         var placement = new WINDOWPLACEMENT
         {
@@ -77,9 +94,14 @@ public static bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchHwnd)
 
         const int workAreaTolerancePx = 6;
         bool matchesWorkArea = RectMatchesArea(windowRect, monitorInfo.rcWork, workAreaTolerancePx);
-        bool isWindowedFullscreen = matchesWorkArea && (isBorderless || (isMaximized && !hasCaption));
+        bool isWindowedFullscreen = matchesWorkArea && (isBorderless || (isMaximized && !hasCaptionWf));
 
-        return isWindowedFullscreen;
+        return isWindowedFullscreen ? FullscreenType.WindowedFullscreen : FullscreenType.None;
+    }
+
+    public static bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchHwnd)
+    {
+        return DetectFullscreenType(hwnd, notchHwnd) != FullscreenType.None;
     }
 public static string TryGetProcessName(IntPtr hwnd)
     {

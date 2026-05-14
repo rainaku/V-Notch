@@ -50,6 +50,7 @@ public partial class MainWindow : Window
     private IntPtr _hwnd;
     private HwndSource? _hwndSource;
     private DateTime _lastFullscreenCheckUtc = DateTime.MinValue;
+    private DispatcherTimer? _fullscreenRecheckTimer;
     private bool _isTrayMenuOpen = false;
 
     private readonly BatteryModule _batteryModule;
@@ -441,13 +442,69 @@ public partial class MainWindow : Window
 
     private bool IsEffectivelyNotchVisible => _isNotchVisible && !_isHiddenByFullscreen;
 
+    private bool _fullscreenSlideVisible = true; // tracks the current animated visibility state
+    private bool _isFullscreenSlideAnimating = false;
+
     private void ApplyNotchVisibilityState()
     {
-        if (NotchContainer != null)
+        if (NotchContainer == null) return;
+
+        bool shouldBeVisible = IsEffectivelyNotchVisible;
+
+        // Don't re-trigger if already in the target state
+        if (shouldBeVisible == _fullscreenSlideVisible && !_isFullscreenSlideAnimating) return;
+        if (shouldBeVisible == _fullscreenSlideVisible) return;
+
+        _fullscreenSlideVisible = shouldBeVisible;
+        _isFullscreenSlideAnimating = true;
+
+        double slideDistance = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight + 10 : _collapsedHeight + 10;
+
+        // Cancel any running animation
+        NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+
+        if (shouldBeVisible)
         {
-            NotchContainer.Visibility = IsEffectivelyNotchVisible ? Visibility.Visible : Visibility.Collapsed;
+            // Slide down into view
+            NotchContainer.Visibility = Visibility.Visible;
+            NotchContainerTranslate.Y = -slideDistance;
+            AnimateNotchSlide(toY: 0, durationMs: 350, easeOut: true, onComplete: () =>
+            {
+                _isFullscreenSlideAnimating = false;
+            });
+        }
+        else
+        {
+            // Slide up out of view
+            NotchContainerTranslate.Y = 0;
+            AnimateNotchSlide(toY: -slideDistance, durationMs: 250, easeOut: false, onComplete: () =>
+            {
+                _isFullscreenSlideAnimating = false;
+                NotchContainer.Visibility = Visibility.Collapsed;
+                NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                NotchContainerTranslate.Y = 0;
+            });
+        }
+    }
+
+    private void AnimateNotchSlide(double toY, int durationMs, bool easeOut, Action? onComplete)
+    {
+        var easing = easeOut
+            ? (IEasingFunction)new CubicEase { EasingMode = EasingMode.EaseOut }
+            : new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        var anim = new DoubleAnimation(toY, TimeSpan.FromMilliseconds(durationMs))
+        {
+            EasingFunction = easing
+        };
+        Timeline.SetDesiredFrameRate(anim, 144);
+
+        if (onComplete != null)
+        {
+            anim.Completed += (s, e) => onComplete();
         }
 
+        NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, anim);
     }
 
     private void UpdateFullscreenAutoHideState(IntPtr foregroundHwnd = default, bool force = false)
@@ -458,14 +515,14 @@ public partial class MainWindow : Window
         }
 
         var now = DateTime.UtcNow;
-        if (!force && (now - _lastFullscreenCheckUtc) < TimeSpan.FromMilliseconds(120))
+        if (!force && (now - _lastFullscreenCheckUtc) < TimeSpan.FromMilliseconds(50))
         {
             return;
         }
 
         _lastFullscreenCheckUtc = now;
         var targetHwnd = foregroundHwnd == IntPtr.Zero ? GetForegroundWindow() : foregroundHwnd;
-        bool shouldHide = IsForegroundWindowFullscreen(targetHwnd);
+        bool shouldHide = ShouldHideForFullscreen(targetHwnd);
         if (shouldHide == _isHiddenByFullscreen)
         {
             return;
@@ -492,8 +549,91 @@ public partial class MainWindow : Window
         }
     }
 
-    private bool IsForegroundWindowFullscreen(IntPtr hwnd) =>
-        FullscreenDetector.IsForegroundWindowFullscreen(hwnd, _hwnd);
+    private bool ShouldHideForFullscreen(IntPtr hwnd)
+    {
+        // If foreground is our notch window itself, check behind it
+        if (hwnd == _hwnd)
+        {
+            return CheckFullscreenBehind(_hwnd);
+        }
+
+        // If foreground window belongs to our own process, walk z-order to find the real app behind
+        if (hwnd != IntPtr.Zero)
+        {
+            GetWindowThreadProcessId(hwnd, out uint fgPid);
+            GetWindowThreadProcessId(_hwnd, out uint myPid);
+            if (fgPid == myPid)
+            {
+                return CheckFullscreenBehind(hwnd);
+            }
+        }
+
+        return IsForegroundWindowFullscreen(hwnd);
+    }
+
+    private bool CheckFullscreenBehind(IntPtr startHwnd)
+    {
+        var next = Win32Interop.GetWindow(startHwnd, GW_HWNDNEXT);
+        const int maxWalk = 20;
+        uint myPid;
+        GetWindowThreadProcessId(_hwnd, out myPid);
+
+        for (int i = 0; i < maxWalk && next != IntPtr.Zero; i++)
+        {
+            if (IsWindowVisible(next) && !IsIconic(next))
+            {
+                // Skip our own windows
+                GetWindowThreadProcessId(next, out uint nextPid);
+                if (nextPid != myPid)
+                {
+                    var type = FullscreenDetector.DetectFullscreenType(next, _hwnd);
+                    if (type != FullscreenType.None)
+                    {
+                        return type switch
+                        {
+                            FullscreenType.ExclusiveFullscreen => _settings.HideOnExclusiveFullscreen,
+                            FullscreenType.WindowedFullscreen => _settings.HideOnWindowedFullscreen,
+                            _ => false
+                        };
+                    }
+                }
+            }
+            next = Win32Interop.GetWindow(next, GW_HWNDNEXT);
+        }
+        return false;
+    }
+
+    private bool IsForegroundWindowFullscreen(IntPtr hwnd)
+    {
+        var type = FullscreenDetector.DetectFullscreenType(hwnd, _hwnd);
+        return type switch
+        {
+            FullscreenType.ExclusiveFullscreen => _settings.HideOnExclusiveFullscreen,
+            FullscreenType.WindowedFullscreen => _settings.HideOnWindowedFullscreen,
+            _ => false
+        };
+    }
+
+    private void ScheduleFullscreenRecheck()
+    {
+        _fullscreenRecheckTimer?.Stop();
+        _fullscreenRecheckTimer = new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TimeSpan.FromMilliseconds(400)
+        };
+        _fullscreenRecheckTimer.Tick += (s, e) =>
+        {
+            _fullscreenRecheckTimer.Stop();
+            // Only recheck if notch is currently visible — this catches cases where
+            // the first check missed a fullscreen app that hadn't settled yet.
+            // Don't recheck if already hidden (avoids flicker from unhide→rehide).
+            if (!_isHiddenByFullscreen)
+            {
+                UpdateFullscreenAutoHideState(force: true);
+            }
+        };
+        _fullscreenRecheckTimer.Start();
+    }
 
     private void EnsureTopmost()
     {
@@ -525,6 +665,14 @@ public partial class MainWindow : Window
         if (_hwnd == IntPtr.Zero) return;
 
         UpdateFullscreenAutoHideState(hwnd, force: true);
+
+        // Schedule a delayed re-check only if notch is still visible —
+        // catches games that take a moment to resize after Alt+Tab.
+        if (!_isHiddenByFullscreen)
+        {
+            ScheduleFullscreenRecheck();
+        }
+
         if (!IsEffectivelyNotchVisible) return;
 
         var processName = TryGetProcessName(hwnd);

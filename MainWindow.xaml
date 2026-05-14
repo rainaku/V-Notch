@@ -279,6 +279,9 @@
         </tb:TaskbarIcon>
 
         <Grid x:Name="NotchContainer" RenderOptions.ClearTypeHint="Enabled">
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="NotchContainerTranslate" Y="0"/>
+            </Grid.RenderTransform>
 
             <Grid x:Name="NotchShadowWrapper" 
                   HorizontalAlignment="Center" 

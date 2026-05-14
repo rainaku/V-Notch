@@ -1133,6 +1133,24 @@
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
+                                    <CheckBox x:Name="HideOnExclusiveFullscreenCheck" x:Uid="hideExclusiveFs" Content="Hide on exclusive fullscreen"/>
+                                    <TextBlock x:Name="HideOnExclusiveFullscreenHint" Text="Hide the notch when a true fullscreen app is detected."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingRowBorder}">
+                                <StackPanel>
+                                    <CheckBox x:Name="HideOnWindowedFullscreenCheck" x:Uid="hideWindowedFs" Content="Hide on windowed fullscreen"/>
+                                    <TextBlock x:Name="HideOnWindowedFullscreenHint" Text="Hide the notch when a borderless windowed fullscreen app is detected."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingRowBorder}">
+                                <StackPanel>
                                     <CheckBox x:Name="MusicNotifyCheck" x:Uid="musicNotify" Content="Show music notifications"/>
                                     <TextBlock x:Name="MusicNotifyHint" Text="Keep the media widget responsive to playback changes."
                                                Style="{StaticResource SettingHintText}"

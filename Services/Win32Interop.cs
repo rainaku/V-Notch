@@ -114,6 +114,7 @@ internal static class Win32Interop
     #region Constants
 
     public const uint GW_HWNDPREV = 3;
+    public const uint GW_HWNDNEXT = 2;
     public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
     public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
