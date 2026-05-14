@@ -294,6 +294,35 @@ public partial class MainWindow
         {
             _isVolumeIndicatorActive = true;
 
+            // Reset thumbnail hover state if active (collapse back to normal size)
+            if (_isCompactThumbnailHovered)
+            {
+                _isCompactThumbnailHovered = false;
+                _compactThumbnailHoverLeaveTimer.Stop();
+
+                // Reset notch size to collapsed (cancel hover expand)
+                NotchBorder.BeginAnimation(WidthProperty, null);
+                NotchBorder.BeginAnimation(HeightProperty, null);
+                NotchBorder.Width = _collapsedWidth;
+                NotchBorder.Height = _collapsedHeight;
+
+                // Reset thumbnail scale
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                CompactThumbnailScale.ScaleX = 1.0;
+                CompactThumbnailScale.ScaleY = 1.0;
+
+                // Hide hover info
+                CompactHoverInfo.BeginAnimation(OpacityProperty, null);
+                CompactHoverInfo.Opacity = 0;
+                CompactHoverInfo.Visibility = Visibility.Collapsed;
+
+                // Reset corner radius
+                var cr = new CornerRadius(0, 0, _cornerRadiusCollapsed, _cornerRadiusCollapsed);
+                NotchBorder.CornerRadius = cr;
+                InnerClipBorder.CornerRadius = cr;
+            }
+
             // Set initial fill width immediately (no animation from 0)
             double initContainerWidth = _collapsedWidth - 32;
             VolumeIndicatorFill.Width = Math.Max(0, initContainerWidth * volume);
