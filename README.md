@@ -137,7 +137,7 @@ Network connections are limited to:
 
 All user settings are stored locally at `%APPDATA%\V-Notch\`. Camera and media data are processed in real-time for display only and are never recorded or transmitted.
 
-For the full policy, see [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+Full policy: [English](PRIVACY_POLICY.md) | [Tiếng Việt](PRIVACY_POLICY_VI.md)
 
 ---
 
