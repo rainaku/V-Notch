@@ -927,6 +927,9 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
         }
 
+        // Configure smart thumbnail cropping (ONNX/YOLOv8n)
+        _mediaService.ArtworkService.ConfigureSmartCrop(_settings.EnableSmartCrop);
+
         // Re-assert position without re-applying window styles (avoids 1-frame glitch)
         if (_hwnd != IntPtr.Zero)
         {

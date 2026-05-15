@@ -41,6 +41,7 @@
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="1.1.0" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.17.1" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
@@ -48,6 +49,11 @@
   <ItemGroup>
     <Compile Remove="artifacts\**\*.cs" />
     <Compile Remove="Tests\**\*.cs" />
+  </ItemGroup>
+
+  <!-- YOLOv8n ONNX model for smart thumbnail cropping (optional, copy if present) -->
+  <ItemGroup>
+    <None Include="Models\yolov8n.onnx" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Models\yolov8n.onnx')" />
   </ItemGroup>
 
   <ItemGroup>

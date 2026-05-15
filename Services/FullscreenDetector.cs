@@ -71,15 +71,33 @@ public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
 
         var monitorRect = monitorInfo.rcMonitor;
         const int fullscreenTolerancePx = 4;
+
+        // Get window placement once (used by both branches)
+        var placement = new WINDOWPLACEMENT
+        {
+            length = Marshal.SizeOf<WINDOWPLACEMENT>()
+        };
+        bool isMaximized = GetWindowPlacement(hwnd, ref placement) && placement.showCmd == SW_SHOWMAXIMIZED;
+
         if (RectCoversArea(windowRect, monitorRect, fullscreenTolerancePx))
         {
             // Window covers entire monitor - check if it's truly exclusive or windowed fullscreen
             int style = GetWindowLong(hwnd, GWL_STYLE);
             bool hasCaption = (style & WS_CAPTION) == WS_CAPTION;
             bool hasResizeFrame = (style & WS_THICKFRAME) != 0;
-            // If window has caption/border but still covers full monitor, it's windowed fullscreen
+
+            // A normal maximized window with caption/border is NOT fullscreen.
+            // Only borderless windows covering the full monitor are fullscreen.
             if (hasCaption || hasResizeFrame)
             {
+                // Normal maximized windows should NOT trigger fullscreen hide.
+                // Only non-maximized windows covering the full monitor are windowed fullscreen
+                // (e.g., browsers in F11 mode that retain some styles).
+                if (isMaximized)
+                {
+                    return FullscreenType.None;
+                }
+
                 return FullscreenType.WindowedFullscreen;
             }
             return FullscreenType.ExclusiveFullscreen;
@@ -89,12 +107,6 @@ public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
         bool hasCaptionWf = (styleWf & WS_CAPTION) == WS_CAPTION;
         bool hasResizeFrameWf = (styleWf & WS_THICKFRAME) != 0;
         bool isBorderless = !hasCaptionWf && !hasResizeFrameWf;
-
-        var placement = new WINDOWPLACEMENT
-        {
-            length = Marshal.SizeOf<WINDOWPLACEMENT>()
-        };
-        bool isMaximized = GetWindowPlacement(hwnd, ref placement) && placement.showCmd == SW_SHOWMAXIMIZED;
 
         const int workAreaTolerancePx = 6;
         bool matchesWorkArea = RectMatchesArea(windowRect, monitorInfo.rcWork, workAreaTolerancePx);

@@ -88,6 +88,9 @@ public class MediaDetectionService : IMediaDetectionService
         _sourceCache.Load();
     }
 
+    /// <summary>Exposes the artwork service for smart crop configuration.</summary>
+    public IMediaArtworkService ArtworkService => _artworkService;
+
     private GlobalSystemMediaTransportControlsSession? GetActiveSession()
     {
         return _activeDisplaySession ?? _currentSession ?? _sessionManager?.GetCurrentSession();

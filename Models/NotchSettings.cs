@@ -44,6 +44,8 @@ public class NotchSettings
     public bool ShowSystemNotifications { get; set; } = true;
     public int NotificationDuration { get; set; } = 5000; 
 
+    public bool EnableSmartCrop { get; set; } = true;
+
     public bool IsShelfUploadLimitUnlocked { get; set; } = true;
 
     public string Language { get; set; } = "en"; // "en" or "vi"
@@ -82,6 +84,7 @@ public class NotchSettings
             ShowMusicNotifications = ShowMusicNotifications,
             ShowSystemNotifications = ShowSystemNotifications,
             NotificationDuration = NotificationDuration,
+            EnableSmartCrop = EnableSmartCrop,
             IsShelfUploadLimitUnlocked = IsShelfUploadLimitUnlocked,
             Language = Language
         };
