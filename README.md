@@ -121,10 +121,10 @@
 |-----------|-------------|
 | OS | Windows 10/11 (64-bit) |
 | Runtime | .NET 8 Desktop Runtime |
-| RAM | ~20-30 MB |
+| RAM | >4GB for stability |
 | CPU | Minimal usage |
 | Display | Any resolution (adaptive positioning) |
-
+| GPU | Any GPU should work but i do recommended a decent GPU for best performance |
 ---
 
 ## Privacy Policy
