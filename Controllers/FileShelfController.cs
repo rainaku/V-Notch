@@ -59,29 +59,13 @@ public sealed class FileShelfController : IDisposable
     public bool IsLimitUnlocked => _settings.IsShelfUploadLimitUnlocked;
 
     // ─── Events ───
-
-    /// <summary>Raised when a file is ready to be added to the UI (one at a time for sequential animation).</summary>
     public event Action<string>? FileReadyToAdd;
-
-    /// <summary>Raised after the sequential add queue is fully drained.</summary>
     public event Action? AddQueueDrained;
-
-    /// <summary>Raised when the shelf layout needs a full refresh.</summary>
     public event Action? LayoutRefreshRequested;
-
-    /// <summary>Raised when capacity indicator should update.</summary>
     public event Action? CapacityChanged;
-
-    /// <summary>Raised when a file is externally deleted or renamed.</summary>
     public event Action<string>? FileExternallyRemoved;
-
-    /// <summary>Raised when a file is externally renamed (old path removed, new path added).</summary>
     public event Action<string, string>? FileExternallyRenamed;
-
-    /// <summary>Raised when a directory watcher fails to initialize (path may be invalid or inaccessible).</summary>
     public event Action<string, Exception>? FileWatchFailed;
-
-    /// <summary>Request the next queued file to be processed (called by UI after animation delay).</summary>
     public event Action? ProcessNextRequested;
 
     public FileShelfController(NotchSettings settings, ISettingsService settingsService)
@@ -90,8 +74,6 @@ public sealed class FileShelfController : IDisposable
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _dispatcher = Dispatcher.CurrentDispatcher;
     }
-
-    /// <summary>Call inside _lock whenever _filesList is mutated.</summary>
     private void InvalidateSnapshot() => _snapshotVersion++;
 
     // ─── Drop Validation ───
@@ -107,10 +89,6 @@ public sealed class FileShelfController : IDisposable
     }
 
     public record DropValidation(DropResult Result, string[] NewFiles, string Message, int FileCount = 0);
-
-    /// <summary>
-    /// Validates a set of file paths for drop acceptance.
-    /// </summary>
     public DropValidation ValidateDrop(string[]? rawFiles)
     {
         if (rawFiles == null || rawFiles.Length == 0)
@@ -150,10 +128,6 @@ public sealed class FileShelfController : IDisposable
     }
 
     // ─── File Add (Sequential Queue) ───
-
-    /// <summary>
-    /// Enqueues files for sequential addition (with animation between each).
-    /// </summary>
     public void EnqueueFiles(string[] filePaths)
     {
         bool shouldProcess = false;
@@ -179,10 +153,6 @@ public sealed class FileShelfController : IDisposable
         if (shouldProcess)
             ProcessNext();
     }
-
-    /// <summary>
-    /// Processes the next file in the add queue. Called internally and by UI after animation delay.
-    /// </summary>
     public void ProcessNext()
     {
         string? filePath = null;
@@ -242,10 +212,6 @@ public sealed class FileShelfController : IDisposable
             ProcessNextRequested?.Invoke();
         }
     }
-
-    /// <summary>
-    /// Adds a single file immediately (no queue/animation).
-    /// </summary>
     public void AddFileDirect(string filePath)
     {
         // Quick duplicate/capacity check before I/O
@@ -279,8 +245,6 @@ public sealed class FileShelfController : IDisposable
     // ─── Selection ───
 
     public bool IsSelected(string path) { lock (_lock) return _selectedFiles.Contains(path); }
-
-    /// <summary>Selects a single file, clearing any previous selection.</summary>
     public void Select(string path)
     {
         lock (_lock)
@@ -325,10 +289,6 @@ public sealed class FileShelfController : IDisposable
                 _selectedFiles.Add(path);
         }
     }
-
-    /// <summary>
-    /// Performs rectangle/sweep selection logic.
-    /// </summary>
     public void ApplyRectangleSelection(HashSet<string> intersectedPaths, bool isCtrl, HashSet<string> initialState)
     {
         lock (_lock)
@@ -360,10 +320,6 @@ public sealed class FileShelfController : IDisposable
     }
 
     // ─── File Removal ───
-
-    /// <summary>
-    /// Removes the specified files from the shelf data. Call after animation completes.
-    /// </summary>
     public void RemoveFiles(IEnumerable<string> filePaths)
     {
         var toRemove = new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
@@ -378,10 +334,6 @@ public sealed class FileShelfController : IDisposable
             UnwatchDirectory(file);
         CapacityChanged?.Invoke();
     }
-
-    /// <summary>
-    /// Removes a single file from the shelf data.
-    /// </summary>
     public void RemoveFile(string filePath)
     {
         lock (_lock)
@@ -394,22 +346,10 @@ public sealed class FileShelfController : IDisposable
         UnwatchDirectory(filePath);
         CapacityChanged?.Invoke();
     }
-
-    /// <summary>
-    /// Gets the list of currently selected files for deletion.
-    /// </summary>
     public List<string> GetSelectedForDeletion() { lock (_lock) return _selectedFiles.ToList(); }
 
     // ─── Drag Out ───
-
-    /// <summary>
-    /// Gets the files to include in a drag-out operation.
-    /// </summary>
     public string[] GetDragFiles() { lock (_lock) return _selectedFiles.ToArray(); }
-
-    /// <summary>
-    /// Handles a successful drag-move out of the shelf.
-    /// </summary>
     public void HandleDragMoveOut(string[] draggedFiles)
     {
         var toRemove = new HashSet<string>(draggedFiles, StringComparer.OrdinalIgnoreCase);
@@ -427,10 +367,6 @@ public sealed class FileShelfController : IDisposable
     }
 
     // ─── Unlock ───
-
-    /// <summary>
-    /// Unlocks the shelf upload limit permanently.
-    /// </summary>
     public void UnlockLimit()
     {
         _settings.IsShelfUploadLimitUnlocked = true;

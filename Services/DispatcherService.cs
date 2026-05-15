@@ -2,9 +2,6 @@ using System.Windows.Threading;
 
 namespace VNotch.Services;
 
-
-
-
 public class DispatcherService : IDispatcherService
 {
     private readonly Dispatcher _dispatcher;

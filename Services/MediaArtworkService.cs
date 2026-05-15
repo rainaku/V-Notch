@@ -11,11 +11,6 @@ public interface IMediaArtworkService
     Task<BitmapImage?> DownloadImageAsync(string url, CancellationToken ct = default);
     BitmapImage? CropToSquare(BitmapImage source, string mediaSource);
     Task<BitmapImage?> ConvertToWpfBitmapAsync(IRandomAccessStreamWithContentType stream, CancellationToken ct = default);
-
-    /// <summary>
-    /// Configures smart crop (ONNX/YOLOv8n object detection).
-    /// Call after settings are loaded.
-    /// </summary>
     void ConfigureSmartCrop(bool enabled);
 }
 
@@ -30,16 +25,7 @@ public sealed class MediaArtworkService : IMediaArtworkService
         _smartCrop = new SmartThumbnailCropService();
         _smartCropAvailable = false;
     }
-
-    /// <summary>
-    /// Whether smart crop (ONNX/YOLOv8n) is available and enabled.
-    /// Set by the caller based on user settings.
-    /// </summary>
     public bool EnableSmartCrop { get; set; } = false;
-
-    /// <summary>
-    /// Checks if the ONNX model file exists. Safe to call multiple times.
-    /// </summary>
     public void InitializeSmartCrop()
     {
         if (!_smartCropAvailable)
@@ -47,11 +33,6 @@ public sealed class MediaArtworkService : IMediaArtworkService
             _smartCropAvailable = _smartCrop.TryInitialize();
         }
     }
-
-    /// <summary>
-    /// Configures smart crop based on user settings.
-    /// If enabled, checks model file availability (no RAM cost until actual crop).
-    /// </summary>
     public void ConfigureSmartCrop(bool enabled)
     {
         EnableSmartCrop = enabled;

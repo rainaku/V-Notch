@@ -6,11 +6,6 @@ using VNotch.Services;
 
 namespace VNotch.ViewModels;
 
-
-
-
-
-
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly IMediaDetectionService _mediaService;

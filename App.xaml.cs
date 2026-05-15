@@ -144,11 +144,6 @@ public partial class App : Application
         _mutex?.Dispose();
         base.OnExit(e);
     }
-
-    /// <summary>
-    /// Determines if an exception is recoverable (app can continue running).
-    /// Animation, rendering, and media errors are typically recoverable.
-    /// </summary>
     private static bool IsRecoverableException(Exception ex)
     {
         // Animation/rendering errors — WPF can recover

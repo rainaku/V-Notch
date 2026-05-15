@@ -2,7 +2,6 @@ using System;
 
 namespace VNotch.Contracts;
 
-
 public interface INotchModule : IDisposable
 {
     

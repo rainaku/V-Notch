@@ -5,12 +5,6 @@ using System.Text.RegularExpressions;
 using NAudio.CoreAudioApi;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Handles audio session volume control: finding the correct audio session
-/// for the active media source and controlling volume/mute.
-/// Extracted from MediaDetectionService to reduce its size.
-/// </summary>
 public sealed class MediaSessionVolumeService
 {
     private string _lastMatchedSessionId = "";
@@ -19,10 +13,6 @@ public sealed class MediaSessionVolumeService
     private string _cachedProcessSourceAppId = "";
     private DateTime _cachedProcessIdsAtUtc = DateTime.MinValue;
     private HashSet<uint> _cachedProcessIds = new();
-
-    /// <summary>
-    /// Attempts to get the volume and mute state of the audio session matching the given source app.
-    /// </summary>
     public bool TryGetVolume(string sourceAppId, out float volume, out bool isMuted)
     {
         float resolvedVolume = 0f;
@@ -40,10 +30,6 @@ public sealed class MediaSessionVolumeService
         isMuted = resolvedMuted;
         return success;
     }
-
-    /// <summary>
-    /// Attempts to set the volume of the audio session matching the given source app.
-    /// </summary>
     public bool TrySetVolume(string sourceAppId, float volume)
     {
         float target = Math.Clamp(volume, 0f, 1f);
@@ -59,10 +45,6 @@ public sealed class MediaSessionVolumeService
             return true;
         });
     }
-
-    /// <summary>
-    /// Attempts to toggle mute on the audio session matching the given source app.
-    /// </summary>
     public bool TryToggleMute(string sourceAppId)
     {
         return TryWithAudioSession(sourceAppId, session =>

@@ -3,11 +3,6 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-
-
-
-
-
 public static class BatteryService
 {
     [DllImport("kernel32.dll")]

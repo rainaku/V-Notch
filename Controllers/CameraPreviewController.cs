@@ -9,11 +9,6 @@ using Windows.Media.MediaProperties;
 using VNotch.Services;
 
 namespace VNotch.Controllers;
-
-/// <summary>
-/// Manages camera lifecycle: initialization, frame reading, and cleanup.
-/// Decoupled from UI — raises events with frame data for the view layer to render.
-/// </summary>
 public sealed class CameraPreviewController : IDisposable
 {
     private MediaCapture? _mediaCapture;
@@ -29,17 +24,9 @@ public sealed class CameraPreviewController : IDisposable
     public int FadeToken => _fadeToken;
 
     // ─── Events ───
-
-    /// <summary>Raised when a new frame is available for rendering.</summary>
     public event Action<byte[], int, int>? FrameAvailable;
-
-    /// <summary>Raised when camera initialization fails.</summary>
     public event Action<string>? CameraError;
-
-    /// <summary>Raised when camera starts successfully and morph-in should begin.</summary>
     public event Action? CameraReady;
-
-    /// <summary>Raised when camera is stopping (for UI to animate out).</summary>
     public event Action? CameraStopping;
 
     // ─── Lifecycle ───

@@ -25,10 +25,6 @@ public static class Loc
 
         return key;
     }
-
-    /// <summary>
-    /// Gets a formatted localized string.
-    /// </summary>
     public static string Get(string key, params object[] args)
     {
         var template = Get(key);

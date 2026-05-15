@@ -47,12 +47,6 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(new Action(PlayClipboardPeek));
     }
-
-    /// <summary>
-    /// Triggers the clipboard copied notification:
-    /// Swaps equalizer → checkmark with scale-in, shows "Copied" text with slide-in,
-    /// hides thumbnail temporarily. Gentle notch bounce for tactile feedback.
-    /// </summary>
     private void PlayClipboardPeek()
     {
         // ─── Gentle scale bounce (only when collapsed and not animating) ───
@@ -92,11 +86,6 @@ public partial class MainWindow
             ShowClipboardCopiedState();
         }
     }
-
-    /// <summary>
-    /// Animated transition: hides equalizer + thumbnail, shows checkmark (scale-in) + "Copied" (slide-in).
-    /// Reverts after 1.6 seconds.
-    /// </summary>
     private void ShowClipboardCopiedState()
     {
         _isClipboardPeekActive = true;
@@ -162,12 +151,6 @@ public partial class MainWindow
         };
         _clipboardRevertTimer.Start();
     }
-
-    /// <summary>
-    /// Reversed version of ShowClipboardCopiedState:
-    /// Checkmark scales 1→0.5 + fades out, text slides 0→-8 + fades out,
-    /// then thumbnail restores and MusicViz fades back in.
-    /// </summary>
     private void RevertClipboardCopiedState()
     {
         _isClipboardPeekActive = false;

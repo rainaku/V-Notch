@@ -53,7 +53,6 @@ public class ProgressEngine
     private bool _durationJustChanged = false;  
     private bool _isYouTube = false;  // Track if source is browser-based  
 
-
     private DateTime _lastSnapshotTimestampUtc = DateTime.MinValue;
     private long _lastSnapshotSequence = -1;  
     private TimeSpan _lastSnapshotPosition = TimeSpan.Zero;  // Track last snapshot position

@@ -2,11 +2,6 @@ using System;
 using VNotch.Services;
 
 namespace VNotch.Controllers;
-
-/// <summary>
-/// Manages music widget state: expand/collapse logic, layout mode, progress timing.
-/// Decoupled from UI — the MainWindow handles actual animations.
-/// </summary>
 public sealed class MusicWidgetController
 {
     private readonly NotchStateManager _stateManager;
@@ -14,29 +9,18 @@ public sealed class MusicWidgetController
     private bool _isMusicAnimating = false;
     private double _musicWidgetSmallWidth = 0;
 
-    // ─── Public State ───
-
     public bool IsMusicExpanded => _stateManager.IsMusicExpanded;
     public bool IsMusicAnimating => _isMusicAnimating;
     public double SmallWidth => _musicWidgetSmallWidth;
 
-    // ─── Events ───
-
-    /// <summary>Raised when music widget expand animation should begin.</summary>
     public event Action? ExpandRequested;
-
-    /// <summary>Raised when music widget collapse animation should begin.</summary>
     public event Action? CollapseRequested;
-
-    /// <summary>Raised when progress section layout needs recalculation.</summary>
     public event Action? LayoutUpdateRequested;
 
     public MusicWidgetController(NotchStateManager stateManager)
     {
         _stateManager = stateManager;
     }
-
-    // ─── Expand/Collapse Flow ───
 
     public bool TryBeginExpand(double currentWidgetWidth)
     {
@@ -83,9 +67,6 @@ public sealed class MusicWidgetController
         LayoutUpdateRequested?.Invoke();
     }
 
-    /// <summary>
-    /// Gets the target width for collapse animation.
-    /// </summary>
     public double GetCollapseTargetWidth(double expandedContentWidth)
     {
         return _musicWidgetSmallWidth > 0
@@ -103,9 +84,6 @@ public sealed class MusicWidgetController
         double TimeSideMargin,
         bool UseCompactLayout);
 
-    /// <summary>
-    /// Computes the progress section layout dimensions based on current state.
-    /// </summary>
     public ProgressLayout ComputeProgressLayout()
     {
         bool useCompact = !IsMusicExpanded;
@@ -118,9 +96,6 @@ public sealed class MusicWidgetController
             UseCompactLayout: useCompact);
     }
 
-    /// <summary>
-    /// Computes the visible text width for media info based on available space.
-    /// </summary>
     public static double ComputeVisibleTextWidth(
         double widgetWidth, double thumbnailWidth, double thumbnailGap,
         double infoSectionWidth, double fallbackWidth)

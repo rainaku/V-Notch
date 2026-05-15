@@ -101,7 +101,6 @@ public partial class MainWindow
 
         SecondaryContent.Visibility = Visibility.Collapsed;
 
-
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
 
@@ -134,8 +133,6 @@ public partial class MainWindow
         var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
         var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
         ExpandedContentBlur.Radius = 24;
-
-
 
         if (_isMusicCompactMode && CompactThumbnail.Source != null)
         {
@@ -226,8 +223,6 @@ public partial class MainWindow
                 AnimateThumbnailSwitchOnly(thumb);
             }
 
-
-
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
 
@@ -256,7 +251,6 @@ public partial class MainWindow
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             }
-
 
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
@@ -332,8 +326,6 @@ public partial class MainWindow
         expandedGroup.Children.Add(expandedTranslate);
         ExpandedContent.RenderTransform = expandedGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
-
-
 
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
         var slideOutAnim = MakeAnim(0, -10, _dur400, _easeExpOut6);
@@ -506,7 +498,6 @@ public partial class MainWindow
         if (SecondaryContent.Visibility == Visibility.Visible)
         {
             SecondaryContent.BeginAnimation(OpacityProperty, fadeOutAnim);
-
 
         }
 

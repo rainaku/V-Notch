@@ -2,24 +2,13 @@ using System;
 using VNotch.Services;
 
 namespace VNotch.Modules;
-
-/// <summary>
-/// Module that wraps BluetoothMonitorService and exposes device connection events.
-/// Uses DeviceWatcher (event-driven), so TickInterval is null (no polling needed).
-/// </summary>
 public class BluetoothModule : NotchModuleBase
 {
     public override string ModuleName => "Bluetooth";
-
-    /// <summary>No polling needed — DeviceWatcher is event-driven.</summary>
     public override TimeSpan? TickInterval => null;
 
     private readonly BluetoothMonitorService _bluetoothService;
-
-    /// <summary>Raised when a Bluetooth device connects.</summary>
     public event EventHandler<BluetoothDeviceInfo>? DeviceConnected;
-
-    /// <summary>Raised when a Bluetooth device disconnects.</summary>
     public event EventHandler<BluetoothDeviceInfo>? DeviceDisconnected;
 
     public BluetoothModule(BluetoothMonitorService bluetoothService)

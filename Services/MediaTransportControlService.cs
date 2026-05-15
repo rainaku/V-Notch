@@ -3,11 +3,6 @@ using System.Threading.Tasks;
 using Windows.Media.Control;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Handles media transport commands (play/pause, next, previous, seek).
-/// Extracted from MediaDetectionService to separate control from detection.
-/// </summary>
 public sealed class MediaTransportControlService
 {
     private readonly Func<GlobalSystemMediaTransportControlsSession?> _getActiveSession;

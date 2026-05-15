@@ -21,7 +21,6 @@ public partial class MainWindow
     // ─── Controller (owns all shelf data/logic) ───
     private FileShelfController _fileShelf = null!;
 
-    // ─── View-only state (UI interaction, not business logic) ───
     private bool _isSecondaryView
     {
         get => _notchState.IsSecondaryView;

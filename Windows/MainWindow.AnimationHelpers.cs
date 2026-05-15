@@ -109,7 +109,6 @@ public partial class MainWindow
 
     #endregion
 
-
     #region Animation Helpers
 
     private void FadeSwitch(FrameworkElement from, FrameworkElement to)

@@ -44,7 +44,6 @@ public class MediaDetectionService : IMediaDetectionService
     private string _pendingSessionAppId = "";
     private DateTime _pendingSessionStartTime = DateTime.MinValue;
 
-
     private CancellationTokenSource? _thumbCts;
     private string _lastStableTrackSignature = "";
     private DateTime _emptyMetadataStartTime = DateTime.MinValue;
@@ -87,16 +86,12 @@ public class MediaDetectionService : IMediaDetectionService
         _sourceCache = new MediaSourceCache();
         _sourceCache.Load();
     }
-
-    /// <summary>Exposes the artwork service for smart crop configuration.</summary>
     public IMediaArtworkService ArtworkService => _artworkService;
 
     private GlobalSystemMediaTransportControlsSession? GetActiveSession()
     {
         return _activeDisplaySession ?? _currentSession ?? _sessionManager?.GetCurrentSession();
     }
-
-
 
     private GlobalSystemMediaTransportControlsSession? _currentSession;
     private GlobalSystemMediaTransportControlsSession? _activeDisplaySession; 
@@ -2109,7 +2104,6 @@ public class MediaDetectionService : IMediaDetectionService
                         }
                     }
 
-
                     var rawTimelineUpdatedUtc = timeline.LastUpdatedTime.ToUniversalTime();
                     var timelineUpdatedUtc = forceStartPosition
                         ? DateTimeOffset.UtcNow
@@ -2415,5 +2409,4 @@ public enum DetectionMode
     EventDriven,
     ThrottledMedia
 }
-
 

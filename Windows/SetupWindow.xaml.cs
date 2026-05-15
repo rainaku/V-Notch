@@ -1410,8 +1410,6 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
 
         Content = grid;
     }
-
-    /// <summary>Refreshes all text to current language. Call before showing.</summary>
     public void RefreshLocalization()
     {
         _headline.Text = Loc.Get("setup.cancel.headline");

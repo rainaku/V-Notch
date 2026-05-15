@@ -42,7 +42,6 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _hoverThumbnailDelayTimer;
     private readonly DispatcherTimer _compactThumbnailHoverLeaveTimer;
 
-
     private bool _isDraggingVolume = false;
     private NotchSettings _settings;
     private bool _isNotchVisible = true;
@@ -67,15 +66,14 @@ public partial class MainWindow : Window
     private readonly CameraPreviewController _cameraController;
     private readonly TimerManager _timerManager;
 
-    // _isAnimating remains a simple flag — it guards ALL animations (expand, collapse, view switch, file delete)
-    // The state machine tracks logical state only.
+    // _isAnimating guards ALL animations (expand, collapse, view switch, file delete)
     private bool _isAnimating = false;
 
     // Logical state reads delegate to the state machine
     private bool _isExpanded
     {
         get => _notchState.IsExpanded;
-        set { /* no-op: state transitions handled explicitly */ }
+        set {  }
     }
 
     private bool _isStartupLayoutReady = false;
@@ -161,7 +159,6 @@ public partial class MainWindow : Window
         _musicController = new MusicWidgetController(_notchState);
         _cameraController = new CameraPreviewController();
         _timerManager = new TimerManager(Dispatcher);
-
         _moduleHost = moduleHost;
         _batteryModule = batteryModule;
         _batteryModule.BatteryUpdated += BatteryModule_BatteryUpdated;
@@ -201,7 +198,6 @@ public partial class MainWindow : Window
         };
         _progressTimer.Tick += ProgressTimer_Tick;
         InputMonitorService.MouseActionTriggered += GlobalMouseHook_MouseLeftButtonDown;
-
 
         _hoverCollapseTimer = new DispatcherTimer
         {
@@ -259,7 +255,6 @@ public partial class MainWindow : Window
         InitializeFileShelfController();
     }
 
-
     #region Window Lifecycle
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -296,23 +291,15 @@ public partial class MainWindow : Window
         UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
 
         _updateTimer.Start();
-
-        // Start update check timer and perform initial check
         _updateCheckTimer.Start();
         CheckForUpdatesAsync().SafeFireAndForget("UPDATE-CHECK");
-        
+
         if (IsEffectivelyNotchVisible)
         {
             PlayAppearAnimation();
         }
 
-        // Layout must be fully measured before media detection starts.
-        // MediaDetectionService fires MediaChanged almost immediately (staged
-        // refresh at 120 ms / 350 ms / 800 ms), and the media/progress/thumbnail
-        // rendering code all reads ActualWidth/ActualHeight of UI elements.
-        // Starting the service before ContextIdle means those values are still 0,
-        // causing wrong progress ratio, thumbnail zoom, and animation targets on
-        // first boot — all of which self-correct after a seek or interaction.
+        // Start media service after layout is fully measured to avoid zero ActualWidth/Height on first update.
         Dispatcher.BeginInvoke(new Action(() =>
         {
             UpdateLayout();
@@ -321,13 +308,10 @@ public partial class MainWindow : Window
             _isStartupLayoutReady = true;
             _pendingStartupClickToggle = false;
 
-            // Safe to start now: layout is measured, ActualWidth/Height are valid.
             _mediaService.Start();
             _moduleHost.StartAll();
 
             // Trim working set after startup to release pages back to OS.
-            // .NET pre-commits more memory than needed; this reclaims ~20-40MB
-            // that shows in Task Manager but isn't actively used.
             Task.Delay(3000).ContinueWith(_ =>
             {
                 GC.Collect(2, GCCollectionMode.Aggressive, true, true);
@@ -429,12 +413,6 @@ public partial class MainWindow : Window
         DisposeAllShelfWatchers();
         base.OnClosed(e);
     }
-
-    /// <summary>
-    /// Trims the process working set, releasing physical pages back to the OS.
-    /// This reduces the "Memory" column in Task Manager without affecting performance
-    /// since pages will be soft-faulted back in on demand.
-    /// </summary>
     private static void TrimWorkingSet()
     {
         try
@@ -444,7 +422,7 @@ public partial class MainWindow : Window
                 (IntPtr)(-1),
                 (IntPtr)(-1));
         }
-        catch { /* Non-critical — ignore on failure */ }
+        catch { }
     }
 
     #endregion
@@ -481,7 +459,7 @@ public partial class MainWindow : Window
 
     private bool IsEffectivelyNotchVisible => _isNotchVisible && !_isHiddenByFullscreen;
 
-    private bool _fullscreenSlideVisible = true; // tracks the current animated visibility state
+    private bool _fullscreenSlideVisible = true;
     private bool _isFullscreenSlideAnimating = false;
 
     private void ApplyNotchVisibilityState()
@@ -504,7 +482,6 @@ public partial class MainWindow : Window
 
         if (shouldBeVisible)
         {
-            // Slide down into view
             NotchContainer.Visibility = Visibility.Visible;
             NotchContainerTranslate.Y = -slideDistance;
             AnimateNotchSlide(toY: 0, durationMs: 350, easeOut: true, onComplete: () =>
@@ -514,7 +491,6 @@ public partial class MainWindow : Window
         }
         else
         {
-            // Slide up out of view
             NotchContainerTranslate.Y = 0;
             AnimateNotchSlide(toY: -slideDistance, durationMs: 250, easeOut: false, onComplete: () =>
             {
@@ -590,13 +566,11 @@ public partial class MainWindow : Window
 
     private bool ShouldHideForFullscreen(IntPtr hwnd)
     {
-        // If foreground is our notch window itself, check behind it
         if (hwnd == _hwnd)
         {
             return CheckFullscreenBehind(_hwnd);
         }
 
-        // If foreground window belongs to our own process, walk z-order to find the real app behind
         if (hwnd != IntPtr.Zero)
         {
             GetWindowThreadProcessId(hwnd, out uint fgPid);
@@ -621,7 +595,6 @@ public partial class MainWindow : Window
         {
             if (IsWindowVisible(next) && !IsIconic(next))
             {
-                // Skip our own windows
                 GetWindowThreadProcessId(next, out uint nextPid);
                 if (nextPid != myPid)
                 {
@@ -663,9 +636,6 @@ public partial class MainWindow : Window
         _fullscreenRecheckTimer.Tick += (s, e) =>
         {
             _fullscreenRecheckTimer.Stop();
-            // Always recheck — this catches both:
-            // 1) Games that take a moment to resize after Alt+Tab (notch visible → should hide)
-            // 2) False-positive hides from Alt+Tab switcher (notch hidden → should unhide)
             UpdateFullscreenAutoHideState(force: true);
         };
         _fullscreenRecheckTimer.Start();
@@ -701,11 +671,6 @@ public partial class MainWindow : Window
         if (_hwnd == IntPtr.Zero) return;
 
         UpdateFullscreenAutoHideState(hwnd, force: true);
-
-        // Schedule a delayed re-check regardless of current state —
-        // catches games that take a moment to resize after Alt+Tab,
-        // and also recovers from false-positive fullscreen detection
-        // (e.g., Alt+Tab switcher briefly triggering hide).
         ScheduleFullscreenRecheck();
 
         if (!IsEffectivelyNotchVisible) return;
@@ -761,22 +726,17 @@ public partial class MainWindow : Window
     }
 public (double Left, double Top, double Width, double Height, double CornerRadius) GetNotchScreenRect()
     {
-        // Notch is centered in the MainWindow, which is at _fixedX, _fixedY
-        // NotchBorder actual size
         double notchW = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
         double notchH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight;
 
-        // DPI conversion: _fixedX/_fixedY are in screen pixels
         var source = PresentationSource.FromVisual(this);
         double dpiX = source?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
         double dpiY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1.0;
 
-        // MainWindow position in WPF units
         double winLeft = _fixedX * dpiX;
         double winTop = _fixedY * dpiY;
         double winWidth = _windowWidth * dpiX;
 
-        // Notch is centered horizontally in the window
         double notchLeft = winLeft + (winWidth - notchW) / 2.0;
         double notchTop = winTop;
 
@@ -810,25 +770,19 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
         };
 
-        // Keep notch visible — settings morphs from its position but notch stays shown
-        // (thumbnail and equalizer remain visible)
-
         settingsWindow.AnimatedClosing += (s, e) =>
         {
-            // Notch stays visible throughout
         };
 
         settingsWindow.Closed += (s, e) =>
         {
-            // Subtle bounce when settings returns to notch
             NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
             // Reset scale to 1.0 before bouncing to prevent leftover expanded state
-            NotchScale.ScaleX = 1.0;
-            NotchScale.ScaleY = 1.0;
+            NotchScale.ScaleX = 1.0;            NotchScale.ScaleY = 1.0;
             NotchShadowScale.ScaleX = 1.0;
             NotchShadowScale.ScaleY = 1.0;
 
@@ -855,19 +809,15 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
         _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
 
-        // Update internal state
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;
         _cornerRadiusCollapsed = _settings.CornerRadius;
         _cachedThumbnailExpandTarget = null;
 
-        // Only update visual dimensions when collapsed — setting these while expanded
-        // causes a 1-frame glitch as the notch snaps to collapsed size then re-expands
+        // Only update visual dimensions when collapsed to avoid a 1-frame glitch
         if (!_isExpanded && !_isAnimating)
         {
-            // Clear any held animations on Width/Height so the new local value takes effect.
-            // (WPF animations have higher priority than local values; without clearing,
-            // the set below would be silently overridden by a completed/held animation.)
+            // Clear held animations so the new local value takes effect
             NotchBorder.BeginAnimation(WidthProperty, null);
             NotchBorder.BeginAnimation(HeightProperty, null);
             this.BeginAnimation(CurrentCornerRadiusProperty, null);
@@ -963,25 +913,11 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         // Configure smart thumbnail cropping (ONNX/YOLOv8n)
         _mediaService.ArtworkService.ConfigureSmartCrop(_settings.EnableSmartCrop);
 
-        // Re-assert position without re-applying window styles (avoids 1-frame glitch)
-        if (_hwnd != IntPtr.Zero)
-        {
-            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
-        }
-    }
-
     private void RefreshNotchLocalization()
     {
-        // Refresh shelf placeholder and capacity text
         UpdateShelfCapacityIndicator();
-
-        // Refresh greeting/event text
         EventText.Text = Loc.Get("greeting.enjoyDay");
-
-        // Refresh camera label
         CameraLabel.Text = Loc.Get("notch.camera");
-
-        // Refresh shelf unlock banner texts
         ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
         ShelfUnlockDismissText.Text = Loc.Get("shelf.unlockDismiss");
         ShelfUnlockSettingsHint.Text = Loc.Get("shelf.unlockSettingsHint");
@@ -1000,8 +936,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         }
 
         // Don't open notch while volume indicator is active (dragging)
-        if (_isVolumeIndicatorActive || _isDraggingVolumeIndicator)
-        {
+        if (_isVolumeIndicatorActive || _isDraggingVolumeIndicator)        {
             e.Handled = true;
             return;
         }
@@ -1252,8 +1187,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         EnsureTopmost();
 
         // Every ~2 minutes (4 ticks × 30s), trim working set when idle
-        if (++_trimTickCounter >= 4)
-        {
+        if (++_trimTickCounter >= 4)        {
             _trimTickCounter = 0;
             if (!_isExpanded && !_isMusicExpanded && !_isAnimating)
             {
@@ -1285,8 +1219,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         if (notchLength <= 0) return;
 
         // Use two-thirds of notch length.
-        double primaryLength = notchLength * (2.0 / 3.0);
-        double secondaryLength = primaryLength * 0.84;
+        double primaryLength = notchLength * (2.0 / 3.0);        double secondaryLength = primaryLength * 0.84;
 
         double notchBreadth = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : NotchBorder.Height;
         double primaryBreadth = Math.Clamp(notchBreadth * 1.24, 140.0, 220.0);
@@ -1381,8 +1314,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         StopZOrderWatchdog();
 
         // Unsubscribe events before shutdown
-        _mediaService.MediaChanged -= OnMediaChanged;
-        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
+        _mediaService.MediaChanged -= OnMediaChanged;        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
 

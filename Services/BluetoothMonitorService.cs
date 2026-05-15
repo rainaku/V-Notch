@@ -4,22 +4,13 @@ using System.Linq;
 using Windows.Devices.Enumeration;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Monitors Bluetooth device connections using WinRT DeviceWatcher (true events, no polling).
-/// Debounces rapid events and caches known device names.
-/// </summary>
 public sealed class BluetoothMonitorService : IDisposable
 {
     private DeviceWatcher? _watcher;
     private readonly ConcurrentDictionary<string, BluetoothDeviceInfo> _knownDevices = new();
     private readonly Debouncer _debouncer;
     private bool _disposed;
-
-    /// <summary>Raised when a Bluetooth device connects.</summary>
     public event EventHandler<BluetoothDeviceInfo>? DeviceConnected;
-
-    /// <summary>Raised when a Bluetooth device disconnects.</summary>
     public event EventHandler<BluetoothDeviceInfo>? DeviceDisconnected;
 
     public BluetoothMonitorService()
@@ -159,10 +150,6 @@ public sealed class BluetoothMonitorService : IDisposable
             DeviceType = deviceType
         };
     }
-
-    /// <summary>
-    /// Detects the device type based on the device name using common patterns.
-    /// </summary>
     public static BluetoothDeviceType DetectDeviceType(string name)
     {
         var lower = name.ToLowerInvariant();
@@ -234,20 +221,12 @@ public sealed class BluetoothMonitorService : IDisposable
         _knownDevices.Clear();
     }
 }
-
-/// <summary>
-/// Represents a connected Bluetooth device.
-/// </summary>
 public class BluetoothDeviceInfo
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public BluetoothDeviceType DeviceType { get; set; } = BluetoothDeviceType.Unknown;
 }
-
-/// <summary>
-/// Known Bluetooth device categories for icon selection.
-/// </summary>
 public enum BluetoothDeviceType
 {
     Unknown,

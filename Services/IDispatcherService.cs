@@ -1,9 +1,5 @@
 namespace VNotch.Services;
 
-
-
-
-
 public interface IDispatcherService
 {
     

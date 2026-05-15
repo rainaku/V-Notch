@@ -170,10 +170,6 @@ public partial class MainWindow
         activeTranslate.BeginAnimation(
             TranslateTransform.YProperty, slideDown, HandoffBehavior.SnapshotAndReplace);
     }
-
-    /// <summary>
-    /// Returns the appropriate icon geometry for the device type.
-    /// </summary>
     private static Geometry GetBluetoothIconGeometry(BluetoothDeviceType deviceType)
     {
         return deviceType switch

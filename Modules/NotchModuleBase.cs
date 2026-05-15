@@ -5,7 +5,6 @@ using VNotch.Services;
 
 namespace VNotch.Modules;
 
-
 public abstract class NotchModuleBase : INotchModule
 {
     private DispatcherTimer? _timer;

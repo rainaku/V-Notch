@@ -5,18 +5,10 @@ using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch.Controllers;
-
-/// <summary>
-/// Manages notch animation state and cached animation objects.
-/// Decouples animation orchestration logic from the MainWindow UI layer.
-/// The MainWindow still calls BeginAnimation on UI elements, but this controller
-/// owns the state machine transitions, caching, and timing decisions.
-/// </summary>
 public sealed class NotchAnimationController
 {
     private readonly NotchStateManager _stateManager;
 
-    // ─── Animation Guard ───
     private bool _isAnimating;
     public bool IsAnimating
     {
@@ -24,7 +16,6 @@ public sealed class NotchAnimationController
         set => _isAnimating = value;
     }
 
-    // ─── Thumbnail Animation Cache ───
     private (double X, double Y)? _cachedThumbnailExpandTarget;
     public (double X, double Y)? CachedThumbnailExpandTarget
     {
@@ -39,7 +30,6 @@ public sealed class NotchAnimationController
     private DoubleAnimation? _cachedThumbHeightCollapse;
     private RectAnimation? _cachedThumbRectCollapse;
 
-    // ─── Expand/Collapse Dimensions ───
     public double CollapsedWidth { get; set; }
     public double CollapsedHeight { get; set; }
     public double ExpandedWidth { get; set; } = 480;
@@ -47,7 +37,6 @@ public sealed class NotchAnimationController
     public double CornerRadiusCollapsed { get; set; }
     public double CornerRadiusExpanded { get; set; } = 24;
 
-    // ─── Events ───
     public event Action? ExpandStarted;
     public event Action? ExpandCompleted;
     public event Action? CollapseStarted;
@@ -58,13 +47,9 @@ public sealed class NotchAnimationController
         _stateManager = stateManager;
     }
 
-    // ─── State Queries ───
-
     public bool IsExpanded => _stateManager.IsExpanded;
     public bool CanExpand => !_isAnimating && !IsExpanded;
     public bool CanCollapse => !_isAnimating && IsExpanded;
-
-    // ─── Expand Flow ───
 
     public bool TryBeginExpand()
     {
@@ -82,8 +67,6 @@ public sealed class NotchAnimationController
         ExpandCompleted?.Invoke();
     }
 
-    // ─── Collapse Flow ───
-
     public bool TryBeginCollapse()
     {
         if (!CanCollapse) return false;
@@ -99,8 +82,6 @@ public sealed class NotchAnimationController
         _stateManager.TryTransitionTo(NotchState.Collapsed);
         CollapseCompleted?.Invoke();
     }
-
-    // ─── Thumbnail Animation Cache ───
 
     public (DoubleAnimation width, DoubleAnimation height, RectAnimation rect) GetOrCreateExpandThumbAnims(
         Duration duration, IEasingFunction easing, TimeSpan? delay, int fps = 144)

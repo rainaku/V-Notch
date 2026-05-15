@@ -102,7 +102,7 @@ public void Clear()
                 }
             }
         }
-        catch { /* ignore corrupt cache */ }
+        catch {  }
     }
 
     public void Save()
@@ -116,7 +116,7 @@ public void Clear()
                 File.WriteAllText(_cachePath, json);
                 _isDirty = false;
             }
-            catch { /* ignore write failures */ }
+            catch {  }
         }
     }
 

@@ -20,8 +20,6 @@ public class NotchStateManager
     {
         get { lock (_stateLock) return _previousState; }
     }
-
-    /// <summary>Time since last state transition (useful for detecting stuck states).</summary>
     public TimeSpan TimeSinceLastTransition => DateTime.UtcNow - _lastTransitionUtc;
 
     public bool IsExpanded => CurrentState == NotchState.Expanded || CurrentState == NotchState.SecondaryView || CurrentState == NotchState.CameraExpanded;
@@ -78,11 +76,6 @@ public void ForceState(NotchState target)
         RuntimeLog.Log("STATE", $"Forced: {_previousState} → {target}");
         StateChanged?.Invoke(this, new NotchStateChangedEventArgs(_previousState, target));
     }
-
-    /// <summary>
-    /// Recovers from a stuck transitioning state (e.g., animation completed callback never fired).
-    /// Call this if IsTransitioning is true for longer than expected.
-    /// </summary>
     public void RecoverFromStuckTransition()
     {
         var current = CurrentState;

@@ -2,10 +2,6 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-
-
-
-
 public interface IMediaDetectionService : IDisposable
 {
     

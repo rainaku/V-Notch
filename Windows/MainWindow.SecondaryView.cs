@@ -12,11 +12,8 @@ public partial class MainWindow
 {
     private void NotchWrapper_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        // ─── Collapsed: scroll to adjust volume ───
         if (!_isExpanded && !_isAnimating)
         {
-            // Don't handle scroll-volume when hover-to-expand is enabled
-            // (scroll would conflict with hover interaction)
             if (_settings.EnableHoverExpand) return;
 
             e.Handled = true;
@@ -24,7 +21,6 @@ public partial class MainWindow
             return;
         }
 
-        // ─── Expanded: scroll to switch views ───
         if (!_isExpanded || _isAnimating) return;
         if (e.Handled) return;
 
@@ -33,14 +29,14 @@ public partial class MainWindow
         // Cooldown prevents rapid double-fire (touchpad inertia, multiple queued events)
         if ((DateTime.UtcNow - _lastViewSwitchUtc) < ViewSwitchCooldown) return;
 
-        if (e.Delta < 0) 
+        if (e.Delta < 0)
         {
             if (!_isSecondaryView)
             {
                 SwitchToSecondaryView();
             }
         }
-        else if (e.Delta > 0) 
+        else if (e.Delta > 0)
         {
             if (_isSecondaryView)
             {
@@ -79,14 +75,12 @@ public partial class MainWindow
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
 
-        // Refresh shelf text to current language
         UpdateShelfCapacityIndicator();
 
         UpdateNavIconsActiveState();
         NavIconsPanel.Visibility = Visibility.Visible;
         NavIconsPanel.Opacity = 1;
 
-        // Delay background appearance with fade animation
         NavIconsBackground.BeginAnimation(OpacityProperty, null);
         NavIconsBackground.Opacity = 0;
         NavIconsBackground.Visibility = Visibility.Visible;
@@ -105,7 +99,6 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(50);
         const int fps = 144;
 
-        
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
         var primaryTranslate = new TranslateTransform(0, 0);
@@ -122,7 +115,6 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
-        
         var expandedBlur = ExpandedContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         ExpandedContent.Effect = expandedBlur;
         var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
@@ -141,7 +133,6 @@ public partial class MainWindow
         primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
         expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        
         SecondaryContent.Visibility = Visibility.Visible;
         SecondaryContent.Opacity = 0;
         EnableKeyboardInput();
@@ -162,8 +153,6 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(springSlide,  fps);
         Timeline.SetDesiredFrameRate(springScaleX, fps);
         Timeline.SetDesiredFrameRate(springScaleY, fps);
-
-
 
         fadeIn.Completed += (s, e) =>
         {
@@ -209,7 +198,6 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(50);
         const int fps = 144;
 
-        
         var secondaryGroup     = new TransformGroup();
         var secondaryScale     = new ScaleTransform(1, 1);
         var secondaryTranslate = new TranslateTransform(0, 0);
@@ -226,7 +214,6 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
-        
         var secondaryBlur = SecondaryContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         SecondaryContent.Effect = secondaryBlur;
         var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
@@ -246,7 +233,6 @@ public partial class MainWindow
         secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
         secondaryBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        
         ExpandedContent.Visibility = Visibility.Visible;
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
@@ -267,8 +253,6 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(springSlide,  fps);
         Timeline.SetDesiredFrameRate(springScaleX, fps);
         Timeline.SetDesiredFrameRate(springScaleY, fps);
-
-
 
         fadeIn.Completed += (s, e) =>
         {

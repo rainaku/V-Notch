@@ -20,10 +20,6 @@ public class ZOrderManager : IDisposable
     private DateTime _lastTopmostAssertUtc = DateTime.MinValue;
 
     private static readonly TimeSpan TopmostThrottle = TimeSpan.FromMilliseconds(80);
-/// <param name="getHwnd">Returns the window handle (must be called on UI thread).</param>
-    /// <param name="isEffectivelyVisible">Returns whether the notch should be visible.</param>
-    /// <param name="isSuspended">Returns whether topmost assertion is temporarily suspended (tooltip, tray menu).</param>
-    /// <param name="onForegroundChanged">Callback when foreground window changes (receives the new foreground hwnd).</param>
     public ZOrderManager(
         Func<IntPtr> getHwnd,
         Func<bool> isEffectivelyVisible,

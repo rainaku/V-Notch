@@ -5,7 +5,6 @@ using VNotch.Contracts;
 
 namespace VNotch.Services;
 
-
 public interface IModuleLifecycleManager : IDisposable
 {
     IReadOnlyCollection<INotchModule> Modules { get; }
@@ -17,7 +16,6 @@ public interface IModuleLifecycleManager : IDisposable
 
     T? Get<T>() where T : class, INotchModule;
 }
-
 
 public sealed class ModuleLifecycleManager : IModuleLifecycleManager
 {

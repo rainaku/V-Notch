@@ -1,8 +1,6 @@
 namespace VNotch.Services;
 public static class TaskExtensions
 {
-/// <param name="task">The task to execute.</param>
-    /// <param name="category">Log category for any exceptions (defaults to "FIRE-FORGET").</param>
     public static async void SafeFireAndForget(this Task task, string category = "FIRE-FORGET")
     {
         try

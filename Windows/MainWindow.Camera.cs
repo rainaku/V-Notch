@@ -349,8 +349,6 @@ public partial class MainWindow
             RuntimeLog.Error("CAMERA", ex, "Camera initialization failed");
         }
     }
-
-    /// <summary>Safe synchronous cleanup when camera start fails (avoids async void re-entry).</summary>
     private void StopCameraPreviewSafe()
     {
         _isCameraActive = false;

@@ -202,7 +202,6 @@ public partial class MainWindow
                 UpdatePlayPauseIcon();
             }
 
-
             UpdateProgressTracking(info);
             UpdateMusicCompactMode(info);
 

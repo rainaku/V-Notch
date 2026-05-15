@@ -5,8 +5,6 @@ public sealed class Debouncer : IDisposable
 {
     private readonly DispatcherTimer _timer;
     private Action? _pendingAction;
-/// <param name="delay">How long to wait after the last call before executing.</param>
-    /// <param name="priority">Dispatcher priority for the callback.</param>
     public Debouncer(TimeSpan delay, DispatcherPriority priority = DispatcherPriority.Normal)
     {
         _timer = new DispatcherTimer(priority)

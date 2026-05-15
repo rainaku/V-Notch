@@ -30,8 +30,6 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
     private static SolidColorBrush Freeze(SolidColorBrush b) { b.Freeze(); return b; }
 
     public string SelectedLanguage => _selectedLanguage;
-
-    /// <summary>Raised when the user selects a different language.</summary>
     public event Action<string>? LanguageChanged;
 
     public LanguagePage(string initialLanguage = "en")

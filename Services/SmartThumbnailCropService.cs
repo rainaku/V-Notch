@@ -11,17 +11,6 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace VNotch.Services;
-
-/// <summary>
-/// Offline smart thumbnail cropping using YOLOv8n ONNX model.
-/// Detects the main subject/object in a thumbnail and crops around it
-/// for better visual framing in the music widget.
-/// 
-/// Memory strategy: Load model on-demand → run inference → unload immediately.
-/// The model is only in RAM for the brief moment of cropping (~200-500ms),
-/// then freed. The cropped result (a small BitmapImage) is cached by the caller.
-/// This keeps steady-state RAM usage near zero for this feature.
-/// </summary>
 public sealed class SmartThumbnailCropService : IDisposable
 {
     private readonly object _lock = new();
@@ -40,10 +29,6 @@ public sealed class SmartThumbnailCropService : IDisposable
     {
         0,  // person
     };
-
-    /// <summary>
-    /// Checks if the ONNX model file exists on disk (cached check).
-    /// </summary>
     public bool TryInitialize()
     {
         if (_disposed) return false;
@@ -57,19 +42,8 @@ public sealed class SmartThumbnailCropService : IDisposable
 
         return _modelExists;
     }
-
-    /// <summary>Whether the model file is available on disk.</summary>
     public bool IsLoaded => _modelExists;
-
-    /// <summary>No-op for compatibility. Model is loaded/unloaded per-call now.</summary>
     public void Unload() { }
-
-    /// <summary>
-    /// Detects the main subject in the image and returns a smart crop rectangle.
-    /// Loads the ONNX model, runs inference, then immediately unloads to free RAM.
-    /// Returns null if no significant subject is detected (caller should fall back to center crop).
-    /// Thread-safe (serialized via lock).
-    /// </summary>
     public Int32Rect? GetSmartCropRect(BitmapImage source, int targetSquareSize)
     {
         if (_disposed) return null;

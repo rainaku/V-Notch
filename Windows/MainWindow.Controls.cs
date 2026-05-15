@@ -240,10 +240,6 @@ public partial class MainWindow
     private DispatcherTimer? _volumeIndicatorHideTimer;
     private bool _isVolumeIndicatorActive = false;
     private bool _volumeSynced = false;
-
-    /// <summary>
-    /// Adjusts system volume by scroll delta. Proportional to scroll amount for smooth control.
-    /// </summary>
     private void AdjustVolumeByScroll(int delta)
     {
         // Sync current volume from system only once per scroll session
@@ -278,12 +274,6 @@ public partial class MainWindow
             UpdateVolumeIcon(newVolume, false);
         }
     }
-
-    /// <summary>
-    /// Shows the volume indicator bar on the notch (only in compact music pill mode).
-    /// Hides compact content (thumbnail + equalizer) with animation, shows indicator.
-    /// Auto-hides after 1.2 seconds of inactivity.
-    /// </summary>
     private void ShowVolumeIndicator(float volume)
     {
         if (VolumeIndicatorContainer == null || VolumeIndicatorFill == null) return;
@@ -396,10 +386,6 @@ public partial class MainWindow
         _volumeIndicatorHideTimer.Stop();
         _volumeIndicatorHideTimer.Start();
     }
-
-    /// <summary>
-    /// Hides volume indicator and restores compact content with reversed animation.
-    /// </summary>
     private void HideVolumeIndicator()
     {
         if (VolumeIndicatorContainer == null) return;
