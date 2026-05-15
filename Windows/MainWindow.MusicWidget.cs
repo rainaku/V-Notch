@@ -256,9 +256,9 @@ public partial class MainWindow
         double fallbackWidth = useCompactLayout ? 208 : 340;
         double visibleTextWidth = GetVisibleMediaTextWidth(fallbackWidth);
 
-        double containerHeight = useCompactLayout ? 8 : 12;
-        double barHeight = useCompactLayout ? 3 : 4;
-        double barRadius = useCompactLayout ? 1.5 : 2.0;
+        double containerHeight = useCompactLayout ? 10 : 14;
+        double barHeight = 4;
+        double barRadius = 2.0;
         double timeTopMargin = useCompactLayout ? 4 : 2;
         double timeSideMargin = useCompactLayout ? 4 : 6;
         double progressRightInset = 0;
@@ -278,8 +278,14 @@ public partial class MainWindow
 
         var cornerRadius = new CornerRadius(barRadius);
         ProgressBarBg.CornerRadius = cornerRadius;
-        ProgressBar.CornerRadius = cornerRadius;
+        ProgressBar.CornerRadius = new CornerRadius(0);
         IndeterminateProgress.CornerRadius = cornerRadius;
+
+        if (ProgressBarClip != null)
+        {
+            ProgressBarClip.RadiusX = barRadius;
+            ProgressBarClip.RadiusY = barRadius;
+        }
 
         CurrentTimeText.Margin = new Thickness(0, timeTopMargin, timeSideMargin, 0);
         RemainingTimeText.Margin = new Thickness(timeSideMargin, timeTopMargin, 0, 0);
@@ -288,6 +294,14 @@ public partial class MainWindow
     private void MediaInfoSection_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateProgressSectionLayout();
+    }
+
+    private void ProgressBarBg_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (ProgressBarClip != null)
+        {
+            ProgressBarClip.Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
+        }
     }
 
     private void MediaWidgetContainer_SizeChanged(object sender, SizeChangedEventArgs e)

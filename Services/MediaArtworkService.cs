@@ -53,6 +53,7 @@ public sealed class MediaArtworkService : IMediaArtworkService
     /// <summary>
     /// Configures smart crop based on user settings.
     /// If enabled, lazily initializes the ONNX model on a background thread.
+    /// If disabled, immediately unloads the model to free RAM.
     /// </summary>
     public void ConfigureSmartCrop(bool enabled)
     {
@@ -61,6 +62,12 @@ public sealed class MediaArtworkService : IMediaArtworkService
         {
             // Initialize on background thread to avoid blocking UI
             Task.Run(() => InitializeSmartCrop());
+        }
+        else if (!enabled && _smartCropAvailable)
+        {
+            // Immediately unload model to free ~150-300MB RAM
+            _smartCrop.Unload();
+            _smartCropAvailable = false;
         }
     }
 
