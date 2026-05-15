@@ -17,26 +17,23 @@ namespace VNotch.Services;
 /// Detects the main subject/object in a thumbnail and crops around it
 /// for better visual framing in the music widget.
 /// 
-/// Optimized for speed:
-/// - Reduced input size (320x320) for thumbnail-sized images
-/// - Pooled buffers to avoid GC pressure
-/// - Direct pixel copy without intermediate encoding
-/// - Pre-allocated tensor with gray fill optimization
+/// Memory strategy: Load model on-demand → run inference → unload immediately.
+/// The model is only in RAM for the brief moment of cropping (~200-500ms),
+/// then freed. The cropped result (a small BitmapImage) is cached by the caller.
+/// This keeps steady-state RAM usage near zero for this feature.
 /// </summary>
 public sealed class SmartThumbnailCropService : IDisposable
 {
-    private InferenceSession? _session;
-    private bool _isModelLoaded;
     private readonly object _lock = new();
 
-    // Use 640 for model (YOLOv8n is trained at 640) but downscale input first
+    // Use 640 for model (YOLOv8n is trained at 640)
     private const int ModelInputSize = 640;
     private const float ConfidenceThreshold = 0.40f;
     private const float NmsThreshold = 0.45f;
 
-    // Pre-allocated reusable buffer for tensor data (avoids GC pressure)
-    private float[]? _tensorBuffer;
-    private readonly object _inferLock = new();
+    private bool _disposed;
+    private bool _modelExists;
+    private bool _modelExistsChecked;
 
     // COCO classes that are typically "main subjects" in thumbnails
     private static readonly HashSet<int> _priorityClasses = new()
@@ -45,65 +42,45 @@ public sealed class SmartThumbnailCropService : IDisposable
     };
 
     /// <summary>
-    /// Attempts to load the YOLOv8n ONNX model from the application directory.
-    /// Returns false if model file is not found (graceful degradation).
+    /// Checks if the ONNX model file exists on disk (cached check).
     /// </summary>
     public bool TryInitialize()
     {
-        if (_isModelLoaded) return true;
+        if (_disposed) return false;
+        if (_modelExistsChecked) return _modelExists;
 
-        lock (_lock)
-        {
-            if (_isModelLoaded) return true;
+        _modelExists = File.Exists(GetModelPath());
+        _modelExistsChecked = true;
 
-            try
-            {
-                string modelPath = GetModelPath();
-                if (!File.Exists(modelPath))
-                {
-                    System.Diagnostics.Debug.WriteLine($"[SmartCrop] Model not found at: {modelPath}");
-                    return false;
-                }
+        if (!_modelExists)
+            System.Diagnostics.Debug.WriteLine($"[SmartCrop] Model not found at: {GetModelPath()}");
 
-                var options = new SessionOptions();
-                options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-                options.ExecutionMode = ExecutionMode.ORT_SEQUENTIAL;
-                options.InterOpNumThreads = 1;
-                options.IntraOpNumThreads = 2;
-                // Enable memory pattern optimization
-                options.EnableMemoryPattern = true;
-
-                _session = new InferenceSession(modelPath, options);
-                _isModelLoaded = true;
-
-                // Pre-allocate tensor buffer (1 * 3 * 640 * 640 = 1,228,800 floats)
-                _tensorBuffer = new float[1 * 3 * ModelInputSize * ModelInputSize];
-
-                System.Diagnostics.Debug.WriteLine("[SmartCrop] YOLOv8n model loaded successfully.");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[SmartCrop] Failed to load model: {ex.Message}");
-                _isModelLoaded = false;
-                return false;
-            }
-        }
+        return _modelExists;
     }
+
+    /// <summary>Whether the model file is available on disk.</summary>
+    public bool IsLoaded => _modelExists;
+
+    /// <summary>No-op for compatibility. Model is loaded/unloaded per-call now.</summary>
+    public void Unload() { }
 
     /// <summary>
     /// Detects the main subject in the image and returns a smart crop rectangle.
+    /// Loads the ONNX model, runs inference, then immediately unloads to free RAM.
     /// Returns null if no significant subject is detected (caller should fall back to center crop).
-    /// Thread-safe (serialized inference).
+    /// Thread-safe (serialized via lock).
     /// </summary>
     public Int32Rect? GetSmartCropRect(BitmapImage source, int targetSquareSize)
     {
-        if (!_isModelLoaded || _session == null || _tensorBuffer == null)
-            return null;
+        if (_disposed) return null;
+        if (!_modelExists && !TryInitialize()) return null;
+        if (!_modelExists) return null;
 
-        // Serialize inference calls (ONNX session is thread-safe but we reuse the buffer)
-        lock (_inferLock)
+        lock (_lock)
         {
+            InferenceSession? session = null;
+            float[]? tensorBuffer = null;
+
             try
             {
                 int imgWidth = source.PixelWidth;
@@ -113,27 +90,39 @@ public sealed class SmartThumbnailCropService : IDisposable
                 if (Math.Abs(imgWidth - imgHeight) < 10 || imgWidth < 64 || imgHeight < 64)
                     return null;
 
-                // Preprocess: resize and fill tensor buffer directly
-                var (scaleX, scaleY, padX, padY) = PreprocessImageFast(source);
+                // ─── Load model ───
+                var options = new SessionOptions();
+                options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+                options.ExecutionMode = ExecutionMode.ORT_SEQUENTIAL;
+                options.InterOpNumThreads = 1;
+                options.IntraOpNumThreads = 2;
+                options.EnableMemoryPattern = true;
 
-                // Run inference with pre-allocated buffer
-                var tensor = new DenseTensor<float>(_tensorBuffer, new[] { 1, 3, ModelInputSize, ModelInputSize });
-                var inputName = _session.InputNames[0];
+                session = new InferenceSession(GetModelPath(), options);
+                tensorBuffer = new float[1 * 3 * ModelInputSize * ModelInputSize];
+
+                System.Diagnostics.Debug.WriteLine("[SmartCrop] Model loaded for inference.");
+
+                // ─── Preprocess ───
+                var (scaleX, scaleY, padX, padY) = PreprocessImageFast(source, tensorBuffer);
+
+                // ─── Run inference ───
+                var tensor = new DenseTensor<float>(tensorBuffer, new[] { 1, 3, ModelInputSize, ModelInputSize });
+                var inputName = session.InputNames[0];
                 var inputs = new List<NamedOnnxValue>(1)
                 {
                     NamedOnnxValue.CreateFromTensor(inputName, tensor)
                 };
 
-                using var results = _session.Run(inputs);
+                using var results = session.Run(inputs);
                 var output = results.First().AsTensor<float>();
 
-                // Parse detections
+                // ─── Parse detections ───
                 var detections = ParseYolov8Output(output, imgWidth, imgHeight, scaleX, padX, padY);
 
                 if (detections.Count == 0)
                     return null;
 
-                // Find the best detection
                 var bestDetection = SelectBestDetection(detections, imgWidth, imgHeight);
                 if (bestDetection == null)
                     return null;
@@ -145,10 +134,17 @@ public sealed class SmartThumbnailCropService : IDisposable
                 System.Diagnostics.Debug.WriteLine($"[SmartCrop] Inference failed: {ex.Message}");
                 return null;
             }
+            finally
+            {
+                // ─── Immediately unload ───
+                session?.Dispose();
+                tensorBuffer = null;
+                System.Diagnostics.Debug.WriteLine("[SmartCrop] Model unloaded after inference.");
+            }
         }
     }
 
-    private (float scale, float scaleY, float padX, float padY) PreprocessImageFast(BitmapImage source)
+    private (float scale, float scaleY, float padX, float padY) PreprocessImageFast(BitmapImage source, float[] tensorBuffer)
     {
         int imgWidth = source.PixelWidth;
         int imgHeight = source.PixelHeight;
@@ -189,13 +185,12 @@ public sealed class SmartThumbnailCropService : IDisposable
             }
 
             // Fill tensor buffer: gray padding + image data in one pass
-            var buf = _tensorBuffer!;
             int planeSize = ModelInputSize * ModelInputSize;
             const float grayVal = 114f / 255f;
             const float inv255 = 1f / 255f;
 
             // Fill entire buffer with gray first (fast span fill)
-            buf.AsSpan().Fill(grayVal);
+            tensorBuffer.AsSpan().Fill(grayVal);
 
             // Copy image pixels into the correct positions (R, G, B planes)
             for (int y = 0; y < scaledH && (y + padYi) < ModelInputSize; y++)
@@ -210,9 +205,9 @@ public sealed class SmartThumbnailCropService : IDisposable
                     int tensorIdx = tensorRowBase + (x + padXi);
 
                     // BGRA -> RGB planes
-                    buf[tensorIdx] = pixels[pixelIdx + 2] * inv255;                  // R plane
-                    buf[planeSize + tensorIdx] = pixels[pixelIdx + 1] * inv255;      // G plane
-                    buf[2 * planeSize + tensorIdx] = pixels[pixelIdx] * inv255;      // B plane
+                    tensorBuffer[tensorIdx] = pixels[pixelIdx + 2] * inv255;                  // R plane
+                    tensorBuffer[planeSize + tensorIdx] = pixels[pixelIdx + 1] * inv255;      // G plane
+                    tensorBuffer[2 * planeSize + tensorIdx] = pixels[pixelIdx] * inv255;      // B plane
                 }
             }
         }
@@ -393,10 +388,7 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     public void Dispose()
     {
-        _session?.Dispose();
-        _session = null;
-        _tensorBuffer = null;
-        _isModelLoaded = false;
+        _disposed = true;
     }
 
     private struct Detection

@@ -28,7 +28,6 @@ public sealed class MediaArtworkService : IMediaArtworkService
     public MediaArtworkService()
     {
         _smartCrop = new SmartThumbnailCropService();
-        // Lazy-init model on first use to avoid startup delay
         _smartCropAvailable = false;
     }
 
@@ -39,8 +38,7 @@ public sealed class MediaArtworkService : IMediaArtworkService
     public bool EnableSmartCrop { get; set; } = false;
 
     /// <summary>
-    /// Initializes the ONNX model for smart cropping. Call once at startup or on first use.
-    /// Safe to call multiple times.
+    /// Checks if the ONNX model file exists. Safe to call multiple times.
     /// </summary>
     public void InitializeSmartCrop()
     {
@@ -52,22 +50,15 @@ public sealed class MediaArtworkService : IMediaArtworkService
 
     /// <summary>
     /// Configures smart crop based on user settings.
-    /// If enabled, lazily initializes the ONNX model on a background thread.
-    /// If disabled, immediately unloads the model to free RAM.
+    /// If enabled, checks model file availability (no RAM cost until actual crop).
     /// </summary>
     public void ConfigureSmartCrop(bool enabled)
     {
         EnableSmartCrop = enabled;
         if (enabled && !_smartCropAvailable)
         {
-            // Initialize on background thread to avoid blocking UI
-            Task.Run(() => InitializeSmartCrop());
-        }
-        else if (!enabled && _smartCropAvailable)
-        {
-            // Immediately unload model to free ~150-300MB RAM
-            _smartCrop.Unload();
-            _smartCropAvailable = false;
+            // Just check if model file exists — no model loading here
+            InitializeSmartCrop();
         }
     }
 
