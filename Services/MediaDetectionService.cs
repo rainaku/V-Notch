@@ -37,6 +37,7 @@ public class MediaDetectionService : IMediaDetectionService
     public event EventHandler<MediaInfo>? MediaChanged;
 
     private string _lastTrackSignature = "";
+    private string _lastThumbTrackIdentity = "";
     private string _cachedSource = "";
     private BitmapImage? _cachedThumbnail;
     private string _cachedThumbnailSource = "";
@@ -1309,6 +1310,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 ClearSessionSourceOverride(sessionInstanceKey, sourceApp);
 
                                 _lastTrackSignature = "";
+                                _lastThumbTrackIdentity = "";
                                 // Only clear thumbnail cache if this is a different session
                                 // starting playback — not the current active session resuming.
                                 if (!ReferenceEquals(s, _activeDisplaySession))
@@ -1590,6 +1592,7 @@ public class MediaDetectionService : IMediaDetectionService
                 }
 
                 _lastTrackSignature = "";
+                _lastThumbTrackIdentity = "";
             }
 
             var sessionSourceApp = session.SourceAppUserModelId ?? "";
@@ -1734,7 +1737,14 @@ public class MediaDetectionService : IMediaDetectionService
             }
 
             var currentSignature = info.GetSignature();
-            bool trackChangedForThisPass = currentSignature != _lastTrackSignature;
+            // Use track+artist identity (without MediaSource) to decide if the
+            // *actual track* changed. MediaSource can flip-flop between e.g.
+            // "Browser" and "SoundCloud" on the same track, and we must NOT
+            // clear the cached thumbnail in that case — doing so causes the
+            // thumbnail to jump between the SMTC placeholder and the fetched
+            // high-quality artwork repeatedly.
+            string currentTrackOnlyIdentityForThumb = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
+            bool trackChangedForThisPass = !string.Equals(currentTrackOnlyIdentityForThumb, _lastThumbTrackIdentity, StringComparison.Ordinal);
 
             if (trackChangedForThisPass)
             {
@@ -1961,15 +1971,17 @@ public class MediaDetectionService : IMediaDetectionService
             bool isYouTubeLikeSource = info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info));
             bool hasVerifiedYouTubeThumb = string.Equals(_cachedThumbnailSource, "YouTube", StringComparison.OrdinalIgnoreCase);
             bool hasVerifiedSoundCloudThumbGlobal = string.Equals(_cachedThumbnailSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
-            if (!forceRefresh && currentSignature == _lastTrackSignature && _cachedThumbnail != null)
-            {
-                info.Thumbnail = _cachedThumbnail;
-            }
-            else if (!trackChangedForThisPass && _cachedThumbnail != null &&
-                     (hasVerifiedYouTubeThumb || hasVerifiedSoundCloudThumbGlobal))
+            if (!trackChangedForThisPass && _cachedThumbnail != null &&
+                (hasVerifiedYouTubeThumb || hasVerifiedSoundCloudThumbGlobal))
             {
                 // Same track, already have a verified high-quality thumbnail from
                 // YouTube/SoundCloud API — don't let the SMTC thumbnail overwrite it.
+                info.Thumbnail = _cachedThumbnail;
+            }
+            else if (!forceRefresh && !trackChangedForThisPass && _cachedThumbnail != null)
+            {
+                // Same track (by title+artist) — reuse cached thumbnail regardless
+                // of MediaSource flip-flop.
                 info.Thumbnail = _cachedThumbnail;
             }
             else
@@ -2206,6 +2218,7 @@ public class MediaDetectionService : IMediaDetectionService
             catch { info.IsPlaying = info.IsAnyMediaPlaying; }
 
             _lastTrackSignature = currentSignature;
+            _lastThumbTrackIdentity = currentTrackOnlyIdentityForThumb;
         }
         catch (Exception ex)
         {

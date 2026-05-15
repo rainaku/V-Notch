@@ -114,7 +114,7 @@ public event EventHandler? AnimatedClosing;
     private static string GetAppVersion()
     {
         var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-        return v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "1.6.3";
+        return v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "1.7.0";
     }
 
     private void ApplyLocalization()

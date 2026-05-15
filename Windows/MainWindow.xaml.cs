@@ -913,6 +913,12 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         // Configure smart thumbnail cropping (ONNX/YOLOv8n)
         _mediaService.ArtworkService.ConfigureSmartCrop(_settings.EnableSmartCrop);
 
+        if (_hwnd != IntPtr.Zero)
+        {
+            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        }
+    }
+
     private void RefreshNotchLocalization()
     {
         UpdateShelfCapacityIndicator();
