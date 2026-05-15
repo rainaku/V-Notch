@@ -350,7 +350,7 @@ public partial class MainWindow
         var easing = (IEasingFunction)_easeSineInOut;
 
         AnimateOpacity(BatterySection, isFocused ? 0.62 : 1.0, duration, easing);
-        AnimateOpacity(NavIconsPanel, isFocused ? 0.62 : 1.0, duration, easing);
+        AnimateOpacity(SettingsButton, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateOpacity(GreetingSection, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateBlurRadius(CalendarGreetingContextBlur, isFocused ? 4.0 : 0.0, duration, easing);
     }
@@ -391,7 +391,7 @@ public partial class MainWindow
         CalendarWidgetTranslate.Y = 0.0;
 
         ResetCalendarContextElement(BatterySection, null);
-        ResetCalendarContextElement(NavIconsPanel, null);
+        ResetCalendarContextElement(SettingsButton, null);
         ResetCalendarContextElement(GreetingSection, CalendarGreetingContextBlur);
     }
 
