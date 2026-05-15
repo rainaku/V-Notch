@@ -128,7 +128,7 @@ internal static class SetupOperations
                     Directory.CreateDirectory(destinationFolder);
                 }
 
-                File.Copy(sourceFile, destinationFile, overwrite: true);
+                CopyFileWithRetry(sourceFile, destinationFile);
                 reportProgress(new SetupProgressInfo(
                     $"Installing {relativePath}...",
                     i + 1,
@@ -226,6 +226,8 @@ internal static class SetupOperations
     private static void StopOtherRunningInstances()
     {
         var currentProcessId = Environment.ProcessId;
+        bool killedAny = false;
+
         foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(AppExeName)))
         {
             try
@@ -236,11 +238,39 @@ internal static class SetupOperations
                 }
 
                 process.Kill(entireProcessTree: true);
-                process.WaitForExit(5000);
+                process.WaitForExit(8000);
+                killedAny = true;
             }
             catch
             {
                 // Ignore processes we couldn't close; file copy will surface any real issue.
+            }
+        }
+
+        // Wait for file locks to be released after killing processes
+        if (killedAny)
+        {
+            System.Threading.Thread.Sleep(1500);
+        }
+    }
+
+    private static void CopyFileWithRetry(string sourceFile, string destinationFile, int maxRetries = 5)
+    {
+        for (int attempt = 0; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                File.Copy(sourceFile, destinationFile, overwrite: true);
+                return;
+            }
+            catch (IOException) when (attempt < maxRetries)
+            {
+                // File likely still locked by the killed process — wait and retry
+                System.Threading.Thread.Sleep(800 * (attempt + 1));
+            }
+            catch (UnauthorizedAccessException) when (attempt < maxRetries)
+            {
+                System.Threading.Thread.Sleep(800 * (attempt + 1));
             }
         }
     }
