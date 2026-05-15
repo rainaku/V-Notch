@@ -113,6 +113,16 @@ public partial class MainWindow
             MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutMusic);
         }
 
+        // Also hide volume indicator if active
+        if (_isVolumeIndicatorActive)
+        {
+            _volumeIndicatorHideTimer?.Stop();
+            _isVolumeIndicatorActive = false;
+            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
+            VolumeIndicatorContainer.Opacity = 0;
+            VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
+        }
+
         // Animate bluetooth notification in
         var fadeIn = MakeAnim(0d, 1d, _dur350, _easeExpOut7, TimeSpan.FromMilliseconds(100));
         activeGrid.BeginAnimation(OpacityProperty, fadeIn);

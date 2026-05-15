@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class FastBlurService
 {
     
-    public static async Task<BitmapSource?> GetBlurredImageAsync(BitmapSource source, int downscaleWidth = 140, int blurRadius = 5)
+    public static async Task<BitmapSource?> GetBlurredImageAsync(BitmapSource source, int downscaleWidth = 64, int blurRadius = 4)
     {
         if (source == null) return null;
 

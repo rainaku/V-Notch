@@ -382,14 +382,14 @@
                                 MouseMove="VolumeIndicator_MouseMove"
                                 MouseLeftButtonUp="VolumeIndicator_MouseUp">
                             <Border Background="#33FFFFFF"
-                                    CornerRadius="1.5"
-                                    Height="3"
+                                    CornerRadius="3"
+                                    Height="6"
                                     VerticalAlignment="Center">
                                 <Border x:Name="VolumeIndicatorFill"
                                         HorizontalAlignment="Left"
                                         Background="White"
-                                        CornerRadius="1.5"
-                                        Height="3"
+                                        CornerRadius="3"
+                                        Height="6"
                                         Width="0"/>
                             </Border>
                         </Border>
@@ -474,6 +474,112 @@
                             <BlurEffect x:Name="CollapsedContentBlur" Radius="0" RenderingBias="Performance"/>
                         </StackPanel.Effect>
                     </StackPanel>
+
+                    <!-- Bluetooth Connected Notification -->
+                    <Grid x:Name="BluetoothNotification"
+                          Opacity="0"
+                          Visibility="Collapsed"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Margin="10,0">
+                        <Grid.RenderTransform>
+                            <TranslateTransform x:Name="BluetoothNotificationTranslate" Y="0"/>
+                        </Grid.RenderTransform>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,0,6">
+                            <Viewbox Width="14" Height="14" Margin="0,1,6,0"
+                                     VerticalAlignment="Center"
+                                     RenderTransformOrigin="0.5,0.5">
+                                <Viewbox.RenderTransform>
+                                    <ScaleTransform x:Name="BluetoothIconScale" ScaleX="1" ScaleY="1"/>
+                                </Viewbox.RenderTransform>
+                                <Canvas Width="24" Height="24">
+                                    <Path x:Name="BluetoothIcon"
+                                          Data="M17.71,7.71L12,2h-1v7.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L11,14.41V22h1l5.71-5.71L13.41,12L17.71,7.71z M13,5.83l1.88,1.88L13,9.59V5.83z M14.88,16.29L13,18.17v-3.76L14.88,16.29z"
+                                          Fill="#0A84FF"/>
+                                </Canvas>
+                            </Viewbox>
+                            <Border x:Name="BluetoothStatusIndicator"
+                                    Width="5" Height="5"
+                                    CornerRadius="2.5"
+                                    Background="#30D158"
+                                    Margin="0,1,5,0"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock x:Name="BluetoothDeviceName"
+                                       Text=""
+                                       Foreground="White"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       FontFamily="{StaticResource MainSystemFont}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,2,0,0"
+                                       MaxWidth="140"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="BluetoothStatusText"
+                                       Text=""
+                                       Foreground="#80FFFFFF"
+                                       FontSize="11"
+                                       FontWeight="Normal"
+                                       FontFamily="{StaticResource MainSystemFont}"
+                                       VerticalAlignment="Center"
+                                       Margin="5,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Bluetooth Disconnected Notification -->
+                    <Grid x:Name="BluetoothDisconnectNotification"
+                          Opacity="0"
+                          Visibility="Collapsed"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Margin="10,0">
+                        <Grid.RenderTransform>
+                            <TranslateTransform x:Name="BluetoothDisconnectNotificationTranslate" Y="0"/>
+                        </Grid.RenderTransform>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,0,6">
+                            <Viewbox Width="14" Height="14" Margin="0,1,6,0"
+                                     VerticalAlignment="Center"
+                                     RenderTransformOrigin="0.5,0.5">
+                                <Viewbox.RenderTransform>
+                                    <ScaleTransform x:Name="BluetoothDisconnectIconScale" ScaleX="1" ScaleY="1"/>
+                                </Viewbox.RenderTransform>
+                                <Canvas Width="24" Height="24">
+                                    <Path x:Name="BluetoothDisconnectIcon"
+                                          Data="M17.71,7.71L12,2h-1v7.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L11,14.41V22h1l5.71-5.71L13.41,12L17.71,7.71z M13,5.83l1.88,1.88L13,9.59V5.83z M14.88,16.29L13,18.17v-3.76L14.88,16.29z"
+                                          Fill="#0A84FF"/>
+                                </Canvas>
+                            </Viewbox>
+                            <Border x:Name="BluetoothDisconnectStatusIndicator"
+                                    Width="5" Height="5"
+                                    CornerRadius="2.5"
+                                    Background="#FF453A"
+                                    Margin="0,4,5,0"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock x:Name="BluetoothDisconnectDeviceName"
+                                       Text=""
+                                       Foreground="White"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       FontFamily="{StaticResource MainSystemFont}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,2,0,0"
+                                       MaxWidth="140"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="BluetoothDisconnectStatusText"
+                                       Text=""
+                                       Foreground="#80FFFFFF"
+                                       FontSize="11"
+                                       FontWeight="Normal"
+                                       FontFamily="{StaticResource MainSystemFont}"
+                                       VerticalAlignment="Center"
+                                       Margin="5,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
 
                     <Grid x:Name="MusicCompactContent"
                           Opacity="0"
@@ -1151,7 +1257,7 @@
                                                   Grid.Row="0"
                                                   Grid.Column="0"
                                                   Grid.ColumnSpan="3"
-                                                  Height="12"
+                                                  Height="14"
                                                   Background="Transparent"
                                                   Cursor="Hand"
                                                   MouseEnter="ProgressBar_MouseEnter"
@@ -1164,24 +1270,28 @@
                                                     <ScaleTransform x:Name="ProgressBarMainScale" ScaleY="1"/>
                                                 </Grid.RenderTransform>
 
-                                                <Border x:Name="ProgressBarBg" Background="#333333" Height="4" CornerRadius="99" VerticalAlignment="Center"/>
-
-                                                <Border x:Name="ProgressBar" 
-                                                        Background="White" 
-                                                        Height="4" 
-                                                        CornerRadius="99"
-                                                        HorizontalAlignment="Stretch"
-                                                        VerticalAlignment="Center"
-                                                        RenderTransformOrigin="0,0.5">
-                                                    <Border.RenderTransform>
-                                                        <ScaleTransform x:Name="ProgressBarScale" ScaleX="0"/>
-                                                    </Border.RenderTransform>
+                                                <Border x:Name="ProgressBarBg" Background="#333333" Height="4" CornerRadius="2" VerticalAlignment="Center" SizeChanged="ProgressBarBg_SizeChanged">
+                                                    <Grid>
+                                                        <Grid.Clip>
+                                                            <RectangleGeometry x:Name="ProgressBarClip" RadiusX="2" RadiusY="2"/>
+                                                        </Grid.Clip>
+                                                        <Border x:Name="ProgressBar" 
+                                                                Background="White" 
+                                                                Height="4" 
+                                                                HorizontalAlignment="Stretch"
+                                                                VerticalAlignment="Center"
+                                                                RenderTransformOrigin="0,0.5">
+                                                            <Border.RenderTransform>
+                                                                <ScaleTransform x:Name="ProgressBarScale" ScaleX="0"/>
+                                                            </Border.RenderTransform>
+                                                        </Border>
+                                                    </Grid>
                                                 </Border>
 
                                                 <Border x:Name="IndeterminateProgress" 
                                                         Background="White" 
                                                         Height="4" 
-                                                        CornerRadius="99"
+                                                        CornerRadius="2"
                                                         HorizontalAlignment="Stretch"
                                                         VerticalAlignment="Center"
                                                         Opacity="0"

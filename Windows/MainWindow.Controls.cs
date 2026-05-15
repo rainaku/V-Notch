@@ -288,6 +288,7 @@ public partial class MainWindow
     {
         if (VolumeIndicatorContainer == null || VolumeIndicatorFill == null) return;
         if (!_isMusicCompactMode) return;
+        if (_isBluetoothNotificationVisible) return;
 
         // ─── First time showing: hide compact content ───
         if (!_isVolumeIndicatorActive)

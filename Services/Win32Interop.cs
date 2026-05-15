@@ -222,4 +222,15 @@ internal static class Win32Interop
         uint dwmsEventTime);
 
     #endregion
+
+    #region kernel32.dll (Memory)
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
+
+    #endregion
 }

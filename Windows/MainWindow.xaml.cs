@@ -55,6 +55,7 @@ public partial class MainWindow : Window
 
     private readonly BatteryModule _batteryModule;
     private readonly CalendarModule _calendarModule;
+    private readonly BluetoothModule _bluetoothModule;
     private readonly IModuleLifecycleManager _moduleHost;
 
     // ─── Notch State (centralized via NotchStateManager) ───
@@ -145,7 +146,8 @@ public partial class MainWindow : Window
         IUpdateService updateService,
         IModuleLifecycleManager moduleHost,
         BatteryModule batteryModule,
-        CalendarModule calendarModule)
+        CalendarModule calendarModule,
+        BluetoothModule bluetoothModule)
     {
         InitializeComponent();
         _settingsService = (SettingsService)settingsService;
@@ -166,6 +168,10 @@ public partial class MainWindow : Window
 
         _calendarModule = calendarModule;
         _calendarModule.CalendarUpdated += CalendarModule_CalendarUpdated;
+
+        _bluetoothModule = bluetoothModule;
+        _bluetoothModule.DeviceConnected += BluetoothModule_DeviceConnected;
+        _bluetoothModule.DeviceDisconnected += BluetoothModule_DeviceDisconnected;
 
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;
@@ -318,6 +324,16 @@ public partial class MainWindow : Window
             // Safe to start now: layout is measured, ActualWidth/Height are valid.
             _mediaService.Start();
             _moduleHost.StartAll();
+
+            // Trim working set after startup to release pages back to OS.
+            // .NET pre-commits more memory than needed; this reclaims ~20-40MB
+            // that shows in Task Manager but isn't actively used.
+            Task.Delay(3000).ContinueWith(_ =>
+            {
+                GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+                GC.WaitForPendingFinalizers();
+                TrimWorkingSet();
+            }, TaskScheduler.Default);
         }), DispatcherPriority.ContextIdle);
     }
 
@@ -412,6 +428,23 @@ public partial class MainWindow : Window
         _timerManager?.Dispose();
         DisposeAllShelfWatchers();
         base.OnClosed(e);
+    }
+
+    /// <summary>
+    /// Trims the process working set, releasing physical pages back to the OS.
+    /// This reduces the "Memory" column in Task Manager without affecting performance
+    /// since pages will be soft-faulted back in on demand.
+    /// </summary>
+    private static void TrimWorkingSet()
+    {
+        try
+        {
+            SetProcessWorkingSetSize(
+                GetCurrentProcess(),
+                (IntPtr)(-1),
+                (IntPtr)(-1));
+        }
+        catch { /* Non-critical — ignore on failure */ }
     }
 
     #endregion
@@ -1211,10 +1244,22 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     #region Timer Handlers
 
+    private int _trimTickCounter = 0;
+
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {
         if (_isMusicExpanded) SyncVolumeFromActiveSession();
         EnsureTopmost();
+
+        // Every ~2 minutes (4 ticks × 30s), trim working set when idle
+        if (++_trimTickCounter >= 4)
+        {
+            _trimTickCounter = 0;
+            if (!_isExpanded && !_isMusicExpanded && !_isAnimating)
+            {
+                Task.Run(TrimWorkingSet);
+            }
+        }
     }
 
     private void BatteryModule_BatteryUpdated(object? sender, BatteryInfo battery)
