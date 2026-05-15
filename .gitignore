@@ -47,3 +47,6 @@ V-Notch-Setup.nsi
 /.vs
 test-setup.ps1
 /release-debug
+*_wpftmp.csproj
+remove_comments.py
+remove_comments.ps1

@@ -630,13 +630,10 @@ public partial class MainWindow : Window
         _fullscreenRecheckTimer.Tick += (s, e) =>
         {
             _fullscreenRecheckTimer.Stop();
-            // Only recheck if notch is currently visible — this catches cases where
-            // the first check missed a fullscreen app that hadn't settled yet.
-            // Don't recheck if already hidden (avoids flicker from unhide→rehide).
-            if (!_isHiddenByFullscreen)
-            {
-                UpdateFullscreenAutoHideState(force: true);
-            }
+            // Always recheck — this catches both:
+            // 1) Games that take a moment to resize after Alt+Tab (notch visible → should hide)
+            // 2) False-positive hides from Alt+Tab switcher (notch hidden → should unhide)
+            UpdateFullscreenAutoHideState(force: true);
         };
         _fullscreenRecheckTimer.Start();
     }
@@ -672,12 +669,11 @@ public partial class MainWindow : Window
 
         UpdateFullscreenAutoHideState(hwnd, force: true);
 
-        // Schedule a delayed re-check only if notch is still visible —
-        // catches games that take a moment to resize after Alt+Tab.
-        if (!_isHiddenByFullscreen)
-        {
-            ScheduleFullscreenRecheck();
-        }
+        // Schedule a delayed re-check regardless of current state —
+        // catches games that take a moment to resize after Alt+Tab,
+        // and also recovers from false-positive fullscreen detection
+        // (e.g., Alt+Tab switcher briefly triggering hide).
+        ScheduleFullscreenRecheck();
 
         if (!IsEffectivelyNotchVisible) return;
 

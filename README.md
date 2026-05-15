@@ -127,6 +127,20 @@
 
 ---
 
+## Privacy Policy
+
+V-Notch does not collect, transmit, or store personal data on any external server. The application contains no analytics, telemetry, or user tracking.
+
+Network connections are limited to:
+- **GitHub API** — checking for application updates
+- **YouTube / SoundCloud** — retrieving album artwork for display
+
+All user settings are stored locally at `%APPDATA%\V-Notch\`. Camera and media data are processed in real-time for display only and are never recorded or transmitted.
+
+For the full policy, see [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+
+---
+
 ## License
 
 Apache License 2.0 — See [LICENSE](LICENSE) for details.

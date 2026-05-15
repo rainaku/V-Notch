@@ -44,7 +44,11 @@ public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
             string className = classNameBuilder.ToString();
             if (string.Equals(className, "Progman", StringComparison.Ordinal) ||
                 string.Equals(className, "WorkerW", StringComparison.Ordinal) ||
-                string.Equals(className, "Shell_TrayWnd", StringComparison.Ordinal))
+                string.Equals(className, "Shell_TrayWnd", StringComparison.Ordinal) ||
+                string.Equals(className, "MultitaskingViewFrame", StringComparison.Ordinal) ||
+                string.Equals(className, "ForegroundStaging", StringComparison.Ordinal) ||
+                string.Equals(className, "XamlExplorerHostIslandWindow", StringComparison.Ordinal) ||
+                className.StartsWith("Windows.UI.Core", StringComparison.Ordinal))
             {
                 return FullscreenType.None;
             }

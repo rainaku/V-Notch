@@ -68,8 +68,10 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 : 0.97;
             int squareSize = (int)(Math.Min(width, height) * zoom);
             
-            // YouTube thumbs are usually 16:9 with letterbox bars after square crop; cut deeper vertically.
-            int offsetX = (width - squareSize) / 2;
+            // YouTube thumbs are usually 16:9; crop from the left side to show the main content.
+            // Other sources crop from center.
+            bool isYouTube = string.Equals(mediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) && aspect > 1.25;
+            int offsetX = isYouTube ? 0 : (width - squareSize) / 2;
             int offsetY = (height - squareSize) / 2;
 
             var rect = new System.Windows.Int32Rect(offsetX, offsetY, squareSize, squareSize);
