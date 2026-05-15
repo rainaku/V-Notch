@@ -294,67 +294,81 @@ public partial class MainWindow
         {
             _isVolumeIndicatorActive = true;
 
-            // Reset thumbnail hover state if active (collapse back to normal size)
+            // Reset thumbnail hover state if active (animate back smoothly)
             if (_isCompactThumbnailHovered)
             {
                 _isCompactThumbnailHovered = false;
                 _compactThumbnailHoverLeaveTimer.Stop();
 
-                // Reset notch size to collapsed (cancel hover expand)
+                // Animate notch size from hover → collapsed+20 (volume expanded size)
                 NotchBorder.BeginAnimation(WidthProperty, null);
                 NotchBorder.BeginAnimation(HeightProperty, null);
-                NotchBorder.Width = _collapsedWidth;
-                NotchBorder.Height = _collapsedHeight;
+                var widthAnim = MakeAnim(_collapsedWidth + 20, _dur400, _easeExpOut6, 144);
+                var heightAnim = MakeAnim(_collapsedHeight, _dur400, _easeExpOut6, 144);
+                NotchBorder.BeginAnimation(WidthProperty, widthAnim);
+                NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
-                // Reset thumbnail scale
-                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-                CompactThumbnailScale.ScaleX = 1.0;
-                CompactThumbnailScale.ScaleY = 1.0;
+                // Animate thumbnail scale back to 1
+                var thumbScaleAnim = MakeAnim(1.0, _dur350, _easeExpOut6, 144);
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, thumbScaleAnim);
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, thumbScaleAnim);
 
-                // Hide hover info
+                // Fade out hover info
                 CompactHoverInfo.BeginAnimation(OpacityProperty, null);
-                CompactHoverInfo.Opacity = 0;
-                CompactHoverInfo.Visibility = Visibility.Collapsed;
+                var hoverFadeOut = MakeAnim(0.0, _dur200, _easeQuadOut);
+                hoverFadeOut.Completed += (s, e) => CompactHoverInfo.Visibility = Visibility.Collapsed;
+                CompactHoverInfo.BeginAnimation(OpacityProperty, hoverFadeOut);
 
-                // Reset corner radius
-                var cr = new CornerRadius(0, 0, _cornerRadiusCollapsed, _cornerRadiusCollapsed);
-                NotchBorder.CornerRadius = cr;
-                InnerClipBorder.CornerRadius = cr;
+                // Animate corner radius back
+                AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(400));
+            }
+            else
+            {
+                // Normal case: expand notch slightly for volume bar
+                NotchBorder.BeginAnimation(WidthProperty, null);
+                var expandAnim = MakeAnim(_collapsedWidth, _collapsedWidth + 20, _dur350, _easeExpOut6);
+                expandAnim.FillBehavior = FillBehavior.Stop;
+                Timeline.SetDesiredFrameRate(expandAnim, 144);
+                expandAnim.Completed += (s, e) =>
+                {
+                    if (_isVolumeIndicatorActive)
+                    {
+                        NotchBorder.BeginAnimation(WidthProperty, null);
+                        NotchBorder.Width = _collapsedWidth + 20;
+                    }
+                };
+                NotchBorder.BeginAnimation(WidthProperty, expandAnim);
             }
 
             // Set initial fill width immediately (no animation from 0)
             double initContainerWidth = _collapsedWidth - 32;
             VolumeIndicatorFill.Width = Math.Max(0, initContainerWidth * volume);
 
-            // Hide MusicViz + thumbnail instantly to avoid animation conflicts during scroll
+            // Fade out MusicViz + thumbnail smoothly
             MusicViz.BeginAnimation(OpacityProperty, null);
-            MusicViz.Opacity = 0;
-            MusicViz.Visibility = Visibility.Collapsed;
-
-            CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
-            CompactThumbnailBorder.Opacity = 0;
-            CompactThumbnailBorder.Visibility = Visibility.Collapsed;
-
-            // Show indicator container with fade in
-            VolumeIndicatorContainer.Visibility = Visibility.Visible;
-            VolumeIndicatorContainer.Opacity = 1;
-            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
-
-            // Notch expand slightly
-            NotchBorder.BeginAnimation(WidthProperty, null);
-            var expandAnim = MakeAnim(_collapsedWidth, _collapsedWidth + 20, _dur350, _easeExpOut6);
-            expandAnim.FillBehavior = FillBehavior.Stop;
-            Timeline.SetDesiredFrameRate(expandAnim, 144);
-            expandAnim.Completed += (s, e) =>
+            var vizOut = MakeAnim(1.0, 0.0, _dur200, _easeQuadOut);
+            vizOut.Completed += (s, e) =>
             {
                 if (_isVolumeIndicatorActive)
-                {
-                    NotchBorder.BeginAnimation(WidthProperty, null);
-                    NotchBorder.Width = _collapsedWidth + 20;
-                }
+                    MusicViz.Visibility = Visibility.Collapsed;
             };
-            NotchBorder.BeginAnimation(WidthProperty, expandAnim);
+            MusicViz.BeginAnimation(OpacityProperty, vizOut);
+
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+            var thumbOut = MakeAnim(1.0, 0.0, _dur200, _easeQuadOut);
+            thumbOut.Completed += (s, e) =>
+            {
+                if (_isVolumeIndicatorActive)
+                    CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+            };
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbOut);
+
+            // Show indicator container with fade in (slightly delayed)
+            VolumeIndicatorContainer.Visibility = Visibility.Visible;
+            VolumeIndicatorContainer.Opacity = 0;
+            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
+            var indicatorIn = MakeAnim(0.0, 1.0, _dur250, _easeQuadOut);
+            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, indicatorIn);
         }
 
         // ─── Update fill width directly — instant, no animation ───
