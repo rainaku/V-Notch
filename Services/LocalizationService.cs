@@ -185,6 +185,10 @@ public static class Loc
             ["greeting.enjoyDay"] = "Enjoy your day!",
             ["notch.camera"] = "Camera",
             ["clipboard.copied"] = "Copied",
+
+            // ─── Bluetooth ───
+            ["bluetooth.connected"] = "Connected",
+            ["bluetooth.disconnected"] = "Disconnected",
         };
     }
 
@@ -331,6 +335,10 @@ public static class Loc
             ["greeting.enjoyDay"] = "Chúc bạn một ngày tốt lành!",
             ["notch.camera"] = "Máy ảnh",
             ["clipboard.copied"] = "Đã sao chép",
+
+            // ─── Bluetooth ───
+            ["bluetooth.connected"] = "Đã kết nối",
+            ["bluetooth.disconnected"] = "Đã ngắt kết nối",
         };
     }
 }
