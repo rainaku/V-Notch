@@ -1,18 +1,18 @@
 <p align="center">
-  <img src="Services/icons/logo.png" width="128" height="128" alt="V-Notch Logo">
+  <img src="Assets/logo.png" width="128" height="128" alt="V-Notch Logo">
 </p>
 
 <h1 align="center">V-Notch</h1>
 
 <p align="center">
-  <b>Dynamic Island for Windows - Smart Notch Experience</b>
+  <b>Dynamic Island cho Windows — Trải nghiệm Notch thông minh</b>
 </p>
 
 <p align="center">
   <a href="https://github.com/rainaku/V-Notch/releases">
     <img src="https://img.shields.io/github/v/release/rainaku/V-Notch?style=for-the-badge&color=8B5CF6&logo=github" alt="Latest Release">
   </a>
-  <img src="https://img.shields.io/badge/platform-Windows-lightgrey?style=for-the-badge&logo=windows" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-Windows_10%2F11-lightgrey?style=for-the-badge&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/.NET-8.0-purple?style=for-the-badge&logo=dotnet" alt="Framework">
   <a href="LICENSE">
     <img src="https://img.shields.io/github/license/rainaku/V-Notch?style=for-the-badge" alt="License">
@@ -20,171 +20,207 @@
 </p>
 
 <p align="center">
-  V-Notch brings the iconic Dynamic Island experience from Apple devices to your Windows PC. 
-  A smart, interactive notch that displays media controls, system info, and notifications with beautiful animations.
+  V-Notch mang trải nghiệm Dynamic Island từ thiết bị Apple lên Windows PC của bạn.<br>
+  Một notch thông minh, tương tác — hiển thị media controls, thông tin hệ thống và thông báo với animation mượt mà.
 </p>
 
 <p align="center">
-  This project is entirely <b>non-profit</b> and <b>free</b>. <br>
-  If you'd like to support my work, you can donate at my PayPal page: <a href="https://www.paypal.me/PhuocLe678"><b>Donate</b></a>
+  Dự án hoàn toàn <b>phi lợi nhuận</b> và <b>miễn phí</b>.<br>
+  Nếu bạn muốn ủng hộ, có thể donate tại: <a href="https://www.paypal.me/PhuocLe678"><b>PayPal</b></a>
 </p>
 
 ---
 
-## Features
+## ✨ Tính năng chính
 
-- **Smart Media Controls** - Control Spotify, Apple Music, YouTube, SoundCloud, TikTok, and more directly from the notch
-- **File Shelf** - Dynamic clipboard for files. Drag & drop files to store, multi-select with lasso, and drag them out to any application
-- **Dynamic Island Animations** - Ultra-smooth, Apple-style expand/collapse transitions with 60 FPS hardware acceleration
-- **Intelligent Media Detection** - Hybrid detection using Windows SMTC and process monitoring for 99% accuracy
-- **Color-Adaptive UI** - Dynamic background and glow effects that intelligently adapt to album art using HSL color analysis
-- **Live Media Thumbnails** - Automatic thumbnail fetching for YouTube and smart cropping (removes Spotify branding bars)
-- **Advanced Progress Tracking** - Real-time media progress with high-precision seeking and elapsed/remaining time display
-- **System Info Dashboard** - Integrated battery status (with charging animations), calendar, and time widgets
-- **Multi-Monitor Support** - Smart positioning and monitor selection with safe area management
-- **Hot Corners** - Quick access to notch features via configurable screen corners
-- **Cursor Bypass** - Intelligent click-through technology that doesn't interfere with your workflow
-- **Fullscreen Aware** - Automatically adjusts behavior or hides when playing games or watching movies
-- **Performance Optimized** - Low resource footprint (~20-30MB RAM) with lazy-loaded components
+### 🎵 Media Controls
+- Điều khiển Spotify, Apple Music, YouTube, SoundCloud, TikTok và nhiều hơn nữa trực tiếp từ notch
+- Phát hiện media thông minh kết hợp Windows SMTC và process monitoring
+- Thanh progress real-time với seeking chính xác cao và hiển thị thời gian elapsed/remaining
+- Thumbnail tự động cho YouTube, smart-crop album art (loại bỏ branding bars của Spotify)
+- UI tự thích ứng màu sắc dựa trên album art bằng phân tích HSL
 
-## Download & Installation
+### 📁 File Shelf
+- Clipboard động cho files — kéo thả file vào để lưu trữ tạm
+- Lasso selection để chọn nhiều file cùng lúc
+- Kéo file ra bất kỳ ứng dụng nào (Explorer, Discord, Email, v.v.)
+- Giao diện compact với grid layout tối ưu
 
-### Requirements
-- Windows 10/11 (64-bit)
-- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+### 🖥️ System Widgets
+- Battery status với charging animation
+- Calendar và đồng hồ tích hợp
+- Camera indicator
 
-### Installation
-1. Download the latest `V-Notch-Setup.exe` from [Releases](https://github.com/rainaku/V-Notch/releases)
-2. Run the installer and follow the instructions
-3. Launch **V-Notch** from the Start Menu
-4. (Optional) Enable "Start with Windows" in settings for a seamless experience
+### 🎬 Animation & UI
+- Apple-style expand/collapse transitions mượt mà 60 FPS
+- Glassmorphism blur effects với hardware acceleration
+- Glow engine — trích xuất màu HSL real-time cho UI accents
+- Spring animation cho chuyển đổi ngôn ngữ và UI elements
 
-## Usage
-
-### Basic Controls
-| Action | Result |
-|--------|--------|
-| **Hover** | Expand notch to show media controls |
-| **Scroll Down** | Switch to **File Shelf** while expanded |
-| **Scroll Up** | Switch back to **Media Controls** |
-| **Click Notch** | Toggle between compact and expanded view |
-| **Media Controls** | Play/Pause, Next/Previous track, Seek |
-| **Volume Bar** | Drag to adjust system volume |
-
-### File Shelf Controls
-| Action | Result |
-|--------|--------|
-| **Drag & Drop** | Add files to the shelf from Explorer |
-| **Lasso Select** | Click and drag on empty space to multi-select |
-| **Ctrl + Click** | Toggle individual file selection |
-| **Drag Out** | Move selected files to any folder or app (Email, Discord, etc.) |
-| **Delete Key** | Remove selected files from the shelf |
-
-### Supported Platforms
-| Platform | Capability |
-|----------|------------|
-| **Spotify** | Full control, smart-cropped album art, lyrics focus |
-| **Apple Music** | Native Windows app support with high-res art |
-| **YouTube** | Thumbnail fetching, title parsing, 15s seek support |
-| **Tiktok/Reels** | Video title detection and basic playback control |
-| **SoundCloud** | Native browser session detection |
-| **Generic** | Works with any app implementing Windows Media Session |
-
-## Settings
-
-### Appearance
-| Setting | Description | Range |
-|---------|-------------|-------|
-| **Width** | Notch width | 100px -> 400px |
-| **Height** | Notch height | 20px -> 60px |
-| **Corner Radius** | Roundness of corners | 0px -> 30px |
-| **Opacity** | Transparency level | 50% -> 100% |
-
-### Behavior
-| Setting | Description |
-|---------|-------------|
-| **Enable Hover Expand** | Auto-expand when mouse hovers |
-| **Show Camera Indicator** | Display camera dot indicator |
-| **Start with Windows** | Launch on system startup |
-| **Monitor Selection** | Choose which screen to show notch |
-
-## Architecture
-
-### Core Services
-- **NotchManager** - Central controller for state transitions and window lifecycle
-- **MediaDetectionService** - Multi-threaded engine for SMTC and Win32 process monitoring
-- **AnimationService** - Custom Easing functions for premium "fluid" motion
-- **FileShelfLogic** - High-performance file management with drag-and-drop integration
-- **CursorBypassService** - Low-level hooks to manage mouse interaction zones
-
-### Technical Highlights
-- **WPF (.NET 8)** - Leveraging hardware acceleration for blur/glow effects
-- **SMTC Integration** - Deep integration with Windows System Media Transport Controls
-- **Smart Cropping** - Algorithm to remove branding strips and center-crop non-square art
-- **Glow Engine** - Real-time HSL-based color extraction for vibrant UI accents
-- **Lazy Loading** - Secondary views (Shelf) are initialized only when needed to save RAM
-
-## System Requirements
-
-| Component | Requirement |
-|-----------|-------------|
-| OS | Windows 10/11 (64-bit) |
-| Runtime | .NET 8 Desktop Runtime |
-| RAM | ~20-30 MB |
-| CPU | Minimal usage |
-| Display | Any resolution (adaptive positioning) |
-
-## Browser Extension
-
-V-Notch includes a companion browser extension for enhanced media detection:
-
-### Supported Browsers
-- Google Chrome
-- Microsoft Edge
-- Mozilla Firefox
-- Opera, Brave, Vivaldi, Cốc Cốc
-
-### Installation
-1. Open `BrowserExtension` folder
-2. Load as unpacked extension in your browser
-3. Grant media access permissions
-
-## Changelog
-
-### v1.2.0 (Latest)
-- **Refined Media Detection**: Improved detection logic to eliminate title flickering during track transitions.
-- **Seamless SeekBar**: Optimized progress bar with instantaneous seeking and butter-smooth position tracking.
-- **Premium Typography**: Upgraded font system and layout to Apple-native standards for a cleaner, professional look.
-- **High-Fidelity Rendering**: Implemented ClearType and high-quality BitmapScaling to remove aliasing from text and icons.
-- **Enhanced Animations**: Fine-tuned fade effects, marquee transitions, and UI motion for a more responsive feel.
-- **Platform Compatibility**: Fixed progress tracking for SoundCloud and improved media source identification for YouTube.
-- **Audio Engine Integration**: Integrated NAudio for precise audio processing and waveform synchronization.
-- **Visual Optimization**: Adjusted contrast ratios and Glassmorphism effects for superior visual clarity.
-- **New Feature**: **File Shelf** - Drag, drop, and manage files directly in the notch with lasso selection.
-
-### v1.0.0
-- Initial release with core Dynamic Island experience
-- Basic media controls and system widgets
-- Multi-monitor hardware support
-- Dynamic background effects
-
-## Contributing
-
-Feel free to submit issues and pull requests!
-
-### Development Setup
-1. Clone the repository
-2. Open `V-Notch.csproj` in Visual Studio 2022+
-3. Build and run with F5
-
-## License
-
-Apache License 2.0 - See [LICENSE](LICENSE) for details.
+### ⚙️ Hệ thống
+- **Fullscreen Aware** — Tự động ẩn khi chơi game hoặc xem phim (hỗ trợ cả exclusive và windowed fullscreen)
+- **Slide animation** khi ẩn/hiện cho fullscreen
+- **Multi-Monitor** — Chọn màn hình hiển thị notch
+- **Cursor Bypass** — Click-through thông minh, không cản trở workflow
+- **Hot Corners** — Truy cập nhanh qua góc màn hình
+- **Auto-Update** — Kiểm tra và cập nhật tự động từ GitHub Releases
+- **Start with Windows** — Khởi động cùng hệ thống
+- **Đa ngôn ngữ** — Hỗ trợ Tiếng Anh và Tiếng Việt, chuyển đổi real-time
 
 ---
 
-**Made with love by [rainaku](https://rainaku.id.vn)**
+## 📥 Cài đặt
 
-[![Facebook](https://img.shields.io/badge/Facebook-1877F2?logo=facebook&logoColor=white)](https://www.facebook.com/rain.107/)
-[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)](https://github.com/rainaku/V-Notch)
-[![Website](https://img.shields.io/badge/Website-FF7139?logo=firefox&logoColor=white)](https://rainaku.id.vn)
+### Yêu cầu
+- Windows 10/11 (64-bit)
+- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+
+### Hướng dẫn
+1. Tải `V-Notch-Setup.exe` từ [Releases](https://github.com/rainaku/V-Notch/releases)
+2. Chạy installer và làm theo hướng dẫn Setup Wizard
+3. Khởi động **V-Notch** từ Start Menu
+4. (Tùy chọn) Bật "Start with Windows" trong Settings
+
+---
+
+## 🎮 Sử dụng
+
+### Thao tác cơ bản
+| Thao tác | Kết quả |
+|----------|---------|
+| **Hover** | Mở rộng notch hiển thị media controls |
+| **Scroll Down** | Chuyển sang File Shelf |
+| **Scroll Up** | Quay lại Media Controls |
+| **Click** | Toggle compact/expanded |
+| **Media buttons** | Play/Pause, Next/Previous, Seek |
+
+### File Shelf
+| Thao tác | Kết quả |
+|----------|---------|
+| **Kéo thả vào notch** | Thêm file vào shelf |
+| **Lasso (kéo vùng trống)** | Chọn nhiều file |
+| **Ctrl + Click** | Toggle chọn từng file |
+| **Kéo ra ngoài** | Di chuyển file đến folder/app khác |
+| **Delete** | Xóa file khỏi shelf |
+
+### Nền tảng media hỗ trợ
+| Nền tảng | Khả năng |
+|----------|----------|
+| **Spotify** | Full control, smart-cropped album art |
+| **Apple Music** | Hỗ trợ native Windows app |
+| **YouTube** | Thumbnail fetching, title parsing, 15s seek |
+| **TikTok/Reels** | Video title detection, basic playback |
+| **SoundCloud** | Browser session detection |
+| **Generic** | Mọi app sử dụng Windows Media Session |
+
+---
+
+## ⚙️ Cài đặt (Settings)
+
+### Giao diện
+| Tùy chỉnh | Mô tả | Phạm vi |
+|------------|--------|---------|
+| Width | Chiều rộng notch | 100px → 400px |
+| Height | Chiều cao notch | 20px → 60px |
+| Corner Radius | Độ bo góc | 0px → 30px |
+| Opacity | Độ trong suốt | 50% → 100% |
+
+### Hành vi
+| Tùy chỉnh | Mô tả |
+|------------|--------|
+| Enable Hover Expand | Tự mở rộng khi hover |
+| Hide on Exclusive Fullscreen | Ẩn khi game fullscreen |
+| Hide on Windowed Fullscreen | Ẩn khi borderless fullscreen |
+| Show Camera Indicator | Hiển thị chấm camera |
+| Start with Windows | Khởi động cùng hệ thống |
+| Monitor Selection | Chọn màn hình hiển thị |
+| Language | Tiếng Anh / Tiếng Việt |
+
+---
+
+## 🏗️ Kiến trúc
+
+### Controllers
+| Controller | Chức năng |
+|------------|-----------|
+| `NotchAnimationController` | Quản lý animation expand/collapse/slide |
+| `MusicWidgetController` | Điều khiển media widget và progress |
+| `FileShelfController` | Quản lý file shelf với thread-safe locking |
+| `CameraPreviewController` | Camera indicator và preview |
+| `TimerManager` | Quản lý timer lifecycle |
+
+### Core Services
+| Service | Chức năng |
+|---------|-----------|
+| `NotchManager` | State transitions và window lifecycle |
+| `NotchStateManager` | State tracking, stuck recovery |
+| `MediaDetectionService` | SMTC + Win32 process monitoring |
+| `MediaSessionVolumeService` | Volume control tách biệt |
+| `MediaTransportControlService` | Transport commands tách biệt |
+| `FullscreenDetector` | Phát hiện exclusive & windowed fullscreen |
+| `SettingsService` | Persistent settings với migration |
+| `LocalizationService` | Hệ thống đa ngôn ngữ |
+| `UpdateService` | Auto-update từ GitHub Releases |
+| `RuntimeLog` | Structured logging với severity levels |
+
+### Technical Stack
+- **WPF (.NET 8)** — Hardware-accelerated rendering
+- **CommunityToolkit.Mvvm** — MVVM pattern
+- **NAudio** — Audio processing
+- **SF Pro Font** — Apple typography
+- **NSIS Installer** — Setup wizard
+
+---
+
+## 📋 Yêu cầu hệ thống
+
+| Thành phần | Yêu cầu |
+|------------|----------|
+| OS | Windows 10/11 (64-bit) |
+| Runtime | .NET 8 Desktop Runtime |
+| RAM | ~20-30 MB |
+| CPU | Minimal |
+| Display | Mọi độ phân giải (adaptive positioning) |
+
+---
+
+## 🛠️ Development
+
+### Setup
+1. Clone repository
+2. Mở `V-Notch.sln` trong Visual Studio 2022+
+3. Build và run với F5
+
+### Build Release
+```powershell
+./build-release.ps1
+```
+
+### Build Installer
+```powershell
+./build-installer.ps1
+```
+
+---
+
+## 📄 License
+
+Apache License 2.0 — Xem [LICENSE](LICENSE) để biết chi tiết.
+
+---
+
+<p align="center">
+  <b>Made with ❤️ by <a href="https://rainaku.id.vn">rainaku</a></b>
+</p>
+
+<p align="center">
+  <a href="https://www.facebook.com/rain.107/">
+    <img src="https://img.shields.io/badge/Facebook-1877F2?logo=facebook&logoColor=white" alt="Facebook">
+  </a>
+  <a href="https://github.com/rainaku/V-Notch">
+    <img src="https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white" alt="GitHub">
+  </a>
+  <a href="https://rainaku.id.vn">
+    <img src="https://img.shields.io/badge/Website-FF7139?logo=firefox&logoColor=white" alt="Website">
+  </a>
+</p>
