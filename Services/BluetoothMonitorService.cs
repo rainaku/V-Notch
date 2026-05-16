@@ -10,6 +10,7 @@ public sealed class BluetoothMonitorService : IDisposable
     private readonly ConcurrentDictionary<string, BluetoothDeviceInfo> _knownDevices = new();
     private readonly Debouncer _debouncer;
     private bool _disposed;
+    private bool _isInitialEnumerationComplete = false;
     public event EventHandler<BluetoothDeviceInfo>? DeviceConnected;
     public event EventHandler<BluetoothDeviceInfo>? DeviceDisconnected;
 
@@ -82,7 +83,11 @@ public sealed class BluetoothMonitorService : IDisposable
         _knownDevices[device.Id] = info;
         RuntimeLog.Log("BLUETOOTH", $"Device connected: {info.Name} ({info.DeviceType})");
 
-        _debouncer.Debounce(() => DeviceConnected?.Invoke(this, info));
+        // Don't fire notification for devices already connected at startup
+        if (_isInitialEnumerationComplete)
+        {
+            _debouncer.Debounce(() => DeviceConnected?.Invoke(this, info));
+        }
     }
 
     private void Watcher_Updated(DeviceWatcher sender, DeviceInformationUpdate update)
@@ -128,6 +133,7 @@ public sealed class BluetoothMonitorService : IDisposable
 
     private void Watcher_EnumerationCompleted(DeviceWatcher sender, object args)
     {
+        _isInitialEnumerationComplete = true;
         RuntimeLog.Log("BLUETOOTH", $"Initial enumeration complete. {_knownDevices.Count} device(s) connected.");
     }
 

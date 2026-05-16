@@ -35,8 +35,8 @@ public partial class MainWindow
 
     private void ShowBluetoothNotification(BluetoothDeviceInfo device, bool connected)
     {
-        // Don't show if notch is hidden or music is expanded
-        if (!_isNotchVisible || _notchState.IsMusicExpanded)
+        // Don't show if notch is hidden, animating, or music is expanded
+        if (!_isNotchVisible || _isAnimating || _isExpanded || _notchState.IsMusicExpanded)
             return;
 
         _currentBluetoothConnected = connected;
@@ -95,22 +95,16 @@ public partial class MainWindow
         PlayBluetoothBounce();
 
         // Fade out collapsed content
-        var fadeOutCollapsed = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
-        fadeOutCollapsed.Completed += (s, e) =>
-        {
-            CollapsedContent.Visibility = Visibility.Collapsed;
-        };
-        CollapsedContent.BeginAnimation(OpacityProperty, fadeOutCollapsed);
+        CollapsedContent.BeginAnimation(OpacityProperty, null);
+        CollapsedContent.Opacity = 0;
+        CollapsedContent.Visibility = Visibility.Collapsed;
 
-        // Also hide music compact if visible
+        // Also hide music compact immediately to prevent flash
         if (MusicCompactContent.Visibility == Visibility.Visible)
         {
-            var fadeOutMusic = MakeAnim(MusicCompactContent.Opacity, 0d, _dur150, _easePowerIn2, null);
-            fadeOutMusic.Completed += (s, e) =>
-            {
-                MusicCompactContent.Visibility = Visibility.Collapsed;
-            };
-            MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutMusic);
+            MusicCompactContent.BeginAnimation(OpacityProperty, null);
+            MusicCompactContent.Opacity = 0;
+            MusicCompactContent.Visibility = Visibility.Collapsed;
         }
 
         // Also hide volume indicator if active
