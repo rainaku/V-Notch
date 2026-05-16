@@ -587,25 +587,29 @@ public partial class MainWindow
                 {
                     double backwardSeconds = (_progressDisplayRatio - _progressTargetRatio) * frame.Duration.TotalSeconds;
 
-                    // Tiny backward corrections from browser/native timeline jitter
-                    // make the bar visibly "breathe" even while playback time is correct.
-                    // Ignore those micro backsteps during normal playback so the visual
-                    // progress stays smooth and mostly monotonic.
-                    if (isRealtimeProgressing && backwardSeconds <= SOURCE_IGNORE_SECONDS && !isUserSeekWindow)
+                    if (isUserSeekWindow)
                     {
+                        // User is seeking — allow backward movement freely
+                    }
+                    else if (isRealtimeProgressing && backwardSeconds <= SOURCE_IGNORE_SECONDS)
+                    {
+                        // Tiny jitter during normal playback — ignore completely
                         _progressTargetRatio = _progressDisplayRatio;
                     }
-                    else if (backwardSeconds > backwardThreshold && !isUserSeekWindow)
+                    else if (backwardSeconds > backwardThreshold)
                     {
-                        // Avoid hard-freeze: cap backward correction per frame instead of bailing out.
+                        // Large backward jump (likely stale engine data) — cap step per frame
                         double maxBackwardStepSeconds = 0.22;
                         double maxBackwardRatioStep = maxBackwardStepSeconds / frame.Duration.TotalSeconds;
                         double cappedTarget = Math.Max(_progressTargetRatio, _progressDisplayRatio - maxBackwardRatioStep);
                         _progressTargetRatio = cappedTarget;
                     }
-                    else if (backwardSeconds > 0.1)
+                    else if (isRealtimeProgressing)
                     {
+                        // Moderate backward (0.3s–0.5s) during playback — likely timeline jitter, ignore
+                        _progressTargetRatio = _progressDisplayRatio;
                     }
+                    // else: not playing (paused) — allow correction via lerp
                 }
 
                 double ratioDiff = Math.Abs(_progressTargetRatio - _progressDisplayRatio);
@@ -999,28 +1003,20 @@ public partial class MainWindow
             return;
         }
 
-        // Only animate if position is meaningful and not too far into the video
+        // Only animate if position is meaningful
         // If position < 1%, skip animation (too early)
-        // If position > 20%, snap immediately (too far to animate smoothly)
         if (targetRatio < 0.01)
         {
-            return;
-        }
-        
-        if (targetRatio > 0.20)
-        {
-            // Snap immediately instead of animating
-            _progressDisplayRatio = targetRatio;
-            _progressTargetRatio = targetRatio;
-            _progressSpringTargetRatio = targetRatio;
-            ProgressBarScale.ScaleX = targetRatio;
-            CurrentTimeText.Text = FormatTime(frame.Position);
             return;
         }
 
         _isCatchUpAnimating = true;
         _catchUpTargetRatio = targetRatio;
         _catchUpTargetPosition = frame.Position;
+
+        // Set _lastRenderedRatio to the target so that the external-seek detection
+        // in RenderProgressBar doesn't see a large diff and cancel the animation.
+        _lastRenderedRatio = targetRatio;
 
         // Reset progress bar to 0
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -1029,7 +1025,8 @@ public partial class MainWindow
         CurrentTimeText.Text = "0:00";
 
         // Create smooth ease-in-out animation (slow - fast - slow)
-        var catchUpDuration = TimeSpan.FromMilliseconds(Math.Min(800, 400 + targetRatio * 600));
+        // Duration scales with target ratio: short for small positions, longer for large ones, capped at 900ms
+        var catchUpDuration = TimeSpan.FromMilliseconds(Math.Min(900, 350 + targetRatio * 550));
         var catchUpAnim = new DoubleAnimation(0, targetRatio, catchUpDuration)
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
@@ -1067,8 +1064,11 @@ public partial class MainWindow
             _isCatchUpAnimating = false;
             _catchUpTimer?.Stop();
             _catchUpTimer = null;
+
+            // Clear the animation hold so local value assignments take effect
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             
-            // Sync with CURRENT actual progress (not the old captured value)
+            // Sync with CURRENT actual progress
             var currentFrame = _progressEngine.GetUiFrame();
             if (currentFrame.Duration.TotalSeconds > 0)
             {
@@ -1078,6 +1078,7 @@ public partial class MainWindow
                 _progressDisplayRatio = currentRatio;
                 _progressTargetRatio = currentRatio;
                 _progressSpringTargetRatio = currentRatio;
+                _lastRenderedRatio = currentRatio;
                 ProgressBarScale.ScaleX = currentRatio;
                 CurrentTimeText.Text = FormatTime(currentFrame.Position);
             }

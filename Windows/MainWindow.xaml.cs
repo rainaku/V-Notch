@@ -822,10 +822,28 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             NotchBorder.BeginAnimation(HeightProperty, null);
             this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
+            // On first boot (ActualWidth is 0), set dimensions immediately without animation
+            // to ensure layout is measured correctly before any other animations run.
+            bool isFirstLayout = NotchBorder.ActualWidth <= 0 || NotchBorder.ActualHeight <= 0;
+            const int fps = 144;
+
+            if (isFirstLayout)
+            {
+                NotchBorder.Width = _settings.Width;
+                NotchBorder.Height = _settings.Height;
+
+                var cr = new CornerRadius(0, 0, _settings.CornerRadius, _settings.CornerRadius);
+                NotchBorder.CornerRadius = cr;
+                InnerClipBorder.CornerRadius = cr;
+                NotchBorderShadow.CornerRadius = cr;
+                MediaBackground.CornerRadius = cr;
+                MediaBackground2.CornerRadius = cr;
+            }
+            else
+            {
             // Animate to new size for a smooth live-preview feel
             var dur = _dur200;
             var easing = _easeExpOut6;
-            const int fps = 144;
 
             var widthAnim = new DoubleAnimation(NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _settings.Width, _settings.Width, dur)
             {
@@ -875,6 +893,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                 NotchBorderShadow.CornerRadius = cr;
                 MediaBackground.CornerRadius = cr;
                 MediaBackground2.CornerRadius = cr;
+            }
             }
 
             UpdateNotchClip();

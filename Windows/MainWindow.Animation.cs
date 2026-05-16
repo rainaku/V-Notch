@@ -209,11 +209,13 @@ public partial class MainWindow
             UpdateProgressTimerState();
             UpdateBatteryInfo();
             UpdateCalendarInfo();
-            RenderProgressBar();
             ShowMediaBackground();
             
-            // Start progress bar catch-up animation after expand completes
+            // Start progress bar catch-up animation BEFORE RenderProgressBar
+            // to prevent the snap-to-position that would set _progressDisplayRatio > 0
+            // and cause StartProgressCatchUpAnimation to bail out.
             StartProgressCatchUpAnimation();
+            RenderProgressBar();
 
             // Play queued thumbnail flip animation
             if (_pendingFlipThumbnail != null)
