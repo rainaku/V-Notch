@@ -1064,6 +1064,15 @@ public class MediaDetectionService : IMediaDetectionService
         return PlatformDetector.IsBrowserApp(sourceAppId);
     }
 
+    /// <summary>
+    /// Returns true for apps whose audio sessions should be ignored
+    /// (e.g. Discord notification sounds are not real media playback).
+    /// </summary>
+    private static bool IsIgnoredSourceApp(string sourceAppId)
+    {
+        return sourceAppId.Contains("Discord", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string DetectPlatformHint(IEnumerable<string> windowTitles)
     {
         return PlatformDetector.DetectPlatformHint(windowTitles);
@@ -1211,7 +1220,11 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 try
                 {
-                    if (string.IsNullOrEmpty(osCurrentId) || osCurrentId == _activeDisplaySession.SourceAppUserModelId)
+                    if (IsIgnoredSourceApp(_activeDisplaySession.SourceAppUserModelId ?? ""))
+                    {
+                        _activeDisplaySession = null;
+                    }
+                    else if (string.IsNullOrEmpty(osCurrentId) || osCurrentId == _activeDisplaySession.SourceAppUserModelId)
                     {
                         var playback = _activeDisplaySession.GetPlaybackInfo();
                         if (playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
@@ -1264,6 +1277,8 @@ public class MediaDetectionService : IMediaDetectionService
                         try
                         {
                             var sourceApp = s.SourceAppUserModelId ?? "";
+                            if (IsIgnoredSourceApp(sourceApp)) continue;
+
                             var status = s.GetPlaybackInfo().PlaybackStatus;
                             bool isActive = IsSessionPlayingStatus(status);
                             if (!isActive) continue;
@@ -1292,6 +1307,8 @@ public class MediaDetectionService : IMediaDetectionService
                         try
                         {
                             var sourceApp = s.SourceAppUserModelId ?? "";
+                            if (IsIgnoredSourceApp(sourceApp)) continue;
+
                             string sessionInstanceKey = BuildSessionInstanceKey(s);
                             var playbackInfo = s.GetPlaybackInfo();
                             var status = playbackInfo.PlaybackStatus;

@@ -76,6 +76,16 @@ public partial class MainWindow
         
         double radius = isHovered ? 24 : _cornerRadiusCollapsed;
         AnimateCornerRadius(radius, duration.TimeSpan);
+
+        // Animate compact thumbnail corner radius - reduce when scaled up to avoid looking too round
+        double thumbRadius = isHovered ? 4 : 6;
+        double startThumbRadius = CompactThumbnailBorder.CornerRadius.TopLeft;
+        if (Math.Abs(thumbRadius - startThumbRadius) > 0.1)
+        {
+            CurrentCompactThumbnailRadius = startThumbRadius;
+            var thumbRadiusAnim = MakeAnim(startThumbRadius, thumbRadius, duration, easing);
+            this.BeginAnimation(CurrentCompactThumbnailRadiusProperty, thumbRadiusAnim);
+        }
     }
 
     private void UpdateCompactMarquee()
@@ -340,6 +350,10 @@ public partial class MainWindow
         DependencyProperty.Register("CurrentThumbnailAnimationRadius", typeof(double), typeof(MainWindow),
             new PropertyMetadata(6.0, OnCurrentThumbnailAnimationRadiusChanged));
 
+    public static readonly DependencyProperty CurrentCompactThumbnailRadiusProperty =
+        DependencyProperty.Register("CurrentCompactThumbnailRadius", typeof(double), typeof(MainWindow),
+            new PropertyMetadata(6.0, OnCurrentCompactThumbnailRadiusChanged));
+
     public double CurrentCornerRadius
     {
         get => (double)GetValue(CurrentCornerRadiusProperty);
@@ -350,6 +364,12 @@ public partial class MainWindow
     {
         get => (double)GetValue(CurrentThumbnailAnimationRadiusProperty);
         set => SetValue(CurrentThumbnailAnimationRadiusProperty, value);
+    }
+
+    public double CurrentCompactThumbnailRadius
+    {
+        get => (double)GetValue(CurrentCompactThumbnailRadiusProperty);
+        set => SetValue(CurrentCompactThumbnailRadiusProperty, value);
     }
 
     private static void OnCurrentCornerRadiusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -387,6 +407,14 @@ public partial class MainWindow
             window.AnimationThumbnailClip.RadiusX = radius;
             window.AnimationThumbnailClip.RadiusY = radius;
         }
+    }
+
+    private static void OnCurrentCompactThumbnailRadiusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not MainWindow window) return;
+
+        double radius = (double)e.NewValue;
+        window.CompactThumbnailBorder.CornerRadius = new CornerRadius(radius);
     }
 
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
