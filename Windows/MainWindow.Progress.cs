@@ -591,25 +591,22 @@ public partial class MainWindow
                     {
                         // User is seeking — allow backward movement freely
                     }
-                    else if (isRealtimeProgressing && backwardSeconds <= SOURCE_IGNORE_SECONDS)
+                    else if (isRealtimeProgressing)
                     {
-                        // Tiny jitter during normal playback — ignore completely
+                        // During normal playback, never allow the bar to go backward.
+                        // Backward jitter from stale snapshots should not affect the visual.
+                        // The bar should only move forward monotonically during playback.
                         _progressTargetRatio = _progressDisplayRatio;
                     }
                     else if (backwardSeconds > backwardThreshold)
                     {
-                        // Large backward jump (likely stale engine data) — cap step per frame
+                        // Paused + large backward: cap step per frame
                         double maxBackwardStepSeconds = 0.22;
                         double maxBackwardRatioStep = maxBackwardStepSeconds / frame.Duration.TotalSeconds;
                         double cappedTarget = Math.Max(_progressTargetRatio, _progressDisplayRatio - maxBackwardRatioStep);
                         _progressTargetRatio = cappedTarget;
                     }
-                    else if (isRealtimeProgressing)
-                    {
-                        // Moderate backward (0.3s–0.5s) during playback — likely timeline jitter, ignore
-                        _progressTargetRatio = _progressDisplayRatio;
-                    }
-                    // else: not playing (paused) — allow correction via lerp
+                    // else: paused + small backward — allow correction via lerp
                 }
 
                 double ratioDiff = Math.Abs(_progressTargetRatio - _progressDisplayRatio);
@@ -1082,6 +1079,10 @@ public partial class MainWindow
                 ProgressBarScale.ScaleX = currentRatio;
                 CurrentTimeText.Text = FormatTime(currentFrame.Position);
             }
+
+            // Protect against backward jitter right after catch-up ends.
+            // Engine snapshots may briefly lag behind the animated position.
+            _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(2);
             
             // Resume normal progress tracking
             RenderProgressBar();
