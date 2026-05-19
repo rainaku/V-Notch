@@ -256,9 +256,12 @@ public partial class MainWindow
                 {
                     _cachedThumbnailExpandTarget = updatedTarget;
                 }
-                if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             }
+
+            // Always restore opacity — it may have been set to 0 during expand animation
+            // even if _isMusicCompactMode changed during the animation
+            if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
+            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
 
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
@@ -470,9 +473,6 @@ public partial class MainWindow
 
             if (_isMusicCompactMode)
             {
-                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
-                if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-
                 contentToShow.Opacity = 1;
                 contentToShow.BeginAnimation(OpacityProperty, null);
 
@@ -495,6 +495,10 @@ public partial class MainWindow
                 CompactHoverInfo.Opacity = 0;
                 CompactHoverInfo.Visibility = Visibility.Collapsed;
             }
+
+            // Always restore opacity — may have been set to 0 during collapse animation
+            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
+            if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
         };
 

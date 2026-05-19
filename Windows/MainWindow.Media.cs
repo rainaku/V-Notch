@@ -16,6 +16,7 @@ public partial class MainWindow
     private string _lastColorTrackSignature = "";
     private string _lastRenderedMediaSource = "";
     private ImageSource? _pendingFlipThumbnail;
+    private ImageSource? _lastAnimatedThumbnail;
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
     private int _thumbnailSwitchGeneration = 0;
 
@@ -134,6 +135,7 @@ public partial class MainWindow
                     {
                         bool isFirstEverTrack = string.IsNullOrEmpty(_lastAnimatedTrackSignature);
                         _lastAnimatedTrackSignature = trackIdentity;
+                        _lastAnimatedThumbnail = info.Thumbnail;
 
                         if (isFirstEverTrack)
                         {
@@ -154,17 +156,13 @@ public partial class MainWindow
 
                         if (ThumbnailImage.Source != info.Thumbnail)
                         {
-                            // When YouTube fetch completes with the final thumbnail,
-                            // play flip + bounce animation so the pill feels alive.
-                            if (info.IsThumbnailOnlyUpdate && !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
+                            // Thumbnail changed for the same track — animate only if this is
+                            // a genuinely new thumbnail we haven't already animated to.
+                            if (!ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail) &&
+                                !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
                             {
                                 AnimateThumbnailSwitchOnly(info.Thumbnail);
-                                PlayTrackChangeBounce();
-                            }
-                            else
-                            {
-                                ThumbnailImage.Source = info.Thumbnail;
-                                CompactThumbnail.Source = info.Thumbnail;
+                                _lastAnimatedThumbnail = info.Thumbnail;
                             }
                         }
                     }
