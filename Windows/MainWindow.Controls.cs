@@ -279,6 +279,12 @@ public partial class MainWindow
         if (VolumeIndicatorContainer == null || VolumeIndicatorFill == null) return;
         if (!_isMusicCompactMode) return;
         if (_isBluetoothNotificationVisible) return;
+        // CRITICAL: never run the compact-mode volume UI when the notch is
+        // expanded. ShowVolumeIndicator forces NotchBorder.Width to
+        // (_collapsedWidth + 20), which would shrink the expanded notch
+        // mid-flight and clip its content. The expanded view has its own
+        // VolumeBarScale path (handled by the caller in OnVolumeChanged).
+        if (_isExpanded || _isAnimating) return;
 
         // ─── First time showing: hide compact content ───
         if (!_isVolumeIndicatorActive)
@@ -391,6 +397,18 @@ public partial class MainWindow
         if (VolumeIndicatorContainer == null) return;
         _isVolumeIndicatorActive = false;
         _volumeSynced = false;
+
+        // If the notch is expanded (user opened it while volume indicator was
+        // visible), don't drive the compact-mode shrink animation — that would
+        // collapse the expanded view's width mid-flight. Just clear UI state
+        // so the next compact session starts clean.
+        if (_isExpanded || _isAnimating)
+        {
+            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
+            VolumeIndicatorContainer.Opacity = 0;
+            VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
+            return;
+        }
 
         // Notch shrink back to collapsed width
         NotchBorder.BeginAnimation(WidthProperty, null);

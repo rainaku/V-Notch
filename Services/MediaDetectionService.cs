@@ -682,12 +682,23 @@ public class MediaDetectionService : IMediaDetectionService
 
                 if (willFetchYouTubeThumbnail && !hasGoodSmtcArtwork)
                 {
-                    // Suppress any intermediate thumbnail — use the cached one if available,
-                    // otherwise keep null until the YouTube fetch completes.
-                    if (_cachedThumbnail != null && _cachedThumbnail.PixelWidth >= 200)
+                    // Suppress any intermediate thumbnail until YouTube fetch completes.
+                    // CRITICAL: if this is a NEW track, never reuse the previous track's
+                    // cached thumbnail — that would make the flip animation show the OLD
+                    // image as the "new" target, so user sees no visual change.
+                    // Set null instead; the flip will trigger later when the real thumb arrives.
+                    if (isNewTrackForThumbnail)
+                    {
+                        info.Thumbnail = null;
+                    }
+                    else if (_cachedThumbnail != null && _cachedThumbnail.PixelWidth >= 200)
+                    {
                         info.Thumbnail = _cachedThumbnail;
+                    }
                     else
-                        info.Thumbnail = _cachedThumbnail; // may be null or previous track's thumb
+                    {
+                        info.Thumbnail = _cachedThumbnail;
+                    }
                 }
 
                 var dispatcher = System.Windows.Application.Current?.Dispatcher;
@@ -763,8 +774,13 @@ public class MediaDetectionService : IMediaDetectionService
                 if (isNearSquare || isTopicChannel)
                 {
                     needsFetch = false;
-                    // Crop immediately and cache so it's final — no second crop pass later
-                    var cropped = CropToSquare(info.Thumbnail, info.MediaSource ?? "YouTube") ?? info.Thumbnail;
+                    // Topic channels provide album art — always center crop.
+                    // Near-square images also center crop (already album art).
+                    RuntimeLog.Log("MEDIA-THUMB-CROP",
+                        $"path=initial-smtc track='{info.CurrentTrack}' artist='{info.CurrentArtist}' source='{info.MediaSource}' " +
+                        $"thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight} aspect={thumbAspect:F2} " +
+                        $"isNearSquare={isNearSquare} isTopicChannel={isTopicChannel}");
+                    var cropped = CropToSquare(info.Thumbnail, info.MediaSource ?? "YouTube", forceCenterCrop: isTopicChannel) ?? info.Thumbnail;
                     info.Thumbnail = cropped;
                     _cachedThumbnail = cropped;
                     _cachedThumbnailSource = "YouTube";
@@ -922,7 +938,12 @@ public class MediaDetectionService : IMediaDetectionService
 
                                         if (IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                         {
-                                            frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
+                                            bool isYtFetchTopicChannel = !string.IsNullOrEmpty(info.CurrentArtist) &&
+                                                                         info.CurrentArtist.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase);
+                                            RuntimeLog.Log("MEDIA-THUMB-CROP",
+                                                $"path=youtube-fetch track='{info.CurrentTrack}' artist='{info.CurrentArtist}' " +
+                                                $"thumb={frameBitmap.PixelWidth}x{frameBitmap.PixelHeight} isTopicChannel={isYtFetchTopicChannel}");
+                                            frameBitmap = CropToSquare(frameBitmap, "YouTube", forceCenterCrop: isYtFetchTopicChannel) ?? frameBitmap;
                                             _timelineSimulator.RecoveredThumbnail = frameBitmap;
                                             _cachedThumbnail = frameBitmap;
                                             _cachedThumbnailSource = "YouTube";
@@ -2299,7 +2320,13 @@ public class MediaDetectionService : IMediaDetectionService
 
                                     if (!(isSquare && isGenericIcon) && !shouldPreferVerifiedYouTubeLookup)
                                     {
-                                        newBitmap = CropToSquare(newBitmap, info.MediaSource) ?? newBitmap;
+                                        bool isSmtcTopicChannel = !string.IsNullOrEmpty(info.CurrentArtist) &&
+                                                                  info.CurrentArtist.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase);
+                                        RuntimeLog.Log("MEDIA-THUMB-CROP",
+                                            $"path=smtc-update track='{info.CurrentTrack}' artist='{info.CurrentArtist}' source='{info.MediaSource}' " +
+                                            $"thumb={newBitmap.PixelWidth}x{newBitmap.PixelHeight} aspect={aspect:F2} " +
+                                            $"isSquare={isSquare} isSmtcTopicChannel={isSmtcTopicChannel}");
+                                        newBitmap = CropToSquare(newBitmap, info.MediaSource, forceCenterCrop: isSmtcTopicChannel) ?? newBitmap;
                                         _cachedThumbnail = newBitmap;
                                         if (string.Equals(info.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
                                         {
@@ -2515,8 +2542,8 @@ public class MediaDetectionService : IMediaDetectionService
     private Task<BitmapImage?> DownloadImageAsync(string url, CancellationToken ct = default)
         => _artworkService.DownloadImageAsync(url, ct);
 
-    private BitmapImage? CropToSquare(BitmapImage source, string mediaSource)
-        => _artworkService.CropToSquare(source, mediaSource);
+    private BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false)
+        => _artworkService.CropToSquare(source, mediaSource, forceCenterCrop);
 
     private Task<BitmapImage?> ConvertToWpfBitmapAsync(Windows.Storage.Streams.IRandomAccessStreamWithContentType stream, CancellationToken ct = default)
         => _artworkService.ConvertToWpfBitmapAsync(stream, ct);
