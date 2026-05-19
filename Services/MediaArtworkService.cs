@@ -10,7 +10,7 @@ namespace VNotch.Services;
 public interface IMediaArtworkService
 {
     Task<BitmapImage?> DownloadImageAsync(string url, CancellationToken ct = default);
-    BitmapImage? CropToSquare(BitmapImage source, string mediaSource);
+    BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false);
     Task<BitmapImage?> ConvertToWpfBitmapAsync(IRandomAccessStreamWithContentType stream, CancellationToken ct = default);
     void ConfigureSmartCrop(bool enabled);
 }
@@ -83,12 +83,15 @@ public sealed class MediaArtworkService : IMediaArtworkService
         }
     }
 
-    public BitmapImage? CropToSquare(BitmapImage source, string mediaSource)
+    public BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false)
     {
         try
         {
             int width = source.PixelWidth;
             int height = source.PixelHeight;
+
+            VNotch.Services.RuntimeLog.Log("CROP-START",
+                $"src={width}x{height} aspect={(double)width / height:F2} mediaSource='{mediaSource}' forceCenterCrop={forceCenterCrop} smartEnabled={EnableSmartCrop} smartAvail={_smartCropAvailable}");
 
             // Detect and trim letterbox (black bars top/bottom or left/right)
             var contentRect = DetectContentBounds(source, width, height);
@@ -112,7 +115,7 @@ public sealed class MediaArtworkService : IMediaArtworkService
             Int32Rect rect;
 
             // Try smart crop first if enabled and available
-            if (EnableSmartCrop && _smartCropAvailable && aspect > 1.4)
+            if (EnableSmartCrop && _smartCropAvailable && aspect > 1.4 && !forceCenterCrop)
             {
                 BitmapImage? workingBitmap = workingSource as BitmapImage;
                 if (workingBitmap == null)
@@ -125,18 +128,34 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 {
                     var smartRect = _smartCrop.GetSmartCropRect(workingBitmap, squareSize);
                     if (smartRect.HasValue)
+                    {
                         rect = smartRect.Value;
+                        VNotch.Services.RuntimeLog.Log("CROP-PATH", $"smart-crop OK rect=({rect.X},{rect.Y},{rect.Width}x{rect.Height})");
+                    }
                     else
+                    {
                         rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
+                        VNotch.Services.RuntimeLog.Log("CROP-PATH", $"smart-crop returned null -> fallback rect=({rect.X},{rect.Y},{rect.Width}x{rect.Height})");
+                    }
                 }
                 else
                 {
                     rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
+                    VNotch.Services.RuntimeLog.Log("CROP-PATH", $"workingBitmap null -> fallback rect=({rect.X},{rect.Y},{rect.Width}x{rect.Height})");
                 }
             }
             else
             {
-                rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
+                if (forceCenterCrop)
+                {
+                    rect = new Int32Rect((width - squareSize) / 2, (height - squareSize) / 2, squareSize, squareSize);
+                    VNotch.Services.RuntimeLog.Log("CROP-PATH", $"force-center rect=({rect.X},{rect.Y},{rect.Width}x{rect.Height})");
+                }
+                else
+                {
+                    rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
+                    VNotch.Services.RuntimeLog.Log("CROP-PATH", $"smart-disabled -> fallback rect=({rect.X},{rect.Y},{rect.Width}x{rect.Height})");
+                }
             }
 
             // Fast path: CroppedBitmap → direct pixel copy → BitmapImage
@@ -192,11 +211,10 @@ public sealed class MediaArtworkService : IMediaArtworkService
 
     private static Int32Rect GetFallbackCropRect(int width, int height, int squareSize, string mediaSource, double aspect)
     {
-        // YouTube thumbs are usually 16:9; crop from the left side to show the main content.
-        // Only apply left-crop for clearly wide images (aspect > 1.4).
-        // Near-square images (album art, Topic channels) always center crop.
-        bool isWideYouTube = string.Equals(mediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) && aspect > 1.4;
-        int offsetX = isWideYouTube ? 0 : (width - squareSize) / 2;
+        // Always center crop — YouTube music thumbnails put the subject (artist/face)
+        // in the center or right. Left-crop was a legacy assumption that breaks for
+        // most music videos and Topic-channel album art.
+        int offsetX = (width - squareSize) / 2;
         int offsetY = (height - squareSize) / 2;
         return new Int32Rect(offsetX, offsetY, squareSize, squareSize);
     }

@@ -137,6 +137,10 @@ public partial class MainWindow
                         _lastAnimatedTrackSignature = trackIdentity;
                         _lastAnimatedThumbnail = info.Thumbnail;
 
+                        VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
+                            $"new-track-with-thumb track='{trackIdentity}' isFirst={isFirstEverTrack} " +
+                            $"isAnimating={_isAnimating} isExpanded={_isExpanded} thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight}");
+
                         if (isFirstEverTrack)
                         {
                             // Boot: set thumbnail then play a subtle reveal animation
@@ -157,8 +161,7 @@ public partial class MainWindow
                         if (ThumbnailImage.Source != info.Thumbnail)
                         {
                             // Thumbnail changed for the same track (e.g. smart crop update,
-                            // YouTube fetch completing) — crossfade instead of flip to avoid
-                            // jarring animation when only the crop region changed.
+                            // YouTube fetch completing) — use flip animation.
                             if (!ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail) &&
                                 !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
                             {
@@ -170,7 +173,10 @@ public partial class MainWindow
 
                                 if (!isSameImage)
                                 {
-                                    CrossfadeThumbnail(info.Thumbnail);
+                                    VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
+                                        $"thumb-update-same-track track='{trackIdentity}' " +
+                                        $"isAnimating={_isAnimating} isExpanded={_isExpanded} thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight}");
+                                    AnimateThumbnailSwitchOnly(info.Thumbnail);
                                     _lastAnimatedThumbnail = info.Thumbnail;
                                 }
                             }
@@ -228,15 +234,22 @@ public partial class MainWindow
                 }
                 else
                 {
-                    _lastAnimatedTrackSignature = "";
+                    // Don't clear track signature here — short idle gaps between
+                    // tracks (skip next/prev, autoplay transition) trigger this branch
+                    // briefly, and clearing the signature makes the next track look
+                    // like a "first ever" track, which kills the flip animation and
+                    // replaces it with the boot reveal animation.
+                    // Keep the last signature so the next real track is treated as
+                    // a track CHANGE (flip animation) instead of a fresh boot.
                     _lastColorTrackSignature = "";
                     ThumbnailImage.Visibility = Visibility.Collapsed;
                     ThumbnailFallback.Visibility = Visibility.Visible;
                     HideMediaBackground();
                     ThumbnailFallback.Text = "🎵";
 
-                    ThumbnailImage.Source = null;
-                    CompactThumbnail.Source = null;
+                    // Don't clear thumbnail sources either — keep the last image
+                    // visible (just hidden) so the upcoming flip animation has a
+                    // valid "from" image to flip out of.
                 }
             }
 
@@ -263,6 +276,7 @@ public partial class MainWindow
         if (_isAnimating)
         {
             // Queue the flip to run after the expand/collapse animation finishes
+            VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"queued-pending (isAnimating=true) force={force}");
             _pendingFlipThumbnail = newThumb;
             return;
         }
@@ -273,8 +287,11 @@ public partial class MainWindow
         // (thumbnail may be suppressed/cached from previous track).
         if (!force && newThumb != null && ReferenceEquals(ThumbnailImage.Source, newThumb))
         {
+            VNotch.Services.RuntimeLog.Log("THUMB-ANIM", "skipped (same reference, no force)");
             return;
         }
+
+        VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"FLIP-START force={force}");
 
         // Cancel any in-progress thumbnail switch animation to prevent stale
         // Completed handlers from resetting scale mid-animation when spamming
@@ -282,34 +299,84 @@ public partial class MainWindow
         CancelThumbnailSwitchAnimations();
 
         var generation = ++_thumbnailSwitchGeneration;
-        bool isHovered = _isCompactThumbnailHovered;
 
-        var halfDur = TimeSpan.FromMilliseconds(180);
-        var totalDur = TimeSpan.FromMilliseconds(360);
+        // ─── Cinematic flip animation ─────────────────────────────────────────
+        // Asymmetric timing for natural momentum:
+        //   • Out (170ms): smooth ease-in, slight overshoot below 0 for "tuck"
+        //   • In (320ms): spring with gentle overshoot (1.04 peak) → settle to 1
+        // Combined with subtle ScaleY squash + opacity dip = depth illusion
+        // without a real 3D rotation transform.
+        // ──────────────────────────────────────────────────────────────────────
+        var shrinkDur = TimeSpan.FromMilliseconds(170);
+        var expandDur = TimeSpan.FromMilliseconds(320);
+        var totalDur = shrinkDur + expandDur;
 
-        var flipAnim = new DoubleAnimationUsingKeyFrames();
-        flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(halfDur), _easeQuadIn));
-        flipAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), _easeQuadOut));
-        Timeline.SetDesiredFrameRate(flipAnim, 120);
+        var sineIn = new SineEase { EasingMode = EasingMode.EaseIn };
+        var backOut = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 };
 
+        // ─── ScaleX: 1 → 0 (tuck) → 1 (with subtle overshoot via BackEase) ───
+        var flipX = new DoubleAnimationUsingKeyFrames();
+        flipX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        flipX.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(shrinkDur), sineIn));
+        flipX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), backOut));
+        Timeline.SetDesiredFrameRate(flipX, 144);
+
+        // ─── ScaleY: subtle squash 1 → 0.92 → 1.04 → 1 ───
+        // Adds a sense of compression/release that sells the flip as physical motion.
+        var flipY = new DoubleAnimationUsingKeyFrames();
+        flipY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        flipY.KeyFrames.Add(new EasingDoubleKeyFrame(0.92, KeyTime.FromTimeSpan(shrinkDur), sineIn));
+        flipY.KeyFrames.Add(new EasingDoubleKeyFrame(1.04,
+            KeyTime.FromTimeSpan(shrinkDur + TimeSpan.FromMilliseconds(180)), _easeQuadOut));
+        flipY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(flipY, 144);
+
+        // ─── Opacity dip: 1 → 0 at swap point → 1 ───
+        // Hides any sub-pixel artifact during the discrete image swap so the
+        // transition feels truly continuous instead of a hard cut.
+        var fade = new DoubleAnimationUsingKeyFrames();
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(0.0,
+            KeyTime.FromTimeSpan(shrinkDur - TimeSpan.FromMilliseconds(20)), sineIn));
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
+            KeyTime.FromTimeSpan(shrinkDur + TimeSpan.FromMilliseconds(80)), _easeQuadOut));
+        Timeline.SetDesiredFrameRate(fade, 144);
+
+        // Swap image source slightly before midpoint so the new image is in place
+        // when ScaleX crosses zero — avoids a 1-frame flicker of the old image.
+        var swapAt = shrinkDur - TimeSpan.FromMilliseconds(10);
         var sourceAnim = new ObjectAnimationUsingKeyFrames();
-        sourceAnim.KeyFrames.Add(new DiscreteObjectKeyFrame(newThumb, KeyTime.FromTimeSpan(halfDur)));
-        Timeline.SetDesiredFrameRate(sourceAnim, 120);
+        sourceAnim.KeyFrames.Add(new DiscreteObjectKeyFrame(newThumb, KeyTime.FromTimeSpan(swapAt)));
+        Timeline.SetDesiredFrameRate(sourceAnim, 144);
 
-        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
+        // ─── Apply to expanded view ───
+        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipX);
+        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, flipY);
+        ThumbnailImage.BeginAnimation(OpacityProperty, fade);
         ThumbnailImage.BeginAnimation(Image.SourceProperty, sourceAnim);
 
-        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipAnim);
+        // ─── Apply to compact view ───
+        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipX);
+        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, flipY);
+        CompactThumbnail.BeginAnimation(OpacityProperty, fade);
         CompactThumbnail.BeginAnimation(Image.SourceProperty, sourceAnim);
 
-        flipAnim.Completed += (s, e) =>
+        flipX.Completed += (s, e) =>
         {
             if (_thumbnailSwitchGeneration != generation) return;
             ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             ThumbnailFlip.ScaleX = 1.0;
+            ThumbnailFlip.ScaleY = 1.0;
             CompactThumbnailFlip.ScaleX = 1.0;
+            CompactThumbnailFlip.ScaleY = 1.0;
+
+            ThumbnailImage.BeginAnimation(OpacityProperty, null);
+            CompactThumbnail.BeginAnimation(OpacityProperty, null);
+            ThumbnailImage.Opacity = 1.0;
+            CompactThumbnail.Opacity = 1.0;
         };
 
         sourceAnim.Completed += (s, e) =>
@@ -325,13 +392,21 @@ public partial class MainWindow
     private void CancelThumbnailSwitchAnimations(ImageSource? targetThumb = null)
     {
         ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
         ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
+        ThumbnailImage.BeginAnimation(OpacityProperty, null);
         CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
+        CompactThumbnail.BeginAnimation(OpacityProperty, null);
 
         ThumbnailFlip.ScaleX = 1.0;
+        ThumbnailFlip.ScaleY = 1.0;
         CompactThumbnailFlip.ScaleX = 1.0;
+        CompactThumbnailFlip.ScaleY = 1.0;
+        ThumbnailImage.Opacity = 1.0;
+        CompactThumbnail.Opacity = 1.0;
 
         var resolvedThumb = targetThumb ?? _currentMediaInfo?.Thumbnail ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
         if (resolvedThumb != null)
@@ -339,45 +414,6 @@ public partial class MainWindow
             ThumbnailImage.Source = resolvedThumb;
             CompactThumbnail.Source = resolvedThumb;
         }
-    }
-
-    /// <summary>
-    /// Smoothly crossfades to a new thumbnail without flip animation.
-    /// Used for thumbnail-only updates (e.g., YouTube fetch completing on boot)
-    /// to avoid a jarring "snap zoom" when the crop position changes.
-    /// </summary>
-    private void CrossfadeThumbnail(ImageSource newThumb)
-    {
-        if (newThumb == null) return;
-        if (ReferenceEquals(ThumbnailImage.Source, newThumb)) return;
-
-        // Clear any existing animations on Source property (from AnimateThumbnailSwitchOnly)
-        // so that local value assignment in Completed handler actually takes effect.
-        ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
-        CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
-
-        // Clear any existing opacity animations (from PlayThumbnailRevealAnimation)
-        CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
-        ThumbnailImage.BeginAnimation(OpacityProperty, null);
-        CompactThumbnailBorder.Opacity = 1.0;
-        ThumbnailImage.Opacity = 1.0;
-
-        var fadeOut = new DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(100));
-        Timeline.SetDesiredFrameRate(fadeOut, 60);
-
-        fadeOut.Completed += (s, e) =>
-        {
-            ThumbnailImage.Source = newThumb;
-            CompactThumbnail.Source = newThumb;
-
-            var fadeIn = new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(150));
-            Timeline.SetDesiredFrameRate(fadeIn, 60);
-            CompactThumbnailBorder.BeginAnimation(OpacityProperty, fadeIn);
-            ThumbnailImage.BeginAnimation(OpacityProperty, fadeIn);
-        };
-
-        CompactThumbnailBorder.BeginAnimation(OpacityProperty, fadeOut);
-        ThumbnailImage.BeginAnimation(OpacityProperty, fadeOut);
     }
 
     #endregion
@@ -428,6 +464,9 @@ public partial class MainWindow
             {
                 return;
             }
+
+            VNotch.Services.RuntimeLog.Log("NOTCH-WIDTH",
+                $"UpdateMusicCompactMode -> animating to _collapsedWidth={_collapsedWidth}, shouldBeCompact={shouldBeCompact}, _isExpanded={_isExpanded}");
 
             var widthAnim = new DoubleAnimation(_collapsedWidth, TimeSpan.FromMilliseconds(450))
             {

@@ -21,7 +21,7 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     // ─── Object Detection Rules ───
     private const float ConfidenceThreshold = 0.50f;       // ≥ 0.5 to filter noise/false positives
-    private const float PersonConfidenceThreshold = 0.25f; // Lower for person class (priority)
+    private const float PersonConfidenceThreshold = 0.15f; // Lower for person class (priority)
     private const float NmsThreshold = 0.45f;              // IoU ≤ 0.45 to merge overlapping bboxes
     private const float MinAreaRatio = 0.05f;              // ≥ 5% of frame area for non-person objects
     private const float MinPersonAreaRatio = 0.01f;        // Lower threshold for persons
@@ -92,8 +92,16 @@ public sealed class SmartThumbnailCropService : IDisposable
     public Int32Rect? GetSmartCropRect(BitmapImage source, int targetSquareSize)
     {
         if (_disposed) return null;
-        if (!_modelExists && !TryInitialize()) return null;
-        if (!_modelExists) return null;
+        if (!_modelExists && !TryInitialize())
+        {
+            VNotch.Services.RuntimeLog.Log("SMART-CROP", $"GetSmartCropRect: model init failed");
+            return null;
+        }
+        if (!_modelExists)
+        {
+            VNotch.Services.RuntimeLog.Log("SMART-CROP", $"GetSmartCropRect: model not exist");
+            return null;
+        }
 
         lock (_lock)
         {
@@ -106,13 +114,17 @@ public sealed class SmartThumbnailCropService : IDisposable
 
                 // Skip if image is already square or very small
                 if (Math.Abs(imgWidth - imgHeight) < 10 || imgWidth < 64 || imgHeight < 64)
+                {
+                    VNotch.Services.RuntimeLog.Log("SMART-CROP", $"GetSmartCropRect: skip (square/small) {imgWidth}x{imgHeight}");
                     return null;
+                }
 
                 // For small images (< 400px wide), ONNX is overkill — use saliency directly
                 if (imgWidth < 400 && imgHeight < 400)
                 {
                     int maxCrop = Math.Min(imgWidth, imgHeight);
                     int cropSz = Math.Min(targetSquareSize, maxCrop);
+                    VNotch.Services.RuntimeLog.Log("SMART-CROP", $"GetSmartCropRect: small image {imgWidth}x{imgHeight} -> saliency only");
                     return GetSaliencyCropRect(source, imgWidth, imgHeight, cropSz);
                 }
 
@@ -131,13 +143,18 @@ public sealed class SmartThumbnailCropService : IDisposable
                     System.Diagnostics.Debug.WriteLine("[SmartCrop] Model loaded (cached session).");
                 }
 
-                tensorBuffer = ArrayPool<float>.Shared.Rent(1 * 3 * ModelInputSize * ModelInputSize);
+                int requiredLength = 1 * 3 * ModelInputSize * ModelInputSize;
+                tensorBuffer = ArrayPool<float>.Shared.Rent(requiredLength);
 
                 // ─── Preprocess ───
                 var (scaleX, scaleY, padX, padY) = PreprocessImageFast(source, tensorBuffer);
 
                 // ─── Run inference ───
-                var tensor = new DenseTensor<float>(tensorBuffer, new[] { 1, 3, ModelInputSize, ModelInputSize });
+                // ArrayPool.Rent returns a buffer >= requested size, but DenseTensor
+                // requires Memory<float>.Length == product(dimensions). Slice to exact size.
+                var tensor = new DenseTensor<float>(
+                    new Memory<float>(tensorBuffer, 0, requiredLength),
+                    new[] { 1, 3, ModelInputSize, ModelInputSize });
                 var inputName = _cachedSession.InputNames[0];
                 var inputs = new List<NamedOnnxValue>(1)
                 {
@@ -152,15 +169,18 @@ public sealed class SmartThumbnailCropService : IDisposable
 
                 if (detections.Count == 0)
                 {
+                    VNotch.Services.RuntimeLog.Log("SMART-CROP", "ONNX produced 0 detections -> saliency fallback");
                     // No YOLO detections — use saliency/attention fallback
                     return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSquareSize);
                 }
 
                 // ─── Multi-signal hybrid crop ───
+                VNotch.Services.RuntimeLog.Log("SMART-CROP", $"raw detections count={detections.Count}");
                 return GetHybridCropRect(detections, source, imgWidth, imgHeight, targetSquareSize);
             }
             catch (Exception ex)
             {
+                VNotch.Services.RuntimeLog.Error("SMART-CROP", $"Inference failed: {ex.GetType().Name}: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"[SmartCrop] Inference failed: {ex.Message}");
                 _cachedSession?.Dispose();
                 _cachedSession = null;
@@ -483,11 +503,17 @@ public sealed class SmartThumbnailCropService : IDisposable
                 objects.Add(d);
         }
 
+        VNotch.Services.RuntimeLog.Log("SMART-CROP",
+            $"img={imgWidth}x{imgHeight} detections total={detections.Count} persons={persons.Count} objects={objects.Count}");
+
         // ─── Person always wins — focus on people, ignore text ───
         if (persons.Count >= 1)
         {
             var largestPerson = persons.OrderByDescending(p => p.Area).First();
             float personAreaRatio = largestPerson.Area / imgArea;
+
+            VNotch.Services.RuntimeLog.Log("SMART-CROP",
+                $"person path: largest=({largestPerson.X1:F0},{largestPerson.Y1:F0})-({largestPerson.X2:F0},{largestPerson.Y2:F0}) areaRatio={personAreaRatio:F3} portraitThr={PortraitThreshold}");
 
             if (personAreaRatio >= PortraitThreshold)
                 return GetPortraitCropRect(largestPerson, imgWidth, imgHeight, cropSize);
@@ -511,20 +537,24 @@ public sealed class SmartThumbnailCropService : IDisposable
             float objCenterX = (bestObj.X1 + bestObj.X2) / 2f;
             float objCenterY = (bestObj.Y1 + bestObj.Y2) / 2f;
 
+            VNotch.Services.RuntimeLog.Log("SMART-CROP",
+                $"object path: classId={bestObj.ClassId} center=({objCenterX:F0},{objCenterY:F0})");
+
             return BuildCropRect(objCenterX, objCenterY, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── No persons AND no objects: try text-focused crop ───
-        var textRegions = DetectTextRegions(source, imgWidth, imgHeight);
-        if (textRegions.Count > 0)
+        // ─── No persons AND no objects: center-weighted saliency ───
+        VNotch.Services.RuntimeLog.Log("SMART-CROP", "no person/object -> saliency fallback");
+        var saliencyRect = GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize);
+        if (saliencyRect.HasValue)
         {
-            System.Diagnostics.Debug.WriteLine($"[SmartCrop] No person/object detected — cropping to text ({textRegions.Count} regions)");
-            return GetTextFirstCropRect(textRegions, imgWidth, imgHeight, cropSize);
+            VNotch.Services.RuntimeLog.Log("SMART-CROP",
+                $"saliency rect=({saliencyRect.Value.X},{saliencyRect.Value.Y},{saliencyRect.Value.Width}x{saliencyRect.Value.Height})");
+            return saliencyRect.Value;
         }
 
-        // ─── Fallback: saliency (subject-focused) ───
-        return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize)
-               ?? BuildCropRect(imgWidth / 2f, imgHeight / 2f, imgWidth, imgHeight, cropSize);
+        VNotch.Services.RuntimeLog.Log("SMART-CROP", "saliency null -> exact center");
+        return BuildCropRect(imgWidth / 2f, imgHeight / 2f, imgWidth, imgHeight, cropSize);
     }
 
     private Int32Rect GetPortraitCropRect(Detection person, int imgWidth, int imgHeight, int cropSize)
@@ -774,11 +804,12 @@ public sealed class SmartThumbnailCropService : IDisposable
                     double contrastFactor = avgContrast < 40 ? avgContrast / 40.0 : 1.0 - (avgContrast - 40) / 200.0;
                     contrastFactor = Math.Clamp(contrastFactor, 0.2, 1.0);
 
-                    // Center bias for saliency
+                    // Center bias for saliency — strong bias to keep main subject centered
+                    // and avoid pulling crop toward off-center decorative elements (text, logos)
                     float cx = (gx + 0.5f) / gridSize;
                     float cy = (gy + 0.5f) / gridSize;
                     float centerDist = MathF.Sqrt((cx - 0.5f) * (cx - 0.5f) + (cy - 0.5f) * (cy - 0.5f));
-                    float centerBias = 1.0f - centerDist * 0.6f;
+                    float centerBias = MathF.Max(0.1f, 1.0f - centerDist * 1.6f);
 
                     // Score: saturation (subject) + moderate contrast - text penalty
                     saliencyMap[gy, gx] = (float)((avgSat * 60.0 + contrastFactor * 20.0) * brightnessPenalty * centerBias);
