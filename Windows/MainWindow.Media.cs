@@ -147,7 +147,7 @@ public partial class MainWindow
                         }
                         else
                         {
-                            AnimateThumbnailSwitchOnly(info.Thumbnail);
+                            AnimateThumbnailSwitchOnly(info.Thumbnail, force: true);
                             PlayTrackChangeBounce();
                         }
                     }
@@ -258,7 +258,7 @@ public partial class MainWindow
         });
     }
 
-    private void AnimateThumbnailSwitchOnly(ImageSource newThumb)
+    private void AnimateThumbnailSwitchOnly(ImageSource newThumb, bool force = false)
     {
         if (_isAnimating)
         {
@@ -269,7 +269,9 @@ public partial class MainWindow
 
         // Skip animation if the thumbnail is already the same object —
         // avoids a visible "snap zoom" pulse with no actual image change.
-        if (newThumb != null && ReferenceEquals(ThumbnailImage.Source, newThumb))
+        // But if force=true (new track), always animate even if same reference
+        // (thumbnail may be suppressed/cached from previous track).
+        if (!force && newThumb != null && ReferenceEquals(ThumbnailImage.Source, newThumb))
         {
             return;
         }

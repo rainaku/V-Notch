@@ -92,7 +92,45 @@ public class MediaDetectionService : IMediaDetectionService
 
     private GlobalSystemMediaTransportControlsSession? GetActiveSession()
     {
-        return _activeDisplaySession ?? _currentSession ?? _sessionManager?.GetCurrentSession();
+        // Priority: use the session that matches what's currently displayed to the user.
+        // _activeDisplaySession is the session selected by the scoring algorithm and
+        // should match the media info shown on the notch.
+        if (_activeDisplaySession != null)
+            return _activeDisplaySession;
+
+        // Fallback: if _activeDisplaySession hasn't been set yet (e.g., during startup),
+        // try to find a session matching the last published source app ID.
+        if (!string.IsNullOrEmpty(_lastPublishedSourceAppId))
+        {
+            var match = FindSessionBySourceAppId(_lastPublishedSourceAppId);
+            if (match != null)
+                return match;
+        }
+
+        return _currentSession ?? _sessionManager?.GetCurrentSession();
+    }
+
+    private GlobalSystemMediaTransportControlsSession? FindSessionBySourceAppId(string sourceAppId)
+    {
+        try
+        {
+            var sessions = _sessionManager?.GetSessions();
+            if (sessions == null) return null;
+
+            foreach (var s in sessions)
+            {
+                var id = s.SourceAppUserModelId ?? "";
+                if (string.Equals(id, sourceAppId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return s;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-FIND-SESSION", $"Failed to find session for {sourceAppId}: {ex.Message}");
+        }
+        return null;
     }
 
     private GlobalSystemMediaTransportControlsSession? _currentSession;
@@ -1548,13 +1586,40 @@ public class MediaDetectionService : IMediaDetectionService
 
                             if (osCurrentId == sourceApp)
                             {
-                                score += 1000;
+                                // Reduce OS-current bonus for browser sessions when a dedicated
+                                // music app is actively playing. This prevents the browser from
+                                // hijacking transport controls just because the OS reports it as
+                                // the "current session" (e.g., user opened a YouTube tab after
+                                // Spotify was already playing).
+                                bool isDedicatedMusicAppPlaying = false;
+                                if (isBrowser || isYouTube)
+                                {
+                                    foreach (var otherSession in sessions)
+                                    {
+                                        try
+                                        {
+                                            var otherId = otherSession.SourceAppUserModelId ?? "";
+                                            if (otherId.Contains("Spotify", StringComparison.OrdinalIgnoreCase) ||
+                                                otherId.Contains("Music", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                if (IsSessionPlayingStatus(otherSession.GetPlaybackInfo().PlaybackStatus))
+                                                {
+                                                    isDedicatedMusicAppPlaying = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        catch { }
+                                    }
+                                }
+
+                                score += isDedicatedMusicAppPlaying ? 200 : 1000;
                             }
 
                             if (isActive)
                             {
                                 score += 500;
-                                if (osCurrentId == sourceApp) score += 1000;
+                                if (osCurrentId == sourceApp && !(isBrowser || isYouTube)) score += 1000;
                                 _sessionLastPlayingTimes[sourceApp] = DateTime.Now;
                             }
 

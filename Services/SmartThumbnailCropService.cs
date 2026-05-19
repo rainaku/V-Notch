@@ -514,7 +514,15 @@ public sealed class SmartThumbnailCropService : IDisposable
             return BuildCropRect(objCenterX, objCenterY, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── Fallback: saliency (subject-focused, not text-focused) ───
+        // ─── No persons AND no objects: try text-focused crop ───
+        var textRegions = DetectTextRegions(source, imgWidth, imgHeight);
+        if (textRegions.Count > 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SmartCrop] No person/object detected — cropping to text ({textRegions.Count} regions)");
+            return GetTextFirstCropRect(textRegions, imgWidth, imgHeight, cropSize);
+        }
+
+        // ─── Fallback: saliency (subject-focused) ───
         return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize)
                ?? BuildCropRect(imgWidth / 2f, imgHeight / 2f, imgWidth, imgHeight, cropSize);
     }
