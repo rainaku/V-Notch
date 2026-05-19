@@ -156,12 +156,13 @@ public partial class MainWindow
 
                         if (ThumbnailImage.Source != info.Thumbnail)
                         {
-                            // Thumbnail changed for the same track — animate only if this is
-                            // a genuinely new thumbnail we haven't already animated to.
+                            // Thumbnail changed for the same track (e.g. smart crop update,
+                            // YouTube fetch completing) — crossfade instead of flip to avoid
+                            // jarring animation when only the crop region changed.
                             if (!ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail) &&
                                 !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
                             {
-                                AnimateThumbnailSwitchOnly(info.Thumbnail);
+                                CrossfadeThumbnail(info.Thumbnail);
                                 _lastAnimatedThumbnail = info.Thumbnail;
                             }
                         }

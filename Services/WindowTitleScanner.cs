@@ -1,11 +1,13 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows.Automation;
 
 namespace VNotch.Services;
 
 public interface IWindowTitleScanner
 {
     List<string> GetAllWindowTitles(bool isThrottled);
+    string? TryGetBrowserUrl();
 }
 
 public sealed class WindowTitleScanner : IWindowTitleScanner
@@ -84,5 +86,123 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             _lastWindowEnumTime = DateTime.Now;
             return titles;
         }
+    }
+
+    // ─── Browser URL extraction via UI Automation ───
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    private string? _cachedBrowserUrl;
+    private DateTime _lastBrowserUrlTime = DateTime.MinValue;
+
+    public string? TryGetBrowserUrl()
+    {
+        lock (_cacheLock)
+        {
+            if ((DateTime.Now - _lastBrowserUrlTime).TotalMilliseconds < 1000)
+                return _cachedBrowserUrl;
+
+            _cachedBrowserUrl = ExtractBrowserUrlCore();
+            _lastBrowserUrlTime = DateTime.Now;
+            return _cachedBrowserUrl;
+        }
+    }
+
+    private string? ExtractBrowserUrlCore()
+    {
+        try
+        {
+            IntPtr hwnd = GetForegroundWindow();
+            if (hwnd == IntPtr.Zero) return null;
+
+            GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0) return null;
+
+            string? processName = null;
+            try
+            {
+                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                processName = proc.ProcessName.ToLowerInvariant();
+            }
+            catch { return null; }
+
+            // Only attempt for known browsers
+            bool isBrowser = processName.Contains("chrome") ||
+                            processName.Contains("msedge") ||
+                            processName.Contains("firefox") ||
+                            processName.Contains("brave") ||
+                            processName.Contains("opera") ||
+                            processName.Contains("vivaldi");
+
+            if (!isBrowser) return null;
+
+            var element = AutomationElement.FromHandle(hwnd);
+            if (element == null) return null;
+
+            // Strategy 1: Find address bar by ControlType.Edit with URL-like value
+            // Chrome/Edge/Brave/Vivaldi use a single Edit control for the address bar
+            AutomationElement? addressBar = null;
+
+            if (processName.Contains("firefox"))
+            {
+                // Firefox: the URL bar has AutomationId "urlbar-input"
+                addressBar = element.FindFirst(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.AutomationIdProperty, "urlbar-input"));
+            }
+            else
+            {
+                // Chromium-based: find Edit control (address bar)
+                // The address bar is typically the first Edit with a URL-like value
+                var editCondition = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit);
+                var edits = element.FindAll(TreeScope.Descendants, editCondition);
+
+                foreach (AutomationElement edit in edits)
+                {
+                    try
+                    {
+                        if (edit.TryGetCurrentPattern(ValuePattern.Pattern, out object? pattern))
+                        {
+                            var valuePattern = (ValuePattern)pattern;
+                            string val = valuePattern.Current.Value ?? "";
+
+                            // Check if it looks like a URL
+                            if (val.Contains("youtube.com/watch") || val.Contains("youtu.be/") ||
+                                val.Contains("soundcloud.com/") ||
+                                val.StartsWith("http://") || val.StartsWith("https://") ||
+                                val.Contains(".com/") || val.Contains(".org/"))
+                            {
+                                addressBar = edit;
+                                break;
+                            }
+                        }
+                    }
+                    catch { continue; }
+                }
+            }
+
+            if (addressBar == null) return null;
+
+            if (addressBar.TryGetCurrentPattern(ValuePattern.Pattern, out object? urlPattern))
+            {
+                var vp = (ValuePattern)urlPattern;
+                string url = vp.Current.Value ?? "";
+
+                // Normalize: some browsers strip the protocol
+                if (!url.StartsWith("http") && url.Contains("."))
+                    url = "https://" + url;
+
+                return string.IsNullOrWhiteSpace(url) ? null : url;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WindowTitleScanner] Browser URL extraction failed: {ex.Message}");
+        }
+
+        return null;
     }
 }

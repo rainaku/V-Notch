@@ -743,6 +743,13 @@ public class MediaDetectionService : IMediaDetectionService
                         string? videoId = shouldForceThumbFetch ? null : info.YouTubeVideoId;
                         int retryCount = 0;
 
+                        // ─── Priority 1: Extract video ID directly from browser URL ───
+                        // This is the most accurate method — no search needed.
+                        if (string.IsNullOrEmpty(videoId))
+                        {
+                            videoId = TryExtractVideoIdFromBrowserUrl();
+                        }
+
                         while (retryCount < 3 && !token.IsCancellationRequested)
                         {
                             if (string.IsNullOrEmpty(videoId))
@@ -2375,6 +2382,32 @@ public class MediaDetectionService : IMediaDetectionService
 
     private List<string> GetAllWindowTitles()
         => _windowTitleScanner.GetAllWindowTitles(_timelineSimulator.IsThrottled);
+
+    private string? TryExtractVideoIdFromBrowserUrl()
+    {
+        try
+        {
+            string? url = _windowTitleScanner.TryGetBrowserUrl();
+            if (string.IsNullOrEmpty(url)) return null;
+
+            // Match youtube.com/watch?v=VIDEO_ID or youtu.be/VIDEO_ID
+            var match = System.Text.RegularExpressions.Regex.Match(url,
+                @"(?:youtube\.com/watch\?.*v=|youtu\.be/)([a-zA-Z0-9_-]{11})");
+
+            if (match.Success)
+            {
+                string videoId = match.Groups[1].Value;
+                System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted video ID from browser URL: {videoId}");
+                return videoId;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MediaDetection] Browser URL extraction failed: {ex.Message}");
+        }
+
+        return null;
+    }
 
     private bool IsLikelyYouTube(MediaInfo info)
     {

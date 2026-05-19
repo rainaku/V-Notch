@@ -11,25 +11,59 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace VNotch.Services;
+
 public sealed class SmartThumbnailCropService : IDisposable
 {
     private readonly object _lock = new();
 
-    // Use 640 for model (YOLOv8n is trained at 640)
+    // ─── Model constants ───
     private const int ModelInputSize = 640;
-    private const float ConfidenceThreshold = 0.40f;
-    private const float NmsThreshold = 0.45f;
+
+    // ─── Object Detection Rules ───
+    private const float ConfidenceThreshold = 0.50f;       // ≥ 0.5 to filter noise/false positives
+    private const float PersonConfidenceThreshold = 0.25f; // Lower for person class (priority)
+    private const float NmsThreshold = 0.45f;              // IoU ≤ 0.45 to merge overlapping bboxes
+    private const float MinAreaRatio = 0.05f;              // ≥ 5% of frame area for non-person objects
+    private const float MinPersonAreaRatio = 0.01f;        // Lower threshold for persons
+
+    // ─── Person/Face Detection Weights ───
+    private const float FaceWeight = 2.0f;                 // Face bbox importance multiplier
+    private const float BodyWeight = 1.4f;                 // Body bbox fallback weight
+    private const float HeadRoomPadding = 0.15f;           // +15% padding above head
+    private const int MinFaceSize = 20;                    // Min 20x20px to filter false positives
+
+    // ─── Text Detection Weights ───
+    private const float TextWeight = 1.6f;                 // Text region importance multiplier
+    private const float TextSafeZoneRatio = 0.80f;         // Crop must contain text if within 80%
+
+    // ─── Portrait Detection ───
+    private const float PortraitThreshold = 0.60f;         // Person > 60% frame = portrait mode
 
     private bool _disposed;
     private bool _modelExists;
     private bool _modelExistsChecked;
     private InferenceSession? _cachedSession;
 
-    // COCO classes that are typically "main subjects" in thumbnails
-    private static readonly HashSet<int> _priorityClasses = new()
+    // COCO class IDs for multi-class priority: person > product > animal > background
+    private static readonly HashSet<int> _personClasses = new() { 0 }; // person
+    private static readonly HashSet<int> _animalClasses = new()
     {
-        0,  // person
+        14, 15, 16, 17, 18, 19, 20, 21, 22, 23 // bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe
     };
+    private static readonly HashSet<int> _productClasses = new()
+    {
+        39, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+        60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79
+    };
+
+    private static float GetClassPriority(int classId)
+    {
+        if (_personClasses.Contains(classId)) return 3.0f;
+        if (_productClasses.Contains(classId)) return 2.0f;
+        if (_animalClasses.Contains(classId)) return 1.5f;
+        return 1.0f;
+    }
+
     public bool TryInitialize()
     {
         if (_disposed) return false;
@@ -43,7 +77,9 @@ public sealed class SmartThumbnailCropService : IDisposable
 
         return _modelExists;
     }
+
     public bool IsLoaded => _modelExists;
+
     public void Unload()
     {
         lock (_lock)
@@ -52,6 +88,7 @@ public sealed class SmartThumbnailCropService : IDisposable
             _cachedSession = null;
         }
     }
+
     public Int32Rect? GetSmartCropRect(BitmapImage source, int targetSquareSize)
     {
         if (_disposed) return null;
@@ -106,17 +143,16 @@ public sealed class SmartThumbnailCropService : IDisposable
 
                 if (detections.Count == 0)
                 {
-                    // No YOLO detections — use saliency-based crop
+                    // No YOLO detections — use saliency/attention fallback
                     return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSquareSize);
                 }
 
-                // Hybrid crop logic
+                // ─── Multi-signal hybrid crop ───
                 return GetHybridCropRect(detections, source, imgWidth, imgHeight, targetSquareSize);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SmartCrop] Inference failed: {ex.Message}");
-                // If session is corrupted, dispose it so next call creates a fresh one
                 _cachedSession?.Dispose();
                 _cachedSession = null;
                 return null;
@@ -134,7 +170,6 @@ public sealed class SmartThumbnailCropService : IDisposable
         int imgWidth = source.PixelWidth;
         int imgHeight = source.PixelHeight;
 
-        // Calculate letterbox scaling
         float scale = Math.Min((float)ModelInputSize / imgWidth, (float)ModelInputSize / imgHeight);
         int newWidth = (int)(imgWidth * scale);
         int newHeight = (int)(imgHeight * scale);
@@ -143,7 +178,6 @@ public sealed class SmartThumbnailCropService : IDisposable
         int padXi = (int)padX;
         int padYi = (int)padY;
 
-        // Fast: scale source down using WPF (hardware-accelerated)
         var scaled = new TransformedBitmap(source, new ScaleTransform(
             (double)newWidth / imgWidth,
             (double)newHeight / imgHeight));
@@ -151,13 +185,11 @@ public sealed class SmartThumbnailCropService : IDisposable
 
         int scaledW = scaled.PixelWidth;
         int scaledH = scaled.PixelHeight;
-        int stride = scaledW * 4; // Bgra32
+        int stride = scaledW * 4;
 
-        // Rent a buffer from the pool to avoid allocation
         byte[] pixels = ArrayPool<byte>.Shared.Rent(scaledH * stride);
         try
         {
-            // Convert to Bgra32 if needed and copy pixels
             if (scaled.Format != PixelFormats.Bgra32)
             {
                 var formatted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
@@ -169,15 +201,12 @@ public sealed class SmartThumbnailCropService : IDisposable
                 scaled.CopyPixels(pixels, stride, 0);
             }
 
-            // Fill tensor buffer: gray padding + image data in one pass
             int planeSize = ModelInputSize * ModelInputSize;
             const float grayVal = 114f / 255f;
             const float inv255 = 1f / 255f;
 
-            // Fill entire buffer with gray first (fast span fill)
             tensorBuffer.AsSpan().Fill(grayVal);
 
-            // Copy image pixels into the correct positions (R, G, B planes)
             for (int y = 0; y < scaledH && (y + padYi) < ModelInputSize; y++)
             {
                 int tensorY = y + padYi;
@@ -189,10 +218,9 @@ public sealed class SmartThumbnailCropService : IDisposable
                     int pixelIdx = rowOffset + x * 4;
                     int tensorIdx = tensorRowBase + (x + padXi);
 
-                    // BGRA -> RGB planes
-                    tensorBuffer[tensorIdx] = pixels[pixelIdx + 2] * inv255;                  // R plane
-                    tensorBuffer[planeSize + tensorIdx] = pixels[pixelIdx + 1] * inv255;      // G plane
-                    tensorBuffer[2 * planeSize + tensorIdx] = pixels[pixelIdx] * inv255;      // B plane
+                    tensorBuffer[tensorIdx] = pixels[pixelIdx + 2] * inv255;
+                    tensorBuffer[planeSize + tensorIdx] = pixels[pixelIdx + 1] * inv255;
+                    tensorBuffer[2 * planeSize + tensorIdx] = pixels[pixelIdx] * inv255;
                 }
             }
         }
@@ -207,19 +235,14 @@ public sealed class SmartThumbnailCropService : IDisposable
     private List<Detection> ParseYolov8Output(Tensor<float> output, int imgWidth, int imgHeight, float scale, float padX, float padY)
     {
         // YOLOv8 output shape: [1, 84, 8400]
-        // 84 = 4 (bbox) + 80 (class scores)
-        // 8400 = number of predictions
-
-        var detections = new List<Detection>(16); // Pre-size for typical count
+        var detections = new List<Detection>(16);
         var dims = output.Dimensions;
-
-        int numClasses = dims[1] - 4;
         int numPredictions = dims[2];
+        float imgArea = imgWidth * imgHeight;
 
         for (int i = 0; i < numPredictions; i++)
         {
-            // Find max class score — early exit optimization
-            float maxScore = ConfidenceThreshold;
+            float maxScore = PersonConfidenceThreshold;
             int maxClassId = -1;
 
             for (int c = 4; c < dims[1]; c++)
@@ -232,10 +255,12 @@ public sealed class SmartThumbnailCropService : IDisposable
                 }
             }
 
-            if (maxClassId < 0)
+            if (maxClassId < 0) continue;
+
+            // Rule: Non-person classes must meet ≥ 0.5 confidence threshold
+            if (!_personClasses.Contains(maxClassId) && maxScore < ConfidenceThreshold)
                 continue;
 
-            // Get bbox (center_x, center_y, width, height) in model coordinates
             float cx = output[0, 0, i];
             float cy = output[0, 1, i];
             float w = output[0, 2, i];
@@ -247,27 +272,34 @@ public sealed class SmartThumbnailCropService : IDisposable
             float x2 = (cx + w / 2f - padX) / scale;
             float y2 = (cy + h / 2f - padY) / scale;
 
-            // Clamp to image bounds
             x1 = Math.Clamp(x1, 0, imgWidth);
             y1 = Math.Clamp(y1, 0, imgHeight);
             x2 = Math.Clamp(x2, 0, imgWidth);
             y2 = Math.Clamp(y2, 0, imgHeight);
 
-            if (x2 - x1 < 5 || y2 - y1 < 5)
-                continue;
+            float bboxArea = (x2 - x1) * (y2 - y1);
+            float areaRatio = bboxArea / imgArea;
+
+            // Rule: Min area ≥ 5% for non-person, ≥ 1% for person
+            if (_personClasses.Contains(maxClassId))
+            {
+                if (areaRatio < MinPersonAreaRatio) continue;
+            }
+            else
+            {
+                if (areaRatio < MinAreaRatio) continue;
+            }
+
+            if (x2 - x1 < 5 || y2 - y1 < 5) continue;
 
             detections.Add(new Detection
             {
-                X1 = x1,
-                Y1 = y1,
-                X2 = x2,
-                Y2 = y2,
+                X1 = x1, Y1 = y1, X2 = x2, Y2 = y2,
                 Confidence = maxScore,
                 ClassId = maxClassId
             });
         }
 
-        // Apply NMS only if we have multiple detections
         return detections.Count > 1 ? ApplyNms(detections) : detections;
     }
 
@@ -285,6 +317,7 @@ public sealed class SmartThumbnailCropService : IDisposable
             for (int j = i + 1; j < sorted.Count; j++)
             {
                 if (suppressed[j]) continue;
+                // Rule: NMS IoU ≤ 0.45
                 if (IoU(sorted[i], sorted[j]) > NmsThreshold)
                     suppressed[j] = true;
             }
@@ -307,127 +340,360 @@ public sealed class SmartThumbnailCropService : IDisposable
         return interArea / (areaA + areaB - interArea + 1e-6f);
     }
 
-    private Detection? SelectBestDetection(List<Detection> detections, int imgWidth, int imgHeight)
+    private static float GetCenterWeight(Detection d, int imgWidth, int imgHeight)
     {
-        float imgArea = imgWidth * imgHeight;
+        float objCenterX = (d.X1 + d.X2) / 2f;
+        float objCenterY = (d.Y1 + d.Y2) / 2f;
+        float imgCenterX = imgWidth / 2f;
+        float imgCenterY = imgHeight / 2f;
 
-        // Prefer priority classes (person) with decent size
-        Detection? bestPriority = null;
-        float bestPriorityScore = 0;
+        // Normalized distance from center (0 = center, 1 = corner)
+        float dx = (objCenterX - imgCenterX) / imgCenterX;
+        float dy = (objCenterY - imgCenterY) / imgCenterY;
+        float dist = MathF.Sqrt(dx * dx + dy * dy) / MathF.Sqrt(2f);
 
-        Detection? bestLargest = null;
-        float bestLargestArea = 0;
-
-        foreach (var d in detections)
-        {
-            float areaRatio = d.Area / imgArea;
-
-            if (_priorityClasses.Contains(d.ClassId) && areaRatio > 0.02f)
-            {
-                float score = d.Confidence * areaRatio;
-                if (score > bestPriorityScore)
-                {
-                    bestPriorityScore = score;
-                    bestPriority = d;
-                }
-            }
-
-            if (areaRatio > 0.05f && d.Area > bestLargestArea)
-            {
-                bestLargestArea = d.Area;
-                bestLargest = d;
-            }
-        }
-
-        return bestPriority ?? bestLargest;
+        // Weight: 1.0 at center, 0.5 at corners
+        return 1.0f - dist * 0.5f;
     }
 
-    /// <summary>
-    /// Hybrid crop: combines ONNX detections with heuristic rules.
-    /// - Single person → crop centered on person (with center bias)
-    /// - Multiple persons → crop center encompassing all
-    /// - Non-person detections → use as secondary hint
-    /// </summary>
+    private List<TextRegion> DetectTextRegions(BitmapImage source, int imgWidth, int imgHeight)
+    {
+        var regions = new List<TextRegion>();
+
+        try
+        {
+            const int gridSize = 8;
+            int cellW = imgWidth / gridSize;
+            int cellH = imgHeight / gridSize;
+
+            // Downsample for analysis
+            const int analysisSize = 128;
+            double scaleX = (double)analysisSize / imgWidth;
+            double scaleY = (double)analysisSize / imgHeight;
+            var scaled = new TransformedBitmap(source, new ScaleTransform(scaleX, scaleY));
+            scaled.Freeze();
+
+            int w = scaled.PixelWidth;
+            int h = scaled.PixelHeight;
+            if (w < 8 || h < 8) return regions;
+
+            int stride = w * 4;
+            byte[] pixels = new byte[h * stride];
+
+            BitmapSource scaledSource = scaled;
+            if (scaled.Format != PixelFormats.Bgra32)
+            {
+                var converted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
+                converted.Freeze();
+                scaledSource = converted;
+            }
+            scaledSource.CopyPixels(pixels, stride, 0);
+
+            int aCellW = w / gridSize;
+            int aCellH = h / gridSize;
+
+            for (int gy = 0; gy < gridSize; gy++)
+            {
+                for (int gx = 0; gx < gridSize; gx++)
+                {
+                    int startX = gx * aCellW;
+                    int startY = gy * aCellH;
+                    int endX = Math.Min(startX + aCellW, w - 1);
+                    int endY = Math.Min(startY + aCellH, h - 1);
+
+                    double edgeCount = 0;
+                    int pixelCount = 0;
+
+                    for (int y = startY; y < endY; y++)
+                    {
+                        for (int x = startX; x < endX; x++)
+                        {
+                            int i = y * stride + x * 4;
+                            int iRight = i + 4;
+                            int iBelow = (y + 1) * stride + x * 4;
+
+                            if (x + 1 >= w || y + 1 >= h) continue;
+
+                            double lum = 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
+                            double lumR = 0.299 * pixels[iRight + 2] + 0.587 * pixels[iRight + 1] + 0.114 * pixels[iRight];
+                            double lumB = 0.299 * pixels[iBelow + 2] + 0.587 * pixels[iBelow + 1] + 0.114 * pixels[iBelow];
+
+                            double grad = Math.Abs(lum - lumR) + Math.Abs(lum - lumB);
+                            if (grad > 40) edgeCount++;
+                            pixelCount++;
+                        }
+                    }
+
+                    if (pixelCount == 0) continue;
+
+                    double edgeRatio = edgeCount / pixelCount;
+
+                    // High edge density (> 0.3) indicates text-like content
+                    if (edgeRatio > 0.30)
+                    {
+                        float regionHeight = cellH;
+                        // Rule: font_factor = sqrt(text_height)
+                        float fontFactor = MathF.Sqrt(regionHeight);
+
+                        regions.Add(new TextRegion
+                        {
+                            X1 = gx * cellW,
+                            Y1 = gy * cellH,
+                            X2 = (gx + 1) * cellW,
+                            Y2 = (gy + 1) * cellH,
+                            EdgeDensity = (float)edgeRatio,
+                            FontFactor = fontFactor
+                        });
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SmartCrop] Text detection failed: {ex.Message}");
+        }
+
+        return regions;
+    }
+
     private Int32Rect GetHybridCropRect(List<Detection> detections, BitmapImage source, int imgWidth, int imgHeight, int targetSize)
     {
         float imgArea = imgWidth * imgHeight;
+        int maxCropSize = Math.Min(imgWidth, imgHeight);
+        int cropSize = Math.Min(targetSize, maxCropSize);
 
-        // Separate persons from other detections
+        // ─── Classify detections ───
         var persons = new List<Detection>();
-        Detection? largestNonPerson = null;
-        float largestNonPersonArea = 0;
+        var objects = new List<Detection>();
 
         foreach (var d in detections)
         {
-            float areaRatio = d.Area / imgArea;
-            if (areaRatio < 0.02f) continue; // Skip tiny detections
-
-            if (_priorityClasses.Contains(d.ClassId))
-            {
+            if (_personClasses.Contains(d.ClassId))
                 persons.Add(d);
-            }
-            else if (d.Area > largestNonPersonArea && areaRatio > 0.05f)
+            else
+                objects.Add(d);
+        }
+
+        // ─── Detect text regions ───
+        var textRegions = DetectTextRegions(source, imgWidth, imgHeight);
+        bool isTextHeavy = textRegions.Count >= 4; // ≥ 4 text cells = infographic/slide
+
+        // ─── Edge Case: Portrait mode (person > 60% frame) ───
+        if (persons.Count >= 1)
+        {
+            var largestPerson = persons.OrderByDescending(p => p.Area).First();
+            float personAreaRatio = largestPerson.Area / imgArea;
+
+            if (personAreaRatio >= PortraitThreshold)
             {
-                largestNonPersonArea = d.Area;
-                largestNonPerson = d;
+                // Portrait: keep face + upper body, ignore other objects
+                return GetPortraitCropRect(largestPerson, imgWidth, imgHeight, cropSize);
             }
         }
 
-        int maxCropSize = Math.Min(imgWidth, imgHeight);
-        int cropSize = Math.Min(targetSize, maxCropSize);
-        float imgCenterX = imgWidth / 2f;
+        // ─── Edge Case: Text-first mode (infographic/slide) ───
+        if (isTextHeavy && persons.Count == 0)
+        {
+            return GetTextFirstCropRect(textRegions, imgWidth, imgHeight, cropSize);
+        }
 
+        // ─── Main scoring: person always wins when present ───
+        if (persons.Count > 0)
+        {
+            // Person detected — use face/body weight
+            var cropRect = GetPersonCropRect(persons, imgWidth, imgHeight, cropSize);
+
+            // Try to expand crop to include text if within 80% of frame
+            if (textRegions.Count > 0)
+            {
+                cropRect = ExpandCropForText(cropRect, textRegions, imgWidth, imgHeight, cropSize);
+            }
+
+            return cropRect;
+        }
+
+        // ─── No persons: score objects with center-bias and class priority ───
+        if (objects.Count > 0)
+        {
+            // Calculate final_score for each object
+            var bestObj = objects
+                .Select(d => new
+                {
+                    Detection = d,
+                    Score = d.Confidence * GetCenterWeight(d, imgWidth, imgHeight) * GetClassPriority(d.ClassId)
+                })
+                .OrderByDescending(x => x.Score)
+                .First()
+                .Detection;
+
+            float objCenterX = (bestObj.X1 + bestObj.X2) / 2f;
+            float objCenterY = (bestObj.Y1 + bestObj.Y2) / 2f;
+
+            var cropRect = BuildCropRect(objCenterX, objCenterY, imgWidth, imgHeight, cropSize);
+
+            // Expand for text if present
+            if (textRegions.Count > 0)
+            {
+                cropRect = ExpandCropForText(cropRect, textRegions, imgWidth, imgHeight, cropSize);
+            }
+
+            return cropRect;
+        }
+
+        // ─── Fallback: saliency ───
+        return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize)
+               ?? BuildCropRect(imgWidth / 2f, imgHeight / 2f, imgWidth, imgHeight, cropSize);
+    }
+
+    private Int32Rect GetPortraitCropRect(Detection person, int imgWidth, int imgHeight, int cropSize)
+    {
+        float personHeight = person.Y2 - person.Y1;
+        float personWidth = person.X2 - person.X1;
+
+        // Estimate face region: upper 30% of person bbox
+        float faceY1 = person.Y1;
+        float faceY2 = person.Y1 + personHeight * 0.30f;
+        float faceHeight = faceY2 - faceY1;
+
+        // Rule: Head-room padding +15% above
+        float headRoom = faceHeight * HeadRoomPadding;
+        float targetCenterY = faceY1 - headRoom + (faceY2 - faceY1 + headRoom) / 2f;
+
+        // Center X on person
+        float targetCenterX = (person.X1 + person.X2) / 2f;
+
+        return BuildCropRect(targetCenterX, targetCenterY, imgWidth, imgHeight, cropSize);
+    }
+
+    private Int32Rect GetPersonCropRect(List<Detection> persons, int imgWidth, int imgHeight, int cropSize)
+    {
         if (persons.Count == 1)
         {
-            // Single person → crop directly centered on person
             var p = persons[0];
-            float personCenterX = (p.X1 + p.X2) / 2f;
-            return BuildCropRect(personCenterX, imgWidth, imgHeight, cropSize);
+            float personHeight = p.Y2 - p.Y1;
+            float personWidth = p.X2 - p.X1;
+
+            // Check if face-sized (min 20×20px rule)
+            bool hasFace = personWidth >= MinFaceSize && personHeight >= MinFaceSize;
+            float weight = hasFace ? FaceWeight : BodyWeight;
+
+            // Face bias: upper 35% of person bbox
+            float faceBiasY = p.Y1 + personHeight * 0.35f;
+
+            // Rule: Head-room padding +15% above
+            float headRoom = personHeight * 0.30f * HeadRoomPadding;
+            float targetY = faceBiasY - headRoom;
+
+            float targetX = (p.X1 + p.X2) / 2f;
+
+            return BuildCropRect(targetX, targetY, imgWidth, imgHeight, cropSize);
         }
-        else if (persons.Count >= 2)
+        else
         {
-            // Multiple persons → center on the group
+            // Multiple persons: union bbox (don't miss anyone)
             float minX = float.MaxValue, maxX = float.MinValue;
+            float minY = float.MaxValue, maxY = float.MinValue;
+
             foreach (var p in persons)
             {
                 if (p.X1 < minX) minX = p.X1;
                 if (p.X2 > maxX) maxX = p.X2;
+                if (p.Y1 < minY) minY = p.Y1;
+                if (p.Y2 > maxY) maxY = p.Y2;
             }
-            float groupCenterX = (minX + maxX) / 2f;
-            return BuildCropRect(groupCenterX, imgWidth, imgHeight, cropSize);
-        }
-        else if (largestNonPerson != null)
-        {
-            // No persons but have other significant detection
-            float objCenterX = (largestNonPerson.Value.X1 + largestNonPerson.Value.X2) / 2f;
-            return BuildCropRect(objCenterX, imgWidth, imgHeight, cropSize);
-        }
 
-        // Fallback: saliency-based
-        return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize)
-               ?? BuildCropRect(imgCenterX, imgWidth, imgHeight, cropSize);
+            // Center on union bbox, bias toward top (faces)
+            float unionCenterX = (minX + maxX) / 2f;
+            float unionHeight = maxY - minY;
+
+            // Head-room +15% above the top-most person
+            float headRoom = unionHeight * HeadRoomPadding;
+            float targetY = minY - headRoom + unionHeight * 0.35f;
+
+            return BuildCropRect(unionCenterX, targetY, imgWidth, imgHeight, cropSize);
+        }
     }
 
-    /// <summary>
-    /// Builds a crop rect centered on a given X position, with Y centered in image.
-    /// </summary>
-    private static Int32Rect BuildCropRect(float centerX, int imgWidth, int imgHeight, int cropSize)
+    private Int32Rect GetTextFirstCropRect(List<TextRegion> textRegions, int imgWidth, int imgHeight, int cropSize)
+    {
+        // Compute convex hull of all text regions
+        float minX = float.MaxValue, maxX = float.MinValue;
+        float minY = float.MaxValue, maxY = float.MinValue;
+
+        foreach (var t in textRegions)
+        {
+            if (t.X1 < minX) minX = t.X1;
+            if (t.X2 > maxX) maxX = t.X2;
+            if (t.Y1 < minY) minY = t.Y1;
+            if (t.Y2 > maxY) maxY = t.Y2;
+        }
+
+        // Center crop on text hull
+        float textCenterX = (minX + maxX) / 2f;
+        float textCenterY = (minY + maxY) / 2f;
+
+        return BuildCropRect(textCenterX, textCenterY, imgWidth, imgHeight, cropSize);
+    }
+
+    private Int32Rect ExpandCropForText(Int32Rect currentCrop, List<TextRegion> textRegions, int imgWidth, int imgHeight, int cropSize)
+    {
+        float cropX1 = currentCrop.X;
+        float cropY1 = currentCrop.Y;
+        float cropX2 = currentCrop.X + currentCrop.Width;
+        float cropY2 = currentCrop.Y + currentCrop.Height;
+
+        float imgArea = imgWidth * imgHeight;
+        float maxTextArea = imgArea * TextSafeZoneRatio;
+
+        // Check which text regions are partially outside current crop
+        float expandMinX = cropX1, expandMaxX = cropX2;
+        float expandMinY = cropY1, expandMaxY = cropY2;
+
+        foreach (var t in textRegions)
+        {
+            float textArea = (t.X2 - t.X1) * (t.Y2 - t.Y1);
+            if (textArea > maxTextArea) continue; // Skip if text region too large
+
+            // Only expand if text is close to current crop (within 20% margin)
+            float margin = cropSize * 0.2f;
+            bool isNearby = t.X1 < cropX2 + margin && t.X2 > cropX1 - margin &&
+                           t.Y1 < cropY2 + margin && t.Y2 > cropY1 - margin;
+
+            if (isNearby)
+            {
+                expandMinX = Math.Min(expandMinX, t.X1);
+                expandMaxX = Math.Max(expandMaxX, t.X2);
+                expandMinY = Math.Min(expandMinY, t.Y1);
+                expandMaxY = Math.Max(expandMaxY, t.Y2);
+            }
+        }
+
+        // If expansion needed, recalculate center but keep crop size fixed
+        float newCenterX = (expandMinX + expandMaxX) / 2f;
+        float newCenterY = (expandMinY + expandMaxY) / 2f;
+
+        // Only shift if the expansion is reasonable (doesn't move too far from original)
+        float originalCenterX = currentCrop.X + currentCrop.Width / 2f;
+        float originalCenterY = currentCrop.Y + currentCrop.Height / 2f;
+        float maxShift = cropSize * 0.25f;
+
+        float finalCenterX = Math.Clamp(newCenterX, originalCenterX - maxShift, originalCenterX + maxShift);
+        float finalCenterY = Math.Clamp(newCenterY, originalCenterY - maxShift, originalCenterY + maxShift);
+
+        return BuildCropRect(finalCenterX, finalCenterY, imgWidth, imgHeight, cropSize);
+    }
+
+    private static Int32Rect BuildCropRect(float centerX, float centerY, int imgWidth, int imgHeight, int cropSize)
     {
         int cropX = (int)(centerX - cropSize / 2f);
-        int cropY = (imgHeight - cropSize) / 2;
+        int cropY = (int)(centerY - cropSize / 2f);
 
-        // Clamp to image bounds
         cropX = Math.Max(0, Math.Min(cropX, imgWidth - cropSize));
         cropY = Math.Max(0, Math.Min(cropY, imgHeight - cropSize));
 
         return new Int32Rect(cropX, cropY, cropSize, cropSize);
     }
 
-    /// <summary>
-    /// Saliency-based crop: analyzes pixel contrast and brightness to find the most
-    /// visually interesting region. Also detects text-heavy areas (high edge density).
-    /// Used when YOLO detects nothing (common for graphic/text-heavy thumbnails).
-    /// </summary>
     private Int32Rect? GetSaliencyCropRect(BitmapImage source, int imgWidth, int imgHeight, int targetSize)
     {
         try
@@ -435,7 +701,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             int maxCropSize = Math.Min(imgWidth, imgHeight);
             int cropSize = Math.Min(targetSize, maxCropSize);
 
-            // Downsample for fast analysis
             const int analysisSize = 64;
             double scaleX = (double)analysisSize / imgWidth;
             double scaleY = (double)analysisSize / imgHeight;
@@ -458,81 +723,87 @@ public sealed class SmartThumbnailCropService : IDisposable
             }
             scaledSource.CopyPixels(pixels, stride, 0);
 
-            // Divide image into vertical strips and score each
-            const int numStrips = 8;
-            int stripWidth = w / numStrips;
-            double[] stripScores = new double[numStrips];
+            // Divide into grid and compute saliency per cell
+            const int gridSize = 8;
+            int cellW = w / gridSize;
+            int cellH = h / gridSize;
+            float[,] saliencyMap = new float[gridSize, gridSize];
 
-            for (int strip = 0; strip < numStrips; strip++)
+            for (int gy = 0; gy < gridSize; gy++)
             {
-                int startX = strip * stripWidth;
-                int endX = Math.Min(startX + stripWidth, w);
-                double totalContrast = 0;
-                double totalBrightness = 0;
-                double edgeDensity = 0;
-                int pixelCount = 0;
-
-                for (int y = 1; y < h - 1; y++)
+                for (int gx = 0; gx < gridSize; gx++)
                 {
-                    for (int x = startX; x < endX && x < w - 1; x++)
+                    int startX = gx * cellW;
+                    int startY = gy * cellH;
+                    int endX = Math.Min(startX + cellW, w - 1);
+                    int endY = Math.Min(startY + cellH, h - 1);
+
+                    double totalContrast = 0;
+                    double totalBrightness = 0;
+                    int pixelCount = 0;
+
+                    for (int y = startY; y < endY; y++)
                     {
-                        int i = (y * stride) + (x * 4);
-                        int iRight = i + 4;
-                        int iBelow = ((y + 1) * stride) + (x * 4);
+                        for (int x = startX; x < endX; x++)
+                        {
+                            int i = y * stride + x * 4;
+                            if (x + 1 >= w || y + 1 >= h) continue;
 
-                        // Current pixel luminance
-                        double lum = 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
+                            int iRight = i + 4;
+                            int iBelow = (y + 1) * stride + x * 4;
 
-                        // Horizontal gradient (edge detection)
-                        double lumRight = 0.299 * pixels[iRight + 2] + 0.587 * pixels[iRight + 1] + 0.114 * pixels[iRight];
-                        double lumBelow = 0.299 * pixels[iBelow + 2] + 0.587 * pixels[iBelow + 1] + 0.114 * pixels[iBelow];
+                            double lum = 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
+                            double lumR = 0.299 * pixels[iRight + 2] + 0.587 * pixels[iRight + 1] + 0.114 * pixels[iRight];
+                            double lumB = 0.299 * pixels[iBelow + 2] + 0.587 * pixels[iBelow + 1] + 0.114 * pixels[iBelow];
 
-                        double gradH = Math.Abs(lum - lumRight);
-                        double gradV = Math.Abs(lum - lumBelow);
-                        double gradient = gradH + gradV;
+                            totalContrast += Math.Abs(lum - lumR) + Math.Abs(lum - lumB);
+                            totalBrightness += lum;
+                            pixelCount++;
+                        }
+                    }
 
-                        // High gradient = edges/text
-                        edgeDensity += gradient > 30 ? 1 : 0;
-                        totalContrast += gradient;
-                        totalBrightness += lum;
-                        pixelCount++;
+                    if (pixelCount == 0) continue;
+
+                    double avgContrast = totalContrast / pixelCount;
+                    double avgBrightness = totalBrightness / pixelCount;
+
+                    // Penalize very dark/bright regions (black bars, white bg)
+                    double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
+
+                    // Center bias for saliency
+                    float cx = (gx + 0.5f) / gridSize;
+                    float cy = (gy + 0.5f) / gridSize;
+                    float centerDist = MathF.Sqrt((cx - 0.5f) * (cx - 0.5f) + (cy - 0.5f) * (cy - 0.5f));
+                    float centerBias = 1.0f - centerDist * 0.6f;
+
+                    saliencyMap[gy, gx] = (float)(avgContrast * brightnessPenalty * centerBias);
+                }
+            }
+
+            // Find the 2×2 block with highest saliency
+            float bestScore = -1;
+            int bestGx = gridSize / 2, bestGy = gridSize / 2;
+
+            for (int gy = 0; gy < gridSize - 1; gy++)
+            {
+                for (int gx = 0; gx < gridSize - 1; gx++)
+                {
+                    float blockScore = saliencyMap[gy, gx] + saliencyMap[gy, gx + 1]
+                                     + saliencyMap[gy + 1, gx] + saliencyMap[gy + 1, gx + 1];
+                    if (blockScore > bestScore)
+                    {
+                        bestScore = blockScore;
+                        bestGx = gx;
+                        bestGy = gy;
                     }
                 }
-
-                if (pixelCount == 0) continue;
-
-                double avgContrast = totalContrast / pixelCount;
-                double avgBrightness = totalBrightness / pixelCount;
-                double edgeRatio = edgeDensity / pixelCount;
-
-                // Score: prefer high contrast + moderate brightness + high edge density (text)
-                // Penalize very dark strips (likely black bars) and very bright (likely white bg)
-                double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
-                double score = (avgContrast * 0.4 + edgeRatio * 80.0 * 0.6) * brightnessPenalty;
-
-                // Slight center bias — thumbnails usually have main content in center
-                double centerBias = 1.0 - Math.Abs((strip + 0.5) / numStrips - 0.5) * 0.3;
-                stripScores[strip] = score * centerBias;
             }
 
-            // Find the best strip region (allow 2 adjacent strips for wider coverage)
-            double bestScore = -1;
-            int bestStripCenter = numStrips / 2;
+            // Convert grid position to image coordinates
+            float saliencyCenterX = (bestGx + 1.0f) / gridSize * imgWidth;
+            float saliencyCenterY = (bestGy + 1.0f) / gridSize * imgHeight;
 
-            for (int i = 0; i < numStrips - 1; i++)
-            {
-                double pairScore = stripScores[i] + stripScores[i + 1];
-                if (pairScore > bestScore)
-                {
-                    bestScore = pairScore;
-                    bestStripCenter = i;
-                }
-            }
-
-            // Convert strip position back to image coordinates
-            float saliencyCenterX = (bestStripCenter + 1.0f) / numStrips * imgWidth;
-
-            return BuildCropRect(saliencyCenterX, imgWidth, imgHeight, cropSize);
+            return BuildCropRect(saliencyCenterX, saliencyCenterY, imgWidth, imgHeight, cropSize);
         }
         catch (Exception ex)
         {
@@ -562,6 +833,14 @@ public sealed class SmartThumbnailCropService : IDisposable
         public float X1, Y1, X2, Y2;
         public float Confidence;
         public int ClassId;
+        public float Area => (X2 - X1) * (Y2 - Y1);
+    }
+
+    private struct TextRegion
+    {
+        public float X1, Y1, X2, Y2;
+        public float EdgeDensity;
+        public float FontFactor;
         public float Area => (X2 - X1) * (Y2 - Y1);
     }
 }
