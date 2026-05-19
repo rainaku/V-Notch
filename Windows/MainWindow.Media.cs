@@ -162,8 +162,17 @@ public partial class MainWindow
                             if (!ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail) &&
                                 !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
                             {
-                                CrossfadeThumbnail(info.Thumbnail);
-                                _lastAnimatedThumbnail = info.Thumbnail;
+                                // Skip if this is just a seek re-send (same dimensions = same image)
+                                bool isSameImage = ThumbnailImage.Source is BitmapSource current &&
+                                    info.Thumbnail.PixelWidth == current.PixelWidth &&
+                                    info.Thumbnail.PixelHeight == current.PixelHeight &&
+                                    !info.IsThumbnailOnlyUpdate;
+
+                                if (!isSameImage)
+                                {
+                                    CrossfadeThumbnail(info.Thumbnail);
+                                    _lastAnimatedThumbnail = info.Thumbnail;
+                                }
                             }
                         }
                     }

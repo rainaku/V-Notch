@@ -199,59 +199,133 @@ internal static class DynamicIslandColorExtractor
             bool isMonotone = totalCount > 0 && (float)lowSatCount / totalCount > 0.85f;
             if (isMonotone)
             {
-                // Fallback: luminance-based pick — brightest non-white cluster
                 var brightest = samples
-                    .Where(s => s.V < 0.92f)
+                    .Where(s => s.V < 0.92f && s.V > 0.15f)
                     .OrderByDescending(s => s.V)
                     .FirstOrDefault();
                 var monoColor = brightest.V > 0 ? HsvToColor(brightest.H, brightest.S, brightest.V) : Colors.White;
                 return new PaletteResult(monoColor, default, default, true, false, Colors.White);
             }
 
-            // Step 3: K-Means clustering in HSV space
-            var clusters = KMeansHsv(samples, KClusters, KMeansMaxIter);
+            // Step 3: Hue-bucket approach (more reliable than K-Means for color extraction)
+            // 24 hue buckets × weighted accumulation
+            const int NUM_BUCKETS = 24;
+            float[] bucketWeight = new float[NUM_BUCKETS];
+            float[] bucketR = new float[NUM_BUCKETS];
+            float[] bucketG = new float[NUM_BUCKETS];
+            float[] bucketB = new float[NUM_BUCKETS];
+            float[] bucketS = new float[NUM_BUCKETS];
+            float[] bucketV = new float[NUM_BUCKETS];
 
-            // Step 4: Filter bad clusters
-            clusters = clusters.Where(c => IsValidCluster(c.H, c.S, c.V)).ToList();
-            if (clusters.Count == 0)
-                return new PaletteResult(Color.FromRgb(30, 30, 30), default, default, true, false, Colors.White);
-
-            // Step 5: Scoring
-            // Compute background average color (edge zone pixels)
-            float bgH = 0, bgS = 0, bgV = 0;
-            int bgCount = 0;
-            foreach (var s in samples)
+            foreach (var sample in samples)
             {
-                if (s.Weight <= 1.0f) { bgH += s.H; bgS += s.S; bgV += s.V; bgCount++; }
+                // Skip near-black and near-white
+                if (sample.V < 0.10f) continue;
+                if (sample.S < 0.08f && sample.V > 0.90f) continue;
+
+                // Only bucket pixels with some color (S > 0.12)
+                if (sample.S < 0.12f) continue;
+
+                int bucket = (int)(sample.H * NUM_BUCKETS) % NUM_BUCKETS;
+                if (bucket < 0) bucket += NUM_BUCKETS;
+
+                // Weight: zone weight × saturation boost × value penalty for very dark
+                float pixWeight = sample.Weight;
+                pixWeight *= (0.5f + sample.S * 0.5f); // saturated pixels count more
+                if (sample.V < 0.25f) pixWeight *= 0.5f; // very dark pixels count less
+
+                var rgb = HsvToColor(sample.H, sample.S, sample.V);
+                bucketWeight[bucket] += pixWeight;
+                bucketR[bucket] += rgb.R / 255f * pixWeight;
+                bucketG[bucket] += rgb.G / 255f * pixWeight;
+                bucketB[bucket] += rgb.B / 255f * pixWeight;
+                bucketS[bucket] += sample.S * pixWeight;
+                bucketV[bucket] += sample.V * pixWeight;
             }
-            if (bgCount > 0) { bgH /= bgCount; bgS /= bgCount; bgV /= bgCount; }
 
-            float totalCoverage = clusters.Sum(c => c.Coverage);
+            // Find top 2 hue regions (3-bucket wide windows)
+            float bestScore = -1, secondScore = -1;
+            int bestBucket = -1, secondBucket = -1;
 
-            foreach (var cluster in clusters)
+            for (int i = 0; i < NUM_BUCKETS; i++)
             {
-                float coveragePct = totalCoverage > 0 ? cluster.Coverage / totalCoverage : 0;
-                float contrastWithBg = DeltaEHsv(cluster.H, cluster.S, cluster.V, bgH, bgS, bgV);
-                float contrastScore = Math.Min(contrastWithBg / 100f, 1.5f);
+                float regionWeight = 0;
+                float regionSat = 0;
+                for (int offset = -1; offset <= 1; offset++)
+                {
+                    int idx = (i + offset + NUM_BUCKETS) % NUM_BUCKETS;
+                    regionWeight += bucketWeight[idx];
+                    regionSat += bucketS[idx];
+                }
+                float avgSat = regionWeight > 0 ? regionSat / regionWeight : 0;
+                float score = regionWeight * (1f + avgSat * 0.5f);
 
-                float score = coveragePct * (1f + cluster.S * 0.8f) * contrastScore;
-
-                // Bonus if centroid is in smart-crop bbox
-                if (!normCrop.IsEmpty && cluster.InCropZone)
-                    score *= 1.3f;
-
-                cluster.FinalScore = score;
+                if (score > bestScore)
+                {
+                    // Push best to second if they're far enough apart in hue
+                    if (bestBucket >= 0)
+                    {
+                        int hueDist = Math.Min(Math.Abs(i - bestBucket), NUM_BUCKETS - Math.Abs(i - bestBucket));
+                        if (hueDist >= 3 && bestScore > secondScore)
+                        {
+                            secondScore = bestScore;
+                            secondBucket = bestBucket;
+                        }
+                    }
+                    bestScore = score;
+                    bestBucket = i;
+                }
+                else if (score > secondScore)
+                {
+                    int hueDist = Math.Min(Math.Abs(i - bestBucket), NUM_BUCKETS - Math.Abs(i - bestBucket));
+                    if (hueDist >= 3)
+                    {
+                        secondScore = score;
+                        secondBucket = i;
+                    }
+                }
             }
 
-            // Sort by score
-            clusters.Sort((a, b) => b.FinalScore.CompareTo(a.FinalScore));
+            // Extract primary color from best bucket region
+            Color primary = Color.FromRgb(30, 30, 30);
+            if (bestBucket >= 0 && bestScore > 0)
+            {
+                float sumR = 0, sumG = 0, sumB = 0, sumW = 0;
+                for (int offset = -1; offset <= 1; offset++)
+                {
+                    int idx = (bestBucket + offset + NUM_BUCKETS) % NUM_BUCKETS;
+                    sumR += bucketR[idx]; sumG += bucketG[idx]; sumB += bucketB[idx]; sumW += bucketWeight[idx];
+                }
+                if (sumW > 0)
+                {
+                    primary = Color.FromRgb(
+                        (byte)Math.Clamp(sumR / sumW * 255f, 0, 255),
+                        (byte)Math.Clamp(sumG / sumW * 255f, 0, 255),
+                        (byte)Math.Clamp(sumB / sumW * 255f, 0, 255));
+                }
+            }
 
-            // Edge case: flat background (top cluster > 70% coverage)
-            bool isFlatBg = clusters[0].Coverage / totalCoverage > 0.70f;
+            // Extract secondary color from second bucket region
+            Color secondary = default;
+            if (secondBucket >= 0 && secondScore > 0)
+            {
+                float sumR = 0, sumG = 0, sumB = 0, sumW = 0;
+                for (int offset = -1; offset <= 1; offset++)
+                {
+                    int idx = (secondBucket + offset + NUM_BUCKETS) % NUM_BUCKETS;
+                    sumR += bucketR[idx]; sumG += bucketG[idx]; sumB += bucketB[idx]; sumW += bucketWeight[idx];
+                }
+                if (sumW > 0)
+                {
+                    secondary = Color.FromRgb(
+                        (byte)Math.Clamp(sumR / sumW * 255f, 0, 255),
+                        (byte)Math.Clamp(sumG / sumW * 255f, 0, 255),
+                        (byte)Math.Clamp(sumB / sumW * 255f, 0, 255));
+                }
+            }
 
-            var primary = HsvToColor(clusters[0].H, clusters[0].S, clusters[0].V);
-            var secondary = clusters.Count > 1 ? HsvToColor(clusters[1].H, clusters[1].S, clusters[1].V) : default;
-            var accent = clusters.Count > 2 ? HsvToColor(clusters[2].H, clusters[2].S, clusters[2].V) : default;
+            bool isFlatBg = bestScore > 0 && (bestScore / (bestScore + secondScore + 0.001f)) > 0.80f;
+            var accent = secondary; // simplified
 
             // Step 6: Contrast check for text overlay (WCAG)
             double primaryLum = GetRelativeLuminance(primary);
@@ -303,7 +377,8 @@ internal static class DynamicIslandColorExtractor
         // Initialize centroids using k-means++ style (spread out)
         var rng = new Random(42);
         var centroids = new (float H, float S, float V)[k];
-        centroids[0] = (samples[rng.Next(samples.Count)].H, samples[rng.Next(samples.Count)].S, samples[rng.Next(samples.Count)].V);
+        int firstIdx = rng.Next(samples.Count);
+        centroids[0] = (samples[firstIdx].H, samples[firstIdx].S, samples[firstIdx].V);
 
         for (int i = 1; i < k; i++)
         {
@@ -342,13 +417,16 @@ internal static class DynamicIslandColorExtractor
                 assignments[i] = best;
             }
 
-            // Update centroids (weighted average)
-            var sumH = new float[k]; var sumS = new float[k]; var sumV = new float[k]; var sumW = new float[k];
+            // Update centroids (weighted circular mean for hue, linear for S/V)
+            var sinH = new float[k]; var cosH = new float[k];
+            var sumS = new float[k]; var sumV = new float[k]; var sumW = new float[k];
             for (int i = 0; i < samples.Count; i++)
             {
                 int c = assignments[i];
                 float w = samples[i].Weight;
-                sumH[c] += samples[i].H * w;
+                float angle = samples[i].H * MathF.PI * 2f;
+                sinH[c] += MathF.Sin(angle) * w;
+                cosH[c] += MathF.Cos(angle) * w;
                 sumS[c] += samples[i].S * w;
                 sumV[c] += samples[i].V * w;
                 sumW[c] += w;
@@ -357,7 +435,11 @@ internal static class DynamicIslandColorExtractor
             for (int c = 0; c < k; c++)
             {
                 if (sumW[c] > 0)
-                    centroids[c] = (sumH[c] / sumW[c], sumS[c] / sumW[c], sumV[c] / sumW[c]);
+                {
+                    float avgH = MathF.Atan2(sinH[c] / sumW[c], cosH[c] / sumW[c]) / (MathF.PI * 2f);
+                    if (avgH < 0) avgH += 1f;
+                    centroids[c] = (avgH, sumS[c] / sumW[c], sumV[c] / sumW[c]);
+                }
             }
         }
 

@@ -483,48 +483,21 @@ public sealed class SmartThumbnailCropService : IDisposable
                 objects.Add(d);
         }
 
-        // ─── Detect text regions ───
-        var textRegions = DetectTextRegions(source, imgWidth, imgHeight);
-        bool isTextHeavy = textRegions.Count >= 4; // ≥ 4 text cells = infographic/slide
-
-        // ─── Edge Case: Portrait mode (person > 60% frame) ───
+        // ─── Person always wins — focus on people, ignore text ───
         if (persons.Count >= 1)
         {
             var largestPerson = persons.OrderByDescending(p => p.Area).First();
             float personAreaRatio = largestPerson.Area / imgArea;
 
             if (personAreaRatio >= PortraitThreshold)
-            {
-                // Portrait: keep face + upper body, ignore other objects
                 return GetPortraitCropRect(largestPerson, imgWidth, imgHeight, cropSize);
-            }
+
+            return GetPersonCropRect(persons, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── Edge Case: Text-first mode (infographic/slide) ───
-        if (isTextHeavy && persons.Count == 0)
-        {
-            return GetTextFirstCropRect(textRegions, imgWidth, imgHeight, cropSize);
-        }
-
-        // ─── Main scoring: person always wins when present ───
-        if (persons.Count > 0)
-        {
-            // Person detected — use face/body weight
-            var cropRect = GetPersonCropRect(persons, imgWidth, imgHeight, cropSize);
-
-            // Try to expand crop to include text if within 80% of frame
-            if (textRegions.Count > 0)
-            {
-                cropRect = ExpandCropForText(cropRect, textRegions, imgWidth, imgHeight, cropSize);
-            }
-
-            return cropRect;
-        }
-
-        // ─── No persons: score objects with center-bias and class priority ───
+        // ─── No persons: focus on objects (not text) ───
         if (objects.Count > 0)
         {
-            // Calculate final_score for each object
             var bestObj = objects
                 .Select(d => new
                 {
@@ -538,18 +511,10 @@ public sealed class SmartThumbnailCropService : IDisposable
             float objCenterX = (bestObj.X1 + bestObj.X2) / 2f;
             float objCenterY = (bestObj.Y1 + bestObj.Y2) / 2f;
 
-            var cropRect = BuildCropRect(objCenterX, objCenterY, imgWidth, imgHeight, cropSize);
-
-            // Expand for text if present
-            if (textRegions.Count > 0)
-            {
-                cropRect = ExpandCropForText(cropRect, textRegions, imgWidth, imgHeight, cropSize);
-            }
-
-            return cropRect;
+            return BuildCropRect(objCenterX, objCenterY, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── Fallback: saliency ───
+        // ─── Fallback: saliency (subject-focused, not text-focused) ───
         return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize)
                ?? BuildCropRect(imgWidth / 2f, imgHeight / 2f, imgWidth, imgHeight, cropSize);
     }
@@ -776,8 +741,30 @@ public sealed class SmartThumbnailCropService : IDisposable
                     double avgContrast = totalContrast / pixelCount;
                     double avgBrightness = totalBrightness / pixelCount;
 
+                    // Compute color saturation for this cell (subjects are colorful, text is not)
+                    double totalSat = 0;
+                    for (int y = startY; y < endY; y++)
+                    {
+                        for (int x = startX; x < endX; x++)
+                        {
+                            int idx = y * stride + x * 4;
+                            double r = pixels[idx + 2] / 255.0;
+                            double g = pixels[idx + 1] / 255.0;
+                            double b = pixels[idx] / 255.0;
+                            double maxC = Math.Max(r, Math.Max(g, b));
+                            double minC = Math.Min(r, Math.Min(g, b));
+                            totalSat += maxC > 0 ? (maxC - minC) / maxC : 0;
+                        }
+                    }
+                    double avgSat = totalSat / Math.Max(1, pixelCount);
+
                     // Penalize very dark/bright regions (black bars, white bg)
                     double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
+
+                    // Penalize very high contrast (text regions have sharp edges)
+                    // Prefer moderate contrast (subjects) over extreme contrast (text)
+                    double contrastFactor = avgContrast < 40 ? avgContrast / 40.0 : 1.0 - (avgContrast - 40) / 200.0;
+                    contrastFactor = Math.Clamp(contrastFactor, 0.2, 1.0);
 
                     // Center bias for saliency
                     float cx = (gx + 0.5f) / gridSize;
@@ -785,7 +772,8 @@ public sealed class SmartThumbnailCropService : IDisposable
                     float centerDist = MathF.Sqrt((cx - 0.5f) * (cx - 0.5f) + (cy - 0.5f) * (cy - 0.5f));
                     float centerBias = 1.0f - centerDist * 0.6f;
 
-                    saliencyMap[gy, gx] = (float)(avgContrast * brightnessPenalty * centerBias);
+                    // Score: saturation (subject) + moderate contrast - text penalty
+                    saliencyMap[gy, gx] = (float)((avgSat * 60.0 + contrastFactor * 20.0) * brightnessPenalty * centerBias);
                 }
             }
 

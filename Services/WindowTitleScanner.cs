@@ -8,6 +8,11 @@ public interface IWindowTitleScanner
 {
     List<string> GetAllWindowTitles(bool isThrottled);
     string? TryGetBrowserUrl();
+    /// <summary>
+    /// Scans ALL visible browser windows (not just foreground) to find a media URL.
+    /// Returns the first YouTube or SoundCloud URL found, or null.
+    /// </summary>
+    string? TryGetMediaUrlFromAnyBrowser();
 }
 
 public sealed class WindowTitleScanner : IWindowTitleScanner
@@ -29,6 +34,11 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
     private static readonly string[] _platformKeywords =
     {
         "spotify", "youtube", "soundcloud", "facebook", "tiktok", "instagram", "twitter", " / x", "apple music", "apple", "music"
+    };
+
+    private static readonly string[] _browserProcessNames =
+    {
+        "chrome", "msedge", "firefox", "brave", "opera", "vivaldi"
     };
 
     private readonly object _cacheLock = new();
@@ -99,6 +109,9 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
     private string? _cachedBrowserUrl;
     private DateTime _lastBrowserUrlTime = DateTime.MinValue;
 
+    private string? _cachedAnyBrowserMediaUrl;
+    private DateTime _lastAnyBrowserMediaUrlTime = DateTime.MinValue;
+
     public string? TryGetBrowserUrl()
     {
         lock (_cacheLock)
@@ -112,15 +125,43 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
         }
     }
 
-    private string? ExtractBrowserUrlCore()
+    public string? TryGetMediaUrlFromAnyBrowser()
     {
-        try
+        lock (_cacheLock)
         {
-            IntPtr hwnd = GetForegroundWindow();
-            if (hwnd == IntPtr.Zero) return null;
+            if ((DateTime.Now - _lastAnyBrowserMediaUrlTime).TotalMilliseconds < 1500)
+                return _cachedAnyBrowserMediaUrl;
 
-            GetWindowThreadProcessId(hwnd, out uint pid);
-            if (pid == 0) return null;
+            _cachedAnyBrowserMediaUrl = ExtractMediaUrlFromAllBrowserWindows();
+            _lastAnyBrowserMediaUrlTime = DateTime.Now;
+            return _cachedAnyBrowserMediaUrl;
+        }
+    }
+
+    /// <summary>
+    /// Scans ALL visible browser windows to find a YouTube or SoundCloud URL.
+    /// Unlike TryGetBrowserUrl which only checks the foreground window,
+    /// this enumerates all top-level windows and checks each browser window's address bar.
+    /// </summary>
+    private string? ExtractMediaUrlFromAllBrowserWindows()
+    {
+        string? foundUrl = null;
+
+        // First try the foreground window (fastest path)
+        var foregroundUrl = ExtractBrowserUrlCore();
+        if (!string.IsNullOrEmpty(foregroundUrl) && IsMediaUrl(foregroundUrl))
+            return foregroundUrl;
+
+        // Enumerate all windows and check each browser window
+        EnumWindows((hWnd, _) =>
+        {
+            if (!IsWindowVisible(hWnd)) return true;
+
+            int length = GetWindowTextLength(hWnd);
+            if (length == 0) return true;
+
+            GetWindowThreadProcessId(hWnd, out uint pid);
+            if (pid == 0) return true;
 
             string? processName = null;
             try
@@ -128,35 +169,53 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 var proc = System.Diagnostics.Process.GetProcessById((int)pid);
                 processName = proc.ProcessName.ToLowerInvariant();
             }
-            catch { return null; }
+            catch { return true; }
 
-            // Only attempt for known browsers
-            bool isBrowser = processName.Contains("chrome") ||
-                            processName.Contains("msedge") ||
-                            processName.Contains("firefox") ||
-                            processName.Contains("brave") ||
-                            processName.Contains("opera") ||
-                            processName.Contains("vivaldi");
+            bool isBrowser = false;
+            foreach (var name in _browserProcessNames)
+            {
+                if (processName.Contains(name))
+                {
+                    isBrowser = true;
+                    break;
+                }
+            }
+            if (!isBrowser) return true;
 
-            if (!isBrowser) return null;
+            // Try to extract URL from this browser window
+            var url = ExtractUrlFromWindowHandle(hWnd, processName);
+            if (!string.IsNullOrEmpty(url) && IsMediaUrl(url))
+            {
+                foundUrl = url;
+                return false; // Stop enumeration — found a media URL
+            }
 
+            return true;
+        }, IntPtr.Zero);
+
+        return foundUrl;
+    }
+
+    /// <summary>
+    /// Extracts the URL from a specific browser window handle using UI Automation.
+    /// </summary>
+    private static string? ExtractUrlFromWindowHandle(IntPtr hwnd, string processName)
+    {
+        try
+        {
             var element = AutomationElement.FromHandle(hwnd);
             if (element == null) return null;
 
-            // Strategy 1: Find address bar by ControlType.Edit with URL-like value
-            // Chrome/Edge/Brave/Vivaldi use a single Edit control for the address bar
             AutomationElement? addressBar = null;
 
             if (processName.Contains("firefox"))
             {
-                // Firefox: the URL bar has AutomationId "urlbar-input"
                 addressBar = element.FindFirst(TreeScope.Descendants,
                     new PropertyCondition(AutomationElement.AutomationIdProperty, "urlbar-input"));
             }
             else
             {
                 // Chromium-based: find Edit control (address bar)
-                // The address bar is typically the first Edit with a URL-like value
                 var editCondition = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit);
                 var edits = element.FindAll(TreeScope.Descendants, editCondition);
 
@@ -169,7 +228,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                             var valuePattern = (ValuePattern)pattern;
                             string val = valuePattern.Current.Value ?? "";
 
-                            // Check if it looks like a URL
                             if (val.Contains("youtube.com/watch") || val.Contains("youtu.be/") ||
                                 val.Contains("soundcloud.com/") ||
                                 val.StartsWith("http://") || val.StartsWith("https://") ||
@@ -191,12 +249,60 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 var vp = (ValuePattern)urlPattern;
                 string url = vp.Current.Value ?? "";
 
-                // Normalize: some browsers strip the protocol
                 if (!url.StartsWith("http") && url.Contains("."))
                     url = "https://" + url;
 
                 return string.IsNullOrWhiteSpace(url) ? null : url;
             }
+        }
+        catch { }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if a URL is a YouTube or SoundCloud media URL.
+    /// </summary>
+    private static bool IsMediaUrl(string url)
+    {
+        return url.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
+               url.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase) ||
+               url.Contains("music.youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
+               url.Contains("soundcloud.com/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string? ExtractBrowserUrlCore()
+    {
+        try
+        {
+            IntPtr hwnd = GetForegroundWindow();
+            if (hwnd == IntPtr.Zero) return null;
+
+            GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0) return null;
+
+            string? processName = null;
+            try
+            {
+                var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                processName = proc.ProcessName.ToLowerInvariant();
+            }
+            catch { return null; }
+
+            // Only attempt for known browsers
+            bool isBrowser = false;
+            foreach (var name in _browserProcessNames)
+            {
+                if (processName.Contains(name))
+                {
+                    isBrowser = true;
+                    break;
+                }
+            }
+
+            if (!isBrowser) return null;
+
+            return ExtractUrlFromWindowHandle(hwnd, processName);
         }
         catch (Exception ex)
         {

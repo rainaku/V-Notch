@@ -631,7 +631,8 @@ public class MediaDetectionService : IMediaDetectionService
                 // Only show the final thumbnail once the YouTube fetch completes.
                 bool willFetchYouTubeThumbnail = (info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info)))
                     && !string.IsNullOrEmpty(info.CurrentTrack)
-                    && (isNewTrackForThumbnail || info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
+                    && (isNewTrackForThumbnail || info.Thumbnail == null || info.Thumbnail.PixelWidth < 120)
+                    && (_cachedThumbnail == null || _cachedThumbnail.PixelWidth < 200 || isNewTrackForThumbnail);
 
                 // Don't suppress SMTC thumbnail if it's already high-quality square artwork (album art)
                 bool hasGoodSmtcArtwork = false;
@@ -643,9 +644,12 @@ public class MediaDetectionService : IMediaDetectionService
 
                 if (willFetchYouTubeThumbnail && !hasGoodSmtcArtwork)
                 {
-                    // Suppress any intermediate thumbnail — keep the old cached one (or null)
-                    // until the YouTube fetch completes with the final thumbnail.
-                    info.Thumbnail = _cachedThumbnail; // show previous track's thumb or null
+                    // Suppress any intermediate thumbnail — use the cached one if available,
+                    // otherwise keep null until the YouTube fetch completes.
+                    if (_cachedThumbnail != null && _cachedThumbnail.PixelWidth >= 200)
+                        info.Thumbnail = _cachedThumbnail;
+                    else
+                        info.Thumbnail = _cachedThumbnail; // may be null or previous track's thumb
                 }
 
                 var dispatcher = System.Windows.Application.Current?.Dispatcher;
@@ -692,6 +696,17 @@ public class MediaDetectionService : IMediaDetectionService
             bool forceFetchForTrackChange = isNewTrackForThumbnail;
             bool needsFetch = forceFetchForTrackChange || (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
             if (_timelineSimulator.IsThrottled && _timelineSimulator.RecoveredThumbnail != null && !forceFetchForTrackChange) needsFetch = false;
+
+            // If we already have a good cached thumbnail for the SAME track, don't re-fetch.
+            // This prevents the "flash" where thumbnail shows correctly then gets overwritten
+            // because SMTC keeps sending updates with a low-quality browser icon.
+            if (needsFetch && !forceFetchForTrackChange && _cachedThumbnail != null && _cachedThumbnail.PixelWidth >= 200)
+            {
+                needsFetch = false;
+                // Use the cached thumbnail instead of the SMTC one
+                info.Thumbnail = _cachedThumbnail;
+                _timelineSimulator.RecoveredThumbnail = _cachedThumbnail;
+            }
 
             // Skip YouTube thumbnail fetch when SMTC already provides high-quality artwork.
             // This covers:
@@ -743,15 +758,55 @@ public class MediaDetectionService : IMediaDetectionService
                         string? videoId = shouldForceThumbFetch ? null : info.YouTubeVideoId;
                         int retryCount = 0;
 
-                        // ─── Priority 1: Extract video ID directly from browser URL ───
-                        // This is the most accurate method — no search needed.
+                        // ─── Priority 1: Extract video ID from ANY browser window URL ───
+                        // Scans all browser windows, not just foreground. 100% accurate.
+                        if (string.IsNullOrEmpty(videoId))
+                        {
+                            videoId = TryExtractVideoIdFromAnyBrowserUrl();
+                        }
+
+                        // ─── Priority 2: Foreground browser URL (legacy, fast path) ───
                         if (string.IsNullOrEmpty(videoId))
                         {
                             videoId = TryExtractVideoIdFromBrowserUrl();
                         }
 
+                        // ─── Priority 3: Use cached browser URL for this track ───
+                        if (string.IsNullOrEmpty(videoId))
+                        {
+                            videoId = GetCachedVideoIdForTrack(trackDuringFetch);
+                        }
+
+                        // If we got a video ID from browser URL, enrich with metadata via oEmbed
+                        if (!string.IsNullOrEmpty(videoId) && videoId != info.YouTubeVideoId)
+                        {
+                            string ytUrl = $"https://www.youtube.com/watch?v={videoId}";
+                            var urlResult = await _metadataLookup.TryGetYouTubeVideoInfoFromUrlAsync(ytUrl, token);
+                            if (urlResult != null)
+                            {
+                                info.MediaSource = "YouTube";
+                                info.IsYouTubeRunning = true;
+                                SetSessionSourceOverride(info, "YouTube");
+                                _sourceCache.SetBoth(trackDuringFetch, BuildTrackIdentity(trackDuringFetch, artistDuringFetch), "YouTube");
+                                _sourceCache.Save();
+
+                                if (!string.IsNullOrEmpty(urlResult.Author) && urlResult.Author != "YouTube")
+                                {
+                                    info.CurrentArtist = urlResult.Author;
+                                    _stableArtist = urlResult.Author;
+                                }
+
+                                if (urlResult.Duration.TotalSeconds > 0)
+                                {
+                                    _timelineSimulator.RecoveredDuration = urlResult.Duration;
+                                    info.Duration = urlResult.Duration;
+                                }
+                            }
+                        }
+
                         while (retryCount < 3 && !token.IsCancellationRequested)
                         {
+                            // ─── Fallback: check if title itself contains a video ID or URL ───
                             if (string.IsNullOrEmpty(videoId))
                             {
                                 var result = await TryGetYouTubeVideoIdWithInfoAsync(trackDuringFetch, artistDuringFetch);
@@ -865,6 +920,11 @@ public class MediaDetectionService : IMediaDetectionService
                             {
                                 await Task.Delay(retryCount * 350, token);
                                 videoId = null;
+
+                                // On retry, try browser URL extraction again (user may have switched to browser)
+                                videoId = TryExtractVideoIdFromAnyBrowserUrl();
+                                if (string.IsNullOrEmpty(videoId))
+                                    videoId = TryExtractVideoIdFromBrowserUrl();
                             }
                         }
                     }
@@ -915,7 +975,20 @@ public class MediaDetectionService : IMediaDetectionService
                     {
                         try
                         {
-                            var artworkUrl = await TryGetSoundCloudArtworkUrlAsync(trackDuringFetch, artistDuringFetch, requireStrongMatch, token);
+                            // ─── Priority 1: Try to get artwork directly from browser URL ───
+                            string? artworkUrl = null;
+                            string? browserSoundCloudUrl = TryExtractSoundCloudUrlFromAnyBrowser();
+                            if (!string.IsNullOrEmpty(browserSoundCloudUrl))
+                            {
+                                artworkUrl = await TryGetSoundCloudArtworkFromUrlAsync(browserSoundCloudUrl, token);
+                            }
+
+                            // ─── Priority 2: Fallback to title-based search ───
+                            if (string.IsNullOrEmpty(artworkUrl) || IsLikelySoundCloudPlaceholderArtworkUrl(artworkUrl))
+                            {
+                                artworkUrl = await TryGetSoundCloudArtworkUrlAsync(trackDuringFetch, artistDuringFetch, requireStrongMatch, token);
+                            }
+
                             if (string.IsNullOrEmpty(artworkUrl) ||
                                 IsLikelySoundCloudPlaceholderArtworkUrl(artworkUrl) ||
                                 token.IsCancellationRequested)
@@ -2371,6 +2444,9 @@ public class MediaDetectionService : IMediaDetectionService
     private Task<string?> TryGetSoundCloudArtworkUrlAsync(string title, string artist = "", bool requireStrongMatch = false, CancellationToken ct = default)
         => _metadataLookup.TryGetSoundCloudArtworkUrlAsync(title, artist, requireStrongMatch, ct);
 
+    private Task<string?> TryGetSoundCloudArtworkFromUrlAsync(string soundCloudUrl, CancellationToken ct = default)
+        => _metadataLookup.TryGetSoundCloudArtworkFromUrlAsync(soundCloudUrl, ct);
+
     private Task<BitmapImage?> DownloadImageAsync(string url, CancellationToken ct = default)
         => _artworkService.DownloadImageAsync(url, ct);
 
@@ -2390,14 +2466,15 @@ public class MediaDetectionService : IMediaDetectionService
             string? url = _windowTitleScanner.TryGetBrowserUrl();
             if (string.IsNullOrEmpty(url)) return null;
 
-            // Match youtube.com/watch?v=VIDEO_ID or youtu.be/VIDEO_ID
+            // Match youtube.com/watch?v=VIDEO_ID or youtu.be/VIDEO_ID or music.youtube.com
             var match = System.Text.RegularExpressions.Regex.Match(url,
-                @"(?:youtube\.com/watch\?.*v=|youtu\.be/)([a-zA-Z0-9_-]{11})");
+                @"(?:youtube\.com/watch\?.*v=|youtu\.be/|music\.youtube\.com/watch\?.*v=)([a-zA-Z0-9_-]{11})");
 
             if (match.Success)
             {
                 string videoId = match.Groups[1].Value;
                 System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted video ID from browser URL: {videoId}");
+                CacheVideoIdForTrack(_lastPublishedTrackIdentity, videoId);
                 return videoId;
             }
         }
@@ -2407,6 +2484,101 @@ public class MediaDetectionService : IMediaDetectionService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Scans ALL browser windows (not just foreground) to find a YouTube video ID.
+    /// This works even when the browser is in the background.
+    /// </summary>
+    private string? TryExtractVideoIdFromAnyBrowserUrl()
+    {
+        try
+        {
+            string? url = _windowTitleScanner.TryGetMediaUrlFromAnyBrowser();
+            if (string.IsNullOrEmpty(url)) return null;
+
+            var match = System.Text.RegularExpressions.Regex.Match(url,
+                @"(?:youtube\.com/watch\?.*v=|youtu\.be/|music\.youtube\.com/watch\?.*v=)([a-zA-Z0-9_-]{11})");
+
+            if (match.Success)
+            {
+                string videoId = match.Groups[1].Value;
+                System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted video ID from background browser: {videoId}");
+                CacheVideoIdForTrack(_lastPublishedTrackIdentity, videoId);
+                return videoId;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MediaDetection] Background browser URL extraction failed: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts a SoundCloud URL from any browser window (foreground or background).
+    /// </summary>
+    private string? TryExtractSoundCloudUrlFromAnyBrowser()
+    {
+        try
+        {
+            string? url = _windowTitleScanner.TryGetMediaUrlFromAnyBrowser();
+            if (string.IsNullOrEmpty(url)) return null;
+
+            if (url.Contains("soundcloud.com/", StringComparison.OrdinalIgnoreCase))
+            {
+                // Validate it's a track URL (user/track format)
+                var match = System.Text.RegularExpressions.Regex.Match(url,
+                    @"soundcloud\.com/([^/\s?#]+)/([^/\s?#]+)");
+                if (match.Success)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted SoundCloud URL from browser: {url}");
+                    return url;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MediaDetection] SoundCloud browser URL extraction failed: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    // ─── Video ID cache per track (persists across browser focus changes) ───
+    private readonly Dictionary<string, string> _videoIdCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _videoIdCacheLock = new();
+
+    private void CacheVideoIdForTrack(string? trackIdentity, string videoId)
+    {
+        if (string.IsNullOrEmpty(trackIdentity)) return;
+        lock (_videoIdCacheLock)
+        {
+            _videoIdCache[trackIdentity] = videoId;
+            // Keep cache bounded
+            if (_videoIdCache.Count > 50)
+            {
+                var firstKey = _videoIdCache.Keys.First();
+                _videoIdCache.Remove(firstKey);
+            }
+        }
+    }
+
+    private string? GetCachedVideoIdForTrack(string? track)
+    {
+        if (string.IsNullOrEmpty(track)) return null;
+        lock (_videoIdCacheLock)
+        {
+            // Try exact track name match
+            if (_videoIdCache.TryGetValue(track, out var id))
+                return id;
+            // Try track identity match (track + artist combined key)
+            string trackIdentity = BuildTrackIdentity(track, "");
+            if (_videoIdCache.TryGetValue(trackIdentity, out id))
+                return id;
+            return null;
+        }
     }
 
     private bool IsLikelyYouTube(MediaInfo info)

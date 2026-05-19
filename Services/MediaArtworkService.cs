@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Windows.Storage.Streams;
 
@@ -89,6 +90,20 @@ public sealed class MediaArtworkService : IMediaArtworkService
             int width = source.PixelWidth;
             int height = source.PixelHeight;
 
+            // Detect and trim letterbox (black bars top/bottom or left/right)
+            var contentRect = DetectContentBounds(source, width, height);
+            BitmapSource workingSource = source;
+
+            if (contentRect.Width < width * 0.95 || contentRect.Height < height * 0.95)
+            {
+                // Significant letterbox detected — crop it out first
+                var trimmed = new CroppedBitmap(source, contentRect);
+                trimmed.Freeze();
+                workingSource = trimmed;
+                width = trimmed.PixelWidth;
+                height = trimmed.PixelHeight;
+            }
+
             double aspect = (double)width / height;
 
             double zoom = 0.97;
@@ -99,10 +114,20 @@ public sealed class MediaArtworkService : IMediaArtworkService
             // Try smart crop first if enabled and available
             if (EnableSmartCrop && _smartCropAvailable && aspect > 1.4)
             {
-                var smartRect = _smartCrop.GetSmartCropRect(source, squareSize);
-                if (smartRect.HasValue)
+                BitmapImage? workingBitmap = workingSource as BitmapImage;
+                if (workingBitmap == null)
                 {
-                    rect = smartRect.Value;
+                    // Convert CroppedBitmap to BitmapImage for ONNX
+                    workingBitmap = ConvertToBitmapImage(workingSource);
+                }
+
+                if (workingBitmap != null)
+                {
+                    var smartRect = _smartCrop.GetSmartCropRect(workingBitmap, squareSize);
+                    if (smartRect.HasValue)
+                        rect = smartRect.Value;
+                    else
+                        rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
                 }
                 else
                 {
@@ -114,8 +139,8 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
             }
 
-            // Fast path: CroppedBitmap → direct pixel copy → BitmapImage (no BMP encode/decode)
-            var cropped = new CroppedBitmap(source, rect);
+            // Fast path: CroppedBitmap → direct pixel copy → BitmapImage
+            var cropped = new CroppedBitmap(workingSource, rect);
             cropped.Freeze();
 
             int cropW = cropped.PixelWidth;
@@ -209,6 +234,142 @@ public sealed class MediaArtworkService : IMediaArtworkService
             });
 
             return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static Int32Rect DetectContentBounds(BitmapSource source, int width, int height)
+    {
+        // Detect black letterbox bars by scanning rows/columns for near-black pixels
+        const int sampleSize = 64;
+        double scaleX = (double)sampleSize / width;
+        double scaleY = (double)sampleSize / height;
+        var small = new TransformedBitmap(source, new ScaleTransform(scaleX, scaleY));
+        small.Freeze();
+
+        int sw = small.PixelWidth;
+        int sh = small.PixelHeight;
+        if (sw < 4 || sh < 4) return new Int32Rect(0, 0, width, height);
+
+        int stride = sw * 4;
+        byte[] pixels = new byte[sh * stride];
+
+        BitmapSource src = small;
+        if (small.Format != System.Windows.Media.PixelFormats.Bgra32)
+        {
+            var conv = new FormatConvertedBitmap(small, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+            conv.Freeze();
+            src = conv;
+        }
+        src.CopyPixels(pixels, stride, 0);
+
+        const int blackThreshold = 25; // RGB values below this = "black"
+
+        // Scan from top
+        int topBar = 0;
+        for (int y = 0; y < sh / 3; y++)
+        {
+            int darkPixels = 0, total = 0;
+            for (int x = sw / 4; x < sw * 3 / 4; x++) // sample center 50%
+            {
+                int i = y * stride + x * 4;
+                if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
+                    darkPixels++;
+                total++;
+            }
+            if (total > 0 && (double)darkPixels / total > 0.85)
+                topBar = y + 1;
+            else
+                break;
+        }
+
+        // Scan from bottom
+        int bottomBar = 0;
+        for (int y = sh - 1; y >= sh * 2 / 3; y--)
+        {
+            int darkPixels = 0, total = 0;
+            for (int x = sw / 4; x < sw * 3 / 4; x++)
+            {
+                int i = y * stride + x * 4;
+                if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
+                    darkPixels++;
+                total++;
+            }
+            if (total > 0 && (double)darkPixels / total > 0.85)
+                bottomBar++;
+            else
+                break;
+        }
+
+        // Scan from left
+        int leftBar = 0;
+        for (int x = 0; x < sw / 3; x++)
+        {
+            int darkPixels = 0, total = 0;
+            for (int y = sh / 4; y < sh * 3 / 4; y++)
+            {
+                int i = y * stride + x * 4;
+                if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
+                    darkPixels++;
+                total++;
+            }
+            if (total > 0 && (double)darkPixels / total > 0.85)
+                leftBar = x + 1;
+            else
+                break;
+        }
+
+        // Scan from right
+        int rightBar = 0;
+        for (int x = sw - 1; x >= sw * 2 / 3; x--)
+        {
+            int darkPixels = 0, total = 0;
+            for (int y = sh / 4; y < sh * 3 / 4; y++)
+            {
+                int i = y * stride + x * 4;
+                if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
+                    darkPixels++;
+                total++;
+            }
+            if (total > 0 && (double)darkPixels / total > 0.85)
+                rightBar++;
+            else
+                break;
+        }
+
+        // Convert back to original image coordinates
+        int contentX = (int)(leftBar / scaleX);
+        int contentY = (int)(topBar / scaleY);
+        int contentW = width - contentX - (int)(rightBar / scaleX);
+        int contentH = height - contentY - (int)(bottomBar / scaleY);
+
+        // Sanity check
+        if (contentW < width / 2 || contentH < height / 2)
+            return new Int32Rect(0, 0, width, height);
+
+        return new Int32Rect(contentX, contentY, contentW, contentH);
+    }
+
+    private static BitmapImage? ConvertToBitmapImage(BitmapSource source)
+    {
+        try
+        {
+            using var ms = new MemoryStream();
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(source));
+            encoder.Save(ms);
+            ms.Position = 0;
+
+            var bitmapImage = new BitmapImage();
+            bitmapImage.BeginInit();
+            bitmapImage.StreamSource = ms;
+            bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+            bitmapImage.EndInit();
+            bitmapImage.Freeze();
+            return bitmapImage;
         }
         catch
         {
