@@ -419,6 +419,10 @@ public partial class MainWindow
 
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
     {
+        // Cancel any in-progress corner radius animation to prevent jitter
+        // from conflicting animations (e.g., hover → expand transition)
+        this.BeginAnimation(CurrentCornerRadiusProperty, null);
+
         double startRadius = NotchBorder.CornerRadius.BottomLeft;
         
         if (Math.Abs(targetRadius - startRadius) < 0.5) return;
@@ -426,6 +430,7 @@ public partial class MainWindow
         CurrentCornerRadius = startRadius;
 
         var anim = MakeAnim(startRadius, targetRadius, new Duration(duration), _easeExpOut6, null);
+        Timeline.SetDesiredFrameRate(anim, 144);
         this.BeginAnimation(CurrentCornerRadiusProperty, anim);
     }
 

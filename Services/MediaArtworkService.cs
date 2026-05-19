@@ -116,14 +116,13 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
             }
 
-            // Fast crop: use WriteableBitmap + CopyPixels instead of PNG encode/decode
+            // Fast crop: CroppedBitmap → WriteableBitmap (no encode/decode round-trip)
             var cropped = new CroppedBitmap(source, rect);
             cropped.Freeze();
 
             int cropW = cropped.PixelWidth;
             int cropH = cropped.PixelHeight;
             int stride = cropW * 4;
-            var pixelBuffer = new byte[cropH * stride];
 
             // Ensure Bgra32 format for consistent pixel copy
             BitmapSource cropSource = cropped;
@@ -133,19 +132,25 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 converted.Freeze();
                 cropSource = converted;
             }
-            cropSource.CopyPixels(pixelBuffer, stride, 0);
 
-            // Create frozen BitmapSource directly from pixel data (no PNG round-trip)
-            var result = BitmapSource.Create(
-                cropW, cropH, 96, 96,
-                System.Windows.Media.PixelFormats.Bgra32, null,
-                pixelBuffer, stride);
-            result.Freeze();
+            // Create a WriteableBitmap directly — avoids BMP encode/decode overhead
+            var wb = new System.Windows.Media.Imaging.WriteableBitmap(cropW, cropH, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
+            wb.Lock();
+            try
+            {
+                cropSource.CopyPixels(new Int32Rect(0, 0, cropW, cropH), wb.BackBuffer, wb.BackBufferStride * cropH, wb.BackBufferStride);
+                wb.AddDirtyRect(new Int32Rect(0, 0, cropW, cropH));
+            }
+            finally
+            {
+                wb.Unlock();
+            }
+            wb.Freeze();
 
-            // Wrap in BitmapImage via minimal BMP encoding (much faster than PNG)
+            // Wrap in BitmapImage via BMP encoding (fastest — no compression overhead)
             using var ms = new MemoryStream();
             var encoder = new BmpBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(result));
+            encoder.Frames.Add(BitmapFrame.Create(wb));
             encoder.Save(ms);
             ms.Position = 0;
 

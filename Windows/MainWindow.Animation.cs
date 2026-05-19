@@ -67,7 +67,11 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        
+        // Cancel hover animations on notch size and corner radius to prevent jitter
+        NotchBorder.BeginAnimation(WidthProperty, null);
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        this.BeginAnimation(CurrentCornerRadiusProperty, null);
+
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         NotchScale.ScaleX = 1.0;
@@ -191,7 +195,7 @@ public partial class MainWindow
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightExpand);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
-                AnimateThumbnailAnimationRadius(6, 12, thumbDur, thumbEase, thumbDelay);
+                AnimateThumbnailAnimationRadius(6, 8, thumbDur, _easeExpOut6, thumbDelay);
 
                 AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectExpand);
 
@@ -241,6 +245,8 @@ public partial class MainWindow
             AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
             AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, null);
+            this.BeginAnimation(CurrentThumbnailAnimationRadiusProperty, null);
             AnimationThumbnailTranslate.X = 0;
             AnimationThumbnailTranslate.Y = 0;
 
@@ -308,7 +314,9 @@ public partial class MainWindow
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
 
-        
+        // Cancel any in-progress corner radius animation to prevent jitter
+        this.BeginAnimation(CurrentCornerRadiusProperty, null);
+
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -391,9 +399,9 @@ public partial class MainWindow
 
                 AnimationThumbnailImage.Source = ThumbnailImage.Source;
                 AnimationThumbnailBorder.Visibility = Visibility.Visible;
-                AnimationThumbnailBorder.CornerRadius = new CornerRadius(12);
-                AnimationThumbnailClip.RadiusX = 12;
-                AnimationThumbnailClip.RadiusY = 12;
+                AnimationThumbnailBorder.CornerRadius = new CornerRadius(8);
+                AnimationThumbnailClip.RadiusX = 8;
+                AnimationThumbnailClip.RadiusY = 8;
         AnimationThumbnailBorder.Width = 102;
         AnimationThumbnailBorder.Height = 102;
         AnimationThumbnailClip.Rect = new Rect(0, 0, 102, 102);
@@ -433,7 +441,7 @@ public partial class MainWindow
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightCollapse);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
-                AnimateThumbnailAnimationRadius(12, 6, thumbDur, thumbEase, thumbDelay);
+                AnimateThumbnailAnimationRadius(8, 6, thumbDur, _easeExpOut6, thumbDelay);
 
                 AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
 
@@ -473,6 +481,8 @@ public partial class MainWindow
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, null);
+                this.BeginAnimation(CurrentThumbnailAnimationRadiusProperty, null);
                 AnimationThumbnailTranslate.X = 0;
                 AnimationThumbnailTranslate.Y = 0;
 

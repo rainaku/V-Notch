@@ -137,10 +137,11 @@ public partial class MainWindow
 
                         if (isFirstEverTrack)
                         {
-                            // Boot: set thumbnail instantly without flip/bounce animation
-                            // to avoid a jarring "snap zoom" when no previous image exists.
+                            // Boot: set thumbnail then play a subtle reveal animation
+                            // so the compact pill feels alive instead of popping in instantly.
                             ThumbnailImage.Source = info.Thumbnail;
                             CompactThumbnail.Source = info.Thumbnail;
+                            PlayThumbnailRevealAnimation();
                         }
                         else
                         {
@@ -438,6 +439,51 @@ public partial class MainWindow
     #endregion
 
     #region Thumbnail Transition
+
+    /// <summary>
+    /// Plays a subtle "pop-in" reveal animation on the compact thumbnail
+    /// when it transitions from empty (null) to having an image for the first time.
+    /// Scale 0→1 with a soft spring + opacity fade-in for a polished feel.
+    /// </summary>
+    private void PlayThumbnailRevealAnimation()
+    {
+        // Start from scale 0 and opacity 0
+        CompactThumbnailScale.ScaleX = 0.0;
+        CompactThumbnailScale.ScaleY = 0.0;
+        CompactThumbnailBorder.Opacity = 0.0;
+
+        var duration = TimeSpan.FromMilliseconds(450);
+        var dur = new Duration(duration);
+
+        // Scale animation: 0 → 1 with soft spring for a bouncy pop-in
+        var scaleAnimX = MakeAnim(0.0, 1.0, dur, _easeSoftSpring);
+        var scaleAnimY = MakeAnim(0.0, 1.0, dur, _easeSoftSpring);
+        Timeline.SetDesiredFrameRate(scaleAnimX, 120);
+        Timeline.SetDesiredFrameRate(scaleAnimY, 120);
+
+        // Opacity animation: 0 → 1, slightly faster so it's visible early
+        var opacityAnim = MakeAnim(0.0, 1.0, new Duration(TimeSpan.FromMilliseconds(250)), _easeQuadOut);
+        Timeline.SetDesiredFrameRate(opacityAnim, 60);
+
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimX);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimY);
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, opacityAnim);
+
+        // Clean up after animation completes
+        scaleAnimX.Completed += (s, e) =>
+        {
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            CompactThumbnailScale.ScaleX = 1.0;
+            CompactThumbnailScale.ScaleY = 1.0;
+        };
+
+        opacityAnim.Completed += (s, e) =>
+        {
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+            CompactThumbnailBorder.Opacity = 1.0;
+        };
+    }
 
     #endregion
 }

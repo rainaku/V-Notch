@@ -23,6 +23,7 @@ public sealed class SmartThumbnailCropService : IDisposable
     private bool _disposed;
     private bool _modelExists;
     private bool _modelExistsChecked;
+    private InferenceSession? _cachedSession;
 
     // COCO classes that are typically "main subjects" in thumbnails
     private static readonly HashSet<int> _priorityClasses = new()
@@ -43,7 +44,14 @@ public sealed class SmartThumbnailCropService : IDisposable
         return _modelExists;
     }
     public bool IsLoaded => _modelExists;
-    public void Unload() { }
+    public void Unload()
+    {
+        lock (_lock)
+        {
+            _cachedSession?.Dispose();
+            _cachedSession = null;
+        }
+    }
     public Int32Rect? GetSmartCropRect(BitmapImage source, int targetSquareSize)
     {
         if (_disposed) return null;
@@ -52,7 +60,6 @@ public sealed class SmartThumbnailCropService : IDisposable
 
         lock (_lock)
         {
-            InferenceSession? session = null;
             float[]? tensorBuffer = null;
 
             try
@@ -64,31 +71,34 @@ public sealed class SmartThumbnailCropService : IDisposable
                 if (Math.Abs(imgWidth - imgHeight) < 10 || imgWidth < 64 || imgHeight < 64)
                     return null;
 
-                // ─── Load model ───
-                var options = new SessionOptions();
-                options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-                options.ExecutionMode = ExecutionMode.ORT_SEQUENTIAL;
-                options.InterOpNumThreads = 1;
-                options.IntraOpNumThreads = 2;
-                options.EnableMemoryPattern = true;
+                // ─── Reuse cached session or create new one ───
+                if (_cachedSession == null)
+                {
+                    var options = new SessionOptions();
+                    options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+                    options.ExecutionMode = ExecutionMode.ORT_SEQUENTIAL;
+                    options.InterOpNumThreads = 1;
+                    options.IntraOpNumThreads = 2;
+                    options.EnableMemoryPattern = true;
 
-                session = new InferenceSession(GetModelPath(), options);
-                tensorBuffer = new float[1 * 3 * ModelInputSize * ModelInputSize];
+                    _cachedSession = new InferenceSession(GetModelPath(), options);
+                    System.Diagnostics.Debug.WriteLine("[SmartCrop] Model loaded (cached session).");
+                }
 
-                System.Diagnostics.Debug.WriteLine("[SmartCrop] Model loaded for inference.");
+                tensorBuffer = ArrayPool<float>.Shared.Rent(1 * 3 * ModelInputSize * ModelInputSize);
 
                 // ─── Preprocess ───
                 var (scaleX, scaleY, padX, padY) = PreprocessImageFast(source, tensorBuffer);
 
                 // ─── Run inference ───
                 var tensor = new DenseTensor<float>(tensorBuffer, new[] { 1, 3, ModelInputSize, ModelInputSize });
-                var inputName = session.InputNames[0];
+                var inputName = _cachedSession.InputNames[0];
                 var inputs = new List<NamedOnnxValue>(1)
                 {
                     NamedOnnxValue.CreateFromTensor(inputName, tensor)
                 };
 
-                using var results = session.Run(inputs);
+                using var results = _cachedSession.Run(inputs);
                 var output = results.First().AsTensor<float>();
 
                 // ─── Parse detections ───
@@ -106,14 +116,15 @@ public sealed class SmartThumbnailCropService : IDisposable
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SmartCrop] Inference failed: {ex.Message}");
+                // If session is corrupted, dispose it so next call creates a fresh one
+                _cachedSession?.Dispose();
+                _cachedSession = null;
                 return null;
             }
             finally
             {
-                // ─── Immediately unload ───
-                session?.Dispose();
-                tensorBuffer = null;
-                System.Diagnostics.Debug.WriteLine("[SmartCrop] Model unloaded after inference.");
+                if (tensorBuffer != null)
+                    ArrayPool<float>.Shared.Return(tensorBuffer);
             }
         }
     }
@@ -539,6 +550,11 @@ public sealed class SmartThumbnailCropService : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        lock (_lock)
+        {
+            _cachedSession?.Dispose();
+            _cachedSession = null;
+        }
     }
 
     private struct Detection
