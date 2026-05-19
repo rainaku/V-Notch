@@ -91,7 +91,6 @@ public sealed class MediaArtworkService : IMediaArtworkService
 
             double aspect = (double)width / height;
 
-            // No zoom — use full height as crop size for all sources
             double zoom = 0.97;
             int squareSize = (int)(Math.Min(width, height) * zoom);
 
@@ -107,7 +106,6 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 }
                 else
                 {
-                    // Fall back to heuristic crop
                     rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
                 }
             }
@@ -116,7 +114,7 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 rect = GetFallbackCropRect(width, height, squareSize, mediaSource, aspect);
             }
 
-            // Fast crop: CroppedBitmap → WriteableBitmap (no encode/decode round-trip)
+            // Fast path: CroppedBitmap → direct pixel copy → BitmapImage (no BMP encode/decode)
             var cropped = new CroppedBitmap(source, rect);
             cropped.Freeze();
 
@@ -124,7 +122,6 @@ public sealed class MediaArtworkService : IMediaArtworkService
             int cropH = cropped.PixelHeight;
             int stride = cropW * 4;
 
-            // Ensure Bgra32 format for consistent pixel copy
             BitmapSource cropSource = cropped;
             if (cropped.Format != System.Windows.Media.PixelFormats.Bgra32)
             {
@@ -133,8 +130,8 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 cropSource = converted;
             }
 
-            // Create a WriteableBitmap directly — avoids BMP encode/decode overhead
-            var wb = new System.Windows.Media.Imaging.WriteableBitmap(cropW, cropH, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
+            // Direct WriteableBitmap — skip BMP encode/decode entirely
+            var wb = new WriteableBitmap(cropW, cropH, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
             wb.Lock();
             try
             {
@@ -147,9 +144,9 @@ public sealed class MediaArtworkService : IMediaArtworkService
             }
             wb.Freeze();
 
-            // Wrap in BitmapImage via BMP encoding (fastest — no compression overhead)
+            // Convert WriteableBitmap to BitmapImage via PNG in-memory (fast, lossless)
             using var ms = new MemoryStream();
-            var encoder = new BmpBitmapEncoder();
+            var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(wb));
             encoder.Save(ms);
             ms.Position = 0;

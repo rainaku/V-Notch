@@ -108,6 +108,14 @@ public sealed class SmartThumbnailCropService : IDisposable
                 if (Math.Abs(imgWidth - imgHeight) < 10 || imgWidth < 64 || imgHeight < 64)
                     return null;
 
+                // For small images (< 400px wide), ONNX is overkill — use saliency directly
+                if (imgWidth < 400 && imgHeight < 400)
+                {
+                    int maxCrop = Math.Min(imgWidth, imgHeight);
+                    int cropSz = Math.Min(targetSquareSize, maxCrop);
+                    return GetSaliencyCropRect(source, imgWidth, imgHeight, cropSz);
+                }
+
                 // ─── Reuse cached session or create new one ───
                 if (_cachedSession == null)
                 {
@@ -115,8 +123,9 @@ public sealed class SmartThumbnailCropService : IDisposable
                     options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
                     options.ExecutionMode = ExecutionMode.ORT_SEQUENTIAL;
                     options.InterOpNumThreads = 1;
-                    options.IntraOpNumThreads = 2;
+                    options.IntraOpNumThreads = 4;
                     options.EnableMemoryPattern = true;
+                    options.EnableCpuMemArena = true;
 
                     _cachedSession = new InferenceSession(GetModelPath(), options);
                     System.Diagnostics.Debug.WriteLine("[SmartCrop] Model loaded (cached session).");

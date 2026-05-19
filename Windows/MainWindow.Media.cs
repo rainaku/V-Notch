@@ -340,6 +340,17 @@ public partial class MainWindow
         if (newThumb == null) return;
         if (ReferenceEquals(ThumbnailImage.Source, newThumb)) return;
 
+        // Clear any existing animations on Source property (from AnimateThumbnailSwitchOnly)
+        // so that local value assignment in Completed handler actually takes effect.
+        ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
+        CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
+
+        // Clear any existing opacity animations (from PlayThumbnailRevealAnimation)
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+        ThumbnailImage.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailBorder.Opacity = 1.0;
+        ThumbnailImage.Opacity = 1.0;
+
         var fadeOut = new DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(100));
         Timeline.SetDesiredFrameRate(fadeOut, 60);
 

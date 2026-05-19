@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -10,217 +11,46 @@ internal static class DynamicIslandColorExtractor
     public readonly record struct Palette(Color Main, Color Sub);
     public readonly record struct PaletteColor(Color Color, int Population, double Score);
 
+    private const int PreprocessSize = 150;
+    private const int KClusters = 6;
+    private const int KMeansMaxIter = 12;
+
     #region Public entry points
-public static Palette GetDynamicIslandPalette(BitmapSource bitmap)
+
+    public static Palette GetDynamicIslandPalette(BitmapSource bitmap)
     {
-        var palette = ExtractPalette(bitmap, 8);
-        if (palette.Count == 0)
-        {
+        var result = ExtractAdvancedPalette(bitmap, Rect.Empty);
+        if (result.IsMonotone || result.Primary == default)
             return new Palette(Color.FromRgb(34, 34, 34), Colors.White);
-        }
 
-        var main = palette.OrderByDescending(p => p.Score).First().Color;
+        var main = result.Primary;
         var darkUiBackground = Colors.Black;
-        var subCandidate = palette
-            .Where(p => ColorDistance(p.Color, main) > 28)
-            .OrderByDescending(p => ScoreLightTextCandidate(p.Color, darkUiBackground, p.Score))
-            .FirstOrDefault().Color;
-
-        if (subCandidate == default)
-        {
-            subCandidate = Colors.White;
-        }
-
-        var sub = EnsureTextOnDarkBackground(subCandidate, darkUiBackground, 4.5);
+        var sub = result.Secondary != default ? result.Secondary : Colors.White;
+        sub = EnsureTextOnDarkBackground(sub, darkUiBackground, 4.5);
         return new Palette(main, sub);
     }
-public static Color GetDominantColor(BitmapSource bitmap)
+
+    public static Palette GetDynamicIslandPalette(BitmapSource bitmap, Rect smartCropBbox)
     {
-        try
-        {
-            var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+        var result = ExtractAdvancedPalette(bitmap, smartCropBbox);
+        if (result.IsMonotone || result.Primary == default)
+            return new Palette(Color.FromRgb(34, 34, 34), Colors.White);
 
-            const int sampleSize = 32;
-            double scaleX = (double)sampleSize / formattedBitmap.PixelWidth;
-            double scaleY = (double)sampleSize / formattedBitmap.PixelHeight;
-            var small = new TransformedBitmap(formattedBitmap, new ScaleTransform(scaleX, scaleY));
-
-            int width = small.PixelWidth;
-            int height = small.PixelHeight;
-            if (width == 0 || height == 0) return Color.FromRgb(30, 30, 30);
-
-            int stride = width * 4;
-            byte[] pixelBuffer = new byte[height * stride];
-            small.CopyPixels(pixelBuffer, stride, 0);
-
-            const int BUCKET_COUNT = 24;
-            double[] bucketWeight = new double[BUCKET_COUNT];
-            double[] bucketR = new double[BUCKET_COUNT];
-            double[] bucketG = new double[BUCKET_COUNT];
-            double[] bucketB = new double[BUCKET_COUNT];
-            double[] bucketS = new double[BUCKET_COUNT];
-
-            double totalWeightAll = 0;
-            double avgR = 0, avgG = 0, avgB = 0;
-            double satWeightAll = 0;
-            double satWeightedSum = 0;
-            double colorfulWeight = 0;
-            double darkWeight = 0;
-
-            double centerX = width / 2.0;
-            double centerY = height / 2.0;
-
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    int i = (y * stride) + (x * 4);
-                    double b = pixelBuffer[i] / 255.0;
-                    double g = pixelBuffer[i + 1] / 255.0;
-                    double r = pixelBuffer[i + 2] / 255.0;
-
-                    double dx = (x - centerX) / centerX;
-                    double dy = (y - centerY) / centerY;
-                    double distNorm = Math.Sqrt(dx * dx + dy * dy) / 1.414;
-                    double spatialWeight = 1.0 - distNorm * 0.5;
-
-                    double max = Math.Max(r, Math.Max(g, b));
-                    double min = Math.Min(r, Math.Min(g, b));
-                    double l = (max + min) / 2.0;
-
-                    avgR += r * spatialWeight;
-                    avgG += g * spatialWeight;
-                    avgB += b * spatialWeight;
-                    totalWeightAll += spatialWeight;
-                    if (l < 0.14) darkWeight += spatialWeight;
-
-                    if (l < 0.08) continue;
-
-                    double s = 0, h = 0;
-                    double d = max - min;
-                    if (d > 0.001)
-                    {
-                        s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
-                        if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
-                        else if (max == g) h = (b - r) / d + 2;
-                        else h = (r - g) / d + 4;
-                        h /= 6.0;
-                    }
-
-                    satWeightAll += spatialWeight;
-                    satWeightedSum += s * spatialWeight;
-                    if (s > 0.22) colorfulWeight += spatialWeight;
-
-                    double satWeight = 0.3 + 0.7 * s;
-                    double lumWeight = l;
-                    if (l > 0.85) lumWeight = Math.Max(0.1, 1.0 - (l - 0.85) * 4);
-                    if (l < 0.2) lumWeight = l * 3;
-
-                    double weight = satWeight * lumWeight * spatialWeight;
-                    if (s > 0.3 && l > 0.2 && l < 0.8) weight *= 1.5;
-                    if (s > 0.5 && l > 0.3 && l < 0.75) weight *= 1.3;
-
-                    if (weight > 0.001)
-                    {
-                        int hBucket = (int)(h * BUCKET_COUNT) % BUCKET_COUNT;
-                        if (hBucket < 0) hBucket += BUCKET_COUNT;
-
-                        bucketWeight[hBucket] += weight;
-                        bucketR[hBucket] += r * weight;
-                        bucketG[hBucket] += g * weight;
-                        bucketB[hBucket] += b * weight;
-                        bucketS[hBucket] += s * weight;
-                    }
-                }
-            }
-
-            double bestScore = -1;
-            int bestCenter = -1;
-
-            for (int i = 0; i < BUCKET_COUNT; i++)
-            {
-                double regionWeight = 0;
-                double regionSat = 0;
-                double regionSatWeight = 0;
-
-                for (int offset = -1; offset <= 1; offset++)
-                {
-                    int idx = (i + offset + BUCKET_COUNT) % BUCKET_COUNT;
-                    regionWeight += bucketWeight[idx];
-                    regionSat += bucketS[idx];
-                    regionSatWeight += bucketWeight[idx] > 0 ? bucketWeight[idx] : 0;
-                }
-
-                double avgSat = regionSatWeight > 0 ? regionSat / regionSatWeight : 0;
-                double score = regionWeight * (1.0 + avgSat * 0.5);
-
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    bestCenter = i;
-                }
-            }
-
-            if (totalWeightAll > 0)
-            {
-                double avgSatAll = satWeightAll > 0 ? satWeightedSum / satWeightAll : 0;
-                double colorfulRatio = colorfulWeight / totalWeightAll;
-                double darkRatio = darkWeight / totalWeightAll;
-                double avgLumAll = 0.2126 * (avgR / totalWeightAll) + 0.7152 * (avgG / totalWeightAll) + 0.0722 * (avgB / totalWeightAll);
-                double meanR = avgR / totalWeightAll;
-                double meanG = avgG / totalWeightAll;
-                double meanB = avgB / totalWeightAll;
-                double colorSpread = Math.Max(meanR, Math.Max(meanG, meanB)) - Math.Min(meanR, Math.Min(meanG, meanB));
-
-                if (avgLumAll < 0.06 && darkRatio > 0.90)
-                {
-                    return Colors.White;
-                }
-
-                bool isMonochrome = avgSatAll < 0.10 && colorfulRatio < 0.10 && colorSpread < 0.08;
-                if (isMonochrome)
-                {
-                    return Colors.White;
-                }
-            }
-
-            if (bestCenter >= 0 && bestScore > 0)
-            {
-                double sumR = 0, sumG = 0, sumB = 0, sumW = 0;
-                for (int offset = -1; offset <= 1; offset++)
-                {
-                    int idx = (bestCenter + offset + BUCKET_COUNT) % BUCKET_COUNT;
-                    sumR += bucketR[idx];
-                    sumG += bucketG[idx];
-                    sumB += bucketB[idx];
-                    sumW += bucketWeight[idx];
-                }
-
-                if (sumW > 0)
-                {
-                    return Color.FromRgb(
-                        (byte)Math.Clamp(sumR / sumW * 255.0, 0, 255),
-                        (byte)Math.Clamp(sumG / sumW * 255.0, 0, 255),
-                        (byte)Math.Clamp(sumB / sumW * 255.0, 0, 255));
-                }
-            }
-
-            if (totalWeightAll > 0)
-            {
-                return Color.FromRgb(
-                    (byte)Math.Clamp(avgR / totalWeightAll * 255.0, 0, 255),
-                    (byte)Math.Clamp(avgG / totalWeightAll * 255.0, 0, 255),
-                    (byte)Math.Clamp(avgB / totalWeightAll * 255.0, 0, 255));
-            }
-
-            return Color.FromRgb(30, 30, 30);
-        }
-        catch
-        {
-            return Color.FromRgb(30, 30, 30);
-        }
+        var main = result.Primary;
+        var darkUiBackground = Colors.Black;
+        var sub = result.Secondary != default ? result.Secondary : Colors.White;
+        sub = EnsureTextOnDarkBackground(sub, darkUiBackground, 4.5);
+        return new Palette(main, sub);
     }
-public static Color EnsureBrightColor(Color c)
+
+    public static Color GetDominantColor(BitmapSource bitmap)
+    {
+        var result = ExtractAdvancedPalette(bitmap, Rect.Empty);
+        if (result.IsMonotone) return Colors.White;
+        return result.Primary != default ? result.Primary : Color.FromRgb(30, 30, 30);
+    }
+
+    public static Color EnsureBrightColor(Color c)
     {
         double luminance = (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255.0;
         if (luminance < 0.5)
@@ -233,18 +63,17 @@ public static Color EnsureBrightColor(Color c)
         }
         return c;
     }
-public static Color GetVibrantColor(Color c)
+
+    public static Color GetVibrantColor(Color c)
     {
         double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
         double max = Math.Max(r, Math.Max(g, b));
         double min = Math.Min(r, Math.Min(g, b));
         double h = 0, s = 0, l = (max + min) / 2.0;
-
         double d = max - min;
         if (d > 0)
         {
             s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
-
             if (max == r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6.0;
             else if (max == g) h = ((b - r) / d + 2) / 6.0;
             else h = ((r - g) / d + 4) / 6.0;
@@ -260,102 +89,358 @@ public static Color GetVibrantColor(Color c)
 
         l = Math.Max(l, 0.65);
         l = Math.Min(l, 0.85);
-
         return HslToColor(h, s, l);
     }
-public static double GetAdaptiveBlurOpacity(double luminance, double brightnessBoost = 1.0)
+
+    public static double GetAdaptiveBlurOpacity(double luminance, double brightnessBoost = 1.0)
     {
-        brightnessBoost = Math.Clamp(brightnessBoost, 0.5, 2.0);
-        // Map boost 0.5–2.0 to base opacity range 0.35–1.0
-        // At boost=1.0 (100%), base opacity is ~0.65 (default visible level)
-        // At boost=2.0 (200%), base opacity is 1.0 (maximum brightness)
-        // At boost=0.5 (50%), base opacity is 0.35 (dim)
+        brightnessBoost = Math.Clamp(brightnessBoost, 0.5, 2.5);
         double baseOpacity;
         if (luminance <= 0.72)
-        {
-            baseOpacity = 0.35 + (brightnessBoost - 0.5) * (0.65 / 1.5);
-        }
+            baseOpacity = 0.55 + (brightnessBoost - 0.5) * (0.45 / 2.0);
         else
         {
             double t = Math.Clamp((luminance - 0.72) / 0.28, 0.0, 1.0);
-            double fullBase = 0.35 + (brightnessBoost - 0.5) * (0.65 / 1.5);
-            baseOpacity = fullBase - t * 0.15;
+            double fullBase = 0.55 + (brightnessBoost - 0.5) * (0.45 / 2.0);
+            baseOpacity = fullBase - t * 0.10;
         }
         return Math.Clamp(baseOpacity, 0.0, 1.0);
     }
-public static double GetAdaptiveBlurImageOpacity(double luminance)
+
+    public static double GetAdaptiveBlurImageOpacity(double luminance)
     {
-        if (luminance <= 0.70) return 0.80;
+        if (luminance <= 0.70) return 0.90;
         double t = Math.Clamp((luminance - 0.70) / 0.30, 0.0, 1.0);
-        return 0.80 - t * 0.18;
+        return 0.90 - t * 0.15;
     }
 
     #endregion
 
-    #region Palette extraction (hue-bucketed)
+    #region Advanced palette extraction (K-Means HSV + weighted zones)
 
-    private static List<PaletteColor> ExtractPalette(BitmapSource bitmap, int maxColors)
+    private readonly record struct PaletteResult(
+        Color Primary, Color Secondary, Color Accent,
+        bool IsMonotone, bool IsFlatBg, Color TextOnPrimary);
+
+    private static PaletteResult ExtractAdvancedPalette(BitmapSource bitmap, Rect smartCropBbox)
     {
         try
         {
+            // Step 1: Preprocess — resize to 150×150, convert to RGB
             var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-            const int sampleSize = 50;
-            double scale = Math.Min((double)sampleSize / formattedBitmap.PixelWidth, (double)sampleSize / formattedBitmap.PixelHeight);
-            scale = Math.Min(1.0, Math.Max(0.01, scale));
-            var small = new TransformedBitmap(formattedBitmap, new ScaleTransform(scale, scale));
+            double scaleX = (double)PreprocessSize / formattedBitmap.PixelWidth;
+            double scaleY = (double)PreprocessSize / formattedBitmap.PixelHeight;
+            var small = new TransformedBitmap(formattedBitmap, new ScaleTransform(scaleX, scaleY));
 
             int width = small.PixelWidth;
             int height = small.PixelHeight;
-            if (width <= 0 || height <= 0) return new List<PaletteColor>();
+            if (width <= 4 || height <= 4)
+                return new PaletteResult(Color.FromRgb(30, 30, 30), default, default, true, false, Colors.White);
 
             int stride = width * 4;
             byte[] pixels = new byte[height * stride];
             small.CopyPixels(pixels, stride, 0);
 
-            var buckets = new Dictionary<int, (double R, double G, double B, int Count)>();
+            // Normalize smart crop bbox to analysis image coordinates
+            Rect normCrop = Rect.Empty;
+            if (!smartCropBbox.IsEmpty && smartCropBbox.Width > 0 && smartCropBbox.Height > 0)
+            {
+                normCrop = new Rect(
+                    smartCropBbox.X * scaleX, smartCropBbox.Y * scaleY,
+                    smartCropBbox.Width * scaleX, smartCropBbox.Height * scaleY);
+            }
+
+            // Step 2: Weighted zone sampling — collect HSV pixels with weights
+            var samples = new List<(float H, float S, float V, float Weight)>(width * height);
+            float centerX = width / 2f, centerY = height / 2f;
+            float quarterW = width / 4f, quarterH = height / 4f;
+            int lowSatCount = 0, totalCount = 0;
+
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
                 {
-                    int i = (y * stride) + (x * 4);
+                    int i = y * stride + x * 4;
                     byte a = pixels[i + 3];
                     if (a < 80) continue;
 
-                    byte b = pixels[i];
-                    byte g = pixels[i + 1];
-                    byte r = pixels[i + 2];
-                    int key = (r >> 4) << 8 | (g >> 4) << 4 | (b >> 4);
-                    buckets.TryGetValue(key, out var bucket);
-                    buckets[key] = (bucket.R + r, bucket.G + g, bucket.B + b, bucket.Count + 1);
+                    float rf = pixels[i + 2] / 255f;
+                    float gf = pixels[i + 1] / 255f;
+                    float bf = pixels[i] / 255f;
+
+                    var (h, s, v) = RgbToHsv(rf, gf, bf);
+                    totalCount++;
+                    if (s < 0.15f) lowSatCount++;
+
+                    // Zone weighting
+                    float weight = 1.0f; // edge/background default
+
+                    // Smart-crop bbox zone: ×2.0
+                    if (!normCrop.IsEmpty && x >= normCrop.X && x <= normCrop.Right &&
+                        y >= normCrop.Y && y <= normCrop.Bottom)
+                    {
+                        weight = 2.0f;
+                    }
+                    // Center 50% frame: ×1.5
+                    else if (x >= quarterW && x <= width - quarterW &&
+                             y >= quarterH && y <= height - quarterH)
+                    {
+                        weight = 1.5f;
+                    }
+
+                    samples.Add((h, s, v, weight));
                 }
             }
 
-            int maxPopulation = Math.Max(1, buckets.Values.Select(b => b.Count).DefaultIfEmpty(1).Max());
-            return buckets.Values
-                .Where(b => b.Count > 0)
-                .Select(b =>
-                {
-                    var c = Color.FromRgb((byte)(b.R / b.Count), (byte)(b.G / b.Count), (byte)(b.B / b.Count));
-                    var hsl = ToHsl(c);
-                    double pop = b.Count / (double)maxPopulation;
-                    double lightnessScore = hsl.L < 0.15 || hsl.L > 0.90 ? 0.08 : 1.0 - Math.Abs(hsl.L - 0.52) * 0.55;
-                    double vibrancy = Math.Pow(hsl.S, 0.72) * lightnessScore;
-                    double score = (vibrancy * 0.68 + pop * 0.32) * b.Count;
-                    return new PaletteColor(c, b.Count, score);
-                })
-                .OrderByDescending(p => p.Score)
-                .Take(maxColors)
-                .ToList();
+            if (samples.Count < 10)
+                return new PaletteResult(Color.FromRgb(30, 30, 30), default, default, true, false, Colors.White);
+
+            // Check grayscale / monotone
+            bool isMonotone = totalCount > 0 && (float)lowSatCount / totalCount > 0.85f;
+            if (isMonotone)
+            {
+                // Fallback: luminance-based pick — brightest non-white cluster
+                var brightest = samples
+                    .Where(s => s.V < 0.92f)
+                    .OrderByDescending(s => s.V)
+                    .FirstOrDefault();
+                var monoColor = brightest.V > 0 ? HsvToColor(brightest.H, brightest.S, brightest.V) : Colors.White;
+                return new PaletteResult(monoColor, default, default, true, false, Colors.White);
+            }
+
+            // Step 3: K-Means clustering in HSV space
+            var clusters = KMeansHsv(samples, KClusters, KMeansMaxIter);
+
+            // Step 4: Filter bad clusters
+            clusters = clusters.Where(c => IsValidCluster(c.H, c.S, c.V)).ToList();
+            if (clusters.Count == 0)
+                return new PaletteResult(Color.FromRgb(30, 30, 30), default, default, true, false, Colors.White);
+
+            // Step 5: Scoring
+            // Compute background average color (edge zone pixels)
+            float bgH = 0, bgS = 0, bgV = 0;
+            int bgCount = 0;
+            foreach (var s in samples)
+            {
+                if (s.Weight <= 1.0f) { bgH += s.H; bgS += s.S; bgV += s.V; bgCount++; }
+            }
+            if (bgCount > 0) { bgH /= bgCount; bgS /= bgCount; bgV /= bgCount; }
+
+            float totalCoverage = clusters.Sum(c => c.Coverage);
+
+            foreach (var cluster in clusters)
+            {
+                float coveragePct = totalCoverage > 0 ? cluster.Coverage / totalCoverage : 0;
+                float contrastWithBg = DeltaEHsv(cluster.H, cluster.S, cluster.V, bgH, bgS, bgV);
+                float contrastScore = Math.Min(contrastWithBg / 100f, 1.5f);
+
+                float score = coveragePct * (1f + cluster.S * 0.8f) * contrastScore;
+
+                // Bonus if centroid is in smart-crop bbox
+                if (!normCrop.IsEmpty && cluster.InCropZone)
+                    score *= 1.3f;
+
+                cluster.FinalScore = score;
+            }
+
+            // Sort by score
+            clusters.Sort((a, b) => b.FinalScore.CompareTo(a.FinalScore));
+
+            // Edge case: flat background (top cluster > 70% coverage)
+            bool isFlatBg = clusters[0].Coverage / totalCoverage > 0.70f;
+
+            var primary = HsvToColor(clusters[0].H, clusters[0].S, clusters[0].V);
+            var secondary = clusters.Count > 1 ? HsvToColor(clusters[1].H, clusters[1].S, clusters[1].V) : default;
+            var accent = clusters.Count > 2 ? HsvToColor(clusters[2].H, clusters[2].S, clusters[2].V) : default;
+
+            // Step 6: Contrast check for text overlay (WCAG)
+            double primaryLum = GetRelativeLuminance(primary);
+            double contrastWithWhite = (1.0 + 0.05) / (primaryLum + 0.05);
+            Color textOnPrimary = contrastWithWhite >= 4.5 ? Colors.White : Colors.Black;
+
+            return new PaletteResult(primary, secondary, accent, false, isFlatBg, textOnPrimary);
         }
         catch
         {
-            return new List<PaletteColor>();
+            return new PaletteResult(Color.FromRgb(30, 30, 30), default, default, true, false, Colors.White);
         }
+    }
+
+    // Step 4 filter: reject near-white, near-black, and low-sat skin tones
+    private static bool IsValidCluster(float h, float s, float v)
+    {
+        if (s < 0.12f && v > 0.92f) return false;   // near-white
+        if (v < 0.10f) return false;                  // near-black
+        // Skin tone (hue 10-25°, low saturation) — only reject when S is low
+        float hDeg = h * 360f;
+        if (hDeg >= 10f && hDeg <= 25f && s < 0.40f) return false;
+        return true;
+    }
+
+    // Approximate Delta E in HSV space (simplified perceptual distance)
+    private static float DeltaEHsv(float h1, float s1, float v1, float h2, float s2, float v2)
+    {
+        float dh = Math.Min(Math.Abs(h1 - h2), 1f - Math.Abs(h1 - h2)) * 2f;
+        float ds = Math.Abs(s1 - s2);
+        float dv = Math.Abs(v1 - v2);
+        return MathF.Sqrt(dh * dh * 10000f + ds * ds * 2500f + dv * dv * 2500f);
     }
 
     #endregion
 
-    #region HSL / contrast helpers
+    #region K-Means HSV clustering
+
+    private sealed class HsvCluster
+    {
+        public float H, S, V;
+        public float Coverage;
+        public bool InCropZone;
+        public float FinalScore;
+    }
+
+    private static List<HsvCluster> KMeansHsv(List<(float H, float S, float V, float Weight)> samples, int k, int maxIter)
+    {
+        // Initialize centroids using k-means++ style (spread out)
+        var rng = new Random(42);
+        var centroids = new (float H, float S, float V)[k];
+        centroids[0] = (samples[rng.Next(samples.Count)].H, samples[rng.Next(samples.Count)].S, samples[rng.Next(samples.Count)].V);
+
+        for (int i = 1; i < k; i++)
+        {
+            float maxDist = -1;
+            int bestIdx = 0;
+            for (int j = 0; j < Math.Min(samples.Count, 200); j++)
+            {
+                int idx = rng.Next(samples.Count);
+                float minD = float.MaxValue;
+                for (int ci = 0; ci < i; ci++)
+                {
+                    float d = HsvDist(samples[idx].H, samples[idx].S, samples[idx].V,
+                                      centroids[ci].H, centroids[ci].S, centroids[ci].V);
+                    if (d < minD) minD = d;
+                }
+                if (minD > maxDist) { maxDist = minD; bestIdx = idx; }
+            }
+            centroids[i] = (samples[bestIdx].H, samples[bestIdx].S, samples[bestIdx].V);
+        }
+
+        // Iterate
+        int[] assignments = new int[samples.Count];
+        for (int iter = 0; iter < maxIter; iter++)
+        {
+            // Assign each sample to nearest centroid
+            for (int i = 0; i < samples.Count; i++)
+            {
+                float minDist = float.MaxValue;
+                int best = 0;
+                for (int c = 0; c < k; c++)
+                {
+                    float d = HsvDist(samples[i].H, samples[i].S, samples[i].V,
+                                      centroids[c].H, centroids[c].S, centroids[c].V);
+                    if (d < minDist) { minDist = d; best = c; }
+                }
+                assignments[i] = best;
+            }
+
+            // Update centroids (weighted average)
+            var sumH = new float[k]; var sumS = new float[k]; var sumV = new float[k]; var sumW = new float[k];
+            for (int i = 0; i < samples.Count; i++)
+            {
+                int c = assignments[i];
+                float w = samples[i].Weight;
+                sumH[c] += samples[i].H * w;
+                sumS[c] += samples[i].S * w;
+                sumV[c] += samples[i].V * w;
+                sumW[c] += w;
+            }
+
+            for (int c = 0; c < k; c++)
+            {
+                if (sumW[c] > 0)
+                    centroids[c] = (sumH[c] / sumW[c], sumS[c] / sumW[c], sumV[c] / sumW[c]);
+            }
+        }
+
+        // Build result clusters with coverage
+        float totalWeight = samples.Sum(s => s.Weight);
+        var clusterWeights = new float[k];
+        var inCrop = new bool[k];
+
+        for (int i = 0; i < samples.Count; i++)
+        {
+            clusterWeights[assignments[i]] += samples[i].Weight;
+            if (samples[i].Weight >= 2.0f) inCrop[assignments[i]] = true;
+        }
+
+        var result = new List<HsvCluster>(k);
+        for (int c = 0; c < k; c++)
+        {
+            if (clusterWeights[c] <= 0) continue;
+            result.Add(new HsvCluster
+            {
+                H = centroids[c].H, S = centroids[c].S, V = centroids[c].V,
+                Coverage = clusterWeights[c],
+                InCropZone = inCrop[c]
+            });
+        }
+
+        return result;
+    }
+
+    private static float HsvDist(float h1, float s1, float v1, float h2, float s2, float v2)
+    {
+        float dh = Math.Min(Math.Abs(h1 - h2), 1f - Math.Abs(h1 - h2)) * 2f;
+        float ds = s1 - s2;
+        float dv = v1 - v2;
+        return dh * dh + ds * ds + dv * dv;
+    }
+
+    #endregion
+
+    #region HSV / HSL / contrast helpers
+
+    private static (float H, float S, float V) RgbToHsv(float r, float g, float b)
+    {
+        float max = Math.Max(r, Math.Max(g, b));
+        float min = Math.Min(r, Math.Min(g, b));
+        float d = max - min;
+        float h = 0, s = max > 0 ? d / max : 0, v = max;
+
+        if (d > 0.001f)
+        {
+            if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
+            else if (max == g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h /= 6f;
+        }
+
+        return (h, s, v);
+    }
+
+    private static Color HsvToColor(float h, float s, float v)
+    {
+        float r, g, b;
+        int hi = (int)(h * 6f) % 6;
+        float f = h * 6f - hi;
+        float p = v * (1f - s);
+        float q = v * (1f - f * s);
+        float t = v * (1f - (1f - f) * s);
+
+        switch (hi)
+        {
+            case 0: r = v; g = t; b = p; break;
+            case 1: r = q; g = v; b = p; break;
+            case 2: r = p; g = v; b = t; break;
+            case 3: r = p; g = q; b = v; break;
+            case 4: r = t; g = p; b = v; break;
+            default: r = v; g = p; b = q; break;
+        }
+
+        return Color.FromRgb(
+            (byte)Math.Clamp(r * 255f, 0, 255),
+            (byte)Math.Clamp(g * 255f, 0, 255),
+            (byte)Math.Clamp(b * 255f, 0, 255));
+    }
 
     public static (double H, double S, double L) ToHsl(Color c)
     {
@@ -377,10 +462,7 @@ public static double GetAdaptiveBlurImageOpacity(double luminance)
     public static Color HslToColor(double h, double s, double l)
     {
         double r, g, b;
-        if (s == 0)
-        {
-            r = g = b = l;
-        }
+        if (s == 0) { r = g = b = l; }
         else
         {
             double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
@@ -429,31 +511,16 @@ public static double GetAdaptiveBlurImageOpacity(double luminance)
         return Math.Sqrt(dr * dr + dg * dg + db * db);
     }
 
-    private static double ScoreLightTextCandidate(Color color, Color background, double paletteScore)
-    {
-        double luminance = GetRelativeLuminance(color);
-        double contrast = GetContrastRatio(color, background);
-        var hsl = ToHsl(color);
-        double lightSwatchBonus = hsl.L >= 0.45 ? 1000 : 0;
-        double contrastBonus = contrast >= 4.5 ? 600 : 0;
-        double darkPenalty = luminance < 0.18 ? 1200 : 0;
-        return paletteScore + lightSwatchBonus + contrastBonus - darkPenalty;
-    }
-
     public static Color EnsureTextOnDarkBackground(Color color, Color background, double minRatio)
     {
         var hsl = ToHsl(color);
         Color best = color;
 
         if (GetRelativeLuminance(best) < 0.18 || hsl.L < 0.40)
-        {
             best = HslToColor(hsl.H, Math.Max(0.18, hsl.S), Math.Clamp(Math.Max(hsl.L, 0.60), 0.55, 0.65));
-        }
 
         if (GetContrastRatio(best, background) >= minRatio && GetRelativeLuminance(best) >= 0.18)
-        {
             return best;
-        }
 
         for (int step = 0; step <= 100; step++)
         {
@@ -461,9 +528,7 @@ public static double GetAdaptiveBlurImageOpacity(double luminance)
             double l = hsl.L + (1.0 - hsl.L) * t;
             var candidate = HslToColor(hsl.H, Math.Max(0.18, hsl.S), Math.Clamp(l, 0.55, 0.72));
             if (GetContrastRatio(candidate, background) >= minRatio && GetRelativeLuminance(candidate) >= 0.18)
-            {
                 return candidate;
-            }
         }
 
         return Colors.White;
@@ -482,11 +547,7 @@ public static double GetAdaptiveBlurImageOpacity(double luminance)
             double l = lighten ? hsl.L + (1.0 - hsl.L) * t : hsl.L * (1.0 - t);
             var candidate = HslToColor(hsl.H, Math.Max(0.18, hsl.S), Math.Clamp(l, 0.0, 1.0));
             double ratio = GetContrastRatio(candidate, main);
-            if (ratio > bestRatio)
-            {
-                best = candidate;
-                bestRatio = ratio;
-            }
+            if (ratio > bestRatio) { best = candidate; bestRatio = ratio; }
         }
 
         if (bestRatio < minRatio)
