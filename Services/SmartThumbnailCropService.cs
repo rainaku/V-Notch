@@ -95,13 +95,13 @@ public sealed class SmartThumbnailCropService : IDisposable
                 var detections = ParseYolov8Output(output, imgWidth, imgHeight, scaleX, padX, padY);
 
                 if (detections.Count == 0)
-                    return null;
+                {
+                    // No YOLO detections — use saliency-based crop
+                    return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSquareSize);
+                }
 
-                var bestDetection = SelectBestDetection(detections, imgWidth, imgHeight);
-                if (bestDetection == null)
-                    return null;
-
-                return CalculateCropRect(bestDetection.Value, imgWidth, imgHeight, targetSquareSize);
+                // Hybrid crop logic
+                return GetHybridCropRect(detections, source, imgWidth, imgHeight, targetSquareSize);
             }
             catch (Exception ex)
             {
@@ -331,19 +331,77 @@ public sealed class SmartThumbnailCropService : IDisposable
         return bestPriority ?? bestLargest;
     }
 
-    private Int32Rect CalculateCropRect(Detection detection, int imgWidth, int imgHeight, int targetSize)
+    /// <summary>
+    /// Hybrid crop: combines ONNX detections with heuristic rules.
+    /// - Single person → crop centered on person (with center bias)
+    /// - Multiple persons → crop center encompassing all
+    /// - Non-person detections → use as secondary hint
+    /// </summary>
+    private Int32Rect GetHybridCropRect(List<Detection> detections, BitmapImage source, int imgWidth, int imgHeight, int targetSize)
     {
-        // Center of the detected object
-        float centerX = (detection.X1 + detection.X2) / 2f;
-        float centerY = (detection.Y1 + detection.Y2) / 2f;
+        float imgArea = imgWidth * imgHeight;
 
-        // Crop size: use the same size as the fallback system (based on image height for 16:9)
-        // This ensures no black borders — we never crop larger than the shortest dimension.
+        // Separate persons from other detections
+        var persons = new List<Detection>();
+        Detection? largestNonPerson = null;
+        float largestNonPersonArea = 0;
+
+        foreach (var d in detections)
+        {
+            float areaRatio = d.Area / imgArea;
+            if (areaRatio < 0.02f) continue; // Skip tiny detections
+
+            if (_priorityClasses.Contains(d.ClassId))
+            {
+                persons.Add(d);
+            }
+            else if (d.Area > largestNonPersonArea && areaRatio > 0.05f)
+            {
+                largestNonPersonArea = d.Area;
+                largestNonPerson = d;
+            }
+        }
+
         int maxCropSize = Math.Min(imgWidth, imgHeight);
         int cropSize = Math.Min(targetSize, maxCropSize);
+        float imgCenterX = imgWidth / 2f;
 
-        // Position crop centered on the detected subject's X position
-        // but keep Y centered in the image (avoids grabbing letterbox black bars)
+        if (persons.Count == 1)
+        {
+            // Single person → crop directly centered on person
+            var p = persons[0];
+            float personCenterX = (p.X1 + p.X2) / 2f;
+            return BuildCropRect(personCenterX, imgWidth, imgHeight, cropSize);
+        }
+        else if (persons.Count >= 2)
+        {
+            // Multiple persons → center on the group
+            float minX = float.MaxValue, maxX = float.MinValue;
+            foreach (var p in persons)
+            {
+                if (p.X1 < minX) minX = p.X1;
+                if (p.X2 > maxX) maxX = p.X2;
+            }
+            float groupCenterX = (minX + maxX) / 2f;
+            return BuildCropRect(groupCenterX, imgWidth, imgHeight, cropSize);
+        }
+        else if (largestNonPerson != null)
+        {
+            // No persons but have other significant detection
+            float objCenterX = (largestNonPerson.Value.X1 + largestNonPerson.Value.X2) / 2f;
+            return BuildCropRect(objCenterX, imgWidth, imgHeight, cropSize);
+        }
+
+        // Fallback: saliency-based
+        return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize)
+               ?? BuildCropRect(imgCenterX, imgWidth, imgHeight, cropSize);
+    }
+
+    /// <summary>
+    /// Builds a crop rect centered on a given X position, with Y centered in image.
+    /// </summary>
+    private static Int32Rect BuildCropRect(float centerX, int imgWidth, int imgHeight, int cropSize)
+    {
         int cropX = (int)(centerX - cropSize / 2f);
         int cropY = (imgHeight - cropSize) / 2;
 
@@ -352,6 +410,124 @@ public sealed class SmartThumbnailCropService : IDisposable
         cropY = Math.Max(0, Math.Min(cropY, imgHeight - cropSize));
 
         return new Int32Rect(cropX, cropY, cropSize, cropSize);
+    }
+
+    /// <summary>
+    /// Saliency-based crop: analyzes pixel contrast and brightness to find the most
+    /// visually interesting region. Also detects text-heavy areas (high edge density).
+    /// Used when YOLO detects nothing (common for graphic/text-heavy thumbnails).
+    /// </summary>
+    private Int32Rect? GetSaliencyCropRect(BitmapImage source, int imgWidth, int imgHeight, int targetSize)
+    {
+        try
+        {
+            int maxCropSize = Math.Min(imgWidth, imgHeight);
+            int cropSize = Math.Min(targetSize, maxCropSize);
+
+            // Downsample for fast analysis
+            const int analysisSize = 64;
+            double scaleX = (double)analysisSize / imgWidth;
+            double scaleY = (double)analysisSize / imgHeight;
+            var scaled = new TransformedBitmap(source, new ScaleTransform(scaleX, scaleY));
+            scaled.Freeze();
+
+            int w = scaled.PixelWidth;
+            int h = scaled.PixelHeight;
+            if (w < 4 || h < 4) return null;
+
+            int stride = w * 4;
+            byte[] pixels = new byte[h * stride];
+
+            BitmapSource scaledSource = scaled;
+            if (scaled.Format != PixelFormats.Bgra32)
+            {
+                var converted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
+                converted.Freeze();
+                scaledSource = converted;
+            }
+            scaledSource.CopyPixels(pixels, stride, 0);
+
+            // Divide image into vertical strips and score each
+            const int numStrips = 8;
+            int stripWidth = w / numStrips;
+            double[] stripScores = new double[numStrips];
+
+            for (int strip = 0; strip < numStrips; strip++)
+            {
+                int startX = strip * stripWidth;
+                int endX = Math.Min(startX + stripWidth, w);
+                double totalContrast = 0;
+                double totalBrightness = 0;
+                double edgeDensity = 0;
+                int pixelCount = 0;
+
+                for (int y = 1; y < h - 1; y++)
+                {
+                    for (int x = startX; x < endX && x < w - 1; x++)
+                    {
+                        int i = (y * stride) + (x * 4);
+                        int iRight = i + 4;
+                        int iBelow = ((y + 1) * stride) + (x * 4);
+
+                        // Current pixel luminance
+                        double lum = 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
+
+                        // Horizontal gradient (edge detection)
+                        double lumRight = 0.299 * pixels[iRight + 2] + 0.587 * pixels[iRight + 1] + 0.114 * pixels[iRight];
+                        double lumBelow = 0.299 * pixels[iBelow + 2] + 0.587 * pixels[iBelow + 1] + 0.114 * pixels[iBelow];
+
+                        double gradH = Math.Abs(lum - lumRight);
+                        double gradV = Math.Abs(lum - lumBelow);
+                        double gradient = gradH + gradV;
+
+                        // High gradient = edges/text
+                        edgeDensity += gradient > 30 ? 1 : 0;
+                        totalContrast += gradient;
+                        totalBrightness += lum;
+                        pixelCount++;
+                    }
+                }
+
+                if (pixelCount == 0) continue;
+
+                double avgContrast = totalContrast / pixelCount;
+                double avgBrightness = totalBrightness / pixelCount;
+                double edgeRatio = edgeDensity / pixelCount;
+
+                // Score: prefer high contrast + moderate brightness + high edge density (text)
+                // Penalize very dark strips (likely black bars) and very bright (likely white bg)
+                double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
+                double score = (avgContrast * 0.4 + edgeRatio * 80.0 * 0.6) * brightnessPenalty;
+
+                // Slight center bias — thumbnails usually have main content in center
+                double centerBias = 1.0 - Math.Abs((strip + 0.5) / numStrips - 0.5) * 0.3;
+                stripScores[strip] = score * centerBias;
+            }
+
+            // Find the best strip region (allow 2 adjacent strips for wider coverage)
+            double bestScore = -1;
+            int bestStripCenter = numStrips / 2;
+
+            for (int i = 0; i < numStrips - 1; i++)
+            {
+                double pairScore = stripScores[i] + stripScores[i + 1];
+                if (pairScore > bestScore)
+                {
+                    bestScore = pairScore;
+                    bestStripCenter = i;
+                }
+            }
+
+            // Convert strip position back to image coordinates
+            float saliencyCenterX = (bestStripCenter + 1.0f) / numStrips * imgWidth;
+
+            return BuildCropRect(saliencyCenterX, imgWidth, imgHeight, cropSize);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SmartCrop] Saliency analysis failed: {ex.Message}");
+            return null;
+        }
     }
 
     private static string GetModelPath()

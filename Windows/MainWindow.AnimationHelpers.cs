@@ -78,7 +78,7 @@ public partial class MainWindow
         AnimateCornerRadius(radius, duration.TimeSpan);
 
         // Animate compact thumbnail corner radius - reduce when scaled up to avoid looking too round
-        double thumbRadius = isHovered ? 4 : 6;
+        double thumbRadius = isHovered ? 2.5 : 6;
         double startThumbRadius = CompactThumbnailBorder.CornerRadius.TopLeft;
         if (Math.Abs(thumbRadius - startThumbRadius) > 0.1)
         {

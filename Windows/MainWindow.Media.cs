@@ -153,12 +153,12 @@ public partial class MainWindow
 
                         if (ThumbnailImage.Source != info.Thumbnail)
                         {
-                            // Only crossfade when this is a thumbnail-only update (YouTube fetch completed).
-                            // For seek/position updates, the thumbnail reference may differ but content is the same —
-                            // just set directly to avoid flashing on every seek.
-                            if (info.IsThumbnailOnlyUpdate && ThumbnailImage.Source != null && !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
+                            // When YouTube fetch completes with the final thumbnail,
+                            // play flip + bounce animation so the pill feels alive.
+                            if (info.IsThumbnailOnlyUpdate && !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
                             {
-                                CrossfadeThumbnail(info.Thumbnail);
+                                AnimateThumbnailSwitchOnly(info.Thumbnail);
+                                PlayTrackChangeBounce();
                             }
                             else
                             {

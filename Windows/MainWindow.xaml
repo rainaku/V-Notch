@@ -959,7 +959,7 @@
                                             Grid.Column="0" 
                                              Width="102" Height="102"
                                                VerticalAlignment="Center"
-                                              CornerRadius="12"
+                                              CornerRadius="8"
                                               Background="#222222"
                                               Margin="0,0,8,0"
                                              Cursor="Hand"
@@ -980,7 +980,7 @@
                                                    VerticalAlignment="Center"
                                                    Visibility="Collapsed">
                                                 <Image.Clip>
-                                                    <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,102,102"/>
+                                                    <RectangleGeometry RadiusX="8" RadiusY="8" Rect="0,0,102,102"/>
                                                 </Image.Clip>
                                             </Image>
 

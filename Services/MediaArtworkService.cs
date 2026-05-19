@@ -91,10 +91,8 @@ public sealed class MediaArtworkService : IMediaArtworkService
 
             double aspect = (double)width / height;
 
-            // Only apply aggressive YouTube crop (0.74 zoom, left-aligned) for wide thumbnails (16:9).
-            // For near-square images (album art from Topic channels, SMTC artwork), use gentle center crop.
-            bool isWideYouTube = string.Equals(mediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) && aspect > 1.4;
-            double zoom = isWideYouTube ? 0.74 : 0.97;
+            // No zoom — use full height as crop size for all sources
+            double zoom = 0.97;
             int squareSize = (int)(Math.Min(width, height) * zoom);
 
             Int32Rect rect;
