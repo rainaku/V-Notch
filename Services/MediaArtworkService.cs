@@ -90,15 +90,17 @@ public sealed class MediaArtworkService : IMediaArtworkService
             int height = source.PixelHeight;
 
             double aspect = (double)width / height;
-            double zoom = string.Equals(mediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) && aspect > 1.25
-                ? 0.74
-                : 0.97;
+
+            // Only apply aggressive YouTube crop (0.74 zoom, left-aligned) for wide thumbnails (16:9).
+            // For near-square images (album art from Topic channels, SMTC artwork), use gentle center crop.
+            bool isWideYouTube = string.Equals(mediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) && aspect > 1.4;
+            double zoom = isWideYouTube ? 0.74 : 0.97;
             int squareSize = (int)(Math.Min(width, height) * zoom);
 
             Int32Rect rect;
 
             // Try smart crop first if enabled and available
-            if (EnableSmartCrop && _smartCropAvailable && aspect > 1.15)
+            if (EnableSmartCrop && _smartCropAvailable && aspect > 1.4)
             {
                 var smartRect = _smartCrop.GetSmartCropRect(source, squareSize);
                 if (smartRect.HasValue)
@@ -166,9 +168,10 @@ public sealed class MediaArtworkService : IMediaArtworkService
     private static Int32Rect GetFallbackCropRect(int width, int height, int squareSize, string mediaSource, double aspect)
     {
         // YouTube thumbs are usually 16:9; crop from the left side to show the main content.
-        // Other sources crop from center.
-        bool isYouTube = string.Equals(mediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) && aspect > 1.25;
-        int offsetX = isYouTube ? 0 : (width - squareSize) / 2;
+        // Only apply left-crop for clearly wide images (aspect > 1.4).
+        // Near-square images (album art, Topic channels) always center crop.
+        bool isWideYouTube = string.Equals(mediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) && aspect > 1.4;
+        int offsetX = isWideYouTube ? 0 : (width - squareSize) / 2;
         int offsetY = (height - squareSize) / 2;
         return new Int32Rect(offsetX, offsetY, squareSize, squareSize);
     }

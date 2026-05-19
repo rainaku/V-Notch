@@ -609,43 +609,8 @@ public partial class MainWindow
                     // else: paused + small backward — allow correction via lerp
                 }
 
-                double ratioDiff = Math.Abs(_progressTargetRatio - _progressDisplayRatio);
-                double diffSeconds = ratioDiff * frame.Duration.TotalSeconds;
-
-                if (diffSeconds > 0.05)  
-                {
-                    double error = _progressTargetRatio - _progressDisplayRatio;
-                    
-                    
-                    // Improved correction speed for browser sources
-                    // Forward: fast (0.9)
-                    // Backward: medium-fast (0.6 for browser, 0.3 for native)
-                    double backwardCorrectionSpeed = 0.14;  // Default for native
-                    if (_currentMediaInfo != null)
-                    {
-                        bool isBrowserSource = string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
-                                              string.Equals(_currentMediaInfo.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
-                                              string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase);
-                        if (isBrowserSource)
-                        {
-                            backwardCorrectionSpeed = 0.22;  // Slightly faster, but still visually stable
-                        }
-                    }
-                    
-                    double correctionSpeed = error > 0 ? 0.9 : backwardCorrectionSpeed;
-                    double correctionLerp = 1.0 - Math.Exp(-(NORMAL_LERP_SPEED * correctionSpeed) * dt);
-                    _progressDisplayRatio += error * correctionLerp;
-
-                    if (Math.Abs(error) < 0.0001)
-                    {
-                        _progressDisplayRatio = _progressTargetRatio;
-                    }
-                }
-                else
-                {
-                    
-                    _progressDisplayRatio = _progressTargetRatio;
-                }
+                // Jump directly to target — no lerp/smoothing animation
+                _progressDisplayRatio = _progressTargetRatio;
             }
 
             _progressDisplayRatio = Math.Clamp(_progressDisplayRatio, 0, 1);
@@ -818,13 +783,14 @@ public partial class MainWindow
         targetRatio = Math.Clamp(targetRatio, 0, 1);
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
 
+        // Jump directly — no spring animation
+        _progressDisplayRatio = targetRatio;
         _progressTargetRatio = targetRatio;
         _progressSpringTargetRatio = targetRatio;
-        _progressVelocity *= 0.35;
+        _progressVelocity = 0;
         _springSettleFrames = 0;
-        _isSeekSpringActive = true;
-        _seekSpringStartTime = DateTime.Now;
-        StartSpringRenderLoop();
+        _isSeekSpringActive = false;
+        ProgressBarScale.ScaleX = targetRatio;
     }
 
     private async Task SeekToPosition(TimeSpan newPos)
@@ -984,7 +950,7 @@ public partial class MainWindow
 
     private void StartProgressCatchUpAnimation()
     {
-        if (_currentMediaInfo == null || _isCatchUpAnimating) return;
+        if (_currentMediaInfo == null) return;
 
         var frame = _progressEngine.GetUiFrame();
         if (frame.Duration.TotalSeconds <= 0) return;
@@ -992,133 +958,26 @@ public partial class MainWindow
         double targetRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
         targetRatio = Math.Clamp(targetRatio, 0, 1);
 
-        // Prevent reopen-jump effect:
-        // if UI already has meaningful progress, do not reset to 0 and animate again.
-        // Catch-up should only run for fresh/near-zero visual state.
-        if (_progressDisplayRatio > 0.02)
-        {
-            return;
-        }
-
-        // Only animate if position is meaningful
-        // If position < 1%, skip animation (too early)
-        if (targetRatio < 0.01)
-        {
-            return;
-        }
-
-        _isCatchUpAnimating = true;
-        _catchUpTargetRatio = targetRatio;
-        _catchUpTargetPosition = frame.Position;
-
-        // Set _lastRenderedRatio to the target so that the external-seek detection
-        // in RenderProgressBar doesn't see a large diff and cancel the animation.
-        _lastRenderedRatio = targetRatio;
-
-        // Reset progress bar to 0
+        // Jump directly to current position — no catch-up animation
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        ProgressBarScale.ScaleX = 0;
-        _progressDisplayRatio = 0;
-        CurrentTimeText.Text = "0:00";
-
-        // Create smooth ease-in-out animation (slow - fast - slow)
-        // Duration scales with target ratio: short for small positions, longer for large ones, capped at 900ms
-        var catchUpDuration = TimeSpan.FromMilliseconds(Math.Min(900, 350 + targetRatio * 550));
-        var catchUpAnim = new DoubleAnimation(0, targetRatio, catchUpDuration)
-        {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
-        };
-        Timeline.SetDesiredFrameRate(catchUpAnim, 60);
-
-        // Animate time text during catch-up
-        _catchUpTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(16)
-        };
-        var startTime = DateTime.Now;
-        _catchUpTimer.Tick += (s, e) =>
-        {
-            if (!_isCatchUpAnimating)
-            {
-                _catchUpTimer?.Stop();
-                return;
-            }
-
-            var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
-            var progress = Math.Min(1.0, elapsed / catchUpDuration.TotalMilliseconds);
-            
-            // Apply easing to time display
-            var easedProgress = EaseCubicInOut(progress);
-            var currentSeconds = _catchUpTargetPosition.TotalSeconds * easedProgress;
-            CurrentTimeText.Text = FormatTime(TimeSpan.FromSeconds(currentSeconds));
-        };
-        _catchUpTimer.Start();
-
-        catchUpAnim.Completed += (s, e) =>
-        {
-            if (!_isCatchUpAnimating) return; // Already stopped
-
-            _isCatchUpAnimating = false;
-            _catchUpTimer?.Stop();
-            _catchUpTimer = null;
-
-            // Clear the animation hold so local value assignments take effect
-            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            
-            // Sync with CURRENT actual progress
-            var currentFrame = _progressEngine.GetUiFrame();
-            if (currentFrame.Duration.TotalSeconds > 0)
-            {
-                double currentRatio = currentFrame.Position.TotalSeconds / currentFrame.Duration.TotalSeconds;
-                currentRatio = Math.Clamp(currentRatio, 0, 1);
-                
-                _progressDisplayRatio = currentRatio;
-                _progressTargetRatio = currentRatio;
-                _progressSpringTargetRatio = currentRatio;
-                _lastRenderedRatio = currentRatio;
-                ProgressBarScale.ScaleX = currentRatio;
-                CurrentTimeText.Text = FormatTime(currentFrame.Position);
-            }
-
-            // Protect against backward jitter right after catch-up ends.
-            // Engine snapshots may briefly lag behind the animated position.
-            _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(2);
-            
-            // Resume normal progress tracking
-            RenderProgressBar();
-        };
-
-        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, catchUpAnim);
+        _progressDisplayRatio = targetRatio;
+        _progressTargetRatio = targetRatio;
+        _progressSpringTargetRatio = targetRatio;
+        _lastRenderedRatio = targetRatio;
+        _progressVelocity = 0;
+        ProgressBarScale.ScaleX = targetRatio;
+        CurrentTimeText.Text = FormatTime(frame.Position);
+        RemainingTimeText.Text = FormatTime(frame.Duration);
     }
 
     private void StopCatchUpAnimation()
     {
-        if (!_isCatchUpAnimating) return;
-
+        // No-op: catch-up animation has been removed (progress jumps directly)
         _isCatchUpAnimating = false;
-        
-        // Stop timer
         if (_catchUpTimer != null)
         {
             _catchUpTimer.Stop();
             _catchUpTimer = null;
-        }
-
-        // Stop animation
-        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        
-        // Sync to current actual position
-        var frame = _progressEngine.GetUiFrame();
-        if (frame.Duration.TotalSeconds > 0)
-        {
-            double currentRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
-            currentRatio = Math.Clamp(currentRatio, 0, 1);
-            
-            _progressDisplayRatio = currentRatio;
-            _progressTargetRatio = currentRatio;
-            _progressSpringTargetRatio = currentRatio;
-            ProgressBarScale.ScaleX = currentRatio;
-            CurrentTimeText.Text = FormatTime(frame.Position);
         }
     }
 

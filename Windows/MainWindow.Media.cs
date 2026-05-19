@@ -29,6 +29,19 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() =>
         {
+            // Guard: if this is a thumbnail-only update from an async fetch,
+            // verify it still matches the track currently displayed. If the user
+            // has already moved to a different track, discard the stale thumbnail.
+            if (info.IsThumbnailOnlyUpdate)
+            {
+                string incomingTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
+                if (!string.IsNullOrEmpty(_lastAnimatedTrackSignature) &&
+                    incomingTrackId != _lastAnimatedTrackSignature)
+                {
+                    return; // Stale thumbnail for a previous track — ignore
+                }
+            }
+
             // Skip expensive UI updates when notch is collapsed and no compact thumbnail visible
             bool isCollapsedWithoutCompact = !_isExpanded && !_isMusicExpanded && !_isMusicCompactMode;
 
@@ -119,17 +132,39 @@ public partial class MainWindow
 
                     if (isNewTrack)
                     {
+                        bool isFirstEverTrack = string.IsNullOrEmpty(_lastAnimatedTrackSignature);
                         _lastAnimatedTrackSignature = trackIdentity;
-                        AnimateThumbnailSwitchOnly(info.Thumbnail);
-                        PlayTrackChangeBounce();
+
+                        if (isFirstEverTrack)
+                        {
+                            // Boot: set thumbnail instantly without flip/bounce animation
+                            // to avoid a jarring "snap zoom" when no previous image exists.
+                            ThumbnailImage.Source = info.Thumbnail;
+                            CompactThumbnail.Source = info.Thumbnail;
+                        }
+                        else
+                        {
+                            AnimateThumbnailSwitchOnly(info.Thumbnail);
+                            PlayTrackChangeBounce();
+                        }
                     }
                     else
                     {
 
                         if (ThumbnailImage.Source != info.Thumbnail)
                         {
-                            ThumbnailImage.Source = info.Thumbnail;
-                            CompactThumbnail.Source = info.Thumbnail;
+                            // Only crossfade when this is a thumbnail-only update (YouTube fetch completed).
+                            // For seek/position updates, the thumbnail reference may differ but content is the same —
+                            // just set directly to avoid flashing on every seek.
+                            if (info.IsThumbnailOnlyUpdate && ThumbnailImage.Source != null && !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
+                            {
+                                CrossfadeThumbnail(info.Thumbnail);
+                            }
+                            else
+                            {
+                                ThumbnailImage.Source = info.Thumbnail;
+                                CompactThumbnail.Source = info.Thumbnail;
+                            }
                         }
                     }
 
@@ -293,6 +328,34 @@ public partial class MainWindow
             ThumbnailImage.Source = resolvedThumb;
             CompactThumbnail.Source = resolvedThumb;
         }
+    }
+
+    /// <summary>
+    /// Smoothly crossfades to a new thumbnail without flip animation.
+    /// Used for thumbnail-only updates (e.g., YouTube fetch completing on boot)
+    /// to avoid a jarring "snap zoom" when the crop position changes.
+    /// </summary>
+    private void CrossfadeThumbnail(ImageSource newThumb)
+    {
+        if (newThumb == null) return;
+        if (ReferenceEquals(ThumbnailImage.Source, newThumb)) return;
+
+        var fadeOut = new DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(100));
+        Timeline.SetDesiredFrameRate(fadeOut, 60);
+
+        fadeOut.Completed += (s, e) =>
+        {
+            ThumbnailImage.Source = newThumb;
+            CompactThumbnail.Source = newThumb;
+
+            var fadeIn = new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(150));
+            Timeline.SetDesiredFrameRate(fadeIn, 60);
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, fadeIn);
+            ThumbnailImage.BeginAnimation(OpacityProperty, fadeIn);
+        };
+
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, fadeOut);
+        ThumbnailImage.BeginAnimation(OpacityProperty, fadeOut);
     }
 
     #endregion

@@ -48,6 +48,9 @@ public class NotchSettings
 
     public bool IsShelfUploadLimitUnlocked { get; set; } = true;
 
+    public bool EnableYouTubeApi { get; set; } = false;
+    public string YouTubeApiKey { get; set; } = "";
+
     public string Language { get; set; } = "en"; // "en" or "vi"
 
     [JsonIgnore]
@@ -86,6 +89,8 @@ public class NotchSettings
             NotificationDuration = NotificationDuration,
             EnableSmartCrop = EnableSmartCrop,
             IsShelfUploadLimitUnlocked = IsShelfUploadLimitUnlocked,
+            EnableYouTubeApi = EnableYouTubeApi,
+            YouTubeApiKey = YouTubeApiKey,
             Language = Language
         };
     }

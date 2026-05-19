@@ -66,7 +66,7 @@ public event EventHandler? AnimatedClosing;
     {
         while (source != null)
         {
-            if (source is ButtonBase or Slider or Thumb or ComboBox or ComboBoxItem or CheckBox or ScrollBar or TextBox)
+            if (source is ButtonBase or Slider or Thumb or ComboBox or ComboBoxItem or CheckBox or ScrollBar or TextBox or PasswordBox)
             {
                 return true;
             }
@@ -106,6 +106,13 @@ public event EventHandler? AnimatedClosing;
         LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "English", Tag = "en" });
         LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "Tiếng Việt", Tag = "vi" });
         LanguageCombo.SelectedIndex = _settings.Language == "vi" ? 1 : 0;
+
+        // YouTube API
+        YouTubeApiCheck.IsChecked = _settings.EnableYouTubeApi;
+        YouTubeApiKeyPasswordBox.Password = _settings.YouTubeApiKey;
+        YouTubeApiKeyTextBox.Text = _settings.YouTubeApiKey;
+        YouTubeApiKeyRow.Visibility = _settings.EnableYouTubeApi ? Visibility.Visible : Visibility.Collapsed;
+        UpdateYouTubeApiKeyStatus();
 
         _isLoadingSettings = false;
         ApplyLocalization();
@@ -179,6 +186,13 @@ public event EventHandler? AnimatedClosing;
         ShelfUnlockHint.Text = Loc.Get("settings.shelfUnlock.hint");
         LanguageLabel.Text = Loc.Get("settings.language");
         LanguageHint.Text = Loc.Get("settings.language.hint");
+
+        // Advanced
+        AdvancedHeader.Text = Loc.Get("settings.advanced");
+        YouTubeApiCheck.Content = Loc.Get("settings.youtubeApi");
+        YouTubeApiHint.Text = Loc.Get("settings.youtubeApi.hint");
+        YouTubeApiKeyLabel.Text = Loc.Get("settings.youtubeApiKey");
+        YouTubeApiKeyHint.Text = Loc.Get("settings.youtubeApiKey.hint");
     }
 
     #region Slider Value Changed Handlers
@@ -241,6 +255,96 @@ public event EventHandler? AnimatedClosing;
         }
     }
 
+    private void YouTubeApiCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        bool enabled = YouTubeApiCheck.IsChecked ?? false;
+        YouTubeApiKeyRow.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void YouTubeApiKeyPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        // Sync to hidden TextBox
+        if (YouTubeApiKeyTextBox.Visibility == Visibility.Collapsed)
+            YouTubeApiKeyTextBox.Text = YouTubeApiKeyPasswordBox.Password;
+        UpdateYouTubeApiKeyStatus();
+    }
+
+    private void YouTubeApiKeyTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        // Sync to PasswordBox
+        if (YouTubeApiKeyTextBox.Visibility == Visibility.Visible)
+            YouTubeApiKeyPasswordBox.Password = YouTubeApiKeyTextBox.Text;
+        UpdateYouTubeApiKeyStatus();
+    }
+
+    private bool _isKeyVisible = false;
+
+    private void ToggleKeyVisibility_Click(object sender, RoutedEventArgs e)
+    {
+        _isKeyVisible = !_isKeyVisible;
+
+        var duration = TimeSpan.FromMilliseconds(200);
+        var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+
+        if (_isKeyVisible)
+        {
+            YouTubeApiKeyTextBox.Text = YouTubeApiKeyPasswordBox.Password;
+            YouTubeApiKeyPasswordBox.Visibility = Visibility.Collapsed;
+            YouTubeApiKeyTextBox.Visibility = Visibility.Visible;
+
+            // Animate: eye open → eye closed
+            var fadeOutOpen = new DoubleAnimation(1, 0, duration) { EasingFunction = easeOut };
+            var fadeInClosed = new DoubleAnimation(0, 1, duration) { EasingFunction = easeOut, BeginTime = TimeSpan.FromMilliseconds(100) };
+            EyeOpenIcon.BeginAnimation(OpacityProperty, fadeOutOpen);
+            EyeClosedIcon.BeginAnimation(OpacityProperty, fadeInClosed);
+        }
+        else
+        {
+            YouTubeApiKeyPasswordBox.Password = YouTubeApiKeyTextBox.Text;
+            YouTubeApiKeyTextBox.Visibility = Visibility.Collapsed;
+            YouTubeApiKeyPasswordBox.Visibility = Visibility.Visible;
+
+            // Animate: eye closed → eye open
+            var fadeOutClosed = new DoubleAnimation(1, 0, duration) { EasingFunction = easeOut };
+            var fadeInOpen = new DoubleAnimation(0, 1, duration) { EasingFunction = easeOut, BeginTime = TimeSpan.FromMilliseconds(100) };
+            EyeClosedIcon.BeginAnimation(OpacityProperty, fadeOutClosed);
+            EyeOpenIcon.BeginAnimation(OpacityProperty, fadeInOpen);
+        }
+    }
+
+    private void UpdateYouTubeApiKeyStatus()
+    {
+        string key = YouTubeApiKeyPasswordBox.Password?.Trim() ?? "";
+        if (string.IsNullOrEmpty(key))
+        {
+            YouTubeApiKeyStatus.Text = "";
+            YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128));
+        }
+        else if (key.Length < 30)
+        {
+            YouTubeApiKeyStatus.Text = "✗ Invalid key format — too short";
+            YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+        }
+        else if (!key.StartsWith("AIza", StringComparison.Ordinal))
+        {
+            YouTubeApiKeyStatus.Text = "✗ Invalid key format — must start with AIza";
+            YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+        }
+        else if (key.Length >= 35 && key.Length <= 45)
+        {
+            YouTubeApiKeyStatus.Text = "✓ Key format looks valid";
+            YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(74, 222, 128));
+        }
+        else
+        {
+            YouTubeApiKeyStatus.Text = "⚠ Unexpected key length";
+            YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(234, 179, 8));
+        }
+    }
+
     private void AnimateLocalizationChange()
     {
         var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
@@ -299,6 +403,12 @@ public event EventHandler? AnimatedClosing;
             (ShelfUnlockHint, () => ShelfUnlockHint.Text = Loc.Get("settings.shelfUnlock.hint")),
             (LanguageLabel, () => LanguageLabel.Text = Loc.Get("settings.language")),
             (LanguageHint, () => LanguageHint.Text = Loc.Get("settings.language.hint")),
+
+            // Advanced
+            (AdvancedHeader, () => AdvancedHeader.Text = Loc.Get("settings.advanced")),
+            (YouTubeApiHint, () => YouTubeApiHint.Text = Loc.Get("settings.youtubeApi.hint")),
+            (YouTubeApiKeyLabel, () => YouTubeApiKeyLabel.Text = Loc.Get("settings.youtubeApiKey")),
+            (YouTubeApiKeyHint, () => YouTubeApiKeyHint.Text = Loc.Get("settings.youtubeApiKey.hint")),
         };
 
         // Also update buttons (ContentControl-based, animate parent)
@@ -323,6 +433,8 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(SystemNotifyCheck, () => SystemNotifyCheck.Content = Loc.Get("settings.systemNotify"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(ShelfUnlockCheck, () => ShelfUnlockCheck.Content = Loc.Get("settings.shelfUnlock"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(YouTubeApiCheck, () => YouTubeApiCheck.Content = Loc.Get("settings.youtubeApi"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(HoverExpandCheck, () => HoverExpandCheck.Content = Loc.Get("settings.hoverExpand"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
@@ -565,8 +677,9 @@ private void PushLivePreview()
         AnimateEntranceItem(BehaviorCard, BehaviorCardTranslate, contentDelay + 80);
         AnimateEntranceItem(DisplayCard, DisplayCardTranslate, contentDelay + 120);
         AnimateEntranceItem(SystemCard, SystemCardTranslate, contentDelay + 160);
-        AnimateEntranceItem(UpdatesCard, UpdatesCardTranslate, contentDelay + 200);
-        AnimateEntranceItem(FooterBar, FooterTranslate, contentDelay + 240);
+        AnimateEntranceItem(AdvancedCard, AdvancedCardTranslate, contentDelay + 200);
+        AnimateEntranceItem(UpdatesCard, UpdatesCardTranslate, contentDelay + 240);
+        AnimateEntranceItem(FooterBar, FooterTranslate, contentDelay + 280);
 
         void AnimateSocialIcon(UIElement element, TranslateTransform translate, int delayMs)
         {
@@ -754,11 +867,12 @@ private void CloseWithAnimation()
         // --- Staggered content hide (reverse of entrance reveal) ---
         AnimateExitItem(FooterBar, FooterTranslate, 0);
         AnimateExitItem(UpdatesCard, UpdatesCardTranslate, 20);
-        AnimateExitItem(SystemCard, SystemCardTranslate, 40);
-        AnimateExitItem(DisplayCard, DisplayCardTranslate, 60);
-        AnimateExitItem(BehaviorCard, BehaviorCardTranslate, 80);
-        AnimateExitItem(AppearanceCard, AppearanceCardTranslate, 100);
-        AnimateExitItem(SettingsHeader, HeaderTranslate, 120);
+        AnimateExitItem(AdvancedCard, AdvancedCardTranslate, 40);
+        AnimateExitItem(SystemCard, SystemCardTranslate, 60);
+        AnimateExitItem(DisplayCard, DisplayCardTranslate, 80);
+        AnimateExitItem(BehaviorCard, BehaviorCardTranslate, 100);
+        AnimateExitItem(AppearanceCard, AppearanceCardTranslate, 120);
+        AnimateExitItem(SettingsHeader, HeaderTranslate, 140);
 
         // --- CornerRadius: 24 → notch radius ---
         double notchRadius = 8;
@@ -889,6 +1003,10 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.ShowMusicNotifications = MusicNotifyCheck.IsChecked ?? true;
         _settings.ShowSystemNotifications = SystemNotifyCheck.IsChecked ?? true;
         _settings.IsShelfUploadLimitUnlocked = ShelfUnlockCheck.IsChecked ?? false;
+
+        // YouTube API
+        _settings.EnableYouTubeApi = YouTubeApiCheck.IsChecked ?? false;
+        _settings.YouTubeApiKey = YouTubeApiKeyPasswordBox.Password?.Trim() ?? "";
 
         // Language
         if (LanguageCombo.SelectedItem is System.Windows.Controls.ComboBoxItem langItem && langItem.Tag is string langCode)

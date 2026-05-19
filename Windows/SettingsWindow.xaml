@@ -1188,6 +1188,104 @@
                             </Border>
                         </StackPanel>
                     </Border>
+
+                    <Border x:Name="AdvancedCard" Style="{StaticResource CardBorderStyle}" Opacity="0">
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="AdvancedCardTranslate" Y="12"/>
+                        </Border.RenderTransform>
+                        <StackPanel>
+                            <TextBlock x:Name="AdvancedHeader" Text="ADVANCED" Style="{StaticResource SectionHeader}"/>
+
+                            <Border Style="{StaticResource SettingRowBorder}">
+                                <StackPanel>
+                                    <CheckBox x:Name="YouTubeApiCheck" x:Uid="youtubeApi" Content="Use YouTube Data API"
+                                              Checked="YouTubeApiCheck_Changed" Unchecked="YouTubeApiCheck_Changed"/>
+                                    <TextBlock x:Name="YouTubeApiHint" Text="Improve thumbnail accuracy with your own YouTube API key."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border x:Name="YouTubeApiKeyRow" Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4" Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock x:Name="YouTubeApiKeyLabel" Text="API Key" Style="{StaticResource SettingTitleText}"/>
+                                    <TextBlock x:Name="YouTubeApiKeyHint" Text="Paste your YouTube Data API v3 key from Google Cloud Console."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,6,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <PasswordBox x:Name="YouTubeApiKeyPasswordBox"
+                                                 Height="40"
+                                                 Padding="12,10"
+                                                 FontSize="12"
+                                                 FontFamily="{StaticResource SettingsFont}"
+                                                 Background="#0F0F0F"
+                                                 Foreground="#E0E0E0"
+                                                 BorderBrush="#2A2A2A"
+                                                 BorderThickness="1"
+                                                 CaretBrush="#FFFFFF"
+                                                 VerticalContentAlignment="Center"
+                                                 PasswordChar="●"
+                                                 PasswordChanged="YouTubeApiKeyPasswordBox_PasswordChanged">
+                                            <PasswordBox.Resources>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="CornerRadius" Value="10"/>
+                                                </Style>
+                                            </PasswordBox.Resources>
+                                        </PasswordBox>
+                                        <TextBox x:Name="YouTubeApiKeyTextBox"
+                                                 Height="40"
+                                                 Padding="12,10"
+                                                 FontSize="12"
+                                                 FontFamily="{StaticResource SettingsFont}"
+                                                 Background="#0F0F0F"
+                                                 Foreground="#E0E0E0"
+                                                 BorderBrush="#2A2A2A"
+                                                 BorderThickness="1"
+                                                 CaretBrush="#FFFFFF"
+                                                 VerticalContentAlignment="Center"
+                                                 Visibility="Collapsed"
+                                                 TextChanged="YouTubeApiKeyTextBox_TextChanged">
+                                            <TextBox.Resources>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="CornerRadius" Value="10"/>
+                                                </Style>
+                                            </TextBox.Resources>
+                                        </TextBox>
+                                        <Button x:Name="ToggleKeyVisibilityButton"
+                                                Grid.Column="1"
+                                                Width="36" Height="36"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Cursor="Hand"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Center"
+                                                Click="ToggleKeyVisibility_Click"
+                                                ToolTip="Show/Hide key">
+                                            <Grid Width="20" Height="20">
+                                                <!-- Eye Open icon -->
+                                                <Canvas x:Name="EyeOpenIcon" Width="20" Height="20" Opacity="1">
+                                                    <Path Fill="#CCCCCC" Data="M10 4C5.6 4 1.9 6.7 0.2 10.5C0.1 10.8 0.1 11.2 0.2 11.5C1.9 15.3 5.6 18 10 18C14.4 18 18.1 15.3 19.8 11.5C19.9 11.2 19.9 10.8 19.8 10.5C18.1 6.7 14.4 4 10 4ZM10 15.5C7.5 15.5 5.5 13.5 5.5 11C5.5 8.5 7.5 6.5 10 6.5C12.5 6.5 14.5 8.5 14.5 11C14.5 13.5 12.5 15.5 10 15.5ZM10 8.5C8.6 8.5 7.5 9.6 7.5 11C7.5 12.4 8.6 13.5 10 13.5C11.4 13.5 12.5 12.4 12.5 11C12.5 9.6 11.4 8.5 10 8.5Z"/>
+                                                </Canvas>
+                                                <!-- Eye Closed icon -->
+                                                <Canvas x:Name="EyeClosedIcon" Width="20" Height="20" Opacity="0">
+                                                    <Path Data="M2.5 2.5L17.5 17.5M8.1 8.2C7.7 8.6 7.5 9.3 7.5 10C7.5 11.4 8.6 12.5 10 12.5C10.7 12.5 11.4 12.3 11.8 11.8M14.1 14.2C12.9 15.1 11.5 15.5 10 15.5C5.6 15.5 1.9 12.8 0.2 9C0.9 7.5 1.9 6.2 3.2 5.2M7.5 4.5C8.3 4.2 9.1 4 10 4C14.4 4 18.1 6.7 19.8 10.5C19.4 11.4 18.9 12.2 18.3 12.9" Stroke="#CCCCCC" StrokeThickness="1.5" Fill="Transparent"/>
+                                                </Canvas>
+                                            </Grid>
+                                        </Button>
+                                    </Grid>
+                                    <TextBlock x:Name="YouTubeApiKeyStatus" 
+                                               Text=""
+                                               FontSize="11"
+                                               Foreground="#6B7280"
+                                               Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                     </StackPanel>
                 </Grid>
             </ScrollViewer>

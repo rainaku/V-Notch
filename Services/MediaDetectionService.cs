@@ -64,6 +64,7 @@ public class MediaDetectionService : IMediaDetectionService
     private string _soundCloudFetchIdentity = "";
     private int _soundCloudFetchGeneration = 0;
     private int _soundCloudFetchInFlight = 0;
+    private int _thumbnailFetchGeneration = 0;
     private static readonly TimeSpan SoundCloudArtworkRetryInterval = TimeSpan.FromSeconds(1.1);
 
     public MediaDetectionService(
@@ -625,7 +626,28 @@ public class MediaDetectionService : IMediaDetectionService
                 
                 UpdateDetectionMode(info);
 
-                
+                // For YouTube sources where we're about to fetch a better thumbnail,
+                // suppress ALL intermediate thumbnails to avoid showing 2-3 different images.
+                // Only show the final thumbnail once the YouTube fetch completes.
+                bool willFetchYouTubeThumbnail = (info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info)))
+                    && !string.IsNullOrEmpty(info.CurrentTrack)
+                    && (isNewTrackForThumbnail || info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
+
+                // Don't suppress SMTC thumbnail if it's already high-quality square artwork (album art)
+                bool hasGoodSmtcArtwork = false;
+                if (willFetchYouTubeThumbnail && info.Thumbnail != null && info.Thumbnail.PixelWidth >= 200)
+                {
+                    double smtcAspect = (double)info.Thumbnail.PixelWidth / info.Thumbnail.PixelHeight;
+                    hasGoodSmtcArtwork = smtcAspect >= 0.85 && smtcAspect <= 1.15;
+                }
+
+                if (willFetchYouTubeThumbnail && !hasGoodSmtcArtwork)
+                {
+                    // Suppress any intermediate thumbnail — keep the old cached one (or null)
+                    // until the YouTube fetch completes with the final thumbnail.
+                    info.Thumbnail = _cachedThumbnail; // show previous track's thumb or null
+                }
+
                 var dispatcher = System.Windows.Application.Current?.Dispatcher;
                 if (dispatcher != null)
                 {
@@ -671,6 +693,32 @@ public class MediaDetectionService : IMediaDetectionService
             bool needsFetch = forceFetchForTrackChange || (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
             if (_timelineSimulator.IsThrottled && _timelineSimulator.RecoveredThumbnail != null && !forceFetchForTrackChange) needsFetch = false;
 
+            // Skip YouTube thumbnail fetch when SMTC already provides high-quality artwork.
+            // This covers:
+            // - Topic/auto-generated channels (artist ends with " - Topic")
+            // - Any YouTube source where SMTC provides good square artwork (album art)
+            // The SMTC artwork is often better than the YouTube video thumbnail for music videos.
+            if (needsFetch && info.Thumbnail != null && info.Thumbnail.PixelWidth >= 200)
+            {
+                double thumbAspect = (double)info.Thumbnail.PixelWidth / info.Thumbnail.PixelHeight;
+                bool isNearSquare = thumbAspect >= 0.85 && thumbAspect <= 1.15;
+                bool isTopicChannel = !string.IsNullOrEmpty(info.CurrentArtist) &&
+                                      info.CurrentArtist.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase);
+
+                // If SMTC provides a near-square thumbnail (album art), keep it.
+                // YouTube video thumbnails are always 16:9, so a square SMTC thumb is album art = better.
+                if (isNearSquare || isTopicChannel)
+                {
+                    needsFetch = false;
+                    // Crop immediately and cache so it's final — no second crop pass later
+                    var cropped = CropToSquare(info.Thumbnail, info.MediaSource ?? "YouTube") ?? info.Thumbnail;
+                    info.Thumbnail = cropped;
+                    _cachedThumbnail = cropped;
+                    _cachedThumbnailSource = "YouTube";
+                    _timelineSimulator.RecoveredThumbnail = cropped;
+                }
+            }
+
             if (isPotentialYouTube && !string.IsNullOrEmpty(info.CurrentTrack) && needsFetch)
             {
 
@@ -683,6 +731,7 @@ public class MediaDetectionService : IMediaDetectionService
                 string artistDuringFetch = info.CurrentArtist;
                 string sourceAppDuringFetch = info.SourceAppId ?? "";
                 string sessionKeyDuringFetch = info.SessionInstanceKey ?? "";
+                int generationAtStart = Volatile.Read(ref _thumbnailFetchGeneration);
 
                 bool isBrowserIcon = info.Thumbnail != null && info.MediaSource == "Browser";
                 bool needsBetterThumb = shouldForceThumbFetch || info.Thumbnail == null || info.Thumbnail.PixelWidth < 120 || isBrowserIcon;
@@ -735,9 +784,31 @@ public class MediaDetectionService : IMediaDetectionService
 
                                 if (needsBetterThumb || info.MediaSource == "YouTube") 
                                 {
-                                    string thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/hqdefault.jpg";
+                                    // Try maxresdefault first (1280x720) - best quality for ONNX smart crop
+                                    string thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/maxresdefault.jpg";
                                     var frameBitmap = await DownloadImageAsync(thumbnailUrl);
 
+                                    // maxresdefault may return a small placeholder (120x90) for videos without HD thumbnail
+                                    if (frameBitmap != null && frameBitmap.PixelWidth < 400)
+                                        frameBitmap = null;
+
+                                    // Fallback to sddefault (640x480)
+                                    if (frameBitmap == null)
+                                    {
+                                        thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/sddefault.jpg";
+                                        frameBitmap = await DownloadImageAsync(thumbnailUrl);
+                                        if (frameBitmap != null && frameBitmap.PixelWidth < 400)
+                                            frameBitmap = null;
+                                    }
+
+                                    // Fallback to hqdefault (480x360)
+                                    if (frameBitmap == null)
+                                    {
+                                        thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/hqdefault.jpg";
+                                        frameBitmap = await DownloadImageAsync(thumbnailUrl);
+                                    }
+
+                                    // Last resort: mqdefault (320x180)
                                     if (frameBitmap == null)
                                     {
                                         thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/mqdefault.jpg";
@@ -746,6 +817,9 @@ public class MediaDetectionService : IMediaDetectionService
 
                                     if (frameBitmap != null && !token.IsCancellationRequested)
                                     {
+                                        if (Volatile.Read(ref _thumbnailFetchGeneration) != generationAtStart)
+                                            break; // Track/session changed since fetch started — discard
+
                                         if (IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                         {
                                             frameBitmap = CropToSquare(frameBitmap, "YouTube") ?? frameBitmap;
@@ -760,6 +834,7 @@ public class MediaDetectionService : IMediaDetectionService
                                                 await dispatcher.InvokeAsync(() =>
                                                 {
                                                     if (!token.IsCancellationRequested &&
+                                                        Volatile.Read(ref _thumbnailFetchGeneration) == generationAtStart &&
                                                         IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                                     {
                                                         info.IsThumbnailOnlyUpdate = true;
@@ -825,6 +900,7 @@ public class MediaDetectionService : IMediaDetectionService
                     string artistDuringFetch = info.CurrentArtist;
                     string sourceAppDuringFetch = info.SourceAppId ?? "";
                     string sessionKeyDuringFetch = info.SessionInstanceKey ?? "";
+                    int thumbGenAtStart = Volatile.Read(ref _thumbnailFetchGeneration);
                     
                     bool requireStrongMatch = true;
 
@@ -849,6 +925,12 @@ public class MediaDetectionService : IMediaDetectionService
                             }
 
                             if (!IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
+                            {
+                                return;
+                            }
+
+                            // Generation changed — track or session switched since fetch started
+                            if (Volatile.Read(ref _thumbnailFetchGeneration) != thumbGenAtStart)
                             {
                                 return;
                             }
@@ -879,6 +961,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 await dispatcher.InvokeAsync(() =>
                                 {
                                     if (!token.IsCancellationRequested &&
+                                        Volatile.Read(ref _thumbnailFetchGeneration) == thumbGenAtStart &&
                                         IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                     {
                                         info.IsThumbnailOnlyUpdate = true;
@@ -966,6 +1049,8 @@ public class MediaDetectionService : IMediaDetectionService
 
     private bool IsStillSamePublishedTrack(string expectedTrack, string expectedArtist, string expectedSourceAppId, string expectedSessionInstanceKey = "")
     {
+        // Session key is the strongest guard — if the session changed, the track
+        // is definitely not the same context even if title matches.
         if (!string.IsNullOrEmpty(expectedSessionInstanceKey) &&
             !string.Equals(_lastPublishedSessionInstanceKey, expectedSessionInstanceKey, StringComparison.Ordinal))
         {
@@ -979,9 +1064,22 @@ public class MediaDetectionService : IMediaDetectionService
         }
 
         string expectedIdentity = BuildTrackIdentity(expectedTrack, expectedArtist);
-        string expectedTrackOnly = BuildTrackIdentity(expectedTrack, "");
-        return string.Equals(_lastPublishedTrackIdentity, expectedIdentity, StringComparison.Ordinal) ||
-               string.Equals(_lastPublishedTrackOnlyIdentity, expectedTrackOnly, StringComparison.Ordinal);
+        // Primary check: full track+artist identity must match.
+        // Only fall back to track-only if the artist was empty at fetch time
+        // (some sources don't provide artist initially).
+        if (string.Equals(_lastPublishedTrackIdentity, expectedIdentity, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // Fallback: track-only match, but ONLY if the artist was unknown at fetch time
+        if (string.IsNullOrEmpty(expectedArtist))
+        {
+            string expectedTrackOnly = BuildTrackIdentity(expectedTrack, "");
+            return string.Equals(_lastPublishedTrackOnlyIdentity, expectedTrackOnly, StringComparison.Ordinal);
+        }
+
+        return false;
     }
 
     private static string BuildSourceOverrideKey(string sessionInstanceKey, string sourceAppId)
@@ -1610,6 +1708,16 @@ public class MediaDetectionService : IMediaDetectionService
 
                 _lastTrackSignature = "";
                 _lastThumbTrackIdentity = "";
+                // Session switched — aggressively clear all thumbnail state to prevent
+                // stale thumbnails from a previous session leaking into the new one.
+                _cachedThumbnail = null;
+                _cachedThumbnailSource = "";
+                _timelineSimulator.RecoveredThumbnail = null;
+                _thumbCts?.Cancel();
+                _thumbCts = null;
+                _soundCloudFetchIdentity = "";
+                Interlocked.Exchange(ref _soundCloudFetchInFlight, 0);
+                Interlocked.Increment(ref _thumbnailFetchGeneration);
             }
 
             var sessionSourceApp = session.SourceAppUserModelId ?? "";
@@ -1767,6 +1875,8 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 _cachedThumbnail = null;
                 _cachedThumbnailSource = "";
+                _timelineSimulator.RecoveredThumbnail = null;
+                Interlocked.Increment(ref _thumbnailFetchGeneration);
             }
 
             if (info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource))
@@ -2040,7 +2150,6 @@ public class MediaDetectionService : IMediaDetectionService
                                         (newBitmap.PixelWidth <= 320 || newBitmap.PixelHeight <= 320);
                                     bool isGenericIcon = info.MediaSource == "YouTube" || info.MediaSource == "Browser" || isLikelySoundCloudPlaceholder;
                                     bool shouldPreferVerifiedYouTubeLookup = isYouTubeLikeSource &&
-                                                                            trackChangedForThisPass &&
                                                                             !hasVerifiedYouTubeThumb;
 
                                     if (!(isSquare && isGenericIcon) && !shouldPreferVerifiedYouTubeLookup)
