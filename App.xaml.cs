@@ -90,6 +90,11 @@ public partial class App : Application
         ConfigureServices(services);
         Services = services.BuildServiceProvider();
 
+        // Eagerly resolve every singleton and kick background warmups before
+        // showing the window. Catches wiring problems early and primes COM /
+        // WinRT / UI Automation cold-start costs off the UI thread.
+        ServicePrewarmer.Prewarm(Services);
+
         
         var mainWindow = Services.GetRequiredService<MainWindow>();
         mainWindow.Show();

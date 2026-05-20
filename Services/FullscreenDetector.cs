@@ -14,7 +14,49 @@ internal enum FullscreenType
 
 internal static class FullscreenDetector
 {
-public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
+    // Class names that must never trigger hide. Covers shell surfaces, IME,
+    // start menu, notification flyouts, and other transient overlays that
+    // some apps create at near-fullscreen sizes.
+    private static readonly string[] BlockedClassNamesExact = new[]
+    {
+        "Progman",                   // Desktop
+        "WorkerW",                   // Desktop wallpaper worker
+        "Shell_TrayWnd",             // Primary taskbar
+        "Shell_SecondaryTrayWnd",    // Secondary taskbar
+        "NotifyIconOverflowWindow",  // Tray overflow
+        "TaskListThumbnailWnd",      // Alt-Tab / hover thumbnails
+        "MultitaskingViewFrame",     // Task View
+        "ForegroundStaging",         // System staging surface
+        "XamlExplorerHostIslandWindow",
+        "Windows.UI.Input.InputSite.WindowClass",
+        "Search_app",                // Old Search overlay
+        "Tooltips_Class32",          // Native tooltips
+        "TaskSwitcherWnd",           // Win+Tab
+        "TaskSwitcherOverlayWnd",
+        "Windows.Internal.Shell.TabProxyWindow",
+        "Microsoft.UI.Content.DesktopChildSiteBridge"
+    };
+
+    private static readonly string[] BlockedClassNamePrefixes = new[]
+    {
+        "Windows.UI.Core",   // Start, Action Center, etc.
+        "ImmersiveLauncher",
+        "TaskListOverlay",
+        "MSCTFIME"
+    };
+
+    public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
+    {
+        return DetectFullscreenType(hwnd, notchHwnd, IntPtr.Zero);
+    }
+
+    /// <summary>
+    /// Detect whether <paramref name="hwnd"/> is a fullscreen window. When
+    /// <paramref name="notchMonitor"/> is non-zero, windows on a different
+    /// monitor are ignored so a fullscreen app on another display does not
+    /// hide the notch.
+    /// </summary>
+    public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd, IntPtr notchMonitor)
     {
         if (hwnd == IntPtr.Zero || hwnd == notchHwnd)
         {
@@ -33,29 +75,29 @@ public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
 
         int width = windowRect.Right - windowRect.Left;
         int height = windowRect.Bottom - windowRect.Top;
-        if (width < 200 || height < 120)
+        // Reject obviously sub-fullscreen windows. Floor lifted from 200x120 to
+        // 480x320 so small overlays / popups never qualify.
+        if (width < 480 || height < 320)
         {
             return FullscreenType.None;
         }
 
-        var classNameBuilder = new StringBuilder(128);
-        if (GetClassName(hwnd, classNameBuilder, classNameBuilder.Capacity) > 0)
+        if (IsBlockedClass(hwnd))
         {
-            string className = classNameBuilder.ToString();
-            if (string.Equals(className, "Progman", StringComparison.Ordinal) ||
-                string.Equals(className, "WorkerW", StringComparison.Ordinal) ||
-                string.Equals(className, "Shell_TrayWnd", StringComparison.Ordinal) ||
-                string.Equals(className, "MultitaskingViewFrame", StringComparison.Ordinal) ||
-                string.Equals(className, "ForegroundStaging", StringComparison.Ordinal) ||
-                string.Equals(className, "XamlExplorerHostIslandWindow", StringComparison.Ordinal) ||
-                className.StartsWith("Windows.UI.Core", StringComparison.Ordinal))
-            {
-                return FullscreenType.None;
-            }
+            return FullscreenType.None;
         }
 
         IntPtr monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         if (monitor == IntPtr.Zero)
+        {
+            return FullscreenType.None;
+        }
+
+        // Same-monitor gate: only hide when the fullscreen window lives on the
+        // notch's monitor. This is the single biggest correctness fix for
+        // multi-monitor users (a fullscreen game on display 2 must not affect
+        // a notch on display 1).
+        if (notchMonitor != IntPtr.Zero && monitor != notchMonitor)
         {
             return FullscreenType.None;
         }
@@ -70,7 +112,11 @@ public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
         }
 
         var monitorRect = monitorInfo.rcMonitor;
-        const int fullscreenTolerancePx = 4;
+
+        // Slightly looser tolerance helps on high-DPI / fractional scaling
+        // setups where DwmGetWindowAttribute can be off by 1-2px from the
+        // monitor edge.
+        const int fullscreenTolerancePx = 6;
 
         // Get window placement once (used by both branches)
         var placement = new WINDOWPLACEMENT
@@ -79,38 +125,35 @@ public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
         };
         bool isMaximized = GetWindowPlacement(hwnd, ref placement) && placement.showCmd == SW_SHOWMAXIMIZED;
 
+        int style = GetWindowLong(hwnd, GWL_STYLE);
+        bool hasCaption = (style & WS_CAPTION) == WS_CAPTION;
+        bool hasResizeFrame = (style & WS_THICKFRAME) != 0;
+
         if (RectCoversArea(windowRect, monitorRect, fullscreenTolerancePx))
         {
-            // Window covers entire monitor - check if it's truly exclusive or windowed fullscreen
-            int style = GetWindowLong(hwnd, GWL_STYLE);
-            bool hasCaption = (style & WS_CAPTION) == WS_CAPTION;
-            bool hasResizeFrame = (style & WS_THICKFRAME) != 0;
-
+            // Window covers entire monitor.
             // A normal maximized window with caption/border is NOT fullscreen.
             // Only borderless windows covering the full monitor are fullscreen.
             if (hasCaption || hasResizeFrame)
             {
-                // Normal maximized windows should NOT trigger fullscreen hide.
-                // Only non-maximized windows covering the full monitor are windowed fullscreen
-                // (e.g., browsers in F11 mode that retain some styles).
+                // Maximized windows are ignored — the user can interact normally.
                 if (isMaximized)
                 {
                     return FullscreenType.None;
                 }
 
+                // Borderless covering everything (e.g. browser F11) — windowed FS.
                 return FullscreenType.WindowedFullscreen;
             }
             return FullscreenType.ExclusiveFullscreen;
         }
 
-        int styleWf = GetWindowLong(hwnd, GWL_STYLE);
-        bool hasCaptionWf = (styleWf & WS_CAPTION) == WS_CAPTION;
-        bool hasResizeFrameWf = (styleWf & WS_THICKFRAME) != 0;
-        bool isBorderless = !hasCaptionWf && !hasResizeFrameWf;
-
-        const int workAreaTolerancePx = 6;
+        // Windowed fullscreen detection: borderless window matching work area
+        // (taskbar visible) is treated as windowed fullscreen.
+        const int workAreaTolerancePx = 8;
         bool matchesWorkArea = RectMatchesArea(windowRect, monitorInfo.rcWork, workAreaTolerancePx);
-        bool isWindowedFullscreen = matchesWorkArea && (isBorderless || (isMaximized && !hasCaptionWf));
+        bool isBorderless = !hasCaption && !hasResizeFrame;
+        bool isWindowedFullscreen = matchesWorkArea && (isBorderless || (isMaximized && !hasCaption));
 
         return isWindowedFullscreen ? FullscreenType.WindowedFullscreen : FullscreenType.None;
     }
@@ -119,7 +162,15 @@ public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd)
     {
         return DetectFullscreenType(hwnd, notchHwnd) != FullscreenType.None;
     }
-public static string TryGetProcessName(IntPtr hwnd)
+
+    public static IntPtr GetWindowMonitor(IntPtr hwnd)
+    {
+        return hwnd == IntPtr.Zero
+            ? IntPtr.Zero
+            : MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    }
+
+    public static string TryGetProcessName(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
         {
@@ -140,6 +191,31 @@ public static string TryGetProcessName(IntPtr hwnd)
         {
             return string.Empty;
         }
+    }
+
+    private static bool IsBlockedClass(IntPtr hwnd)
+    {
+        var sb = new StringBuilder(160);
+        if (GetClassName(hwnd, sb, sb.Capacity) <= 0) return false;
+        string className = sb.ToString();
+
+        for (int i = 0; i < BlockedClassNamesExact.Length; i++)
+        {
+            if (string.Equals(className, BlockedClassNamesExact[i], StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        for (int i = 0; i < BlockedClassNamePrefixes.Length; i++)
+        {
+            if (className.StartsWith(BlockedClassNamePrefixes[i], StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryGetWindowBounds(IntPtr hwnd, out RECT rect)

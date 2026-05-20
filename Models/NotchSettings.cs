@@ -22,6 +22,7 @@ public class NotchSettings
     public bool EnableHoverExpand { get; set; } = false;
     public bool EnableCursorBypass { get; set; } = false;
     public bool EnableAnimations { get; set; } = true;
+    public bool DisableMouseLeaveAutoClose { get; set; } = false;
 
     public double AnimationSpeed { get; set; } = 2.0;
     public bool EnableBounceEffect { get; set; } = true;
@@ -73,6 +74,7 @@ public class NotchSettings
             EnableHoverExpand = EnableHoverExpand,
             EnableCursorBypass = EnableCursorBypass,
             EnableAnimations = EnableAnimations,
+            DisableMouseLeaveAutoClose = DisableMouseLeaveAutoClose,
             AnimationSpeed = AnimationSpeed,
             EnableBounceEffect = EnableBounceEffect,
             HoverExpandDelay = HoverExpandDelay,

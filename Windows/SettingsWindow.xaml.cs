@@ -90,6 +90,7 @@ public event EventHandler? AnimatedClosing;
 
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
+        DisableMouseLeaveAutoCloseCheck.IsChecked = _settings.DisableMouseLeaveAutoClose;
 
         var monitors = NotchManager.GetMonitorNames();
         MonitorCombo.ItemsSource = monitors;
@@ -157,6 +158,8 @@ public event EventHandler? AnimatedClosing;
         HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint");
         ExpandDelayLabel.Text = Loc.Get("settings.expandDelay");
         ExpandDelayHint.Text = Loc.Get("settings.expandDelay.hint");
+        DisableMouseLeaveAutoCloseCheck.Content = Loc.Get("settings.disableAutoClose");
+        DisableMouseLeaveAutoCloseHint.Text = Loc.Get("settings.disableAutoClose.hint");
 
         // Updates & Report Bug
         CheckUpdateButton.Content = Loc.Get("settings.checkUpdate");
@@ -395,6 +398,7 @@ public event EventHandler? AnimatedClosing;
             (HoverExpandHint, () => HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint")),
             (ExpandDelayLabel, () => ExpandDelayLabel.Text = Loc.Get("settings.expandDelay")),
             (ExpandDelayHint, () => ExpandDelayHint.Text = Loc.Get("settings.expandDelay.hint")),
+            (DisableMouseLeaveAutoCloseHint, () => DisableMouseLeaveAutoCloseHint.Text = Loc.Get("settings.disableAutoClose.hint")),
 
             // Updates
             (UpdateStatusText, () => UpdateStatusText.Text = Loc.Get("settings.upToDate")),
@@ -449,6 +453,8 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(YouTubeApiCheck, () => YouTubeApiCheck.Content = Loc.Get("settings.youtubeApi"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(HoverExpandCheck, () => HoverExpandCheck.Content = Loc.Get("settings.hoverExpand"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(DisableMouseLeaveAutoCloseCheck, () => DisableMouseLeaveAutoCloseCheck.Content = Loc.Get("settings.disableAutoClose"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
 
         foreach (var (element, update) in textUpdates)
@@ -752,6 +758,7 @@ private void PushLivePreview()
 
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
         HoverDelaySlider.Value = defaults.HoverExpandDelay;
+        DisableMouseLeaveAutoCloseCheck.IsChecked = defaults.DisableMouseLeaveAutoClose;
 
         MusicNotifyCheck.IsChecked = defaults.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = defaults.ShowSystemNotifications;
@@ -1009,6 +1016,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
         _settings.EnableHoverExpand = HoverExpandCheck.IsChecked ?? true;
         _settings.HoverExpandDelay = (int)HoverDelaySlider.Value;
+        _settings.DisableMouseLeaveAutoClose = DisableMouseLeaveAutoCloseCheck.IsChecked ?? false;
 
         _settings.MonitorIndex = MonitorCombo.SelectedIndex;
         _settings.AutoStart = AutoStartCheck.IsChecked ?? false;

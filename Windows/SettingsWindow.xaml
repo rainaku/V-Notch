@@ -1039,6 +1039,15 @@
                                             ValueChanged="HoverDelaySlider_ValueChanged"/>
                                 </StackPanel>
                             </Border>
+
+                            <Border Style="{StaticResource SettingRowBorder}">
+                                <StackPanel>
+                                    <CheckBox x:Name="DisableMouseLeaveAutoCloseCheck" x:Uid="disableMouseLeaveAutoClose" Content="Click to close (no auto-close)"/>
+                                    <TextBlock x:Name="DisableMouseLeaveAutoCloseHint" Text="Keep the notch open when the cursor leaves; click to close it."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 
