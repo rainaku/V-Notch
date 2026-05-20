@@ -113,6 +113,12 @@ public partial class MainWindow
             }
         }
 
+        // Update synced lyrics display
+        if (_isExpanded && _isLyricsActive)
+        {
+            UpdateLyricsDisplay();
+        }
+
         // Throttle volume sync to ~2Hz (every 500ms) instead of 60fps
         if (_isExpanded && _isMusicExpanded && !_isDraggingVolume)
         {

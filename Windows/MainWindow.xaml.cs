@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private readonly BatteryModule _batteryModule;
     private readonly CalendarModule _calendarModule;
     private readonly BluetoothModule _bluetoothModule;
+    private readonly PrivacyIndicatorModule _privacyModule;
     private readonly IModuleLifecycleManager _moduleHost;
 
     // ─── Notch State (centralized via NotchStateManager) ───
@@ -145,7 +146,8 @@ public partial class MainWindow : Window
         IModuleLifecycleManager moduleHost,
         BatteryModule batteryModule,
         CalendarModule calendarModule,
-        BluetoothModule bluetoothModule)
+        BluetoothModule bluetoothModule,
+        PrivacyIndicatorModule privacyIndicatorModule)
     {
         InitializeComponent();
         _settingsService = (SettingsService)settingsService;
@@ -169,6 +171,9 @@ public partial class MainWindow : Window
         _bluetoothModule = bluetoothModule;
         _bluetoothModule.DeviceConnected += BluetoothModule_DeviceConnected;
         _bluetoothModule.DeviceDisconnected += BluetoothModule_DeviceDisconnected;
+
+        _privacyModule = privacyIndicatorModule;
+        _privacyModule.StateChanged += PrivacyModule_StateChanged;
 
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;
@@ -392,6 +397,7 @@ public partial class MainWindow : Window
         _mediaService.MediaChanged -= OnMediaChanged;
         _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
+        _privacyModule.StateChanged -= PrivacyModule_StateChanged;
 
         // Unsubscribe static events
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
@@ -402,6 +408,7 @@ public partial class MainWindow : Window
         StopTitleGradientShift();
         _progressTimer?.Stop();
         _mediaService?.Dispose();
+        _lyricsService?.Dispose();
         _notchManager?.Dispose();
         _zOrderManager?.Dispose();
         TrayIcon?.Dispose();
@@ -1341,11 +1348,13 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         // Unsubscribe events before shutdown
         _mediaService.MediaChanged -= OnMediaChanged;        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
+        _privacyModule.StateChanged -= PrivacyModule_StateChanged;
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
 
         StopTitleGradientShift();
         _progressTimer.Stop();
         _mediaService.Dispose();
+        _lyricsService.Dispose();
         _notchManager.Dispose();
         _zOrderManager.Dispose();
         TrayIcon.Dispose();

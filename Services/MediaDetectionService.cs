@@ -667,10 +667,14 @@ public class MediaDetectionService : IMediaDetectionService
                 // For YouTube sources where we're about to fetch a better thumbnail,
                 // suppress ALL intermediate thumbnails to avoid showing 2-3 different images.
                 // Only show the final thumbnail once the YouTube fetch completes.
+                // EXCEPTION: on track change (isNewTrackForThumbnail), ALWAYS let the SMTC
+                // thumbnail through immediately so the user sees an update right away.
+                // The async fetch will replace it later with a higher-quality version.
                 bool willFetchYouTubeThumbnail = (info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info)))
                     && !string.IsNullOrEmpty(info.CurrentTrack)
-                    && (isNewTrackForThumbnail || info.Thumbnail == null || info.Thumbnail.PixelWidth < 120)
-                    && (_cachedThumbnail == null || _cachedThumbnail.PixelWidth < 200 || isNewTrackForThumbnail);
+                    && !isNewTrackForThumbnail
+                    && (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120)
+                    && (_cachedThumbnail == null || _cachedThumbnail.PixelWidth < 200);
 
                 // Don't suppress SMTC thumbnail if it's already high-quality square artwork (album art)
                 bool hasGoodSmtcArtwork = false;
@@ -818,6 +822,9 @@ public class MediaDetectionService : IMediaDetectionService
                         string? preferredThumbnailUrl = null;
                         int retryCount = 0;
 
+                        // Clear mismatch cache for this new fetch cycle
+                        ClearMismatchCache();
+
                         // ─── Priority 1: Extract video ID from ANY browser window URL ───
                         // Scans all browser windows, not just foreground. 100% accurate.
                         if (string.IsNullOrEmpty(videoId))
@@ -845,28 +852,47 @@ public class MediaDetectionService : IMediaDetectionService
                             var urlResult = await _metadataLookup.TryGetYouTubeVideoInfoFromUrlAsync(ytUrl, token);
                             if (urlResult != null)
                             {
-                                info.MediaSource = "YouTube";
-                                info.IsYouTubeRunning = true;
-                                SetSessionSourceOverride(info, "YouTube");
-                                _sourceCache.SetBoth(trackDuringFetch, BuildTrackIdentity(trackDuringFetch, artistDuringFetch), "YouTube");
-                                _sourceCache.Save();
+                                // ─── Validate: does the resolved video match the currently playing track? ───
+                                // When switching tracks, the browser URL may still point to the PREVIOUS video
+                                // (navigation hasn't completed yet). If the API title doesn't match the SMTC
+                                // track title, discard this videoId so we don't show stale thumbnails.
+                                bool videoMatchesTrack = urlResult.TitleMatches(trackDuringFetch) ||
+                                                        (!string.IsNullOrEmpty(urlResult.Author) &&
+                                                         !string.IsNullOrEmpty(artistDuringFetch) &&
+                                                         urlResult.Author.Contains(artistDuringFetch, StringComparison.OrdinalIgnoreCase));
 
-                                if (!string.IsNullOrEmpty(urlResult.Author) && urlResult.Author != "YouTube")
+                                if (!videoMatchesTrack)
                                 {
-                                    info.CurrentArtist = urlResult.Author;
-                                    _stableArtist = urlResult.Author;
+                                    RuntimeLog.Log("META-YOUTUBE-API",
+                                        $"video-mismatch: api-title='{urlResult.Title}' smtc-track='{trackDuringFetch}' videoId={videoId} -> discarding stale videoId");
+                                    CacheMismatchVideoId(videoId!);
+                                    videoId = null; // Force fallback path to re-extract or retry
                                 }
-
-                                if (urlResult.Duration.TotalSeconds > 0)
+                                else
                                 {
-                                    _timelineSimulator.RecoveredDuration = urlResult.Duration;
-                                    info.Duration = urlResult.Duration;
-                                }
+                                    info.MediaSource = "YouTube";
+                                    info.IsYouTubeRunning = true;
+                                    SetSessionSourceOverride(info, "YouTube");
+                                    _sourceCache.SetBoth(trackDuringFetch, BuildTrackIdentity(trackDuringFetch, artistDuringFetch), "YouTube");
+                                    _sourceCache.Save();
 
-                                if (urlResult.Source == YouTubeLookupSource.DataApi &&
-                                    !string.IsNullOrWhiteSpace(urlResult.ThumbnailUrl))
-                                {
-                                    preferredThumbnailUrl = urlResult.ThumbnailUrl;
+                                    if (!string.IsNullOrEmpty(urlResult.Author) && urlResult.Author != "YouTube")
+                                    {
+                                        info.CurrentArtist = urlResult.Author;
+                                        _stableArtist = urlResult.Author;
+                                    }
+
+                                    if (urlResult.Duration.TotalSeconds > 0)
+                                    {
+                                        _timelineSimulator.RecoveredDuration = urlResult.Duration;
+                                        info.Duration = urlResult.Duration;
+                                    }
+
+                                    if (urlResult.Source == YouTubeLookupSource.DataApi &&
+                                        !string.IsNullOrWhiteSpace(urlResult.ThumbnailUrl))
+                                    {
+                                        preferredThumbnailUrl = urlResult.ThumbnailUrl;
+                                    }
                                 }
                             }
                         }
@@ -1013,13 +1039,88 @@ public class MediaDetectionService : IMediaDetectionService
                                 !token.IsCancellationRequested &&
                                 IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                             {
-                                await Task.Delay(retryCount * 350, token);
-                                videoId = null;
+                                // When videoId was discarded due to mismatch, the browser hasn't
+                                // navigated yet. Poll rapidly (200ms) up to ~3s total for the URL
+                                // to update, rather than the slow 350ms×3 retry.
+                                if (videoId == null)
+                                {
+                                    const int pollIntervalMs = 200;
+                                    const int maxPolls = 15; // 15 × 200ms = 3s max
+                                    bool resolved = false;
 
-                                // On retry, try browser URL extraction again (user may have switched to browser)
-                                videoId = TryExtractVideoIdFromAnyBrowserUrl();
-                                if (string.IsNullOrEmpty(videoId))
-                                    videoId = TryExtractVideoIdFromBrowserUrl();
+                                    for (int poll = 0; poll < maxPolls && !token.IsCancellationRequested; poll++)
+                                    {
+                                        await Task.Delay(pollIntervalMs, token);
+                                        if (!IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
+                                            break;
+
+                                        string? polledId = TryExtractVideoIdFromAnyBrowserUrl();
+                                        if (string.IsNullOrEmpty(polledId))
+                                            polledId = TryExtractVideoIdFromBrowserUrl();
+                                        if (string.IsNullOrEmpty(polledId))
+                                            continue;
+
+                                        // Same stale videoId — browser hasn't navigated yet
+                                        if (TryGetCachedMismatchVideoId(polledId))
+                                            continue;
+
+                                        // New videoId! Validate it.
+                                        string pollUrl = $"https://www.youtube.com/watch?v={polledId}";
+                                        var pollResult = await _metadataLookup.TryGetYouTubeVideoInfoFromUrlAsync(pollUrl, token);
+                                        if (pollResult == null)
+                                            continue;
+
+                                        bool pollMatches = pollResult.TitleMatches(trackDuringFetch) ||
+                                                           (!string.IsNullOrEmpty(pollResult.Author) &&
+                                                            !string.IsNullOrEmpty(artistDuringFetch) &&
+                                                            pollResult.Author.Contains(artistDuringFetch, StringComparison.OrdinalIgnoreCase));
+
+                                        if (!pollMatches)
+                                        {
+                                            CacheMismatchVideoId(polledId);
+                                            continue;
+                                        }
+
+                                        // Match! Apply metadata.
+                                        videoId = polledId;
+                                        info.MediaSource = "YouTube";
+                                        info.IsYouTubeRunning = true;
+                                        SetSessionSourceOverride(info, "YouTube");
+                                        _sourceCache.SetBoth(trackDuringFetch, BuildTrackIdentity(trackDuringFetch, artistDuringFetch), "YouTube");
+                                        _sourceCache.Save();
+
+                                        if (!string.IsNullOrEmpty(pollResult.Author) && pollResult.Author != "YouTube")
+                                        {
+                                            info.CurrentArtist = pollResult.Author;
+                                            _stableArtist = pollResult.Author;
+                                        }
+                                        if (pollResult.Duration.TotalSeconds > 0)
+                                        {
+                                            _timelineSimulator.RecoveredDuration = pollResult.Duration;
+                                            info.Duration = pollResult.Duration;
+                                        }
+                                        if (pollResult.Source == YouTubeLookupSource.DataApi &&
+                                            !string.IsNullOrWhiteSpace(pollResult.ThumbnailUrl))
+                                        {
+                                            preferredThumbnailUrl = pollResult.ThumbnailUrl;
+                                        }
+                                        resolved = true;
+                                        break;
+                                    }
+
+                                    if (!resolved)
+                                        break; // Give up — browser never navigated in time
+                                }
+                                else
+                                {
+                                    await Task.Delay(retryCount * 350, token);
+                                    videoId = null;
+                                    preferredThumbnailUrl = null;
+
+                                    videoId = TryExtractVideoIdFromAnyBrowserUrl();
+                                    if (string.IsNullOrEmpty(videoId))
+                                        videoId = TryExtractVideoIdFromBrowserUrl();
+                                }
                             }
                         }
                     }
@@ -2331,10 +2432,12 @@ public class MediaDetectionService : IMediaDetectionService
                                 bool likelySoundCloudArtwork = IsLikelySoundCloudArtworkCandidate(newBitmap);
                                 bool skipSmtcThumbForFreshSoundCloudTrack = isSoundCloudSource &&
                                                                             trackChangedForThisPass &&
-                                                                            !hasVerifiedSoundCloudThumb;
-                                bool skipSmtcThumbForFreshYouTubeTrack = isYouTubeLikeSource &&
-                                                                         trackChangedForThisPass &&
-                                                                         !hasVerifiedYouTubeThumb;
+                                                                            !hasVerifiedSoundCloudThumb &&
+                                                                            !likelySoundCloudArtwork;
+                                // Never suppress SMTC thumbnail on track change — always show it
+                                // immediately so the user sees the thumbnail update. The async
+                                // YouTube fetch will replace it later with a higher-quality version.
+                                bool skipSmtcThumbForFreshYouTubeTrack = false;
                                 if (skipSmtcThumbForFreshSoundCloudTrack || skipSmtcThumbForFreshYouTubeTrack)
                                 {
                                     
@@ -2351,8 +2454,12 @@ public class MediaDetectionService : IMediaDetectionService
                                         isSquare &&
                                         (newBitmap.PixelWidth <= 320 || newBitmap.PixelHeight <= 320);
                                     bool isGenericIcon = info.MediaSource == "YouTube" || info.MediaSource == "Browser" || isLikelySoundCloudPlaceholder;
+                                    // On track change, always accept the SMTC thumbnail immediately
+                                    // so the UI updates right away. The async YouTube fetch will
+                                    // replace it later with a cropped/higher-quality version.
                                     bool shouldPreferVerifiedYouTubeLookup = isYouTubeLikeSource &&
-                                                                            !hasVerifiedYouTubeThumb;
+                                                                            !hasVerifiedYouTubeThumb &&
+                                                                            !trackChangedForThisPass;
 
                                     if (!(isSquare && isGenericIcon) && !shouldPreferVerifiedYouTubeLookup)
                                     {
@@ -2567,6 +2674,24 @@ public class MediaDetectionService : IMediaDetectionService
     {
         var res = await TryGetYouTubeVideoIdWithInfoAsync(title, "", ct);
         return res?.Id;
+    }
+
+    // ── Mismatch cache: avoid re-validating the same stale videoId during rapid polling ──
+    private readonly HashSet<string> _mismatchVideoIds = new(StringComparer.Ordinal);
+
+    private bool TryGetCachedMismatchVideoId(string videoId)
+    {
+        lock (_mismatchVideoIds) return _mismatchVideoIds.Contains(videoId);
+    }
+
+    private void CacheMismatchVideoId(string videoId)
+    {
+        lock (_mismatchVideoIds) _mismatchVideoIds.Add(videoId);
+    }
+
+    private void ClearMismatchCache()
+    {
+        lock (_mismatchVideoIds) _mismatchVideoIds.Clear();
     }
 
     private Task<string?> TryGetSoundCloudArtworkUrlAsync(string title, string artist = "", bool requireStrongMatch = false, CancellationToken ct = default)

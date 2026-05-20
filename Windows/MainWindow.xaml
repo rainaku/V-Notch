@@ -475,6 +475,31 @@
                         </StackPanel.Effect>
                     </StackPanel>
 
+                    <!-- Privacy Indicator Dots (iOS-style mic/camera in-use) -->
+                    <StackPanel x:Name="PrivacyIndicatorPanel"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Margin="0,11.2,27,0"
+                                Opacity="0"
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False">
+                        <!-- Single unified dot — orange for mic, green for cam, 
+                             gradient transition when both active -->
+                        <Border x:Name="PrivacyDot"
+                                Width="7" Height="7"
+                                CornerRadius="3.5"
+                                Visibility="Collapsed"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="PrivacyDotBrush" Color="#50C878"/>
+                            </Border.Background>
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="PrivacyDotScale" ScaleX="1" ScaleY="1"/>
+                            </Border.RenderTransform>
+                        </Border>
+                    </StackPanel>
+
                     <!-- Bluetooth Connected Notification -->
                     <Grid x:Name="BluetoothNotification"
                           Opacity="0"
@@ -1657,6 +1682,54 @@
                                            Foreground="#99FFFFFF"
                                            TextWrapping="Wrap"/>
                             </Grid>
+
+                            <!-- Synced Lyrics Widget (replaces calendar when lyrics available) -->
+                            <Border x:Name="LyricsWidget"
+                                    Grid.Row="0" Grid.RowSpan="2"
+                                    Background="Transparent"
+                                    CornerRadius="16"
+                                    Padding="8,6"
+                                    Visibility="Collapsed"
+                                    Opacity="0"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Right">
+                                <Grid Height="48" ClipToBounds="True" VerticalAlignment="Center">
+                                    <!-- Lyric line A -->
+                                    <TextBlock x:Name="LyricTextA"
+                                               Text=""
+                                               Style="{StaticResource SubtitleText}"
+                                               FontSize="11.5"
+                                               FontWeight="Bold"
+                                               Foreground="#DDFFFFFF"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               MaxWidth="140"
+                                               Opacity="0">
+                                        <TextBlock.RenderTransform>
+                                            <TranslateTransform x:Name="LyricTranslateA" Y="0"/>
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                    <!-- Lyric line B -->
+                                    <TextBlock x:Name="LyricTextB"
+                                               Text=""
+                                               Style="{StaticResource SubtitleText}"
+                                               FontSize="11.5"
+                                               FontWeight="Bold"
+                                               Foreground="#DDFFFFFF"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               MaxWidth="140"
+                                               Opacity="0">
+                                        <TextBlock.RenderTransform>
+                                            <TranslateTransform x:Name="LyricTranslateB" Y="0"/>
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
                         </Grid>
                     </Grid>
 

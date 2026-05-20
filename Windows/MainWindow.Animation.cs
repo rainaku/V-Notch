@@ -500,6 +500,14 @@ public partial class MainWindow
             if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
+            // Play queued thumbnail flip animation (track changed mid-collapse)
+            if (_pendingFlipThumbnail != null)
+            {
+                var thumb = _pendingFlipThumbnail;
+                _pendingFlipThumbnail = null;
+                AnimateThumbnailSwitchOnly(thumb);
+            }
+
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
