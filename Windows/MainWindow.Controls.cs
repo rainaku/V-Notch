@@ -82,6 +82,7 @@ public partial class MainWindow
             }
             else
             {
+                OptimisticPrepareForPreviousTrack();
                 await _mediaService.PreviousTrackAsync();
             }
         }
@@ -170,12 +171,44 @@ public partial class MainWindow
             }
             else
             {
+                OptimisticPrepareForPreviousTrack();
                 await _mediaService.PreviousTrackAsync();
             }
         }
         catch (Exception ex)
         {
             RuntimeLog.Error("MEDIA-CTRL", ex, "InlinePrev failed");
+        }
+    }
+
+    /// <summary>
+    /// When the user presses the "previous track" button on a non-video source
+    /// (Spotify, Apple Music, etc.), the underlying app may either skip to the
+    /// previous track OR restart the current one. In the restart case, the
+    /// session reports the same track with a brand-new position near 0, and
+    /// the renderer's "no backward during playback" guard would otherwise hold
+    /// the bar at the old position until predicted time climbs all the way back
+    /// (visible as a multi-second freeze). Animate the bar back to 0
+    /// immediately and open the backward-render window so the next snapshot is
+    /// accepted without delay. If the app actually skipped to a different
+    /// track, the track-change reset in UpdateProgressTracking will overwrite
+    /// this state cleanly.
+    /// </summary>
+    private void OptimisticPrepareForPreviousTrack()
+    {
+        try
+        {
+            _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
+            _progressEngine.NotifyUserSeek(TimeSpan.Zero);
+
+            // Animate the rewind so the user sees the bar slide back to 0
+            // instead of snapping. State (display/target/spring ratios) is
+            // committed inside the animation's Completed handler.
+            AnimateProgressRewindTo(0);
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("PROGRESS-PREV-PREP", ex.Message);
         }
     }
 
