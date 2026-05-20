@@ -728,14 +728,60 @@ public class MediaDetectionService : IMediaDetectionService
             }
 
             bool isPotentialYouTube = info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info));
+
+            // ── Critical fix: Browser source from a known browser app should
+            // ALWAYS attempt YouTube fetch first. The SoundCloud probe is only
+            // valid when we can positively confirm the user is on SoundCloud
+            // (explicit session override or SoundCloud-specific window title).
+            // Without this, ambiguous "Browser" sources race both probes and
+            // SoundCloud (which resolves faster via name search) overwrites
+            // the correct YouTube thumbnail.
+            bool isBrowserApp = info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId);
+            if (isBrowserApp && !isPotentialYouTube)
+            {
+                // Treat any browser-sourced media as potential YouTube unless
+                // we have a confirmed SoundCloud session override.
+                bool hasSoundCloudOverride = TryGetSessionSourceOverride(info, out var scOver) &&
+                                             string.Equals(scOver, "SoundCloud", StringComparison.OrdinalIgnoreCase);
+                if (!hasSoundCloudOverride)
+                {
+                    isPotentialYouTube = true;
+                }
+            }
+
             bool hasSoundCloudSessionOverride = !string.IsNullOrEmpty(info.SourceAppId) &&
                                                 TryGetSessionSourceOverride(info, out var sourceOverride) &&
                                                 string.Equals(sourceOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase);
-            
+
+            // Hard gate against SoundCloud probing: if any visible browser tab
+            // currently shows a YouTube URL, the SMTC "Browser" source is
+            // categorically YouTube. SoundCloud lookups by track *name* are
+            // ambiguous (different songs share titles, "- Topic" artist
+            // suffixes confuse the search) and have produced 500x500
+            // placeholder artwork that overwrote the correct YouTube
+            // thumbnail mid-flight. We only allow the SoundCloud probe when
+            // we can rule out YouTube here.
+            bool browserHasYouTubeTabOpen = false;
+            if (info.MediaSource == "Browser" && !hasSoundCloudSessionOverride)
+            {
+                try
+                {
+                    var browserUrl = _windowTitleScanner.TryGetMediaUrlFromAnyBrowser();
+                    if (!string.IsNullOrEmpty(browserUrl) &&
+                        (browserUrl!.Contains("youtube.com/", StringComparison.OrdinalIgnoreCase) ||
+                         browserUrl.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        browserHasYouTubeTabOpen = true;
+                    }
+                }
+                catch { /* best effort */ }
+            }
+
             // Improved SoundCloud detection from Browser source
             // Trigger if: Browser source + not YouTube + has track + (no thumbnail OR placeholder OR session override)
             bool shouldProbeSoundCloudFromBrowser = info.MediaSource == "Browser" &&
                                                     !IsLikelyYouTube(info) &&
+                                                    !browserHasYouTubeTabOpen &&
                                                     !string.IsNullOrEmpty(info.CurrentTrack) &&
                                                     (info.Thumbnail == null || 
                                                      IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail) || 
@@ -749,6 +795,37 @@ public class MediaDetectionService : IMediaDetectionService
             bool forceFetchForTrackChange = isNewTrackForThumbnail;
             bool needsFetch = forceFetchForTrackChange || (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
             if (_timelineSimulator.IsThrottled && _timelineSimulator.RecoveredThumbnail != null && !forceFetchForTrackChange) needsFetch = false;
+
+            // ── Track-change invalidation ────────────────────────────────────
+            // Before kicking off a YouTube fetch for a NEW track, drop any
+            // cached browser URLs and any per-track videoId entry that does
+            // not belong to the new track. This is the single most important
+            // fix for the "background tab thumbnail never updates" bug:
+            //
+            //   1) WindowTitleScanner caches its tab-strip walk for ~1.5s.
+            //      Without invalidation, the first lookup after a track change
+            //      keeps returning the URL of the previous song (because the
+            //      background tab's HelpText hasn't propagated yet), poisoning
+            //      every retry that follows.
+            //
+            //   2) _videoIdCache historically keyed-then-cached the *raw*
+            //      extracted videoId before it was validated against the SMTC
+            //      track title. Once a wrong entry landed in there, the lookup
+            //      loop just kept replaying the same stale id forever
+            //      (the symptom in the user-reported log: 100+ identical
+            //       "discarding stale videoId" lines for the new song).
+            //
+            //   3) The mismatch cache used to be cleared on every thumbnail
+            //      pass, which meant a videoId already known to be wrong was
+            //      retried on every MediaChanged event. We now keep mismatch
+            //      entries between passes and only flush them when the track
+            //      actually changes.
+            if (forceFetchForTrackChange)
+            {
+                _windowTitleScanner.InvalidateUrlCaches();
+                ClearMismatchCache();
+                ForgetVideoIdCacheExceptForTrack(BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist));
+            }
 
             // If we already have a good cached thumbnail for the SAME track, don't re-fetch.
             // This prevents the "flash" where thumbnail shows correctly then gets overwritten
@@ -822,8 +899,11 @@ public class MediaDetectionService : IMediaDetectionService
                         string? preferredThumbnailUrl = null;
                         int retryCount = 0;
 
-                        // Clear mismatch cache for this new fetch cycle
-                        ClearMismatchCache();
+                        // Mismatch cache is intentionally NOT cleared per-pass.
+                        // It is reset only when a real track change happens
+                        // (above), so a videoId already known to be wrong for
+                        // *this* track stays known-wrong across the rapid
+                        // MediaChanged/poll cycle that follows.
 
                         // ─── Priority 1: Extract video ID from ANY browser window URL ───
                         // Scans all browser windows, not just foreground. 100% accurate.
@@ -842,6 +922,15 @@ public class MediaDetectionService : IMediaDetectionService
                         if (string.IsNullOrEmpty(videoId))
                         {
                             videoId = GetCachedVideoIdForTrack(trackDuringFetch);
+                        }
+
+                        // If the videoId we picked up (from any source) is in
+                        // the per-track mismatch blocklist, skip it now so we
+                        // don't burn another oEmbed/Data-API round trip just to
+                        // discover the same stale id again.
+                        if (!string.IsNullOrEmpty(videoId) && TryGetCachedMismatchVideoId(videoId!))
+                        {
+                            videoId = null;
                         }
 
                         // If we got a video ID from browser URL, enrich with metadata via the
@@ -866,10 +955,22 @@ public class MediaDetectionService : IMediaDetectionService
                                     RuntimeLog.Log("META-YOUTUBE-API",
                                         $"video-mismatch: api-title='{urlResult.Title}' smtc-track='{trackDuringFetch}' videoId={videoId} -> discarding stale videoId");
                                     CacheMismatchVideoId(videoId!);
+                                    // Also evict any per-track entry that points
+                                    // at this stale id so the next pass doesn't
+                                    // pick it up from GetCachedVideoIdForTrack.
+                                    EvictVideoIdCacheEntry(trackDuringFetch, videoId!);
                                     videoId = null; // Force fallback path to re-extract or retry
                                 }
                                 else
                                 {
+                                    // ─── Cache the validated id ───
+                                    // Keying on the *current* SMTC track means
+                                    // every subsequent retry/poll for this same
+                                    // song hits the cache instead of re-walking
+                                    // every browser tab.
+                                    CacheVideoIdForTrack(BuildTrackIdentity(trackDuringFetch, artistDuringFetch), videoId!);
+                                    CacheVideoIdForTrack(trackDuringFetch, videoId!);
+
                                     info.MediaSource = "YouTube";
                                     info.IsYouTubeRunning = true;
                                     SetSessionSourceOverride(info, "YouTube");
@@ -1054,6 +1155,12 @@ public class MediaDetectionService : IMediaDetectionService
                                         if (!IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                             break;
 
+                                        // Force the scanner to re-read browser
+                                        // tabs each poll iteration. Without this,
+                                        // its internal 1.5s cache would keep
+                                        // serving the very URL we just rejected.
+                                        _windowTitleScanner.InvalidateUrlCaches();
+
                                         string? polledId = TryExtractVideoIdFromAnyBrowserUrl();
                                         if (string.IsNullOrEmpty(polledId))
                                             polledId = TryExtractVideoIdFromBrowserUrl();
@@ -1131,7 +1238,7 @@ public class MediaDetectionService : IMediaDetectionService
                     }
                 }, token);
             }
-            else if (isPotentialSoundCloud && !string.IsNullOrEmpty(info.CurrentTrack))
+            else if (isPotentialSoundCloud && !isPotentialYouTube && !string.IsNullOrEmpty(info.CurrentTrack))
             {
                 bool isNewSoundCloudTrack = !string.IsNullOrEmpty(soundCloudTrackIdentity) &&
                                             !string.Equals(soundCloudTrackIdentity, _lastSoundCloudArtworkIdentity, StringComparison.Ordinal);
@@ -1208,6 +1315,25 @@ public class MediaDetectionService : IMediaDetectionService
                             // Generation changed — track or session switched since fetch started
                             if (Volatile.Read(ref _thumbnailFetchGeneration) != thumbGenAtStart)
                             {
+                                return;
+                            }
+
+                            // ── YouTube guard ──────────────────────────────
+                            // If the current track was already resolved as
+                            // YouTube (either via SMTC source upgrade or via
+                            // a verified YouTube thumbnail in cache) by the
+                            // time this background SoundCloud fetch completes,
+                            // do NOT overwrite the YouTube artwork with a
+                            // SoundCloud placeholder. This protects against
+                            // the case where a Browser-source track was racing
+                            // both probes and YouTube finished first.
+                            if (info.MediaSource == "YouTube" ||
+                                IsLikelyYouTube(info) ||
+                                string.Equals(_cachedThumbnailSource, "YouTube", StringComparison.OrdinalIgnoreCase))
+                            {
+                                RuntimeLog.Log("MEDIA-THUMB-CROP",
+                                    $"soundcloud-fetch suppressed: track resolved as YouTube " +
+                                    $"track='{trackDuringFetch}' cachedSource='{_cachedThumbnailSource}'");
                                 return;
                             }
 
@@ -2727,7 +2853,11 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 string videoId = match.Groups[1].Value;
                 System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted video ID from browser URL: {videoId}");
-                CacheVideoIdForTrack(_lastPublishedTrackIdentity, videoId);
+                // NOTE: Do NOT cache here. The caller validates this id against
+                // the SMTC track title and will cache it post-validation in the
+                // success path. Caching pre-validation poisons the per-track
+                // cache when the foreground/background tab still points at the
+                // *previous* song's URL.
                 return videoId;
             }
         }
@@ -2757,7 +2887,7 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 string videoId = match.Groups[1].Value;
                 System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted video ID from background browser: {videoId}");
-                CacheVideoIdForTrack(_lastPublishedTrackIdentity, videoId);
+                // See TryExtractVideoIdFromBrowserUrl: do NOT cache pre-validation.
                 return videoId;
             }
         }
@@ -2834,6 +2964,61 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
+    /// <summary>
+    /// Drop every cached videoId entry whose key does not match the provided
+    /// (current) track identity. Called once per real track-change to make
+    /// sure a stale entry from the previous song cannot leak across.
+    /// </summary>
+    private void ForgetVideoIdCacheExceptForTrack(string? currentTrackIdentity)
+    {
+        lock (_videoIdCacheLock)
+        {
+            if (_videoIdCache.Count == 0) return;
+            if (string.IsNullOrEmpty(currentTrackIdentity))
+            {
+                _videoIdCache.Clear();
+                return;
+            }
+
+            var doomed = new List<string>();
+            foreach (var key in _videoIdCache.Keys)
+            {
+                if (!string.Equals(key, currentTrackIdentity, StringComparison.OrdinalIgnoreCase))
+                {
+                    doomed.Add(key);
+                }
+            }
+            foreach (var key in doomed)
+            {
+                _videoIdCache.Remove(key);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Removes the per-track videoId mapping if (and only if) it currently
+    /// points at the supplied stale id. Used when a validation just rejected
+    /// that id so the next pass does not pick it up from cache again.
+    /// </summary>
+    private void EvictVideoIdCacheEntry(string? track, string staleVideoId)
+    {
+        if (string.IsNullOrEmpty(track) || string.IsNullOrEmpty(staleVideoId)) return;
+        lock (_videoIdCacheLock)
+        {
+            string trackIdentity = BuildTrackIdentity(track, "");
+            if (_videoIdCache.TryGetValue(track, out var v1) &&
+                string.Equals(v1, staleVideoId, StringComparison.Ordinal))
+            {
+                _videoIdCache.Remove(track);
+            }
+            if (_videoIdCache.TryGetValue(trackIdentity, out var v2) &&
+                string.Equals(v2, staleVideoId, StringComparison.Ordinal))
+            {
+                _videoIdCache.Remove(trackIdentity);
+            }
+        }
+    }
+
     private bool IsLikelyYouTube(MediaInfo info)
     {
         if (info.MediaSource == "YouTube") return true;
@@ -2862,6 +3047,40 @@ public class MediaDetectionService : IMediaDetectionService
         if (!string.IsNullOrEmpty(info.CurrentArtist) &&
             info.CurrentArtist.Equals("YouTube", StringComparison.OrdinalIgnoreCase))
             return true;
+
+        // ── Window-title fallback ─────────────────────────────────────────────
+        // SMTC reports browser-hosted media as "Browser" (not "YouTube") until
+        // we've seen a successful URL/oEmbed lookup that lets us cache an
+        // override. For users who keep the YouTube tab in the *background*,
+        // that lookup may not have happened yet — but the browser still
+        // exposes the YouTube tab title (e.g. "Foo - YouTube") via taskbar
+        // window enumeration, even when the tab isn't focused. Treat that as
+        // a strong YouTube signal so we don't kick off a SoundCloud probe
+        // that would later overwrite the YouTube thumbnail with a 500x500
+        // SoundCloud placeholder.
+        if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.CurrentTrack))
+        {
+            try
+            {
+                var titles = GetAllWindowTitles();
+                if (titles != null && titles.Count > 0)
+                {
+                    if (PlatformDetector.HasReliableWindowMatch(titles, info.CurrentTrack, "youtube"))
+                    {
+                        return true;
+                    }
+
+                    if (string.Equals(DetectPlatformHint(titles), "YouTube", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // Window enumeration is best-effort; treat failure as "no hint".
+            }
+        }
 
         return false;
     }

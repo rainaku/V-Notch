@@ -100,6 +100,11 @@
             <Setter Property="FontWeight" Value="ExtraBold"/>
             <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
             <Setter Property="Typography.NumeralStyle" Value="Lining"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Opacity="0.55" Color="Black" RenderingBias="Performance"/>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="MediaButton" TargetType="Border">
@@ -796,10 +801,15 @@
                                     Cursor="Hand"
                                     Background="Transparent"
                                     MouseLeftButtonDown="Battery_Click"
+                                    MouseEnter="BatterySection_MouseEnter"
+                                    MouseLeave="BatterySection_MouseLeave"
                                     RenderTransformOrigin="0.5,0.5"
                                     Opacity="0">
                                 <Border.RenderTransform>
-                                    <TranslateTransform x:Name="BatteryTranslate" Y="-4"/>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="BatterySectionScale" ScaleX="1" ScaleY="1"/>
+                                        <TranslateTransform x:Name="BatteryTranslate" Y="-4"/>
+                                    </TransformGroup>
                                 </Border.RenderTransform>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock x:Name="BatteryPercent" 
@@ -1219,6 +1229,9 @@
                                               VerticalAlignment="Top"
                                               HorizontalAlignment="Left"
                                               Margin="0,2,0,0">
+                                            <Grid.Effect>
+                                                <DropShadowEffect BlurRadius="6" ShadowDepth="1.2" Direction="270" Opacity="0.55" Color="Black" RenderingBias="Performance"/>
+                                            </Grid.Effect>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
@@ -1369,6 +1382,9 @@
                                                 <Grid.RenderTransform>
                                                     <ScaleTransform x:Name="ProgressBarMainScale" ScaleY="1"/>
                                                 </Grid.RenderTransform>
+                                                <Grid.Effect>
+                                                    <DropShadowEffect BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.45" Color="Black" RenderingBias="Performance"/>
+                                                </Grid.Effect>
 
                                                 <Border x:Name="ProgressBarBg" Background="#333333" Height="4" CornerRadius="2" VerticalAlignment="Center" SizeChanged="ProgressBarBg_SizeChanged">
                                                     <Grid>
@@ -1428,6 +1444,9 @@
                                         <StackPanel.RenderTransform>
                                             <TranslateTransform x:Name="InlineControlsTranslate" X="0" Y="10"/>
                                         </StackPanel.RenderTransform>
+                                        <StackPanel.Effect>
+                                            <DropShadowEffect BlurRadius="6" ShadowDepth="1.2" Direction="270" Opacity="0.5" Color="Black" RenderingBias="Performance"/>
+                                        </StackPanel.Effect>
 
                                         <Grid x:Name="VolumeControlArea" Margin="0,0,0,8" HorizontalAlignment="Right">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

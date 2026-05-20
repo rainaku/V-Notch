@@ -50,6 +50,10 @@ public partial class MainWindow : Window
     private HwndSource? _hwndSource;
     private DateTime _lastFullscreenCheckUtc = DateTime.MinValue;
     private DispatcherTimer? _fullscreenRecheckTimer;
+    private DateTime _lastFullscreenStateChangeUtc = DateTime.MinValue;
+    // Minimum dwell before flipping the hide state again. Prevents flicker
+    // during alt-tab and short focus changes (UAC, transient dialogs, ...).
+    private static readonly TimeSpan FullscreenStateCooldown = TimeSpan.FromMilliseconds(180);
     private bool _isTrayMenuOpen = false;
 
     private readonly BatteryModule _batteryModule;
@@ -484,22 +488,33 @@ public partial class MainWindow : Window
 
         bool shouldBeVisible = IsEffectivelyNotchVisible;
 
-        // Don't re-trigger if already in the target state
+        // Already in target state and idle — nothing to do.
         if (shouldBeVisible == _fullscreenSlideVisible && !_isFullscreenSlideAnimating) return;
-        if (shouldBeVisible == _fullscreenSlideVisible) return;
 
+        // Mid-animation flip (user toggled twice quickly): cancel current
+        // animation and re-target. The translate transform retains its current
+        // Y, which the new animation will smoothly continue from.
         _fullscreenSlideVisible = shouldBeVisible;
         _isFullscreenSlideAnimating = true;
 
         double slideDistance = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight + 10 : _collapsedHeight + 10;
 
-        // Cancel any running animation
+        // Capture current Y (in case we are interrupting an in-flight slide)
+        // before clearing the running animation.
+        double currentY = NotchContainerTranslate.Y;
         NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        NotchContainerTranslate.Y = currentY;
 
         if (shouldBeVisible)
         {
             NotchContainer.Visibility = Visibility.Visible;
-            NotchContainerTranslate.Y = -slideDistance;
+            // If the notch was fully off-screen, start from -slideDistance.
+            // If we're interrupting a hide animation, keep the current Y so
+            // it continues smoothly.
+            if (currentY > 0 || currentY < -slideDistance)
+            {
+                NotchContainerTranslate.Y = -slideDistance;
+            }
             AnimateNotchSlide(toY: 0, durationMs: 350, easeOut: true, onComplete: () =>
             {
                 _isFullscreenSlideAnimating = false;
@@ -507,13 +522,18 @@ public partial class MainWindow : Window
         }
         else
         {
-            NotchContainerTranslate.Y = 0;
             AnimateNotchSlide(toY: -slideDistance, durationMs: 250, easeOut: false, onComplete: () =>
             {
                 _isFullscreenSlideAnimating = false;
-                NotchContainer.Visibility = Visibility.Collapsed;
-                NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-                NotchContainerTranslate.Y = 0;
+                // Only collapse the container if we're still meant to be hidden;
+                // an interrupting show may have re-enabled visibility before the
+                // hide animation completed.
+                if (!_fullscreenSlideVisible)
+                {
+                    NotchContainer.Visibility = Visibility.Collapsed;
+                    NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                    NotchContainerTranslate.Y = 0;
+                }
             });
         }
     }
@@ -545,6 +565,23 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Bail when the user has both auto-hide options off — no work to do.
+        if (!_settings.HideOnExclusiveFullscreen && !_settings.HideOnWindowedFullscreen)
+        {
+            if (_isHiddenByFullscreen)
+            {
+                _isHiddenByFullscreen = false;
+                _lastFullscreenStateChangeUtc = DateTime.UtcNow;
+                ApplyNotchVisibilityState();
+                if (_isNotchVisible)
+                {
+                    TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
+                    EnsureTopmost(force: true);
+                }
+            }
+            return;
+        }
+
         var now = DateTime.UtcNow;
         if (!force && (now - _lastFullscreenCheckUtc) < TimeSpan.FromMilliseconds(50))
         {
@@ -559,7 +596,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Cooldown only on the show->hide transition. We always allow returning
+        // to visible immediately to avoid stranding the user without a notch.
+        if (!force && shouldHide && (now - _lastFullscreenStateChangeUtc) < FullscreenStateCooldown)
+        {
+            ScheduleFullscreenRecheck();
+            return;
+        }
+
         _isHiddenByFullscreen = shouldHide;
+        _lastFullscreenStateChangeUtc = now;
         if (_isHiddenByFullscreen)
         {
             if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
@@ -582,9 +628,11 @@ public partial class MainWindow : Window
 
     private bool ShouldHideForFullscreen(IntPtr hwnd)
     {
+        IntPtr notchMonitor = FullscreenDetector.GetWindowMonitor(_hwnd);
+
         if (hwnd == _hwnd)
         {
-            return CheckFullscreenBehind(_hwnd);
+            return CheckFullscreenBehind(_hwnd, notchMonitor);
         }
 
         if (hwnd != IntPtr.Zero)
@@ -593,19 +641,18 @@ public partial class MainWindow : Window
             GetWindowThreadProcessId(_hwnd, out uint myPid);
             if (fgPid == myPid)
             {
-                return CheckFullscreenBehind(hwnd);
+                return CheckFullscreenBehind(hwnd, notchMonitor);
             }
         }
 
-        return IsForegroundWindowFullscreen(hwnd);
+        return IsForegroundWindowFullscreen(hwnd, notchMonitor);
     }
 
-    private bool CheckFullscreenBehind(IntPtr startHwnd)
+    private bool CheckFullscreenBehind(IntPtr startHwnd, IntPtr notchMonitor)
     {
         var next = Win32Interop.GetWindow(startHwnd, GW_HWNDNEXT);
-        const int maxWalk = 20;
-        uint myPid;
-        GetWindowThreadProcessId(_hwnd, out myPid);
+        const int maxWalk = 24;
+        GetWindowThreadProcessId(_hwnd, out uint myPid);
 
         for (int i = 0; i < maxWalk && next != IntPtr.Zero; i++)
         {
@@ -614,15 +661,10 @@ public partial class MainWindow : Window
                 GetWindowThreadProcessId(next, out uint nextPid);
                 if (nextPid != myPid)
                 {
-                    var type = FullscreenDetector.DetectFullscreenType(next, _hwnd);
+                    var type = FullscreenDetector.DetectFullscreenType(next, _hwnd, notchMonitor);
                     if (type != FullscreenType.None)
                     {
-                        return type switch
-                        {
-                            FullscreenType.ExclusiveFullscreen => _settings.HideOnExclusiveFullscreen,
-                            FullscreenType.WindowedFullscreen => _settings.HideOnWindowedFullscreen,
-                            _ => false
-                        };
+                        return ShouldHideForType(type);
                     }
                 }
             }
@@ -631,29 +673,34 @@ public partial class MainWindow : Window
         return false;
     }
 
-    private bool IsForegroundWindowFullscreen(IntPtr hwnd)
+    private bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchMonitor)
     {
-        var type = FullscreenDetector.DetectFullscreenType(hwnd, _hwnd);
-        return type switch
-        {
-            FullscreenType.ExclusiveFullscreen => _settings.HideOnExclusiveFullscreen,
-            FullscreenType.WindowedFullscreen => _settings.HideOnWindowedFullscreen,
-            _ => false
-        };
+        var type = FullscreenDetector.DetectFullscreenType(hwnd, _hwnd, notchMonitor);
+        return ShouldHideForType(type);
     }
+
+    private bool ShouldHideForType(FullscreenType type) => type switch
+    {
+        FullscreenType.ExclusiveFullscreen => _settings.HideOnExclusiveFullscreen,
+        FullscreenType.WindowedFullscreen => _settings.HideOnWindowedFullscreen,
+        _ => false
+    };
 
     private void ScheduleFullscreenRecheck()
     {
-        _fullscreenRecheckTimer?.Stop();
-        _fullscreenRecheckTimer = new DispatcherTimer(DispatcherPriority.Normal)
+        if (_fullscreenRecheckTimer == null)
         {
-            Interval = TimeSpan.FromMilliseconds(400)
-        };
-        _fullscreenRecheckTimer.Tick += (s, e) =>
-        {
-            _fullscreenRecheckTimer.Stop();
-            UpdateFullscreenAutoHideState(force: true);
-        };
+            _fullscreenRecheckTimer = new DispatcherTimer(DispatcherPriority.Normal)
+            {
+                Interval = TimeSpan.FromMilliseconds(400)
+            };
+            _fullscreenRecheckTimer.Tick += (s, e) =>
+            {
+                _fullscreenRecheckTimer!.Stop();
+                UpdateFullscreenAutoHideState(force: true);
+            };
+        }
+        _fullscreenRecheckTimer.Stop();
         _fullscreenRecheckTimer.Start();
     }
 
@@ -820,6 +867,14 @@ public partial class MainWindow : Window
         this.Width = _windowWidth;
         this.Height = _windowHeight;
         SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+
+        // Monitor for the notch may have changed (display add/remove,
+        // resolution change). Re-evaluate fullscreen state against the new
+        // notch monitor.
+        if (_hwnd != IntPtr.Zero)
+        {
+            UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
+        }
     }
 
     private void ResetPosition()
@@ -916,6 +971,18 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
         _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
+
+        if (_settings.DisableMouseLeaveAutoClose)
+        {
+            _hoverCollapseTimer.Stop();
+        }
+
+        // Re-evaluate fullscreen hide state in case user toggled the
+        // HideOnExclusiveFullscreen / HideOnWindowedFullscreen options.
+        if (_hwnd != IntPtr.Zero)
+        {
+            UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
+        }
 
         _collapsedWidth = _settings.Width;
         _collapsedHeight = _settings.Height;
@@ -1139,6 +1206,15 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         _hoverThumbnailDelayTimer.Stop();
 
+        if (_settings.DisableMouseLeaveAutoClose)
+        {
+            if (!_isExpanded)
+            {
+                AnimateNotchHover(false);
+            }
+            return;
+        }
+
         if (_isExpanded && !_isAnimating && !_isSecondaryView)
         {
             _hoverCollapseTimer.Start();
@@ -1168,6 +1244,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         Dispatcher.BeginInvoke(new Action(() =>
         {
             _hoverThumbnailDelayTimer.Stop();
+            if (_settings.DisableMouseLeaveAutoClose) return;
             if (_isExpanded && !_isAnimating && !_isSecondaryView)
             {
                 _hoverCollapseTimer.Start();
@@ -1234,6 +1311,36 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         {
             RuntimeLog.Log("BATTERY-CLICK", ex.ToString());
         }
+    }
+
+    private void BatterySection_MouseEnter(object sender, MouseEventArgs e)
+    {
+        AnimateBatteryHover(true);
+    }
+
+    private void BatterySection_MouseLeave(object sender, MouseEventArgs e)
+    {
+        AnimateBatteryHover(false);
+    }
+
+    private void AnimateBatteryHover(bool isHovered)
+    {
+        if (BatterySectionScale == null) return;
+
+        double targetScale = isHovered ? 1.1 : 1.0;
+        var dur = isHovered ? TimeSpan.FromMilliseconds(220) : TimeSpan.FromMilliseconds(280);
+        var ease = isHovered
+            ? (IEasingFunction)new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 }
+            : new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
+
+        var anim = new DoubleAnimation(targetScale, dur)
+        {
+            EasingFunction = ease
+        };
+        Timeline.SetDesiredFrameRate(anim, 144);
+
+        BatterySectionScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        BatterySectionScale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)
