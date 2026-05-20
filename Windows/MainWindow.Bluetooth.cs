@@ -79,6 +79,9 @@ public partial class MainWindow
     {
         _isBluetoothNotificationVisible = true;
 
+        // Hide privacy dot while bluetooth notification is visible
+        SuppressPrivacyDot();
+
         // Hide the other notification if visible
         var otherGrid = connected ? BluetoothDisconnectNotification : BluetoothNotification;
         otherGrid.Visibility = Visibility.Collapsed;
@@ -142,6 +145,9 @@ public partial class MainWindow
         {
             activeGrid.Visibility = Visibility.Collapsed;
             _isBluetoothNotificationVisible = false;
+
+            // Restore privacy dot
+            RestorePrivacyDotVisibility();
 
             // Restore previous content
             if (_isMusicCompactMode && _currentMediaInfo != null)

@@ -119,6 +119,16 @@ public partial class MainWindow
                 UpdateTitleText(titleText);
                 UpdateArtistText(artistText);
                 CompactTitleMarquee.Text = titleText;
+
+                // Fetch synced lyrics for Spotify tracks
+                if (hasRealTrack && renderedSource == "Spotify")
+                {
+                    FetchLyricsForTrack(info);
+                }
+                else
+                {
+                    ClearLyrics();
+                }
             }
             else
             {
@@ -166,8 +176,13 @@ public partial class MainWindow
                             if (!ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail) &&
                                 !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
                             {
-                                // Skip if this is just a seek re-send (same dimensions = same image)
-                                bool isSameImage = ThumbnailImage.Source is BitmapSource current &&
+                                // Skip if this is just a seek re-send (same dimensions = same image).
+                                // But NEVER skip if _lastAnimatedThumbnail is null — that means
+                                // the track changed but no thumbnail was shown yet (e.g. Spotify
+                                // stale SMTC, YouTube/SoundCloud suppression). The arriving
+                                // thumbnail is the FIRST for this track and must always be shown.
+                                bool isSameImage = _lastAnimatedThumbnail != null &&
+                                    ThumbnailImage.Source is BitmapSource current &&
                                     info.Thumbnail.PixelWidth == current.PixelWidth &&
                                     info.Thumbnail.PixelHeight == current.PixelHeight &&
                                     !info.IsThumbnailOnlyUpdate;
@@ -177,7 +192,7 @@ public partial class MainWindow
                                     VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
                                         $"thumb-update-same-track track='{trackIdentity}' " +
                                         $"isAnimating={_isAnimating} isExpanded={_isExpanded} thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight}");
-                                    AnimateThumbnailSwitchOnly(info.Thumbnail);
+                                    AnimateThumbnailSwitchOnly(info.Thumbnail, force: _lastAnimatedThumbnail == null);
                                     _lastAnimatedThumbnail = info.Thumbnail;
                                 }
                             }
@@ -196,8 +211,14 @@ public partial class MainWindow
                 }
                 else if (isNewTrack)
                 {
-                    
-                    
+                    // Track changed but thumbnail is null (e.g. YouTube/SoundCloud
+                    // suppression — async fetch will deliver it later). We MUST
+                    // update _lastAnimatedTrackSignature here so the incoming
+                    // IsThumbnailOnlyUpdate won't be rejected as "stale" by the
+                    // guard at the top of OnMediaChanged.
+                    _lastAnimatedTrackSignature = trackIdentity;
+                    _lastAnimatedThumbnail = null; // Signal that no thumbnail has been shown for this track yet
+
                     if (ThumbnailImage.Source == null)
                     {
                         ThumbnailImage.Visibility = Visibility.Collapsed;
@@ -247,6 +268,7 @@ public partial class MainWindow
                     ThumbnailFallback.Visibility = Visibility.Visible;
                     HideMediaBackground();
                     ThumbnailFallback.Text = "🎵";
+                    ClearLyrics();
 
                     // Don't clear thumbnail sources either — keep the last image
                     // visible (just hidden) so the upcoming flip animation has a
@@ -450,6 +472,7 @@ public partial class MainWindow
             // Promote overlay → base.
             ThumbnailImage.Source = newThumb;
             CompactThumbnail.Source = newThumb;
+            if (_isLyricsActive && LyricsBlurImage != null) LyricsBlurImage.Source = newThumb;
             ThumbnailImageNext.Source = null;
             CompactThumbnailNext.Source = null;
 

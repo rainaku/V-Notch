@@ -162,6 +162,14 @@ public partial class MainWindow
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             SecondaryContent.RenderTransform = null;
 
+            // Play queued thumbnail flip animation (track changed mid-transition)
+            if (_pendingFlipThumbnail != null)
+            {
+                var thumb = _pendingFlipThumbnail;
+                _pendingFlipThumbnail = null;
+                AnimateThumbnailSwitchOnly(thumb);
+            }
+
             if (_isCameraActive)
             {
                 AnimateCameraSectionToShelf(true);
@@ -261,6 +269,14 @@ public partial class MainWindow
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.RenderTransform = null;
+
+            // Play queued thumbnail flip animation (track changed mid-transition)
+            if (_pendingFlipThumbnail != null)
+            {
+                var thumb = _pendingFlipThumbnail;
+                _pendingFlipThumbnail = null;
+                AnimateThumbnailSwitchOnly(thumb);
+            }
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeIn);
