@@ -31,6 +31,9 @@ public partial class MainWindow
             UpdatePlayPauseIcon();
             PlayButtonPressAnimation(PlayPauseButton);
 
+            // Immediately notify progress engine so bar stops/resumes without waiting for SMTC
+            _progressEngine.NotifyUserPlayPause(_isPlaying);
+
             await _mediaService.PlayPauseAsync();
         }
         catch (Exception ex)
@@ -119,6 +122,9 @@ public partial class MainWindow
             _isPlaying = !_isPlaying;
             UpdatePlayPauseIcon();
             PlayButtonPressAnimation(InlinePlayPauseButton);
+
+            // Immediately notify progress engine so bar stops/resumes without waiting for SMTC
+            _progressEngine.NotifyUserPlayPause(_isPlaying);
 
             await _mediaService.PlayPauseAsync();
         }

@@ -31,9 +31,9 @@ public partial class MainWindow
     {
         if (_isExpanded || _isAnimating) return;
 
-        double thumbScale = isHovered ? 1.6 : 1.0;
-        double notchWidth = isHovered ? _collapsedWidth + 64 : _collapsedWidth;
-        double notchHeight = isHovered ? 84 : _collapsedHeight;
+        double thumbScale = isHovered ? 1.3 : 1.0;
+        double notchWidth = isHovered ? _collapsedWidth + 32 : _collapsedWidth;
+        double notchHeight = isHovered ? _collapsedHeight + 24 : _collapsedHeight;
         double infoOpacity = isHovered ? 1 : 0;
         
         var duration = isHovered ? _dur500 : _dur350;
@@ -99,7 +99,7 @@ public partial class MainWindow
         
         double textWidth = CompactTitleMarquee.DesiredSize.Width;
 
-        double containerWidth = Math.Max(0, ((NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : NotchBorder.Width) + 64) - 12);
+        double containerWidth = Math.Max(0, ((NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : NotchBorder.Width) + 32) - 12);
 
         const double marqueeTriggerOverflow = 10.0;
 

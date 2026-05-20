@@ -418,6 +418,38 @@ public class ProgressEngine
         }
     }
 
+    /// <summary>
+    /// Called when the user explicitly presses play/pause to immediately freeze/resume
+    /// the progress prediction without waiting for the next SMTC snapshot.
+    /// </summary>
+    public void NotifyUserPlayPause(bool isPlaying)
+    {
+        lock (_lock)
+        {
+            DateTime nowUtc = DateTime.UtcNow;
+
+            if (!isPlaying && _isPlaying)
+            {
+                // User pressed pause — freeze at current predicted position
+                _basePosition = ClampPosition(PredictPosition(nowUtc));
+                _baseTimeUtc = nowUtc;
+                _isPlaying = false;
+                _state = ProgressState.Paused;
+                _pendingPauseConfirmation = false;
+                _pendingPauseStartedUtc = DateTime.MinValue;
+            }
+            else if (isPlaying && !_isPlaying)
+            {
+                // User pressed play — resume from current position
+                _baseTimeUtc = nowUtc;
+                _isPlaying = true;
+                _state = ProgressState.Playing;
+                _pendingPauseConfirmation = false;
+                _pendingPauseStartedUtc = DateTime.MinValue;
+            }
+        }
+    }
+
     private static TimeSpan GetEffectiveSnapshotPosition(ProgressSnapshot snapshot, DateTime snapshotTsUtc, DateTime nowUtc)
     {
         TimeSpan effectivePosition = snapshot.Position;

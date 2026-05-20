@@ -50,6 +50,13 @@ public partial class MainWindow
         e.Handled = true; 
     }
 
+    private void NavIconsPanel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Swallow clicks on the nav icons area to prevent them from
+        // bubbling up to NotchWrapper and triggering collapse.
+        e.Handled = true;
+    }
+
     private void HomeIconButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;

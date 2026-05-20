@@ -427,15 +427,18 @@
                             CornerRadius="12,12,10,10"
                             Width="64" Height="34"
                             Opacity="0"
-                            Visibility="Collapsed"/>
+                            Visibility="Collapsed"
+                            MouseLeftButtonDown="NavIconsPanel_MouseLeftButtonDown"/>
 
                     <!-- Navigation Icons (fixed position, not affected by section transitions) -->
                     <StackPanel x:Name="NavIconsPanel"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Left" VerticalAlignment="Top"
                                 Margin="14,3,0,0" Panel.ZIndex="200"
+                                Background="Transparent"
                                 Opacity="0"
-                                Visibility="Collapsed">
+                                Visibility="Collapsed"
+                                MouseLeftButtonDown="NavIconsPanel_MouseLeftButtonDown">
                         <StackPanel.RenderTransform>
                             <TranslateTransform x:Name="NavIconsTranslate" Y="0"/>
                         </StackPanel.RenderTransform>
@@ -683,7 +686,8 @@
                               Grid.ColumnSpan="3"
                               Opacity="0"
                               Visibility="Collapsed"
-                              Margin="-6,27,-6,0">
+                              VerticalAlignment="Bottom"
+                              Margin="-6,0,-6,12">
                             <Grid.OpacityMask>
                                 <LinearGradientBrush x:Name="CompactMarqueeFadeBrush" StartPoint="0,0" EndPoint="1,0">
                                     <GradientStop Color="Transparent" Offset="0"/>
@@ -692,11 +696,14 @@
                                     <GradientStop Color="Transparent" Offset="1"/>
                                 </LinearGradientBrush>
                             </Grid.OpacityMask>
-                            <Canvas x:Name="CompactTitleScrollContainer" Height="16" HorizontalAlignment="Stretch" ClipToBounds="True">
+                            <Canvas x:Name="CompactTitleScrollContainer" Height="18" HorizontalAlignment="Stretch" ClipToBounds="True" Margin="0,5,0,0">
                                 <TextBlock x:Name="CompactTitleMarquee" 
                                            Text="Title" 
                                            Style="{StaticResource TitleText}" 
-                                           FontSize="10.5" 
+                                           FontSize="10.5"
+                                           FontWeight="Bold"
+                                           Foreground="#EEFFFFFF"
+                                           TextOptions.TextFormattingMode="Ideal"
                                            VerticalAlignment="Center">
                                     <TextBlock.RenderTransform>
                                         <TranslateTransform x:Name="CompactTitleMarqueeTranslate" X="0"/>

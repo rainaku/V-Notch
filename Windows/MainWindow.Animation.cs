@@ -61,8 +61,31 @@ public partial class MainWindow
     private void ExpandNotch()
     {
         if (_isAnimating || _isExpanded) return;
+        _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Expanding);
         CancelThumbnailSwitchAnimations();
+
+        // Reset compact thumbnail hover state immediately
+        if (_isCompactThumbnailHovered)
+        {
+            _isCompactThumbnailHovered = false;
+            _compactThumbnailHoverLeaveTimer.Stop();
+        }
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailScale.ScaleX = 1.0;
+        CompactThumbnailScale.ScaleY = 1.0;
+        CompactHoverInfo.BeginAnimation(OpacityProperty, null);
+        CompactHoverInfo.Opacity = 0;
+        CompactHoverInfo.Visibility = Visibility.Collapsed;
+        // Hide compact thumbnail during expand (expanded view has its own thumbnail)
+        if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
+        if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
+        // Ensure animation thumbnail overlay is hidden
+        AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+        // Reset compact thumbnail corner radius from hover state
+        this.BeginAnimation(CurrentCompactThumbnailRadiusProperty, null);
+        CurrentCompactThumbnailRadius = 6;
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
@@ -289,6 +312,7 @@ public partial class MainWindow
     private void CollapseNotch()
     {
         if (_isAnimating || !_isExpanded) return;
+        _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Collapsing);
         CancelThumbnailSwitchAnimations();
 
@@ -462,6 +486,14 @@ public partial class MainWindow
             UpdateProgressTimerState();
 
             contentToShow.RenderTransform = null;
+
+            // Safety: ensure nav icons are always hidden in collapsed state
+            NavIconsPanel.BeginAnimation(OpacityProperty, null);
+            NavIconsPanel.Opacity = 0;
+            NavIconsPanel.Visibility = Visibility.Collapsed;
+            NavIconsBackground.BeginAnimation(OpacityProperty, null);
+            NavIconsBackground.Opacity = 0;
+            NavIconsBackground.Visibility = Visibility.Collapsed;
 
             
             ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
