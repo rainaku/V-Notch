@@ -57,8 +57,8 @@ public partial class MainWindow
     {
         _privacyIndicatorsVisible = true;
 
-        // Don't show visually if volume bar or bluetooth notification is active
-        if (_isVolumeIndicatorActive || _isBluetoothNotificationVisible)
+        // Don't show visually if volume bar or bluetooth notification or clipboard peek is active
+        if (_isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive)
             return;
 
         PrivacyDot.Visibility = Visibility.Visible;
@@ -119,7 +119,7 @@ public partial class MainWindow
     {
         if (!_privacyIndicatorsVisible) return;
         // Don't restore if another suppressor is still active
-        if (_isVolumeIndicatorActive || _isBluetoothNotificationVisible) return;
+        if (_isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive) return;
 
         PrivacyDot.Visibility = Visibility.Visible;
         PrivacyIndicatorPanel.Visibility = Visibility.Visible;

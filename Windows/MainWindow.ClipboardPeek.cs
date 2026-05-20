@@ -90,6 +90,9 @@ public partial class MainWindow
     {
         _isClipboardPeekActive = true;
 
+        // Hide privacy dot during clipboard notification
+        SuppressPrivacyDot();
+
         // Update text with localization
         ClipboardCopiedText.Text = Loc.Get("clipboard.copied");
 
@@ -154,6 +157,9 @@ public partial class MainWindow
     private void RevertClipboardCopiedState()
     {
         _isClipboardPeekActive = false;
+
+        // Restore privacy dot
+        RestorePrivacyDotVisibility();
 
         // ─── Checkmark: scale 1→0.5 + fade out (reverse of scale-in spring) ───
         ClipboardCheckIcon.BeginAnimation(OpacityProperty, null);
