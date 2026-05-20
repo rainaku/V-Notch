@@ -109,6 +109,7 @@ public partial class App : Application
         services.AddSingleton<IVolumeService, VolumeService>();
         services.AddSingleton<IBatteryService, BatteryServiceImpl>();
         services.AddSingleton<BluetoothMonitorService>();
+        services.AddSingleton<PrivacyIndicatorService>();
         services.AddSingleton<IDispatcherService>(sp =>
             new DispatcherService(Current.Dispatcher));
         services.AddSingleton<IUpdateService, UpdateService>();
@@ -117,12 +118,14 @@ public partial class App : Application
         services.AddSingleton<BatteryModule>();
         services.AddSingleton<CalendarModule>();
         services.AddSingleton<BluetoothModule>();
+        services.AddSingleton<PrivacyIndicatorModule>();
         services.AddSingleton<IModuleLifecycleManager>(sp =>
         {
             var host = new ModuleLifecycleManager();
             host.Register(sp.GetRequiredService<BatteryModule>());
             host.Register(sp.GetRequiredService<CalendarModule>());
             host.Register(sp.GetRequiredService<BluetoothModule>());
+            host.Register(sp.GetRequiredService<PrivacyIndicatorModule>());
             return host;
         });
 

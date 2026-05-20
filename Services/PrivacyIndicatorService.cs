@@ -1,0 +1,225 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows.Threading;
+using Microsoft.Win32;
+
+namespace VNotch.Services;
+
+/// <summary>
+/// iOS-style mic/camera in-use indicator.
+/// Inspects HKCU\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\{microphone|webcam}.
+/// A LastUsedTimeStop value of 0 means the device is currently in use by that app.
+/// Lightweight: registry reads are cheap and bounded; polled on the UI dispatcher.
+/// </summary>
+public sealed class PrivacyIndicatorService : IDisposable
+{
+    private const string ConsentRoot =
+        @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore";
+
+    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(2);
+
+    private readonly DispatcherTimer _timer;
+    private bool _disposed;
+    private bool _started;
+
+    public event EventHandler<PrivacyIndicatorState>? StateChanged;
+
+    public PrivacyIndicatorState CurrentState { get; private set; } = PrivacyIndicatorState.Empty;
+
+    public PrivacyIndicatorService(TimeSpan? pollInterval = null)
+    {
+        _timer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = pollInterval ?? DefaultPollInterval
+        };
+        _timer.Tick += (_, _) => Poll();
+    }
+
+    public void Start()
+    {
+        if (_disposed || _started) return;
+        _started = true;
+
+        // Initial sample so consumers don't have to wait for the first tick.
+        Poll();
+        _timer.Start();
+    }
+
+    public void Stop()
+    {
+        if (!_started) return;
+        _started = false;
+        _timer.Stop();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Stop();
+    }
+
+    private void Poll()
+    {
+        try
+        {
+            var mic = ScanCapability("microphone");
+            var cam = ScanCapability("webcam");
+            var screenRec = DetectScreenRecording();
+
+            var next = new PrivacyIndicatorState(
+                MicrophoneInUse: mic.Count > 0,
+                CameraInUse: cam.Count > 0,
+                ScreenRecordingActive: screenRec,
+                MicrophoneConsumers: mic,
+                CameraConsumers: cam);
+
+            if (!next.Equals(CurrentState))
+            {
+                CurrentState = next;
+                StateChanged?.Invoke(this, next);
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("PRIVACY", ex, "PrivacyIndicatorService poll failed");
+        }
+    }
+
+    private static IReadOnlyList<string> ScanCapability(string capability)
+    {
+        var consumers = new List<string>();
+        try
+        {
+            using var capRoot = Registry.CurrentUser.OpenSubKey(
+                $"{ConsentRoot}\\{capability}", writable: false);
+            if (capRoot == null) return Array.Empty<string>();
+
+            foreach (var subKeyName in capRoot.GetSubKeyNames())
+            {
+                using var subKey = capRoot.OpenSubKey(subKeyName, writable: false);
+                if (subKey == null) continue;
+
+                // Packaged apps store LastUsedTimeStop on the immediate subkey.
+                if (TryDetectInUse(subKey, out _))
+                {
+                    consumers.Add(NormalizeAppName(subKeyName));
+                    continue;
+                }
+
+                // Desktop apps live under a "NonPackaged" branch keyed by exe path.
+                if (string.Equals(subKeyName, "NonPackaged", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var npName in subKey.GetSubKeyNames())
+                    {
+                        using var npKey = subKey.OpenSubKey(npName, writable: false);
+                        if (npKey == null) continue;
+                        if (TryDetectInUse(npKey, out _))
+                        {
+                            consumers.Add(NormalizeAppName(npName));
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("PRIVACY", ex, $"Scan {capability} failed");
+        }
+
+        return consumers.Count == 0 ? Array.Empty<string>() : consumers.Distinct().ToList();
+    }
+
+    private static bool TryDetectInUse(RegistryKey key, out long lastStart)
+    {
+        lastStart = 0;
+        var startObj = key.GetValue("LastUsedTimeStart");
+        var stopObj = key.GetValue("LastUsedTimeStop");
+        if (stopObj is long stop)
+        {
+            if (startObj is long start) lastStart = start;
+            // 0 means "still in use".
+            return stop == 0L;
+        }
+        return false;
+    }
+
+    private static bool DetectScreenRecording()
+    {
+        // Only use ConsentStore registry — this is 100% accurate.
+        // Apps using Windows Graphics Capture API (Game Bar, Snipping Tool, 
+        // PowerPoint recording, etc.) register here with LastUsedTimeStop=0 while active.
+        // Note: Some recorders (Bandicam, OBS) use DirectX hooks and won't appear here.
+        // This is acceptable — no false positives is better than false positives.
+        if (ScanCapability("graphicsCaptureProgrammatic").Count > 0)
+            return true;
+        if (ScanCapability("graphicsCaptureWithoutBorder").Count > 0)
+            return true;
+
+        return false;
+    }
+
+    private static string NormalizeAppName(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return raw;
+
+        // Desktop apps are encoded as "C:#Program Files#App#app.exe" — split and take the exe.
+        if (raw.Contains('#'))
+        {
+            var parts = raw.Split('#');
+            var last = parts[^1];
+            if (!string.IsNullOrWhiteSpace(last)) return last;
+        }
+
+        // Packaged app family name like "Microsoft.YourPhone_8wekyb3d8bbwe" — keep just the readable head.
+        var underscore = raw.IndexOf('_');
+        if (underscore > 0)
+        {
+            return raw[..underscore];
+        }
+
+        return raw;
+    }
+}
+
+public sealed record PrivacyIndicatorState(
+    bool MicrophoneInUse,
+    bool CameraInUse,
+    bool ScreenRecordingActive,
+    IReadOnlyList<string> MicrophoneConsumers,
+    IReadOnlyList<string> CameraConsumers)
+{
+    public static readonly PrivacyIndicatorState Empty = new(
+        false, false, false, Array.Empty<string>(), Array.Empty<string>());
+
+    public bool AnyInUse => MicrophoneInUse || CameraInUse || ScreenRecordingActive;
+
+    public bool Equals(PrivacyIndicatorState? other)
+    {
+        if (other is null) return false;
+        if (MicrophoneInUse != other.MicrophoneInUse) return false;
+        if (CameraInUse != other.CameraInUse) return false;
+        if (ScreenRecordingActive != other.ScreenRecordingActive) return false;
+        return SequenceEquals(MicrophoneConsumers, other.MicrophoneConsumers)
+            && SequenceEquals(CameraConsumers, other.CameraConsumers);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = HashCode.Combine(MicrophoneInUse, CameraInUse, ScreenRecordingActive);
+        foreach (var s in MicrophoneConsumers) hash = HashCode.Combine(hash, s);
+        foreach (var s in CameraConsumers) hash = HashCode.Combine(hash, s);
+        return hash;
+    }
+
+    private static bool SequenceEquals(IReadOnlyList<string> a, IReadOnlyList<string> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (!string.Equals(a[i], b[i], StringComparison.OrdinalIgnoreCase)) return false;
+        }
+        return true;
+    }
+}
