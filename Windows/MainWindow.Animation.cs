@@ -78,10 +78,7 @@ public partial class MainWindow
         CompactHoverInfo.BeginAnimation(OpacityProperty, null);
         CompactHoverInfo.Opacity = 0;
         CompactHoverInfo.Visibility = Visibility.Collapsed;
-        // Hide compact thumbnail during expand (expanded view has its own thumbnail)
-        if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
-        if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
-        // Ensure animation thumbnail overlay is hidden
+        // Ensure animation thumbnail overlay is hidden initially
         AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
         // Reset compact thumbnail corner radius from hover state
         this.BeginAnimation(CurrentCompactThumbnailRadiusProperty, null);
@@ -130,6 +127,12 @@ public partial class MainWindow
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
+        // Force layout pass so ThumbnailBorder gets actual dimensions for target compute.
+        // Without this, the first expand after settings save (which clears the cache)
+        // computes the target before layout finishes, giving wrong coordinates.
+        ExpandedContent.Width = _expandedWidth - 16;
+        ExpandedContent.Height = _expandedHeight - 2;
+        ExpandedContent.UpdateLayout();
 
         // Animate Status Bar (Battery + Settings) reveal
         AnimateStatusBarReveal(true);
@@ -140,10 +143,6 @@ public partial class MainWindow
         var widthAnim = MakeAnim(_expandedWidth, _dur600, _easeExpOut6, animFps);
         var heightAnim = MakeAnim(_expandedHeight, _dur600, _easeExpOut6, animFps);
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
-
-        
-        ExpandedContent.Width = _expandedWidth - 16;
-        ExpandedContent.Height = _expandedHeight - 2;
 
         var expandedGroup = new TransformGroup();
         var expandedTranslate = new TranslateTransform(0, 10);
@@ -164,11 +163,19 @@ public partial class MainWindow
         if (_isMusicCompactMode && CompactThumbnail.Source != null)
         {
             var cachedExpandTarget = _cachedThumbnailExpandTarget;
+            if (!cachedExpandTarget.HasValue && TryComputeThumbnailExpandTarget(out var computedTarget))
+            {
+                _cachedThumbnailExpandTarget = computedTarget;
+                cachedExpandTarget = computedTarget;
+            }
+
             if (!cachedExpandTarget.HasValue)
             {
-                
-                
+                // No animation overlay possible — keep compact thumbnail visible
+                // until expand completes, then expanded view takes over.
                 AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
+                if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
             }
             else
             {

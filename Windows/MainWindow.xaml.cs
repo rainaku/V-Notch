@@ -793,6 +793,12 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             NotchShadowScale.ScaleX = 1.0;
             NotchShadowScale.ScaleY = 1.0;
 
+            // Ensure thumbnail borders are visible after settings close
+            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
+            if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
+            // Reset animation state that may have been left dirty
+            _isAnimating = false;
+
             var bounceAnim = new DoubleAnimationUsingKeyFrames();
             bounceAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.12,
                 KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120)),
