@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using VNotch.Models;
@@ -275,7 +276,7 @@ public partial class MainWindow
     {
         if (_isAnimating)
         {
-            // Queue the flip to run after the expand/collapse animation finishes
+            // Queue the transition to run after the expand/collapse animation finishes
             VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"queued-pending (isAnimating=true) force={force}");
             _pendingFlipThumbnail = newThumb;
             return;
@@ -291,129 +292,245 @@ public partial class MainWindow
             return;
         }
 
-        VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"FLIP-START force={force}");
+        VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"BLUR-MORPH-START force={force}");
 
         // Cancel any in-progress thumbnail switch animation to prevent stale
-        // Completed handlers from resetting scale mid-animation when spamming
+        // Completed handlers from resetting state mid-animation when spamming
         // next/prev buttons rapidly.
         CancelThumbnailSwitchAnimations();
 
         var generation = ++_thumbnailSwitchGeneration;
 
-        // ─── Cinematic flip animation ─────────────────────────────────────────
-        // Asymmetric timing for natural momentum:
-        //   • Out (170ms): smooth ease-in, slight overshoot below 0 for "tuck"
-        //   • In (320ms): spring with gentle overshoot (1.04 peak) → settle to 1
-        // Combined with subtle ScaleY squash + opacity dip = depth illusion
-        // without a real 3D rotation transform.
+        // ─── Blur-morph transition (Apple Music / iOS lock screen style) ──────
+        // Two-layer crossfade where each side morphs through a blur peak so the
+        // change feels like the artwork is dissolving into a "soft cloud" and
+        // re-forming as the new track. Subtle parallax zoom layered on top.
+        //
+        //   • Outgoing image (slow phase):
+        //       opacity 1 → 0 over 360ms, eased in
+        //       blur radius 0 → peakBlur eased out (most of the blur happens
+        //       BEFORE the image fades, so the user sees it dissolve, not just
+        //       fade)
+        //       scale 1.0 → 0.96 (gentle drift back)
+        //   • Incoming image (focus phase):
+        //       starts at opacity 0, blur = peakBlur, scale 1.05
+        //       delayed by 'overlap' so it begins emerging while old is mid-blur
+        //       opacity 0 → 1 (smooth)
+        //       blur peakBlur → 0 (sharpen)
+        //       scale 1.05 → 1.0 (settle)
+        //
+        // Compact (22px) uses smaller peakBlur so the tiny pill stays readable.
         // ──────────────────────────────────────────────────────────────────────
-        var shrinkDur = TimeSpan.FromMilliseconds(170);
-        var expandDur = TimeSpan.FromMilliseconds(320);
-        var totalDur = shrinkDur + expandDur;
+        var outDur     = TimeSpan.FromMilliseconds(420);
+        var inDur      = TimeSpan.FromMilliseconds(440);
+        var overlap    = TimeSpan.FromMilliseconds(180); // when the new layer starts
+        var totalDur   = overlap + inDur;
 
-        var sineIn = new SineEase { EasingMode = EasingMode.EaseIn };
-        var backOut = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 };
+        const double expandedPeakBlur = 18.0;
+        const double compactPeakBlur  = 6.0;
 
-        // ─── ScaleX: 1 → 0 (tuck) → 1 (with subtle overshoot via BackEase) ───
-        var flipX = new DoubleAnimationUsingKeyFrames();
-        flipX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        flipX.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(shrinkDur), sineIn));
-        flipX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), backOut));
-        Timeline.SetDesiredFrameRate(flipX, 144);
+        var quintOut  = new QuinticEase  { EasingMode = EasingMode.EaseOut };
+        var cubicOut  = new CubicEase    { EasingMode = EasingMode.EaseOut };
+        var cubicIn   = new CubicEase    { EasingMode = EasingMode.EaseIn  };
+        var sineInOut = new SineEase     { EasingMode = EasingMode.EaseInOut };
 
-        // ─── ScaleY: subtle squash 1 → 0.92 → 1.04 → 1 ───
-        // Adds a sense of compression/release that sells the flip as physical motion.
-        var flipY = new DoubleAnimationUsingKeyFrames();
-        flipY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        flipY.KeyFrames.Add(new EasingDoubleKeyFrame(0.92, KeyTime.FromTimeSpan(shrinkDur), sineIn));
-        flipY.KeyFrames.Add(new EasingDoubleKeyFrame(1.04,
-            KeyTime.FromTimeSpan(shrinkDur + TimeSpan.FromMilliseconds(180)), _easeQuadOut));
-        flipY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(flipY, 144);
+        // Stage incoming image on the overlay layer, pre-blurred & invisible.
+        ThumbnailImageNext.Source = newThumb;
+        CompactThumbnailNext.Source = newThumb;
 
-        // ─── Opacity dip: 1 → 0 at swap point → 1 ───
-        // Hides any sub-pixel artifact during the discrete image swap so the
-        // transition feels truly continuous instead of a hard cut.
-        var fade = new DoubleAnimationUsingKeyFrames();
-        fade.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        fade.KeyFrames.Add(new EasingDoubleKeyFrame(0.0,
-            KeyTime.FromTimeSpan(shrinkDur - TimeSpan.FromMilliseconds(20)), sineIn));
-        fade.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
-            KeyTime.FromTimeSpan(shrinkDur + TimeSpan.FromMilliseconds(80)), _easeQuadOut));
-        Timeline.SetDesiredFrameRate(fade, 144);
+        ThumbnailNextScale.ScaleX = 1.05;
+        ThumbnailNextScale.ScaleY = 1.05;
+        ThumbnailImageNext.Opacity = 0.0;
+        ThumbnailNextBlur.Radius = expandedPeakBlur;
 
-        // Swap image source slightly before midpoint so the new image is in place
-        // when ScaleX crosses zero — avoids a 1-frame flicker of the old image.
-        var swapAt = shrinkDur - TimeSpan.FromMilliseconds(10);
-        var sourceAnim = new ObjectAnimationUsingKeyFrames();
-        sourceAnim.KeyFrames.Add(new DiscreteObjectKeyFrame(newThumb, KeyTime.FromTimeSpan(swapAt)));
-        Timeline.SetDesiredFrameRate(sourceAnim, 144);
+        CompactThumbnailNextScale.ScaleX = 1.05;
+        CompactThumbnailNextScale.ScaleY = 1.05;
+        CompactThumbnailNext.Opacity = 0.0;
+        CompactThumbnailNextBlur.Radius = compactPeakBlur;
+
+        // Reset outgoing layer to pristine starting state.
+        ThumbnailOutScale.ScaleX = 1.0;
+        ThumbnailOutScale.ScaleY = 1.0;
+        ThumbnailImage.Opacity = 1.0;
+        ThumbnailOutBlur.Radius = 0.0;
+
+        CompactThumbnailOutScale.ScaleX = 1.0;
+        CompactThumbnailOutScale.ScaleY = 1.0;
+        CompactThumbnail.Opacity = 1.0;
+        CompactThumbnailOutBlur.Radius = 0.0;
+
+        // ─── Outgoing animations ───
+        // Blur ramps up first (cubic out → fast at start, slow at end), then
+        // opacity fades (cubic in → starts slow, accelerates) so dissolve feels
+        // gradual instead of an instant fade.
+        var outBlurExpanded = new DoubleAnimation(0.0, expandedPeakBlur, outDur) { EasingFunction = cubicOut };
+        var outBlurCompact  = new DoubleAnimation(0.0, compactPeakBlur,  outDur) { EasingFunction = cubicOut };
+        var outFade         = new DoubleAnimation(1.0, 0.0, outDur)              { EasingFunction = cubicIn };
+        var outScale        = new DoubleAnimation(1.0, 0.96, totalDur)           { EasingFunction = sineInOut };
+        Timeline.SetDesiredFrameRate(outBlurExpanded, 60);
+        Timeline.SetDesiredFrameRate(outBlurCompact, 60);
+        Timeline.SetDesiredFrameRate(outFade, 144);
+        Timeline.SetDesiredFrameRate(outScale, 144);
+
+        // ─── Incoming animations (delayed by 'overlap') ───
+        // Hold blurred + invisible for 'overlap', then bloom into focus.
+        DoubleAnimationUsingKeyFrames MakeInBlur(double peak)
+        {
+            var a = new DoubleAnimationUsingKeyFrames();
+            a.KeyFrames.Add(new DiscreteDoubleKeyFrame(peak, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            a.KeyFrames.Add(new DiscreteDoubleKeyFrame(peak, KeyTime.FromTimeSpan(overlap)));
+            a.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(totalDur), quintOut));
+            return a;
+        }
+
+        var inBlurExpanded = MakeInBlur(expandedPeakBlur);
+        var inBlurCompact  = MakeInBlur(compactPeakBlur);
+
+        var inFade = new DoubleAnimationUsingKeyFrames();
+        inFade.KeyFrames.Add(new DiscreteDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        inFade.KeyFrames.Add(new DiscreteDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(overlap)));
+        inFade.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), cubicOut));
+
+        var inScale = new DoubleAnimationUsingKeyFrames();
+        inScale.KeyFrames.Add(new DiscreteDoubleKeyFrame(1.05, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        inScale.KeyFrames.Add(new DiscreteDoubleKeyFrame(1.05, KeyTime.FromTimeSpan(overlap)));
+        inScale.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), quintOut));
+
+        Timeline.SetDesiredFrameRate(inBlurExpanded, 60);
+        Timeline.SetDesiredFrameRate(inBlurCompact, 60);
+        Timeline.SetDesiredFrameRate(inFade, 144);
+        Timeline.SetDesiredFrameRate(inScale, 144);
 
         // ─── Apply to expanded view ───
-        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipX);
-        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, flipY);
-        ThumbnailImage.BeginAnimation(OpacityProperty, fade);
-        ThumbnailImage.BeginAnimation(Image.SourceProperty, sourceAnim);
+        ThumbnailImage.BeginAnimation(OpacityProperty, outFade);
+        ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, outScale);
+        ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, outScale);
+        ThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, outBlurExpanded);
+        ThumbnailImageNext.BeginAnimation(OpacityProperty, inFade);
+        ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, inScale);
+        ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, inScale);
+        ThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, inBlurExpanded);
 
         // ─── Apply to compact view ───
-        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, flipX);
-        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, flipY);
-        CompactThumbnail.BeginAnimation(OpacityProperty, fade);
-        CompactThumbnail.BeginAnimation(Image.SourceProperty, sourceAnim);
+        CompactThumbnail.BeginAnimation(OpacityProperty, outFade);
+        CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, outScale);
+        CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, outScale);
+        CompactThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, outBlurCompact);
+        CompactThumbnailNext.BeginAnimation(OpacityProperty, inFade);
+        CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, inScale);
+        CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, inScale);
+        CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, inBlurCompact);
 
-        flipX.Completed += (s, e) =>
+        // Single Completed handler on the longest timeline commits the swap:
+        // promote the overlay's image to the base layer, clear the overlay,
+        // and reset every transient transform/opacity/blur.
+        inScale.Completed += (s, e) =>
         {
             if (_thumbnailSwitchGeneration != generation) return;
-            ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            ThumbnailFlip.ScaleX = 1.0;
-            ThumbnailFlip.ScaleY = 1.0;
-            CompactThumbnailFlip.ScaleX = 1.0;
-            CompactThumbnailFlip.ScaleY = 1.0;
 
+            // Stop & clear all animations.
             ThumbnailImage.BeginAnimation(OpacityProperty, null);
-            CompactThumbnail.BeginAnimation(OpacityProperty, null);
-            ThumbnailImage.Opacity = 1.0;
-            CompactThumbnail.Opacity = 1.0;
-        };
+            ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            ThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            ThumbnailImageNext.BeginAnimation(OpacityProperty, null);
+            ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            ThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
-        sourceAnim.Completed += (s, e) =>
-        {
-            if (_thumbnailSwitchGeneration != generation) return;
-            ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
-            CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
+            CompactThumbnail.BeginAnimation(OpacityProperty, null);
+            CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            CompactThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            CompactThumbnailNext.BeginAnimation(OpacityProperty, null);
+            CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+
+            // Promote overlay → base.
             ThumbnailImage.Source = newThumb;
             CompactThumbnail.Source = newThumb;
+            ThumbnailImageNext.Source = null;
+            CompactThumbnailNext.Source = null;
+
+            // Reset all transient state.
+            ThumbnailImage.Opacity = 1.0;
+            CompactThumbnail.Opacity = 1.0;
+            ThumbnailImageNext.Opacity = 0.0;
+            CompactThumbnailNext.Opacity = 0.0;
+            ThumbnailOutScale.ScaleX = 1.0;
+            ThumbnailOutScale.ScaleY = 1.0;
+            CompactThumbnailOutScale.ScaleX = 1.0;
+            CompactThumbnailOutScale.ScaleY = 1.0;
+            ThumbnailNextScale.ScaleX = 1.0;
+            ThumbnailNextScale.ScaleY = 1.0;
+            CompactThumbnailNextScale.ScaleX = 1.0;
+            CompactThumbnailNextScale.ScaleY = 1.0;
+            ThumbnailOutBlur.Radius = 0.0;
+            ThumbnailNextBlur.Radius = 0.0;
+            CompactThumbnailOutBlur.Radius = 0.0;
+            CompactThumbnailNextBlur.Radius = 0.0;
         };
     }
 
     private void CancelThumbnailSwitchAnimations(ImageSource? targetThumb = null)
     {
-        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        ThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        CompactThumbnailFlip.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-
-        ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
+        // Stop every active animation on both layers.
         ThumbnailImage.BeginAnimation(OpacityProperty, null);
-        CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
+        ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
+        ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        ThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        ThumbnailImageNext.BeginAnimation(OpacityProperty, null);
+        ThumbnailImageNext.BeginAnimation(Image.SourceProperty, null);
+        ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        ThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+
         CompactThumbnail.BeginAnimation(OpacityProperty, null);
+        CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
+        CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        CompactThumbnailNext.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailNext.BeginAnimation(Image.SourceProperty, null);
+        CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
-        ThumbnailFlip.ScaleX = 1.0;
-        ThumbnailFlip.ScaleY = 1.0;
-        CompactThumbnailFlip.ScaleX = 1.0;
-        CompactThumbnailFlip.ScaleY = 1.0;
-        ThumbnailImage.Opacity = 1.0;
-        CompactThumbnail.Opacity = 1.0;
+        // Reset transforms + blur.
+        ThumbnailOutScale.ScaleX = 1.0;
+        ThumbnailOutScale.ScaleY = 1.0;
+        CompactThumbnailOutScale.ScaleX = 1.0;
+        CompactThumbnailOutScale.ScaleY = 1.0;
+        ThumbnailNextScale.ScaleX = 1.0;
+        ThumbnailNextScale.ScaleY = 1.0;
+        CompactThumbnailNextScale.ScaleX = 1.0;
+        CompactThumbnailNextScale.ScaleY = 1.0;
+        ThumbnailOutBlur.Radius = 0.0;
+        ThumbnailNextBlur.Radius = 0.0;
+        CompactThumbnailOutBlur.Radius = 0.0;
+        CompactThumbnailNextBlur.Radius = 0.0;
 
-        var resolvedThumb = targetThumb ?? _currentMediaInfo?.Thumbnail ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
+        // If an in-flight transition was interrupted, the overlay layer may hold
+        // the most recent target frame — promote it onto the base so the user
+        // doesn't see the old thumbnail snap back.
+        var overlayTarget = ThumbnailImageNext.Source ?? CompactThumbnailNext.Source;
+        var resolvedThumb = targetThumb ?? overlayTarget ?? _currentMediaInfo?.Thumbnail
+                            ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
         if (resolvedThumb != null)
         {
             ThumbnailImage.Source = resolvedThumb;
             CompactThumbnail.Source = resolvedThumb;
         }
+
+        // Clear overlay so it doesn't bleed through on the next frame.
+        ThumbnailImageNext.Source = null;
+        CompactThumbnailNext.Source = null;
+        ThumbnailImageNext.Opacity = 0.0;
+        CompactThumbnailNext.Opacity = 0.0;
+        ThumbnailImage.Opacity = 1.0;
+        CompactThumbnail.Opacity = 1.0;
     }
 
     #endregion

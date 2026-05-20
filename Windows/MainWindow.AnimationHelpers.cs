@@ -43,6 +43,8 @@ public partial class MainWindow
         
         var widthAnim = MakeAnim(notchWidth, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
         var heightAnim = MakeAnim(notchHeight, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
+        VNotch.Services.RuntimeLog.Log("NOTCH-WIDTH",
+            $"AnimateNotchHover -> {notchWidth} (hover={isHovered}, _isExpanded={_isExpanded}, _isAnimating={_isAnimating})");
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 

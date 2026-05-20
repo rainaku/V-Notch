@@ -69,8 +69,16 @@ public partial class MainWindow
         _lastDominantColor = dominantColor;
         _lastSubColor = subColor;
 
-        var targetColor = Color.FromRgb(dominantColor.R, dominantColor.G, dominantColor.B);
-        var vibrantTargetColor = Color.FromRgb(subColor.R, subColor.G, subColor.B);
+        // Lift dark dominant colors so the blur layer remains visible on the
+        // dark UI. Without this, a deep red (V≈0.15) thumbnail produces an
+        // almost-black tint that disappears against the notch background.
+        // We boost lightness while preserving hue/saturation, so the result
+        // is the same color *visible* — not a different color.
+        var liftedDominant = LiftDarkColor(dominantColor);
+        var liftedSub = LiftDarkColor(subColor);
+
+        var targetColor = Color.FromRgb(liftedDominant.R, liftedDominant.G, liftedDominant.B);
+        var vibrantTargetColor = Color.FromRgb(liftedSub.R, liftedSub.G, liftedSub.B);
         double dominantLuminance = (0.2126 * dominantColor.R + 0.7152 * dominantColor.G + 0.0722 * dominantColor.B) / 255.0;
 
         var colorAnim = new ColorAnimation
@@ -90,6 +98,14 @@ public partial class MainWindow
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh))
             ? DynamicIslandColorExtractor.GetAdaptiveBlurOpacity(dominantLuminance, _settings.MediaBlurBrightnessBoost)
             : 0;
+        // For dark thumbnails, boost the tint opacity further so the lifted
+        // color tint is more present in the final blend (otherwise the bright
+        // blurred image dominates and the color barely shows through).
+        if (targetOpacity > 0 && dominantLuminance < 0.25)
+        {
+            double darknessBoost = 1.0 + (0.25 - dominantLuminance) * 1.4; // up to ×1.35
+            targetOpacity = Math.Min(targetOpacity * darknessBoost, 0.95);
+        }
         int animationVersion = ++_mediaBackgroundAnimationVersion;
 
         var opacityAnim = new DoubleAnimation
@@ -194,6 +210,41 @@ public partial class MainWindow
         {
             replace(sb?.Color);
         }
+    }
+
+    /// <summary>
+    /// Lifts a color's brightness so it remains visible as a blur tint on the
+    /// dark notch UI. Preserves hue and saturation — only the value/lightness
+    /// is boosted. Bright colors (already vibrant) are returned unchanged.
+    /// </summary>
+    private static Color LiftDarkColor(Color c)
+    {
+        double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
+        double max = Math.Max(r, Math.Max(g, b));
+        double min = Math.Min(r, Math.Min(g, b));
+        double v = max;
+        double s = max > 0 ? (max - min) / max : 0;
+
+        // Already bright enough — keep as is
+        if (v >= 0.55) return c;
+
+        // Compute target V based on how dark the color is.
+        // Darker source → more lift, but never beyond 0.65 to keep color identity
+        // (we want lifted-red to still look red, not pink).
+        double targetV;
+        if (v < 0.20)        targetV = 0.55;  // very dark → lift to medium-bright
+        else if (v < 0.35)   targetV = 0.55;
+        else if (v < 0.50)   targetV = 0.55;
+        else                 targetV = v;
+
+        if (targetV <= v) return c;
+
+        double scale = targetV / Math.Max(v, 0.01);
+        byte newR = (byte)Math.Clamp(c.R * scale, 0, 255);
+        byte newG = (byte)Math.Clamp(c.G * scale, 0, 255);
+        byte newB = (byte)Math.Clamp(c.B * scale, 0, 255);
+
+        return Color.FromRgb(newR, newG, newB);
     }
 
     private void FadeToBlackThenUpdate(MediaInfo info)

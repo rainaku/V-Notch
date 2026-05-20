@@ -21,12 +21,21 @@ internal static class DynamicIslandColorExtractor
     {
         var result = ExtractAdvancedPalette(bitmap, Rect.Empty);
         if (result.IsMonotone || result.Primary == default)
-            return new Palette(Color.FromRgb(34, 34, 34), Colors.White);
+        {
+            RuntimeLog.Log("COLOR-PICK",
+                $"FALLBACK: IsMonotone={result.IsMonotone} Primary={result.Primary} (R={result.Primary.R},G={result.Primary.G},B={result.Primary.B})");
+            // Grayscale/monotone: use a warm gray that feels less sterile than pure white
+            return new Palette(Color.FromRgb(34, 34, 34), Color.FromRgb(180, 180, 180));
+        }
 
+        RuntimeLog.Log("COLOR-PICK",
+            $"OK: Primary=({result.Primary.R},{result.Primary.G},{result.Primary.B}) Secondary=({result.Secondary.R},{result.Secondary.G},{result.Secondary.B})");
         var main = result.Primary;
         var darkUiBackground = Colors.Black;
-        var sub = result.Secondary != default ? result.Secondary : Colors.White;
-        sub = EnsureTextOnDarkBackground(sub, darkUiBackground, 4.5);
+        // Sub color (progress bar, text accent) = primary color adjusted for readability.
+        // Using primary ensures visual consistency — the accent color always matches
+        // the dominant color the user sees in the thumbnail.
+        var sub = EnsureTextOnDarkBackground(main, darkUiBackground, 4.5);
         return new Palette(main, sub);
     }
 
@@ -34,12 +43,17 @@ internal static class DynamicIslandColorExtractor
     {
         var result = ExtractAdvancedPalette(bitmap, smartCropBbox);
         if (result.IsMonotone || result.Primary == default)
-            return new Palette(Color.FromRgb(34, 34, 34), Colors.White);
+        {
+            RuntimeLog.Log("COLOR-PICK",
+                $"FALLBACK(bbox): IsMonotone={result.IsMonotone} Primary={result.Primary} (R={result.Primary.R},G={result.Primary.G},B={result.Primary.B})");
+            return new Palette(Color.FromRgb(34, 34, 34), Color.FromRgb(180, 180, 180));
+        }
 
+        RuntimeLog.Log("COLOR-PICK",
+            $"OK(bbox): Primary=({result.Primary.R},{result.Primary.G},{result.Primary.B}) Secondary=({result.Secondary.R},{result.Secondary.G},{result.Secondary.B})");
         var main = result.Primary;
         var darkUiBackground = Colors.Black;
-        var sub = result.Secondary != default ? result.Secondary : Colors.White;
-        sub = EnsureTextOnDarkBackground(sub, darkUiBackground, 4.5);
+        var sub = EnsureTextOnDarkBackground(main, darkUiBackground, 4.5);
         return new Palette(main, sub);
     }
 
@@ -126,10 +140,17 @@ internal static class DynamicIslandColorExtractor
     {
         try
         {
-            // Step 1: Preprocess — resize to 150×150, convert to RGB
+            // ═══════════════════════════════════════════════════════════════════
+            // Pipeline: Resize → Filter → Quantize → Score → Pick
+            // Goal: find the most VIBRANT, eye-catching color — not the most
+            // common one. A small vivid accent beats a large muted background.
+            // ═══════════════════════════════════════════════════════════════════
+
+            // Step 1: Resize to 64×64 for fast processing
             var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-            double scaleX = (double)PreprocessSize / formattedBitmap.PixelWidth;
-            double scaleY = (double)PreprocessSize / formattedBitmap.PixelHeight;
+            const int analysisSize = 64;
+            double scaleX = (double)analysisSize / formattedBitmap.PixelWidth;
+            double scaleY = (double)analysisSize / formattedBitmap.PixelHeight;
             var small = new TransformedBitmap(formattedBitmap, new ScaleTransform(scaleX, scaleY));
 
             int width = small.PixelWidth;
@@ -141,20 +162,20 @@ internal static class DynamicIslandColorExtractor
             byte[] pixels = new byte[height * stride];
             small.CopyPixels(pixels, stride, 0);
 
-            // Normalize smart crop bbox to analysis image coordinates
-            Rect normCrop = Rect.Empty;
-            if (!smartCropBbox.IsEmpty && smartCropBbox.Width > 0 && smartCropBbox.Height > 0)
-            {
-                normCrop = new Rect(
-                    smartCropBbox.X * scaleX, smartCropBbox.Y * scaleY,
-                    smartCropBbox.Width * scaleX, smartCropBbox.Height * scaleY);
-            }
+            // Step 2: Collect HSV samples, filter noise (black/white/gray)
+            const int NUM_BUCKETS = 36; // 10° per bucket for finer hue resolution
+            float[] bucketSatSum = new float[NUM_BUCKETS];
+            float[] bucketValSum = new float[NUM_BUCKETS];
+            float[] bucketWeight = new float[NUM_BUCKETS];
+            int[] bucketCount = new int[NUM_BUCKETS];
+            // Track the most saturated pixel per bucket for representative color
+            float[] bucketPeakS = new float[NUM_BUCKETS];
+            float[] bucketPeakH = new float[NUM_BUCKETS];
+            float[] bucketPeakV = new float[NUM_BUCKETS];
 
-            // Step 2: Weighted zone sampling — collect HSV pixels with weights
-            var samples = new List<(float H, float S, float V, float Weight)>(width * height);
             float centerX = width / 2f, centerY = height / 2f;
-            float quarterW = width / 4f, quarterH = height / 4f;
-            int lowSatCount = 0, totalCount = 0;
+            int totalColorPixels = 0;
+            int totalPixels = 0;
 
             for (int y = 0; y < height; y++)
             {
@@ -169,104 +190,75 @@ internal static class DynamicIslandColorExtractor
                     float bf = pixels[i] / 255f;
 
                     var (h, s, v) = RgbToHsv(rf, gf, bf);
-                    totalCount++;
-                    if (s < 0.15f) lowSatCount++;
+                    totalPixels++;
 
-                    // Zone weighting
-                    float weight = 1.0f; // edge/background default
+                    // Filter: skip achromatic pixels (black, white, gray)
+                    if (v < 0.06f) continue;                    // pure black
+                    if (s < 0.12f) continue;                    // gray/white/desaturated
 
-                    // Smart-crop bbox zone: ×2.0
-                    if (!normCrop.IsEmpty && x >= normCrop.X && x <= normCrop.Right &&
-                        y >= normCrop.Y && y <= normCrop.Bottom)
+                    totalColorPixels++;
+
+                    int bucket = (int)(h * NUM_BUCKETS) % NUM_BUCKETS;
+                    if (bucket < 0) bucket += NUM_BUCKETS;
+
+                    // Zone weight: center pixels matter more
+                    float dx = (x - centerX) / centerX;
+                    float dy = (y - centerY) / centerY;
+                    float dist = MathF.Sqrt(dx * dx + dy * dy);
+                    float zoneWeight = 1.0f + MathF.Max(0, 1.0f - dist) * 0.5f; // center: 1.5, edge: 1.0
+
+                    bucketSatSum[bucket] += s * zoneWeight;
+                    bucketValSum[bucket] += v * zoneWeight;
+                    bucketWeight[bucket] += zoneWeight;
+                    bucketCount[bucket]++;
+
+                    // Track peak saturation pixel (most vibrant representative)
+                    float vibrancy = s * MathF.Max(v, 0.3f); // floor V so dark saturated still counts
+                    if (vibrancy > bucketPeakS[bucket])
                     {
-                        weight = 2.0f;
+                        bucketPeakS[bucket] = vibrancy;
+                        bucketPeakH[bucket] = h;
+                        bucketPeakV[bucket] = Math.Max(v, 0.4f); // lift dark peaks for display
                     }
-                    // Center 50% frame: ×1.5
-                    else if (x >= quarterW && x <= width - quarterW &&
-                             y >= quarterH && y <= height - quarterH)
-                    {
-                        weight = 1.5f;
-                    }
-
-                    samples.Add((h, s, v, weight));
                 }
             }
 
-            if (samples.Count < 10)
+            // Monotone check
+            bool isMonotone = totalPixels > 0 && (float)totalColorPixels / totalPixels < 0.08f;
+
+            RuntimeLog.Log("COLOR-EXTRACT",
+                $"monotone check: totalPixels={totalPixels} colorPixels={totalColorPixels} " +
+                $"ratio={((float)totalColorPixels / Math.Max(totalPixels, 1)):F3} isMonotone={isMonotone}");
+
+            if (isMonotone)
                 return new PaletteResult(Color.FromRgb(30, 30, 30), default, default, true, false, Colors.White);
 
-            // Check grayscale / monotone
-            bool isMonotone = totalCount > 0 && (float)lowSatCount / totalCount > 0.85f;
-            if (isMonotone)
-            {
-                var brightest = samples
-                    .Where(s => s.V < 0.92f && s.V > 0.15f)
-                    .OrderByDescending(s => s.V)
-                    .FirstOrDefault();
-                var monoColor = brightest.V > 0 ? HsvToColor(brightest.H, brightest.S, brightest.V) : Colors.White;
-                return new PaletteResult(monoColor, default, default, true, false, Colors.White);
-            }
-
-            // Step 3: Hue-bucket approach (more reliable than K-Means for color extraction)
-            // 24 hue buckets × weighted accumulation
-            const int NUM_BUCKETS = 24;
-            float[] bucketWeight = new float[NUM_BUCKETS];
-            float[] bucketR = new float[NUM_BUCKETS];
-            float[] bucketG = new float[NUM_BUCKETS];
-            float[] bucketB = new float[NUM_BUCKETS];
-            float[] bucketS = new float[NUM_BUCKETS];
-            float[] bucketV = new float[NUM_BUCKETS];
-
-            foreach (var sample in samples)
-            {
-                // Skip near-black and near-white
-                if (sample.V < 0.10f) continue;
-                if (sample.S < 0.08f && sample.V > 0.90f) continue;
-
-                // Only bucket pixels with some color (S > 0.12)
-                if (sample.S < 0.12f) continue;
-
-                int bucket = (int)(sample.H * NUM_BUCKETS) % NUM_BUCKETS;
-                if (bucket < 0) bucket += NUM_BUCKETS;
-
-                // Weight: zone weight × saturation boost × value penalty for very dark
-                float pixWeight = sample.Weight;
-                pixWeight *= (0.5f + sample.S * 0.5f); // saturated pixels count more
-                if (sample.V < 0.25f) pixWeight *= 0.5f; // very dark pixels count less
-
-                var rgb = HsvToColor(sample.H, sample.S, sample.V);
-                bucketWeight[bucket] += pixWeight;
-                bucketR[bucket] += rgb.R / 255f * pixWeight;
-                bucketG[bucket] += rgb.G / 255f * pixWeight;
-                bucketB[bucket] += rgb.B / 255f * pixWeight;
-                bucketS[bucket] += sample.S * pixWeight;
-                bucketV[bucket] += sample.V * pixWeight;
-            }
-
-            // Find top 2 hue regions (3-bucket wide windows)
+            // Step 3: Score each hue bucket
+            // Score = Area × Saturation × Contrast(brightness)
+            // This ensures the most VIBRANT color wins, not just the largest area.
             float bestScore = -1, secondScore = -1;
             int bestBucket = -1, secondBucket = -1;
 
             for (int i = 0; i < NUM_BUCKETS; i++)
             {
-                float regionWeight = 0;
-                float regionSat = 0;
-                for (int offset = -1; offset <= 1; offset++)
-                {
-                    int idx = (i + offset + NUM_BUCKETS) % NUM_BUCKETS;
-                    regionWeight += bucketWeight[idx];
-                    regionSat += bucketS[idx];
-                }
-                float avgSat = regionWeight > 0 ? regionSat / regionWeight : 0;
-                float score = regionWeight * (1f + avgSat * 0.5f);
+                if (bucketCount[i] == 0) continue;
+
+                float area = (float)bucketCount[i] / Math.Max(totalColorPixels, 1);
+                float avgSat = bucketSatSum[i] / bucketWeight[i];
+                float avgVal = bucketValSum[i] / bucketWeight[i];
+
+                // Score formula: area^0.3 × saturation × value
+                // area^0.3 = diminishing returns on area (small vivid > large muted)
+                // saturation = how colorful
+                // value = how visible (not too dark)
+                float score = MathF.Pow(area, 0.3f) * avgSat * avgVal;
 
                 if (score > bestScore)
                 {
-                    // Push best to second if they're far enough apart in hue
                     if (bestBucket >= 0)
                     {
                         int hueDist = Math.Min(Math.Abs(i - bestBucket), NUM_BUCKETS - Math.Abs(i - bestBucket));
-                        if (hueDist >= 3 && bestScore > secondScore)
+                        if (hueDist >= 4 && bestScore > secondScore)
                         {
                             secondScore = bestScore;
                             secondBucket = bestBucket;
@@ -278,7 +270,7 @@ internal static class DynamicIslandColorExtractor
                 else if (score > secondScore)
                 {
                     int hueDist = Math.Min(Math.Abs(i - bestBucket), NUM_BUCKETS - Math.Abs(i - bestBucket));
-                    if (hueDist >= 3)
+                    if (hueDist >= 4)
                     {
                         secondScore = score;
                         secondBucket = i;
@@ -286,53 +278,38 @@ internal static class DynamicIslandColorExtractor
                 }
             }
 
-            // Extract primary color from best bucket region
+            // Step 4: Extract representative color from peak pixel (most vibrant)
             Color primary = Color.FromRgb(30, 30, 30);
-            if (bestBucket >= 0 && bestScore > 0)
+            if (bestBucket >= 0)
             {
-                float sumR = 0, sumG = 0, sumB = 0, sumW = 0;
-                for (int offset = -1; offset <= 1; offset++)
-                {
-                    int idx = (bestBucket + offset + NUM_BUCKETS) % NUM_BUCKETS;
-                    sumR += bucketR[idx]; sumG += bucketG[idx]; sumB += bucketB[idx]; sumW += bucketWeight[idx];
-                }
-                if (sumW > 0)
-                {
-                    primary = Color.FromRgb(
-                        (byte)Math.Clamp(sumR / sumW * 255f, 0, 255),
-                        (byte)Math.Clamp(sumG / sumW * 255f, 0, 255),
-                        (byte)Math.Clamp(sumB / sumW * 255f, 0, 255));
-                }
+                // Use the peak-saturation pixel's hue with boosted V for display
+                float pH = bucketPeakH[bestBucket];
+                float pS = Math.Min(bucketPeakS[bestBucket] / Math.Max(bucketPeakV[bestBucket], 0.3f), 1.0f);
+                float pV = bucketPeakV[bestBucket];
+                // Ensure the color is visible on dark UI: minimum V = 0.45
+                pV = Math.Max(pV, 0.45f);
+                pS = Math.Max(pS, 0.50f);
+                primary = HsvToColor(pH, pS, pV);
             }
 
-            // Extract secondary color from second bucket region
             Color secondary = default;
-            if (secondBucket >= 0 && secondScore > 0)
+            if (secondBucket >= 0)
             {
-                float sumR = 0, sumG = 0, sumB = 0, sumW = 0;
-                for (int offset = -1; offset <= 1; offset++)
-                {
-                    int idx = (secondBucket + offset + NUM_BUCKETS) % NUM_BUCKETS;
-                    sumR += bucketR[idx]; sumG += bucketG[idx]; sumB += bucketB[idx]; sumW += bucketWeight[idx];
-                }
-                if (sumW > 0)
-                {
-                    secondary = Color.FromRgb(
-                        (byte)Math.Clamp(sumR / sumW * 255f, 0, 255),
-                        (byte)Math.Clamp(sumG / sumW * 255f, 0, 255),
-                        (byte)Math.Clamp(sumB / sumW * 255f, 0, 255));
-                }
+                float pH = bucketPeakH[secondBucket];
+                float pS = Math.Min(bucketPeakS[secondBucket] / Math.Max(bucketPeakV[secondBucket], 0.3f), 1.0f);
+                float pV = bucketPeakV[secondBucket];
+                pV = Math.Max(pV, 0.45f);
+                pS = Math.Max(pS, 0.50f);
+                secondary = HsvToColor(pH, pS, pV);
             }
 
-            bool isFlatBg = bestScore > 0 && (bestScore / (bestScore + secondScore + 0.001f)) > 0.80f;
-            var accent = secondary; // simplified
+            bool isFlatBg = bestScore > 0 && secondScore > 0 &&
+                            (bestScore / (bestScore + secondScore)) > 0.85f;
 
-            // Step 6: Contrast check for text overlay (WCAG)
             double primaryLum = GetRelativeLuminance(primary);
-            double contrastWithWhite = (1.0 + 0.05) / (primaryLum + 0.05);
-            Color textOnPrimary = contrastWithWhite >= 4.5 ? Colors.White : Colors.Black;
+            Color textOnPrimary = primaryLum > 0.4 ? Colors.Black : Colors.White;
 
-            return new PaletteResult(primary, secondary, accent, false, isFlatBg, textOnPrimary);
+            return new PaletteResult(primary, secondary, secondary, false, isFlatBg, textOnPrimary);
         }
         catch
         {

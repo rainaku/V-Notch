@@ -405,6 +405,9 @@ public partial class MainWindow
     {
         // Allow rendering during seek spring animation, but not during manual drag
         if (_isDraggingProgress || _currentMediaInfo == null) return;
+        // While the rewind animation is running, the WPF DoubleAnimation owns
+        // ProgressBarScale.ScaleX. Skip rendering so we don't fight it.
+        if (_isRewindAnimating) return;
 
         var frame = _progressEngine.GetUiFrame();
 
@@ -513,38 +516,9 @@ public partial class MainWindow
             {
                 effectivePlaybackRate = Math.Clamp(_currentMediaInfo.PlaybackRate, 0.5, 3.0);
             }
-
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-
             double rawTargetRatio = engineRatio;
             double rawRatioDiff = Math.Abs(rawTargetRatio - _progressDisplayRatio);
             double rawDiffSeconds = rawRatioDiff * frame.Duration.TotalSeconds;
-
-            // Large jumps must snap to the real engine position before any
-            // backward-jitter cap runs, otherwise a track change can inherit
-            // the previous song's bar state and slowly crawl backward.
             if (rawDiffSeconds >= SOURCE_SMOOTH_SECONDS)
             {
                 _progressDisplayRatio = rawTargetRatio;
@@ -793,6 +767,132 @@ public partial class MainWindow
         ProgressBarScale.ScaleX = targetRatio;
     }
 
+    private DispatcherTimer? _rewindTextTimer;
+    private bool _isRewindAnimating = false;
+
+    /// <summary>
+    /// Animate the progress bar (and current-time text) sliding from its
+    /// current position back to <paramref name="targetRatio"/>. Used by the
+    /// "previous track" handler so the user sees a smooth rewind instead of
+    /// the bar snapping. The animation duration scales with how far we have
+    /// to travel, capped to keep it snappy.
+    /// </summary>
+    private void AnimateProgressRewindTo(double targetRatio)
+    {
+        targetRatio = Math.Clamp(targetRatio, 0, 1);
+
+        double fromRatio = Math.Clamp(_progressDisplayRatio, 0, 1);
+        double delta = fromRatio - targetRatio;
+
+        // Cancel any in-flight rewind text timer before starting a new one.
+        StopRewindTextAnimation();
+
+        // No meaningful distance — just commit the target.
+        if (delta <= 0.005)
+        {
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ProgressBarScale.ScaleX = targetRatio;
+            _progressDisplayRatio = targetRatio;
+            _progressTargetRatio = targetRatio;
+            _progressSpringTargetRatio = targetRatio;
+            _progressVelocity = 0;
+            _springSettleFrames = 0;
+            _isSeekSpringActive = false;
+            CurrentTimeText.Text = FormatTime(GetPositionForRatio(targetRatio));
+            return;
+        }
+
+        // Suspend the spring/seek system so it doesn't fight the rewind anim.
+        _isSeekSpringActive = false;
+        _springSettleFrames = 0;
+        _progressVelocity = 0;
+        StopSpringRenderLoop();
+        _isRewindAnimating = true;
+
+        // Duration scales with distance: short rewinds feel zippy, long
+        // rewinds get a touch more time. Clamp so it never drags.
+        var duration = TimeSpan.FromMilliseconds(Math.Clamp(220 + delta * 320, 260, 480));
+
+        var anim = new DoubleAnimation(fromRatio, targetRatio, new Duration(duration))
+        {
+            EasingFunction = _easeExpOut6,
+            FillBehavior = FillBehavior.Stop
+        };
+        Timeline.SetDesiredFrameRate(anim, 144);
+
+        anim.Completed += (s, e) =>
+        {
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ProgressBarScale.ScaleX = targetRatio;
+            _progressDisplayRatio = targetRatio;
+            _progressTargetRatio = targetRatio;
+            _progressSpringTargetRatio = targetRatio;
+            _lastRenderedRatio = targetRatio;
+            _lastDisplayedSecond = (int)GetPositionForRatio(targetRatio).TotalSeconds;
+            CurrentTimeText.Text = FormatTime(GetPositionForRatio(targetRatio));
+            StopRewindTextAnimation();
+            _isRewindAnimating = false;
+        };
+
+        // Mirror the WPF animation in the engine state so RenderProgressBar
+        // (which can be invoked by ProgressTimer between frames) does not
+        // overwrite ScaleX with a competing value.
+        _progressTargetRatio = targetRatio;
+        _progressSpringTargetRatio = targetRatio;
+        _progressDisplayRatio = targetRatio;
+
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+
+        // Drive the time-text update from a parallel timer so the text glides
+        // alongside the bar. We can't read animated DPs cheaply, so we
+        // recompute progress against animation start time.
+        var startTime = DateTime.UtcNow;
+        var totalMs = duration.TotalMilliseconds;
+        _rewindTextTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(16)
+        };
+        _rewindTextTimer.Tick += (s, e) =>
+        {
+            double t = (DateTime.UtcNow - startTime).TotalMilliseconds / totalMs;
+            if (t >= 1.0)
+            {
+                StopRewindTextAnimation();
+                return;
+            }
+            // Mirror ExponentialEase EaseOut, exponent=6.
+            double eased = 1 - Math.Pow(2, -6 * 10 * t);
+            // Normalize so eased(0)=0, eased(1)=1.
+            double maxEased = 1 - Math.Pow(2, -60);
+            eased = Math.Clamp(eased / maxEased, 0, 1);
+            double ratio = fromRatio + (targetRatio - fromRatio) * eased;
+            var pos = GetPositionForRatio(ratio);
+            int sec = (int)pos.TotalSeconds;
+            if (sec != _lastDisplayedSecond)
+            {
+                _lastDisplayedSecond = sec;
+                CurrentTimeText.Text = FormatTime(pos);
+            }
+        };
+        _rewindTextTimer.Start();
+    }
+
+    private void StopRewindTextAnimation()
+    {
+        if (_rewindTextTimer != null)
+        {
+            _rewindTextTimer.Stop();
+            _rewindTextTimer = null;
+        }
+    }
+
+    private TimeSpan GetPositionForRatio(double ratio)
+    {
+        var duration = _progressEngine.GetUiFrame().Duration;
+        if (duration.TotalSeconds <= 0) return TimeSpan.Zero;
+        return TimeSpan.FromSeconds(Math.Clamp(ratio, 0, 1) * duration.TotalSeconds);
+    }
+
     private async Task SeekToPosition(TimeSpan newPos)
     {
         var duration = _progressEngine.GetUiFrame().Duration;
@@ -958,14 +1058,47 @@ public partial class MainWindow
         double targetRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
         targetRatio = Math.Clamp(targetRatio, 0, 1);
 
-        // Jump directly to current position — no catch-up animation
-        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        _progressDisplayRatio = targetRatio;
+        // Animate from the last known position to the current real position.
+        // This creates a smooth "catch-up" when the notch expands, showing
+        // the bar sliding from where it was last rendered to where it is now.
+        double fromRatio = Math.Clamp(_progressDisplayRatio, 0, 1);
+        if (Math.Abs(fromRatio - targetRatio) < 0.005)
+        {
+            // Already at target — just set directly
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ProgressBarScale.ScaleX = targetRatio;
+            _progressDisplayRatio = targetRatio;
+            _progressTargetRatio = targetRatio;
+            _progressSpringTargetRatio = targetRatio;
+            _lastRenderedRatio = targetRatio;
+            _progressVelocity = 0;
+            CurrentTimeText.Text = FormatTime(frame.Position);
+            RemainingTimeText.Text = FormatTime(frame.Duration);
+            return;
+        }
+
         _progressTargetRatio = targetRatio;
         _progressSpringTargetRatio = targetRatio;
-        _lastRenderedRatio = targetRatio;
         _progressVelocity = 0;
-        ProgressBarScale.ScaleX = targetRatio;
+        ProgressBarScale.ScaleX = fromRatio;
+
+        var catchUpDuration = TimeSpan.FromMilliseconds(550);
+        var catchUpAnim = new DoubleAnimation(fromRatio, targetRatio, new Duration(catchUpDuration))
+        {
+            EasingFunction = _easeExpOut6,
+            FillBehavior = FillBehavior.Stop
+        };
+        Timeline.SetDesiredFrameRate(catchUpAnim, 144);
+
+        catchUpAnim.Completed += (s, e) =>
+        {
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ProgressBarScale.ScaleX = targetRatio;
+            _progressDisplayRatio = targetRatio;
+            _lastRenderedRatio = targetRatio;
+        };
+
+        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, catchUpAnim);
         CurrentTimeText.Text = FormatTime(frame.Position);
         RemainingTimeText.Text = FormatTime(frame.Duration);
     }

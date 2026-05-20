@@ -616,16 +616,40 @@
                                 <BlurEffect x:Name="MusicCompactContentBlur" Radius="0" RenderingBias="Performance"/>
                             </Border.Effect>
                             <Border.RenderTransform>
-                                <TransformGroup>
-                                    <ScaleTransform x:Name="CompactThumbnailScale" ScaleX="1" ScaleY="1"/>
-                                    <ScaleTransform x:Name="CompactThumbnailFlip" ScaleX="1" ScaleY="1"/>
-                                </TransformGroup>
+                                <!-- Hover scale: scales from top-left (origin 0,0) so the
+                                     thumbnail grows down+right within the notch as it expands. -->
+                                <ScaleTransform x:Name="CompactThumbnailScale" ScaleX="1" ScaleY="1"/>
                             </Border.RenderTransform>
-                            <Image x:Name="CompactThumbnail" Stretch="UniformToFill">
-                                <Image.Clip>
+                            <!-- Two-layer crossfade host. Outgoing thumb is the base layer,
+                                 incoming thumb fades in on top with a soft parallax zoom.
+                                 The Grid's Clip masks any overflow from per-image scale. -->
+                            <Grid Width="22" Height="22">
+                                <Grid.Clip>
                                     <RectangleGeometry RadiusX="6" RadiusY="6" Rect="0,0,22,22"/>
-                                </Image.Clip>
-                            </Image>
+                                </Grid.Clip>
+                                <Image x:Name="CompactThumbnail"
+                                       Stretch="UniformToFill"
+                                       RenderTransformOrigin="0.5,0.5">
+                                    <Image.RenderTransform>
+                                        <ScaleTransform x:Name="CompactThumbnailOutScale" ScaleX="1" ScaleY="1"/>
+                                    </Image.RenderTransform>
+                                    <Image.Effect>
+                                        <BlurEffect x:Name="CompactThumbnailOutBlur" Radius="0" RenderingBias="Performance"/>
+                                    </Image.Effect>
+                                </Image>
+                                <Image x:Name="CompactThumbnailNext"
+                                       Stretch="UniformToFill"
+                                       Opacity="0"
+                                       IsHitTestVisible="False"
+                                       RenderTransformOrigin="0.5,0.5">
+                                    <Image.RenderTransform>
+                                        <ScaleTransform x:Name="CompactThumbnailNextScale" ScaleX="1" ScaleY="1"/>
+                                    </Image.RenderTransform>
+                                    <Image.Effect>
+                                        <BlurEffect x:Name="CompactThumbnailNextBlur" Radius="0" RenderingBias="Performance"/>
+                                    </Image.Effect>
+                                </Image>
+                            </Grid>
                         </Border>
 
                         <Grid x:Name="CompactHoverInfo"
@@ -966,22 +990,45 @@
                                              MouseLeftButtonDown="ThumbnailBorder_MouseLeftButtonDown"
                                              RenderTransformOrigin="0.5,0.5">
                                         <Border.RenderTransform>
-                                            <TransformGroup>
-                                                <ScaleTransform x:Name="ThumbnailScale" ScaleX="1" ScaleY="1"/>
-                                                <ScaleTransform x:Name="ThumbnailFlip" ScaleX="1" ScaleY="1"/>
-                                            </TransformGroup>
+                                            <ScaleTransform x:Name="ThumbnailScale" ScaleX="1" ScaleY="1"/>
                                         </Border.RenderTransform>
-                                        <Grid Width="102" Height="102">
+                                        <Grid Width="102" Height="102" ClipToBounds="True">
 
                                             <Image x:Name="ThumbnailImage" 
                                                    Width="102" Height="102"
                                                    Stretch="UniformToFill"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
+                                                   RenderTransformOrigin="0.5,0.5"
                                                    Visibility="Collapsed">
                                                 <Image.Clip>
                                                     <RectangleGeometry RadiusX="8" RadiusY="8" Rect="0,0,102,102"/>
                                                 </Image.Clip>
+                                                <Image.RenderTransform>
+                                                    <ScaleTransform x:Name="ThumbnailOutScale" ScaleX="1" ScaleY="1"/>
+                                                </Image.RenderTransform>
+                                                <Image.Effect>
+                                                    <BlurEffect x:Name="ThumbnailOutBlur" Radius="0" RenderingBias="Performance"/>
+                                                </Image.Effect>
+                                            </Image>
+
+                                            <Image x:Name="ThumbnailImageNext"
+                                                   Width="102" Height="102"
+                                                   Stretch="UniformToFill"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   RenderTransformOrigin="0.5,0.5"
+                                                   Opacity="0"
+                                                   IsHitTestVisible="False">
+                                                <Image.Clip>
+                                                    <RectangleGeometry RadiusX="8" RadiusY="8" Rect="0,0,102,102"/>
+                                                </Image.Clip>
+                                                <Image.RenderTransform>
+                                                    <ScaleTransform x:Name="ThumbnailNextScale" ScaleX="1" ScaleY="1"/>
+                                                </Image.RenderTransform>
+                                                <Image.Effect>
+                                                    <BlurEffect x:Name="ThumbnailNextBlur" Radius="0" RenderingBias="Performance"/>
+                                                </Image.Effect>
                                             </Image>
 
                                             <TextBlock x:Name="ThumbnailFallback"
