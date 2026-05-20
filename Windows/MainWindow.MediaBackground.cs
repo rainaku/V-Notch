@@ -176,6 +176,13 @@ public partial class MainWindow
         EnsureUnfrozen(VolumeBarFront.Background, c => VolumeBarFront.Background = new SolidColorBrush(c ?? Colors.White));
         ((SolidColorBrush)VolumeBarFront.Background).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
+        // Volume scroll indicator (center bar shown when scrolling on collapsed notch)
+        if (VolumeIndicatorFill != null)
+        {
+            EnsureUnfrozen(VolumeIndicatorFill.Background, c => VolumeIndicatorFill.Background = new SolidColorBrush(c ?? Colors.White));
+            ((SolidColorBrush)VolumeIndicatorFill.Background).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        }
+
         void EnsureUnfrozenFill(System.Windows.Shapes.Shape shape)
         {
             var brush = shape.Fill as SolidColorBrush;
@@ -327,6 +334,7 @@ public partial class MainWindow
 
         if (VolumeIcon.Foreground is SolidColorBrush volIco && !volIco.IsFrozen) volIco.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (VolumeBarFront.Background is SolidColorBrush volBar && !volBar.IsFrozen) volBar.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+        if (VolumeIndicatorFill?.Background is SolidColorBrush volInd && !volInd.IsFrozen) volInd.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
 
         void ResetUnfrozenFill(System.Windows.Shapes.Shape shape)
         {
