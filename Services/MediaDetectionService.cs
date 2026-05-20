@@ -810,6 +810,12 @@ public class MediaDetectionService : IMediaDetectionService
                     try
                     {
                         string? videoId = shouldForceThumbFetch ? null : info.YouTubeVideoId;
+                        // When the YouTube Data API is enabled the lookup returns a high-quality
+                        // thumbnail URL (snippet.thumbnails). We prefer it over the i.ytimg cascade
+                        // because the API knows whether maxres exists and picks the best fallback
+                        // automatically. Stays null on the oEmbed-only path so legacy behaviour
+                        // is preserved when the toggle is off.
+                        string? preferredThumbnailUrl = null;
                         int retryCount = 0;
 
                         // ─── Priority 1: Extract video ID from ANY browser window URL ───
@@ -831,7 +837,8 @@ public class MediaDetectionService : IMediaDetectionService
                             videoId = GetCachedVideoIdForTrack(trackDuringFetch);
                         }
 
-                        // If we got a video ID from browser URL, enrich with metadata via oEmbed
+                        // If we got a video ID from browser URL, enrich with metadata via the
+                        // metadata lookup service (Data API when enabled, oEmbed otherwise).
                         if (!string.IsNullOrEmpty(videoId) && videoId != info.YouTubeVideoId)
                         {
                             string ytUrl = $"https://www.youtube.com/watch?v={videoId}";
@@ -854,6 +861,12 @@ public class MediaDetectionService : IMediaDetectionService
                                 {
                                     _timelineSimulator.RecoveredDuration = urlResult.Duration;
                                     info.Duration = urlResult.Duration;
+                                }
+
+                                if (urlResult.Source == YouTubeLookupSource.DataApi &&
+                                    !string.IsNullOrWhiteSpace(urlResult.ThumbnailUrl))
+                                {
+                                    preferredThumbnailUrl = urlResult.ThumbnailUrl;
                                 }
                             }
                         }
@@ -891,6 +904,12 @@ public class MediaDetectionService : IMediaDetectionService
                                         _timelineSimulator.RecoveredDuration = result.Duration;
                                         info.Duration = result.Duration;
                                     }
+
+                                    if (result.Source == YouTubeLookupSource.DataApi &&
+                                        !string.IsNullOrWhiteSpace(result.ThumbnailUrl))
+                                    {
+                                        preferredThumbnailUrl = result.ThumbnailUrl;
+                                    }
                                 }
                             }
 
@@ -900,13 +919,30 @@ public class MediaDetectionService : IMediaDetectionService
 
                                 if (needsBetterThumb || info.MediaSource == "YouTube") 
                                 {
-                                    // Try maxresdefault first (1280x720) - best quality for ONNX smart crop
-                                    string thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/maxresdefault.jpg";
-                                    var frameBitmap = await DownloadImageAsync(thumbnailUrl);
+                                    BitmapImage? frameBitmap = null;
+                                    string thumbnailUrl;
 
-                                    // maxresdefault may return a small placeholder (120x90) for videos without HD thumbnail
-                                    if (frameBitmap != null && frameBitmap.PixelWidth < 400)
-                                        frameBitmap = null;
+                                    // ─── Preferred path: thumbnail URL from YouTube Data API ───
+                                    // The API already picked the highest-resolution variant that
+                                    // actually exists for this video, so we don't need to probe.
+                                    if (!string.IsNullOrWhiteSpace(preferredThumbnailUrl))
+                                    {
+                                        thumbnailUrl = preferredThumbnailUrl!;
+                                        frameBitmap = await DownloadImageAsync(thumbnailUrl);
+                                        if (frameBitmap != null && frameBitmap.PixelWidth < 200)
+                                            frameBitmap = null;
+                                    }
+
+                                    // Try maxresdefault first (1280x720) - best quality for ONNX smart crop
+                                    if (frameBitmap == null)
+                                    {
+                                        thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/maxresdefault.jpg";
+                                        frameBitmap = await DownloadImageAsync(thumbnailUrl);
+
+                                        // maxresdefault may return a small placeholder (120x90) for videos without HD thumbnail
+                                        if (frameBitmap != null && frameBitmap.PixelWidth < 400)
+                                            frameBitmap = null;
+                                    }
 
                                     // Fallback to sddefault (640x480)
                                     if (frameBitmap == null)

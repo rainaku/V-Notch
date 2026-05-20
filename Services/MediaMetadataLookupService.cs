@@ -43,7 +43,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             // ─── Step 1: Check if title itself is a video ID (11 chars, base64url) ───
             if (cleanTitle.Length == 11 && Regex.IsMatch(cleanTitle, "^[a-zA-Z0-9_-]{11}$"))
             {
-                var validated = await ValidateVideoIdWithOEmbedAsync(cleanTitle, ct);
+                var validated = await ResolveVideoIdAsync(cleanTitle, ct);
                 if (validated != null)
                     return validated;
             }
@@ -53,7 +53,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             if (urlMatch.Success)
             {
                 string extractedId = urlMatch.Groups[1].Value;
-                var validated = await ValidateVideoIdWithOEmbedAsync(extractedId, ct);
+                var validated = await ResolveVideoIdAsync(extractedId, ct);
                 if (validated != null)
                     return validated;
             }
@@ -73,6 +73,10 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
     /// <summary>
     /// Resolves a YouTube video from a direct URL. Extracts the video ID and validates via oEmbed.
     /// This is 100% accurate — no guessing, no search-by-name.
+    /// When the user has enabled the YouTube Data API and a key is configured, the Data API
+    /// (videos.list?part=snippet,contentDetails) is used as the primary source so we get
+    /// authoritative title, channel, duration, and thumbnail in a single call. oEmbed remains
+    /// the fallback when the API is disabled, quota-exceeded, or the request fails.
     /// </summary>
     public async Task<YouTubeLookupResult?> TryGetYouTubeVideoInfoFromUrlAsync(string url, CancellationToken ct = default)
     {
@@ -87,19 +91,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 return null;
 
             string videoId = match.Groups[1].Value;
-
-            // Validate with oEmbed — confirms video exists and gets metadata
-            var result = await ValidateVideoIdWithOEmbedAsync(videoId, ct);
-            if (result != null)
-            {
-                // Try to enrich with duration if API key is available
-                string? apiKey = GetYouTubeApiKey();
-                if (!string.IsNullOrEmpty(apiKey))
-                {
-                    result = await EnrichWithDurationAsync(result, apiKey, ct) ?? result;
-                }
-                return result;
-            }
+            return await ResolveVideoIdAsync(videoId, ct);
         }
         catch (Exception ex)
         {
@@ -107,6 +99,56 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Central resolver for a known videoId. Prefers Data API when available, falls back
+    /// to oEmbed (+ optional duration enrichment).
+    /// </summary>
+    private async Task<YouTubeLookupResult?> ResolveVideoIdAsync(string videoId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(videoId))
+            return null;
+
+        // Quick cache hit — avoid burning quota and avoid re-validating the same video
+        // every time the same track loops or comes back into focus.
+        if (TryGetCachedVideo(videoId, out var cached) && cached != null)
+        {
+            RuntimeLog.Log("META-YOUTUBE-API",
+                $"cache-hit videoId={videoId} source={cached.Source} duration={cached.Duration} thumb={(string.IsNullOrEmpty(cached.ThumbnailUrl) ? "(none)" : "data-api")}");
+            return cached;
+        }
+
+        string? apiKey = GetYouTubeApiKey();
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            var apiResult = await TryGetVideoFromDataApiAsync(videoId, apiKey, ct);
+            if (apiResult != null)
+            {
+                CacheVideo(videoId, apiResult);
+                return apiResult;
+            }
+            // Data API failed (quota, network, invalid key, video flagged…) → fallback to oEmbed.
+            RuntimeLog.Log("META-YOUTUBE-API", $"data-api-miss videoId={videoId} -> falling back to oEmbed");
+        }
+        else
+        {
+            RuntimeLog.Log("META-YOUTUBE-API", $"data-api-disabled videoId={videoId} -> using oEmbed only");
+        }
+
+        var oembed = await ValidateVideoIdWithOEmbedAsync(videoId, ct);
+        if (oembed == null)
+            return null;
+
+        // Even without the toggle, we historically did a contentDetails enrichment when a key
+        // happened to be present. Preserve that behaviour for compatibility.
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            oembed = await EnrichWithDurationAsync(oembed, apiKey, ct) ?? oembed;
+        }
+
+        CacheVideo(videoId, oembed);
+        return oembed;
     }
 
     /// <summary>
@@ -168,12 +210,189 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 Id = videoId,
                 Title = oembedTitle,
                 Author = oembedAuthor,
-                Duration = TimeSpan.Zero // oEmbed doesn't provide duration
+                Duration = TimeSpan.Zero, // oEmbed doesn't provide duration
+                ThumbnailUrl = null,      // caller falls back to i.ytimg.com/vi/{id}/maxresdefault.jpg cascade
+                Source = YouTubeLookupSource.OEmbed,
             };
         }
         catch
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Calls the YouTube Data API v3 (videos.list?part=snippet,contentDetails) to get
+    /// authoritative title, channel, duration, and the best available thumbnail in a
+    /// single request (1 quota unit). Returns null on any failure so the caller can
+    /// fall back to oEmbed without surfacing the error.
+    /// </summary>
+    private async Task<YouTubeLookupResult?> TryGetVideoFromDataApiAsync(string videoId, string apiKey, CancellationToken ct)
+    {
+        // If a previous call hit quotaExceeded, skip Data API for the rest of the day.
+        if (IsQuotaCooldownActive())
+            return null;
+
+        try
+        {
+            string url = $"https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id={Uri.EscapeDataString(videoId)}&fields=items(snippet(title,channelTitle,thumbnails),contentDetails/duration)&key={apiKey}";
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(2500);
+
+            using var response = await _httpClient.GetAsync(url, timeoutCts.Token);
+            string json = await response.Content.ReadAsStringAsync(timeoutCts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                if (LooksLikeQuotaExceeded(json))
+                {
+                    TripQuotaCooldown();
+                    RuntimeLog.Log("META-YOUTUBE-API", "quotaExceeded — Data API disabled until tomorrow, falling back to oEmbed.");
+                }
+                else
+                {
+                    RuntimeLog.Log("META-YOUTUBE-API", $"HTTP {(int)response.StatusCode} for videoId={videoId}");
+                }
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("items", out var items) || items.GetArrayLength() == 0)
+                return null;
+
+            var item = items[0];
+            string? title = null;
+            string? channel = null;
+            string? thumbnailUrl = null;
+            TimeSpan duration = TimeSpan.Zero;
+
+            if (item.TryGetProperty("snippet", out var snippet))
+            {
+                if (snippet.TryGetProperty("title", out var titleEl)) title = titleEl.GetString();
+                if (snippet.TryGetProperty("channelTitle", out var channelEl)) channel = channelEl.GetString();
+                if (snippet.TryGetProperty("thumbnails", out var thumbs))
+                    thumbnailUrl = PickBestThumbnail(thumbs);
+            }
+
+            if (item.TryGetProperty("contentDetails", out var details) &&
+                details.TryGetProperty("duration", out var durationEl))
+            {
+                string? iso = durationEl.GetString();
+                if (!string.IsNullOrEmpty(iso))
+                    duration = ParseIso8601Duration(iso);
+            }
+
+            RuntimeLog.Log("META-YOUTUBE-API",
+                $"data-api-ok videoId={videoId} title='{title}' channel='{channel}' duration={duration} thumb={(string.IsNullOrWhiteSpace(thumbnailUrl) ? "(none)" : "ok")}");
+
+            return new YouTubeLookupResult
+            {
+                Id = videoId,
+                Title = title,
+                Author = channel,
+                Duration = duration,
+                ThumbnailUrl = thumbnailUrl,
+                Source = YouTubeLookupSource.DataApi,
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("META-YOUTUBE-API", ex.ToString());
+            return null;
+        }
+    }    /// <summary>
+    /// Picks the highest-resolution available thumbnail from snippet.thumbnails.
+    /// Order: maxres → standard → high → medium → default.
+    /// </summary>
+    private static string? PickBestThumbnail(JsonElement thumbnails)
+    {
+        foreach (var key in _thumbnailPreference)
+        {
+            if (thumbnails.TryGetProperty(key, out var el) &&
+                el.TryGetProperty("url", out var urlEl))
+            {
+                string? value = urlEl.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+        }
+        return null;
+    }
+
+    private static readonly string[] _thumbnailPreference = { "maxres", "standard", "high", "medium", "default" };
+
+    private static bool LooksLikeQuotaExceeded(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return false;
+        return body.Contains("quotaExceeded", StringComparison.Ordinal) ||
+               body.Contains("dailyLimitExceeded", StringComparison.Ordinal) ||
+               body.Contains("rateLimitExceeded", StringComparison.Ordinal);
+    }
+
+    // ── Quota cooldown ───────────────────────────────────────────────────────
+    // YouTube Data API quota resets at midnight Pacific Time. A simple per-process
+    // cooldown is enough for our use case: once we see a quota error, stop calling
+    // until the next UTC day rollover. Worst case the user restarts the app.
+    private static long _quotaCooldownUntilTicks;
+
+    private static bool IsQuotaCooldownActive()
+        => Volatile.Read(ref _quotaCooldownUntilTicks) > DateTime.UtcNow.Ticks;
+
+    private static void TripQuotaCooldown()
+    {
+        var resumeAt = DateTime.UtcNow.Date.AddDays(1).AddHours(8); // PT midnight ≈ UTC+8h
+        Volatile.Write(ref _quotaCooldownUntilTicks, resumeAt.Ticks);
+    }
+
+    // ── Per-videoId cache ────────────────────────────────────────────────────
+    // Same track usually loops back to the notch repeatedly (track change events,
+    // app refocus, retries). We don't need to spend quota every time.
+    private static readonly object _videoCacheLock = new();
+    private static readonly Dictionary<string, (YouTubeLookupResult Result, DateTime ExpiresUtc)> _videoCache = new(StringComparer.Ordinal);
+    private static readonly TimeSpan _videoCacheTtl = TimeSpan.FromHours(6);
+    private const int VideoCacheMaxEntries = 256;
+
+    private static bool TryGetCachedVideo(string videoId, out YouTubeLookupResult? result)
+    {
+        lock (_videoCacheLock)
+        {
+            if (_videoCache.TryGetValue(videoId, out var entry) && entry.ExpiresUtc > DateTime.UtcNow)
+            {
+                result = entry.Result;
+                return true;
+            }
+        }
+        result = null;
+        return false;
+    }
+
+    private static void CacheVideo(string videoId, YouTubeLookupResult result)
+    {
+        if (string.IsNullOrEmpty(videoId)) return;
+        lock (_videoCacheLock)
+        {
+            if (_videoCache.Count >= VideoCacheMaxEntries)
+            {
+                // Cheap eviction: drop the first half of stale entries.
+                var now = DateTime.UtcNow;
+                var stale = _videoCache.Where(kv => kv.Value.ExpiresUtc <= now).Select(kv => kv.Key).ToList();
+                foreach (var key in stale) _videoCache.Remove(key);
+                if (_videoCache.Count >= VideoCacheMaxEntries)
+                {
+                    foreach (var key in _videoCache.Keys.Take(_videoCache.Count / 2).ToList())
+                        _videoCache.Remove(key);
+                }
+            }
+            _videoCache[videoId] = (result, DateTime.UtcNow.Add(_videoCacheTtl));
         }
     }
 
@@ -215,7 +434,9 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                         Id = result.Id,
                         Title = result.Title,
                         Author = result.Author,
-                        Duration = duration
+                        Duration = duration,
+                        ThumbnailUrl = result.ThumbnailUrl,
+                        Source = result.Source,
                     };
                 }
             }

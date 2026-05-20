@@ -3,12 +3,31 @@ using System.Text;
 
 namespace VNotch.Services;
 
+public enum YouTubeLookupSource
+{
+    Unknown = 0,
+    OEmbed = 1,
+    DataApi = 2,
+}
+
 public sealed class YouTubeLookupResult
 {
     public string? Id { get; init; }
     public string? Author { get; init; }
     public string? Title { get; init; }
     public TimeSpan Duration { get; init; }
+
+    /// <summary>
+    /// Best available thumbnail URL when the result was sourced from the YouTube Data API
+    /// (snippet.thumbnails). Null when only oEmbed was used; in that case the caller should
+    /// fall back to the standard i.ytimg.com/vi/{id}/maxresdefault.jpg cascade.
+    /// </summary>
+    public string? ThumbnailUrl { get; init; }
+
+    /// <summary>
+    /// Where the metadata came from. Useful for telemetry/logging.
+    /// </summary>
+    public YouTubeLookupSource Source { get; init; } = YouTubeLookupSource.Unknown;
 
     public bool TitleMatches(string otherTitle)
     {
