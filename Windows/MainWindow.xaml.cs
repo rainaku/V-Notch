@@ -310,6 +310,15 @@ public partial class MainWindow : Window
             UpdateLayout();
             UpdateNotchClip();
             UpdateMediaBackgroundFootprint();
+
+            // Pre-warm layout of hidden content elements so first-time animations
+            // get correct ActualWidth/Height and TransformToAncestor results.
+            // Without this, the very first expand/switch animation calculates
+            // positions before WPF has measured these elements (since they start
+            // Visibility=Collapsed), causing visual glitches like wrong thumbnail
+            // target position, snapped transitions, etc.
+            PreWarmHiddenContentLayout();
+
             _isStartupLayoutReady = true;
             _pendingStartupClickToggle = false;
 
@@ -710,6 +719,92 @@ public partial class MainWindow : Window
     private static bool IsMyDockFinder(string processName)
     {
         return processName.Contains("mydockfinder", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Forces WPF to measure and arrange hidden content elements so their first
+    /// animation gets correct ActualWidth/Height and transform coordinates.
+    /// Hidden elements (Visibility=Collapsed) are skipped during normal layout
+    /// passes, so animations triggered before they've ever been visible end up
+    /// reading stale/zero values — causing snap glitches and offset bugs on the
+    /// FIRST expand/switch but working correctly on subsequent runs.
+    /// </summary>
+    private void PreWarmHiddenContentLayout()
+    {
+        try
+        {
+            // Track and force show all hidden content elements that animations
+            // depend on for measure/transform calculations.
+            var elementsToWarm = new System.Collections.Generic.List<(FrameworkElement Element, Visibility Original, double Opacity)>();
+
+            void Track(FrameworkElement? el)
+            {
+                if (el == null) return;
+                if (el.Visibility != Visibility.Collapsed) return;
+                elementsToWarm.Add((el, el.Visibility, el.Opacity));
+                el.Opacity = 0;
+                el.Visibility = Visibility.Visible;
+            }
+
+            // Content panels that animations transform / measure
+            Track(ExpandedContent);
+            Track(SecondaryContent);
+            Track(MusicCompactContent);
+
+            // Music widget sub-elements
+            Track(InlineControls);
+            Track(LyricsWidget);
+            Track(LyricsBlurBackground);
+
+            // Hover info & nav icons (used by hover/secondary view animations)
+            Track(CompactHoverInfo);
+            Track(NavIconsPanel);
+            Track(NavIconsBackground);
+
+            // Battery & status (used by reveal animations)
+            Track(BatterySection);
+            Track(SettingsButton);
+
+            // Apply the same dimensions ExpandNotch will use later, so child layouts
+            // (especially ThumbnailBorder which determines the flying-thumb target)
+            // get the same coordinates as the real expanded state.
+            double prevExpandedWidth = ExpandedContent.Width;
+            double prevExpandedHeight = ExpandedContent.Height;
+            ExpandedContent.Width = _expandedWidth - 16;
+            ExpandedContent.Height = _expandedHeight - 2;
+
+            // Also temporarily resize the notch border itself so any TransformToAncestor
+            // calculations resolve against the final expanded dimensions.
+            double prevNotchWidth = NotchBorder.Width;
+            double prevNotchHeight = NotchBorder.Height;
+            NotchBorder.Width = _expandedWidth;
+            NotchBorder.Height = _expandedHeight;
+
+            // Force a synchronous layout pass — measure + arrange everything
+            UpdateLayout();
+
+            // Pre-compute thumbnail expand target now that real layout is settled
+            if (TryComputeThumbnailExpandTarget(out var target))
+            {
+                _cachedThumbnailExpandTarget = target;
+            }
+
+            // Restore original visibility/opacity and dimensions
+            foreach (var (el, originalVis, originalOpacity) in elementsToWarm)
+            {
+                el.Visibility = originalVis;
+                el.Opacity = originalOpacity;
+            }
+            ExpandedContent.Width = prevExpandedWidth;
+            ExpandedContent.Height = prevExpandedHeight;
+            NotchBorder.Width = prevNotchWidth;
+            NotchBorder.Height = prevNotchHeight;
+            UpdateLayout();
+        }
+        catch (Exception ex)
+        {
+            VNotch.Services.RuntimeLog.Log("LAYOUT-PREWARM", ex.ToString());
+        }
     }
 
     private void PositionAtTop()
