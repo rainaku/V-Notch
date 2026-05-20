@@ -64,7 +64,7 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
-            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
             <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
             <Setter Property="UseLayoutRounding" Value="True"/>
@@ -76,7 +76,7 @@
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
-            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
             <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
             <Setter Property="UseLayoutRounding" Value="True"/>
@@ -88,7 +88,7 @@
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
-            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
             <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
             <Setter Property="UseLayoutRounding" Value="True"/>
@@ -97,7 +97,7 @@
 
         <Style x:Key="ProgressTimeText" TargetType="TextBlock" BasedOn="{StaticResource SmallText}">
             <Setter Property="FontSize" Value="10.5"/>
-            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontWeight" Value="ExtraBold"/>
             <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
             <Setter Property="Typography.NumeralStyle" Value="Lining"/>
         </Style>
@@ -955,8 +955,7 @@
                                 </RadialGradientBrush>
                             </Border.OpacityMask>
                             <Grid>
-                                <Image x:Name="MediaBackgroundImage" Stretch="UniformToFill" Opacity="0.80"/>
-                                <Border Background="Black" Opacity="0.15"/>
+                                <Image x:Name="MediaBackgroundImage" Stretch="UniformToFill" Opacity="1.0"/>
                             </Grid>
                         </Border>
 
@@ -977,8 +976,30 @@
                                 </RadialGradientBrush>
                             </Border.OpacityMask>
                             <Grid>
-                                <Image x:Name="MediaBackgroundImage2" Stretch="UniformToFill" Opacity="0.80"/>
-                                <Border Background="Black" Opacity="0.15"/>
+                                <Image x:Name="MediaBackgroundImage2" Stretch="UniformToFill" Opacity="1.0"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Lyrics blur background (blurred thumbnail glow at right side) -->
+                        <Border x:Name="LyricsBlurBackground"
+                                Grid.Column="2"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                Opacity="0"
+                                Margin="-30,-20,-20,-30"
+                                Panel.ZIndex="0"
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False">
+                            <Border.OpacityMask>
+                                <RadialGradientBrush GradientOrigin="0.75,0.6" Center="0.75,0.6" RadiusX="0.55" RadiusY="0.6">
+                                    <GradientStop Color="#BBFFFFFF" Offset="0"/>
+                                    <GradientStop Color="#66FFFFFF" Offset="0.35"/>
+                                    <GradientStop Color="#22FFFFFF" Offset="0.65"/>
+                                    <GradientStop Color="#00FFFFFF" Offset="0.95"/>
+                                </RadialGradientBrush>
+                            </Border.OpacityMask>
+                            <Grid>
+                                <Image x:Name="LyricsBlurImage" Stretch="UniformToFill" Opacity="0.7"/>
                             </Grid>
                         </Border>
 
@@ -1688,24 +1709,49 @@
                                     Grid.Row="0" Grid.RowSpan="2"
                                     Background="Transparent"
                                     CornerRadius="16"
-                                    Padding="8,6"
+                                    Padding="4,2,7,2"
+                                    Margin="0,0,10,6"
                                     Visibility="Collapsed"
                                     Opacity="0"
-                                    VerticalAlignment="Center"
-                                    HorizontalAlignment="Right">
-                                <Grid Height="48" ClipToBounds="True" VerticalAlignment="Center">
+                                    VerticalAlignment="Stretch"
+                                    HorizontalAlignment="Stretch"
+                                    ClipToBounds="True">
+                                <Grid ClipToBounds="True" VerticalAlignment="Center">
+                                    <!-- Blur glow background behind lyrics -->
+                                    <Border x:Name="LyricsGlowBorder"
+                                            CornerRadius="12"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Margin="-12,-8,-12,-8"
+                                            Opacity="0.35"
+                                            IsHitTestVisible="False">
+                                        <Border.Background>
+                                            <RadialGradientBrush x:Name="LyricsGlowBrush" 
+                                                                 GradientOrigin="0.7,0.5" 
+                                                                 Center="0.7,0.5" 
+                                                                 RadiusX="0.8" RadiusY="0.9">
+                                                <GradientStop x:Name="LyricsGlowColor" Color="#6644AAFF" Offset="0"/>
+                                                <GradientStop Color="#00000000" Offset="1"/>
+                                            </RadialGradientBrush>
+                                        </Border.Background>
+                                        <Border.Effect>
+                                            <BlurEffect Radius="20" RenderingBias="Performance"/>
+                                        </Border.Effect>
+                                    </Border>
                                     <!-- Lyric line A -->
                                     <TextBlock x:Name="LyricTextA"
                                                Text=""
                                                Style="{StaticResource SubtitleText}"
-                                               FontSize="11.5"
+                                               FontSize="12.5"
                                                FontWeight="Bold"
-                                               Foreground="#DDFFFFFF"
+                                               Foreground="#EEFFFFFF"
                                                TextWrapping="Wrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxHeight="110"
                                                TextAlignment="Right"
+                                               TextOptions.TextFormattingMode="Ideal"
                                                VerticalAlignment="Center"
-                                               HorizontalAlignment="Right"
-                                               MaxWidth="140"
+                                               HorizontalAlignment="Stretch"
                                                Opacity="0">
                                         <TextBlock.RenderTransform>
                                             <TranslateTransform x:Name="LyricTranslateA" Y="0"/>
@@ -1715,14 +1761,16 @@
                                     <TextBlock x:Name="LyricTextB"
                                                Text=""
                                                Style="{StaticResource SubtitleText}"
-                                               FontSize="11.5"
+                                               FontSize="12.5"
                                                FontWeight="Bold"
-                                               Foreground="#DDFFFFFF"
+                                               Foreground="#EEFFFFFF"
                                                TextWrapping="Wrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxHeight="110"
                                                TextAlignment="Right"
+                                               TextOptions.TextFormattingMode="Ideal"
                                                VerticalAlignment="Center"
-                                               HorizontalAlignment="Right"
-                                               MaxWidth="140"
+                                               HorizontalAlignment="Stretch"
                                                Opacity="0">
                                         <TextBlock.RenderTransform>
                                             <TranslateTransform x:Name="LyricTranslateB" Y="0"/>

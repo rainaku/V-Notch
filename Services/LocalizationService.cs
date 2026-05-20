@@ -60,6 +60,8 @@ public static class Loc
             ["settings.opacity.hint"] = "Blend the notch into the desktop or keep it crisp and solid.",
             ["settings.blurBrightness"] = "Blur Brightness",
             ["settings.blurBrightness.hint"] = "Brighten the expanded media blur without changing the notch body opacity.",
+            ["settings.lyricsDarkOverlay"] = "Lyrics Dark Overlay",
+            ["settings.lyricsDarkOverlay.hint"] = "Add a dark layer over the lyrics background image to improve text readability.",
             ["settings.hoverExpand"] = "Expand on hover",
             ["settings.hoverExpand.hint"] = "Open the notch automatically when the pointer lingers nearby.",
             ["settings.expandDelay"] = "Expand Delay",
@@ -190,6 +192,10 @@ public static class Loc
             // ─── Bluetooth ───
             ["bluetooth.connected"] = "Connected",
             ["bluetooth.disconnected"] = "Disconnected",
+
+            // ─── Privacy Indicators ───
+            ["privacy.mic.inUse"] = "Microphone in use",
+            ["privacy.cam.inUse"] = "Camera in use",
         };
     }
 
@@ -215,6 +221,8 @@ public static class Loc
             ["settings.opacity.hint"] = "Hòa notch vào desktop hoặc giữ nét rõ ràng.",
             ["settings.blurBrightness"] = "Độ sáng Blur",
             ["settings.blurBrightness.hint"] = "Tăng sáng blur media mở rộng mà không thay đổi độ mờ thân notch.",
+            ["settings.lyricsDarkOverlay"] = "Lớp tối Lyrics",
+            ["settings.lyricsDarkOverlay.hint"] = "Thêm lớp tối lên hình nền lyrics để chữ dễ đọc hơn.",
             ["settings.hoverExpand"] = "Mở rộng khi di chuột",
             ["settings.hoverExpand.hint"] = "Tự động mở notch khi con trỏ lưu lại gần đó.",
             ["settings.expandDelay"] = "Độ trễ mở rộng",
@@ -345,6 +353,10 @@ public static class Loc
             // ─── Bluetooth ───
             ["bluetooth.connected"] = "Đã kết nối",
             ["bluetooth.disconnected"] = "Đã ngắt kết nối",
+
+            // ─── Privacy Indicators ───
+            ["privacy.mic.inUse"] = "Đang dùng micro",
+            ["privacy.cam.inUse"] = "Đang dùng camera",
         };
     }
 }

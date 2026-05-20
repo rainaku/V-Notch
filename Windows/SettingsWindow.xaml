@@ -975,6 +975,26 @@
                                             TickFrequency="5"
                                             IsSnapToTickEnabled="True"
                                             ValueChanged="BlurBrightnessSlider_ValueChanged"/>
+
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}"/>
+                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
+                                            <Run x:Name="BlurDarkOverlayValue" Text="30"/><Run Text=" %"/>
+                                        </TextBlock>
+                                    </Grid>
+                                    <TextBlock x:Name="DarkOverlayHint" Text="Add a dark layer over the lyrics background image to improve text readability."
+                                               Style="{StaticResource SettingHintText}"/>
+                                    <Slider x:Name="BlurDarkOverlaySlider"
+                                            Minimum="0"
+                                            Maximum="80"
+                                            Value="30"
+                                            TickFrequency="5"
+                                            IsSnapToTickEnabled="True"
+                                            ValueChanged="BlurDarkOverlaySlider_ValueChanged"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

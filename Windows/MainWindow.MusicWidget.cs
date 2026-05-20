@@ -36,6 +36,14 @@ public partial class MainWindow
         fadeOutCalendar.Completed += (s, e) => CalendarWidget.Visibility = Visibility.Collapsed;
         CalendarWidget.BeginAnimation(OpacityProperty, fadeOutCalendar);
 
+        // Also hide lyrics widget during music expand
+        if (_isLyricsActive && LyricsWidget.Visibility == Visibility.Visible)
+        {
+            var fadeOutLyrics = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
+            fadeOutLyrics.Completed += (s, e) => LyricsWidget.Visibility = Visibility.Collapsed;
+            LyricsWidget.BeginAnimation(OpacityProperty, fadeOutLyrics);
+        }
+
         var fadeOutControls = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
         fadeOutControls.Completed += (s, e) => MediaControls.Visibility = Visibility.Collapsed;
         MediaControls.BeginAnimation(OpacityProperty, fadeOutControls);
@@ -190,6 +198,17 @@ public partial class MainWindow
         var fadeInCalendar = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(120));
         CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
 
+        // If lyrics are active, show lyrics widget instead of calendar
+        if (_isLyricsActive)
+        {
+            CalendarWidget.Visibility = Visibility.Collapsed;
+            GreetingSection.Visibility = Visibility.Collapsed;
+            LyricsWidget.Visibility = Visibility.Visible;
+            LyricsWidget.Opacity = 0;
+            var fadeInLyrics = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(120));
+            LyricsWidget.BeginAnimation(OpacityProperty, fadeInLyrics);
+        }
+
         BatterySection.BeginAnimation(OpacityProperty, null);
         BatterySection.Opacity = 0;
         BatterySection.Visibility = Visibility.Visible;
@@ -242,9 +261,12 @@ public partial class MainWindow
 
         GreetingSection.BeginAnimation(OpacityProperty, null);
         GreetingSection.Opacity = 0;
-        GreetingSection.Visibility = Visibility.Visible;
-        var fadeInGreeting = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(140));
-        GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
+        GreetingSection.Visibility = _isLyricsActive ? Visibility.Collapsed : Visibility.Visible;
+        if (!_isLyricsActive)
+        {
+            var fadeInGreeting = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(140));
+            GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
+        }
     }
 
     private void UpdateProgressSectionLayout()

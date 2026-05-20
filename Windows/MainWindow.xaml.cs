@@ -931,6 +931,15 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         }
 
         this.Opacity = _settings.Opacity;
+
+        // Apply dark overlay opacity ONLY to lyrics blur image (not the main color blur)
+        double lyricsImageOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
+        if (LyricsBlurImage != null)
+        {
+            LyricsBlurImage.BeginAnimation(UIElement.OpacityProperty, null);
+            LyricsBlurImage.Opacity = lyricsImageOpacity;
+        }
+
         if (_currentMediaInfo != null && !_isExpanded)
         {
             UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);

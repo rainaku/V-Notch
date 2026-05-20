@@ -142,16 +142,6 @@ public partial class MainWindow
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
 
-        double blurImageOpacity = DynamicIslandColorExtractor.GetAdaptiveBlurImageOpacity(dominantLuminance);
-        var blurImageOpacityAnim = new DoubleAnimation
-        {
-            To = blurImageOpacity,
-            Duration = TimeSpan.FromMilliseconds(450),
-            EasingFunction = _easeQuadOut
-        };
-        MediaBackgroundImage.BeginAnimation(UIElement.OpacityProperty, blurImageOpacityAnim);
-        MediaBackgroundImage2.BeginAnimation(UIElement.OpacityProperty, blurImageOpacityAnim);
-
         EnsureUnfrozen(ProgressBar.Background, c => ProgressBar.Background = new SolidColorBrush(c ?? Colors.White));
         EnsureUnfrozen(IndeterminateProgress.Background, c => IndeterminateProgress.Background = new SolidColorBrush(c ?? Colors.White));
         EnsureUnfrozen(CurrentTimeText.Foreground, c => CurrentTimeText.Foreground = new SolidColorBrush(c ?? Color.FromRgb(136, 136, 136)));
@@ -201,6 +191,19 @@ public partial class MainWindow
         EnsureUnfrozenFill(InlineNextArrow0);
         EnsureUnfrozenFill(InlineNextArrow1);
         EnsureUnfrozenFill(InlineNextArrow2);
+
+        // Update lyrics glow color to match the dominant media color
+        if (LyricsGlowColor != null)
+        {
+            var lyricsGlowTarget = Color.FromArgb(0x88, liftedDominant.R, liftedDominant.G, liftedDominant.B);
+            var lyricsGlowAnim = new ColorAnimation
+            {
+                To = lyricsGlowTarget,
+                Duration = TimeSpan.FromMilliseconds(500),
+                EasingFunction = _easeQuadOut
+            };
+            LyricsGlowColor.BeginAnimation(GradientStop.ColorProperty, lyricsGlowAnim);
+        }
     }
 
     private static void EnsureUnfrozen(Brush? brush, Action<Color?> replace)
@@ -415,8 +418,40 @@ public partial class MainWindow
             var blurredImage = await FastBlurService.GetBlurredImageAsync(thumbnail);
             if (blurredImage != null)
             {
+                // Simply set the blurred image source (no crossfade on main blur)
                 MediaBackgroundImage.Source = blurredImage;
                 MediaBackgroundImage2.Source = blurredImage;
+
+                // Update lyrics blur background if active (with crossfade only on track change)
+                if (_isLyricsActive && LyricsBlurImage != null)
+                {
+                    double lyricsTargetOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
+                    bool isNewImage = LyricsBlurImage.Source == null || !ReferenceEquals(LyricsBlurImage.Source, thumbnail);
+
+                    if (isNewImage && LyricsBlurImage.Source != null && LyricsBlurBackground.Visibility == Visibility.Visible)
+                    {
+                        var lyricsFadeOut = new DoubleAnimation(lyricsTargetOpacity, 0, TimeSpan.FromMilliseconds(200))
+                        {
+                            EasingFunction = _easeQuadOut
+                        };
+                        lyricsFadeOut.Completed += (s, e) =>
+                        {
+                            LyricsBlurImage.Source = thumbnail;
+                            var lyricsFadeIn = new DoubleAnimation(0, lyricsTargetOpacity, TimeSpan.FromMilliseconds(350))
+                            {
+                                EasingFunction = _easeQuadOut
+                            };
+                            LyricsBlurImage.BeginAnimation(UIElement.OpacityProperty, lyricsFadeIn);
+                        };
+                        LyricsBlurImage.BeginAnimation(UIElement.OpacityProperty, lyricsFadeOut);
+                    }
+                    else if (isNewImage)
+                    {
+                        LyricsBlurImage.Source = thumbnail;
+                        LyricsBlurImage.Opacity = lyricsTargetOpacity;
+                    }
+                    // If same image, do nothing — no fade needed
+                }
             }
         }
         catch (Exception ex)

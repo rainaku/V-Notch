@@ -86,6 +86,7 @@ public event EventHandler? AnimatedClosing;
         RadiusSlider.Value = _settings.CornerRadius;
         OpacitySlider.Value = _settings.Opacity * 100;
         BlurBrightnessSlider.Value = _settings.MediaBlurBrightnessBoost * 100;
+        BlurDarkOverlaySlider.Value = _settings.MediaBlurDarkOverlay * 100;
 
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
@@ -148,6 +149,8 @@ public event EventHandler? AnimatedClosing;
         OpacityHint.Text = Loc.Get("settings.opacity.hint");
         BlurLabel.Text = Loc.Get("settings.blurBrightness");
         BlurHint.Text = Loc.Get("settings.blurBrightness.hint");
+        DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay");
+        DarkOverlayHint.Text = Loc.Get("settings.lyricsDarkOverlay.hint");
 
         // Behavior labels & hints
         HoverExpandCheck.Content = Loc.Get("settings.hoverExpand");
@@ -229,6 +232,13 @@ public event EventHandler? AnimatedClosing;
     {
         if (BlurBrightnessValue != null)
             BlurBrightnessValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
+    }
+
+    private void BlurDarkOverlaySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (BlurDarkOverlayValue != null)
+            BlurDarkOverlayValue.Text = ((int)e.NewValue).ToString();
         PushLivePreview();
     }
 
@@ -378,6 +388,8 @@ public event EventHandler? AnimatedClosing;
             (OpacityHint, () => OpacityHint.Text = Loc.Get("settings.opacity.hint")),
             (BlurLabel, () => BlurLabel.Text = Loc.Get("settings.blurBrightness")),
             (BlurHint, () => BlurHint.Text = Loc.Get("settings.blurBrightness.hint")),
+            (DarkOverlayLabel, () => DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay")),
+            (DarkOverlayHint, () => DarkOverlayHint.Text = Loc.Get("settings.lyricsDarkOverlay.hint")),
 
             // Behavior
             (HoverExpandHint, () => HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint")),
@@ -736,6 +748,7 @@ private void PushLivePreview()
         RadiusSlider.Value = defaults.CornerRadius;
         OpacitySlider.Value = defaults.Opacity * 100;
         BlurBrightnessSlider.Value = defaults.MediaBlurBrightnessBoost * 100;
+        BlurDarkOverlaySlider.Value = defaults.MediaBlurDarkOverlay * 100;
 
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
         HoverDelaySlider.Value = defaults.HoverExpandDelay;
@@ -992,6 +1005,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.CornerRadius = (int)RadiusSlider.Value;
         _settings.Opacity = OpacitySlider.Value / 100.0;
         _settings.MediaBlurBrightnessBoost = BlurBrightnessSlider.Value / 100.0;
+        _settings.MediaBlurDarkOverlay = BlurDarkOverlaySlider.Value / 100.0;
 
         _settings.EnableHoverExpand = HoverExpandCheck.IsChecked ?? true;
         _settings.HoverExpandDelay = (int)HoverDelaySlider.Value;

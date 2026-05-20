@@ -14,6 +14,7 @@ public class NotchSettings
     public int CornerRadius { get; set; } = 8;
     public double Opacity { get; set; } = 1.0;
     public double MediaBlurBrightnessBoost { get; set; } = 2.0;
+    public double MediaBlurDarkOverlay { get; set; } = 0.3;
 
     public int MonitorIndex { get; set; } = 0; 
 
@@ -66,6 +67,7 @@ public class NotchSettings
             CornerRadius = CornerRadius,
             Opacity = Opacity,
             MediaBlurBrightnessBoost = MediaBlurBrightnessBoost,
+            MediaBlurDarkOverlay = MediaBlurDarkOverlay,
             MonitorIndex = MonitorIndex,
             AutoStart = AutoStart,
             EnableHoverExpand = EnableHoverExpand,

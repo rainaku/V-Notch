@@ -324,6 +324,9 @@ public partial class MainWindow
         {
             _isVolumeIndicatorActive = true;
 
+            // Hide privacy dot while volume bar is active
+            SuppressPrivacyDot();
+
             // Reset thumbnail hover state if active (animate back smoothly)
             if (_isCompactThumbnailHovered)
             {
@@ -430,6 +433,9 @@ public partial class MainWindow
         if (VolumeIndicatorContainer == null) return;
         _isVolumeIndicatorActive = false;
         _volumeSynced = false;
+
+        // Restore privacy dot
+        RestorePrivacyDotVisibility();
 
         // If the notch is expanded (user opened it while volume indicator was
         // visible), don't drive the compact-mode shrink animation — that would
