@@ -1070,7 +1070,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         this.Opacity = _settings.Opacity;
 
-        // Apply dark overlay opacity ONLY to lyrics blur image (not the main color blur)
+        // Apply dark overlay opacity to lyrics blur image
         double lyricsImageOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
         if (LyricsBlurImage != null)
         {

@@ -1012,7 +1012,7 @@
                                 </RadialGradientBrush>
                             </Border.OpacityMask>
                             <Grid>
-                                <Image x:Name="LyricsBlurImage" Stretch="UniformToFill" Opacity="0.7"/>
+                                <Image x:Name="LyricsBlurImage" Stretch="UniformToFill" Opacity="1.0"/>
                             </Grid>
                         </Border>
 
@@ -1741,27 +1741,6 @@
                                     HorizontalAlignment="Stretch"
                                     ClipToBounds="True">
                                 <Grid ClipToBounds="True" VerticalAlignment="Center">
-                                    <!-- Blur glow background behind lyrics -->
-                                    <Border x:Name="LyricsGlowBorder"
-                                            CornerRadius="12"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center"
-                                            Margin="-12,-8,-12,-8"
-                                            Opacity="0.35"
-                                            IsHitTestVisible="False">
-                                        <Border.Background>
-                                            <RadialGradientBrush x:Name="LyricsGlowBrush" 
-                                                                 GradientOrigin="0.7,0.5" 
-                                                                 Center="0.7,0.5" 
-                                                                 RadiusX="0.8" RadiusY="0.9">
-                                                <GradientStop x:Name="LyricsGlowColor" Color="#6644AAFF" Offset="0"/>
-                                                <GradientStop Color="#00000000" Offset="1"/>
-                                            </RadialGradientBrush>
-                                        </Border.Background>
-                                        <Border.Effect>
-                                            <BlurEffect Radius="20" RenderingBias="Performance"/>
-                                        </Border.Effect>
-                                    </Border>
                                     <!-- Track info placeholder (shown before first lyric line) -->
                                     <StackPanel x:Name="LyricsPlaceholderPanel"
                                                 VerticalAlignment="Center"

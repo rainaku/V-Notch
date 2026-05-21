@@ -191,18 +191,6 @@ public partial class MainWindow
         EnsureUnfrozenFill(InlineNextArrow1);
         EnsureUnfrozenFill(InlineNextArrow2);
 
-        // Update lyrics glow color to match the dominant media color
-        if (LyricsGlowColor != null)
-        {
-            var lyricsGlowTarget = Color.FromArgb(0x88, liftedDominant.R, liftedDominant.G, liftedDominant.B);
-            var lyricsGlowAnim = new ColorAnimation
-            {
-                To = lyricsGlowTarget,
-                Duration = TimeSpan.FromMilliseconds(500),
-                EasingFunction = _easeQuadOut
-            };
-            LyricsGlowColor.BeginAnimation(GradientStop.ColorProperty, lyricsGlowAnim);
-        }
     }
 
     private static void EnsureUnfrozen(Brush? brush, Action<Color?> replace)
@@ -415,35 +403,10 @@ public partial class MainWindow
                 MediaBackgroundImage.Source = blurredImage;
                 MediaBackgroundImage2.Source = blurredImage;
 
-                // Update lyrics blur background if active (with crossfade only on track change)
-                if (_isLyricsActive && LyricsBlurImage != null)
+                // Update lyrics blur background if active (use raw thumbnail, not blurred)
+                if (_isLyricsActive && LyricsBlurImage != null && LyricsBlurImage.Source == null)
                 {
-                    double lyricsTargetOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
-                    bool isNewImage = LyricsBlurImage.Source == null || !ReferenceEquals(LyricsBlurImage.Source, thumbnail);
-
-                    if (isNewImage && LyricsBlurImage.Source != null && LyricsBlurBackground.Visibility == Visibility.Visible)
-                    {
-                        var lyricsFadeOut = new DoubleAnimation(lyricsTargetOpacity, 0, TimeSpan.FromMilliseconds(200))
-                        {
-                            EasingFunction = _easeQuadOut
-                        };
-                        lyricsFadeOut.Completed += (s, e) =>
-                        {
-                            LyricsBlurImage.Source = thumbnail;
-                            var lyricsFadeIn = new DoubleAnimation(0, lyricsTargetOpacity, TimeSpan.FromMilliseconds(350))
-                            {
-                                EasingFunction = _easeQuadOut
-                            };
-                            LyricsBlurImage.BeginAnimation(UIElement.OpacityProperty, lyricsFadeIn);
-                        };
-                        LyricsBlurImage.BeginAnimation(UIElement.OpacityProperty, lyricsFadeOut);
-                    }
-                    else if (isNewImage)
-                    {
-                        LyricsBlurImage.Source = thumbnail;
-                        LyricsBlurImage.Opacity = lyricsTargetOpacity;
-                    }
-                    // If same image, do nothing — no fade needed
+                    LyricsBlurImage.Source = thumbnail;
                 }
             }
         }
