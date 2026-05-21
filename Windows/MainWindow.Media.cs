@@ -144,26 +144,44 @@ public partial class MainWindow
             {
                 if (info.HasThumbnail && info.Thumbnail != null)
                 {
-                    // Crossfade LyricsBlurImage only when expanded and lyrics visible
-                    if (LyricsBlurImage != null && _isExpanded && _isLyricsActive &&
-                        !ReferenceEquals(LyricsBlurImage.Source, info.Thumbnail))
+                    // Update LyricsBlurImage with crossfade when expanded + lyrics active
+                    if (LyricsBlurImage != null && _isExpanded && _isLyricsActive)
                     {
-                        LyricsBlurImageNext.Source = info.Thumbnail;
-                        var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(400))
+                        // Only crossfade if the image actually changed
+                        if (!ReferenceEquals(LyricsBlurImage.Source, info.Thumbnail) &&
+                            !ReferenceEquals(LyricsBlurImageNext.Source, info.Thumbnail))
                         {
-                            EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
-                        };
-                        fadeIn.Completed += (s, e) =>
-                        {
-                            LyricsBlurImage.Source = LyricsBlurImageNext.Source;
+                            // Cancel any in-progress crossfade
                             LyricsBlurImageNext.BeginAnimation(OpacityProperty, null);
+
+                            // If previous crossfade was mid-way, promote it first
+                            if (LyricsBlurImageNext.Opacity > 0.5 && LyricsBlurImageNext.Source != null)
+                            {
+                                LyricsBlurImage.Source = LyricsBlurImageNext.Source;
+                            }
                             LyricsBlurImageNext.Opacity = 0;
-                        };
-                        LyricsBlurImageNext.BeginAnimation(OpacityProperty, fadeIn);
+
+                            // Start new crossfade
+                            LyricsBlurImageNext.Source = info.Thumbnail;
+                            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(400))
+                            {
+                                EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
+                            };
+                            fadeIn.Completed += (s, e) =>
+                            {
+                                // Only promote if this is still the current target
+                                if (ReferenceEquals(LyricsBlurImageNext.Source, info.Thumbnail))
+                                {
+                                    LyricsBlurImage.Source = info.Thumbnail;
+                                    LyricsBlurImageNext.BeginAnimation(OpacityProperty, null);
+                                    LyricsBlurImageNext.Opacity = 0;
+                                }
+                            };
+                            LyricsBlurImageNext.BeginAnimation(OpacityProperty, fadeIn);
+                        }
                     }
                     else if (LyricsBlurImage != null)
                     {
-                        // Not expanded or no lyrics — just set directly (no animation)
                         LyricsBlurImage.Source = info.Thumbnail;
                     }
 

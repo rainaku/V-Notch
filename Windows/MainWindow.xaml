@@ -716,8 +716,8 @@
                         <ctrl:MusicVisualizer x:Name="MusicViz" 
                                               Grid.Row="0" Grid.Column="2" 
                                               Width="20" Height="17"
-                                              Margin="0,0,-4,0"
-                                              VerticalAlignment="Center"
+                                              Margin="0,2.5,-4,0"
+                                              VerticalAlignment="Top"
                                               ActiveBrush="{StaticResource MusicVisualizerBrush}">
                             <ctrl:MusicVisualizer.Effect>
                                 <BlurEffect Radius="1.6" RenderingBias="Performance"/>

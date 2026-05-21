@@ -9,17 +9,18 @@
     <AssemblyName>V-Notch</AssemblyName>
     <RootNamespace>VNotch</RootNamespace>
     
-    <PublishSingleFile>false</PublishSingleFile>
+    <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <ReadyToRun>false</ReadyToRun>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     
-    <Version>1.7.0</Version>
-    <AssemblyVersion>1.7.0.0</AssemblyVersion>
-    <FileVersion>1.7.0.0</FileVersion>
-    <InformationalVersion>1.7.0 Stable release</InformationalVersion>
+    <Version>1.7.1</Version>
+    <AssemblyVersion>1.7.1.0</AssemblyVersion>
+    <FileVersion>1.7.1.0</FileVersion>
+    <InformationalVersion>1.7.1 Stable release</InformationalVersion>
     <Authors>rainaku</Authors>
     <Company>V-Notch</Company>
     <Product>V-Notch</Product>

@@ -12,7 +12,7 @@ public class NotchSettings
     public int CornerRadius { get; set; } = 8;
     public double Opacity { get; set; } = 1.0;
     public double MediaBlurBrightnessBoost { get; set; } = 2.0;
-    public double MediaBlurDarkOverlay { get; set; } = 0.3;
+    public double MediaBlurDarkOverlay { get; set; } = 0.0;
 
     public int MonitorIndex { get; set; } = 0; 
 
@@ -20,12 +20,12 @@ public class NotchSettings
     public bool EnableHoverExpand { get; set; } = false;
     public bool EnableCursorBypass { get; set; } = false;
     public bool EnableAnimations { get; set; } = true;
-    public bool DisableMouseLeaveAutoClose { get; set; } = false;
+    public bool DisableMouseLeaveAutoClose { get; set; } = true;
 
     public double AnimationSpeed { get; set; } = 2.0;
     public bool EnableBounceEffect { get; set; } = true;
 
-    public int HoverExpandDelay { get; set; } = 500; 
+    public int HoverExpandDelay { get; set; } = 0; 
     public int HoverCollapseDelay { get; set; } = 500; 
     public int HoverZoneMargin { get; set; } = 60; 
 

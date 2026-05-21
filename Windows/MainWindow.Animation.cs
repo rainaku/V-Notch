@@ -264,6 +264,12 @@ public partial class MainWindow
                 };
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeIn);
             }
+
+            // Immediately sync lyrics display to current position (skip placeholder if already past first lyric)
+            if (_isLyricsActive)
+            {
+                UpdateLyricsDisplay();
+            }
             
             // Start progress bar catch-up animation BEFORE RenderProgressBar to prevent the snap-to-position that would set _progressDisplayRatio > 0 and cause StartProgressCatchUpAnimation to bail out
             StartProgressCatchUpAnimation();
@@ -562,6 +568,18 @@ public partial class MainWindow
                 CompactThumbnailBorder.Opacity = 1;
             }
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
+
+            // Ensure MusicViz is properly positioned after collapse
+            MusicViz.BeginAnimation(OpacityProperty, null);
+            if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true)
+            {
+                MusicViz.Visibility = Visibility.Visible;
+                MusicViz.Opacity = 1;
+            }
+
+            // Force layout update to fix any positioning drift from width animation
+            MusicCompactContent.InvalidateArrange();
+            MusicCompactContent.UpdateLayout();
 
             // Play queued thumbnail flip animation (track changed mid-collapse)
             if (_pendingFlipThumbnail != null)

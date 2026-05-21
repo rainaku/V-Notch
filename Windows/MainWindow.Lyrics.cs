@@ -78,8 +78,46 @@ public partial class MainWindow
         {
             // First time showing lyrics for this session
             ShowLyricsWidget();
-            Dispatcher.Invoke(() => ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist));
         }
+
+        // Check if position is already past the first lyric (e.g. app boot mid-song)
+        Dispatcher.Invoke(() =>
+        {
+            int idx = FindCurrentLyricIndex();
+            if (idx >= 0)
+            {
+                // Already in lyrics territory — show current lyric, not placeholder
+                _currentLyricIndex = idx;
+                HideLyricsPlaceholder();
+                AnimateLyricLine(_currentLyrics[idx].Text);
+            }
+            else
+            {
+                // Before first lyric — show placeholder
+                ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
+            }
+        });
+    }
+
+    private int FindCurrentLyricIndex()
+    {
+        if (_currentLyrics == null || _currentLyrics.Count == 0) return -1;
+        if (_currentMediaInfo == null) return -1;
+
+        TimeSpan position;
+        if (_currentMediaInfo.IsPlaying && _currentMediaInfo.Duration.TotalSeconds > 0)
+        {
+            var elapsed = DateTimeOffset.UtcNow - _currentMediaInfo.LastUpdated.ToUniversalTime();
+            if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+            if (elapsed > TimeSpan.FromSeconds(10)) elapsed = TimeSpan.FromSeconds(10);
+            position = _currentMediaInfo.Position + elapsed;
+        }
+        else
+        {
+            position = _currentMediaInfo.Position;
+        }
+
+        return FindLyricIndex(position);
     }
 
     private void ShowLyricsPlaceholder(string title, string artist)
