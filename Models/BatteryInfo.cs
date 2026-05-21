@@ -1,4 +1,4 @@
-namespace VNotch.Models;
+﻿namespace VNotch.Models;
 
 public class BatteryInfo
 {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,9 +18,6 @@ public partial class MainWindow
     private string _lyricsTrackKey = "";
     private bool _isLyricsActive = false;
 
-    /// <summary>
-    /// Called when a new Spotify track is detected. Fetches lyrics and sets up display.
-    /// </summary>
     private async void FetchLyricsForTrack(MediaInfo info)
     {
         string trackKey = $"{info.CurrentTrack}|{info.CurrentArtist}";
@@ -57,9 +54,6 @@ public partial class MainWindow
         ShowLyricsWidget();
     }
 
-    /// <summary>
-    /// Called every progress tick to update the displayed lyric line.
-    /// </summary>
     private void UpdateLyricsDisplay()
     {
         if (!_isLyricsActive || _currentLyrics == null || _currentLyrics.Count == 0)
@@ -85,10 +79,6 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// Binary search for the current lyric line based on playback position.
-    /// Returns the index of the line that should be displayed.
-    /// </summary>
     private int FindLyricIndex(TimeSpan position)
     {
         if (_currentLyrics == null || _currentLyrics.Count == 0) return -1;
@@ -117,9 +107,6 @@ public partial class MainWindow
         return result;
     }
 
-    /// <summary>
-    /// Animates the lyric text with a morph/fade transition (reusing the same pattern as MarqueeController).
-    /// </summary>
     private void AnimateLyricLine(string newText)
     {
         if (LyricTextA == null || LyricTextB == null) return;
@@ -155,9 +142,6 @@ public partial class MainWindow
         inTransform.BeginAnimation(TranslateTransform.YProperty, slideIn);
     }
 
-    /// <summary>
-    /// Shows the lyrics widget and hides the calendar.
-    /// </summary>
     private void ShowLyricsWidget()
     {
         if (_isLyricsActive) return;
@@ -216,9 +200,6 @@ public partial class MainWindow
         });
     }
 
-    /// <summary>
-    /// Hides the lyrics widget and restores the calendar.
-    /// </summary>
     private void HideLyricsWidget()
     {
         if (!_isLyricsActive) return;
@@ -281,9 +262,6 @@ public partial class MainWindow
         });
     }
 
-    /// <summary>
-    /// Clears lyrics state when media stops or track changes to non-Spotify.
-    /// </summary>
     private void ClearLyrics()
     {
         _lyricsTrackKey = "";

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -32,9 +32,7 @@ internal static class DynamicIslandColorExtractor
             $"OK: Primary=({result.Primary.R},{result.Primary.G},{result.Primary.B}) Secondary=({result.Secondary.R},{result.Secondary.G},{result.Secondary.B})");
         var main = result.Primary;
         var darkUiBackground = Colors.Black;
-        // Sub color (progress bar, text accent) = primary color adjusted for readability.
-        // Using primary ensures visual consistency — the accent color always matches
-        // the dominant color the user sees in the thumbnail.
+        // Sub color (progress bar, text accent) = primary color adjusted for readability
         var sub = EnsureTextOnDarkBackground(main, darkUiBackground, 4.5);
         return new Palette(main, sub);
     }
@@ -140,11 +138,7 @@ internal static class DynamicIslandColorExtractor
     {
         try
         {
-            // ═══════════════════════════════════════════════════════════════════
-            // Pipeline: Resize → Filter → Quantize → Score → Pick
-            // Goal: find the most VIBRANT, eye-catching color — not the most
-            // common one. A small vivid accent beats a large muted background.
-            // ═══════════════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════════════ Pipeline: Resize → Filter → Quantize → Score → Pick Goal: find the most VIBRANT, eye-catching color — not the most common one
 
             // Step 1: Resize to 64×64 for fast processing
             var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
@@ -233,9 +227,7 @@ internal static class DynamicIslandColorExtractor
             if (isMonotone)
                 return new PaletteResult(Color.FromRgb(30, 30, 30), default, default, true, false, Colors.White);
 
-            // Step 3: Score each hue bucket
-            // Score = Area × Saturation × Contrast(brightness)
-            // This ensures the most VIBRANT color wins, not just the largest area.
+            // Step 3: Score each hue bucket Score = Area × Saturation × Contrast(brightness) This ensures the most VIBRANT color wins, not just the largest area
             float bestScore = -1, secondScore = -1;
             int bestBucket = -1, secondBucket = -1;
 
@@ -247,10 +239,7 @@ internal static class DynamicIslandColorExtractor
                 float avgSat = bucketSatSum[i] / bucketWeight[i];
                 float avgVal = bucketValSum[i] / bucketWeight[i];
 
-                // Score formula: area^0.3 × saturation × value
-                // area^0.3 = diminishing returns on area (small vivid > large muted)
-                // saturation = how colorful
-                // value = how visible (not too dark)
+                // Score formula: area^0
                 float score = MathF.Pow(area, 0.3f) * avgSat * avgVal;
 
                 if (score > bestScore)

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows.Media.Imaging;
@@ -25,7 +25,6 @@ public class MediaDetectionService : IMediaDetectionService
     private readonly MediaSessionVolumeService _volumeService;
     private readonly MediaTransportControlService _transportService;
 
-    
     private readonly Channel<ChangeType> _changeChannel;
     private CancellationTokenSource? _bgCts;
     private Task? _processingTask;
@@ -92,14 +91,11 @@ public class MediaDetectionService : IMediaDetectionService
 
     private GlobalSystemMediaTransportControlsSession? GetActiveSession()
     {
-        // Priority: use the session that matches what's currently displayed to the user.
-        // _activeDisplaySession is the session selected by the scoring algorithm and
-        // should match the media info shown on the notch.
+        // Priority: use the session that matches what's currently displayed to the user
         if (_activeDisplaySession != null)
             return _activeDisplaySession;
 
-        // Fallback: if _activeDisplaySession hasn't been set yet (e.g., during startup),
-        // try to find a session matching the last published source app ID.
+        // Fallback: if _activeDisplaySession hasn't been set yet (e
         if (!string.IsNullOrEmpty(_lastPublishedSourceAppId))
         {
             var match = FindSessionBySourceAppId(_lastPublishedSourceAppId);
@@ -161,13 +157,11 @@ public class MediaDetectionService : IMediaDetectionService
             RuntimeLog.Log("MEDIA-INIT", $"Failed to init SMTC: {ex.Message}");
         }
 
-        
         _bgCts = new CancellationTokenSource();
         var ct = _bgCts.Token;
         _processingTask = Task.Run(() => ProcessingLoopAsync(ct), ct);
         _heartbeatTask = Task.Run(() => HeartbeatLoopAsync(ct), ct);
 
-        
         _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
         _ = Task.Run(async () =>
         {
@@ -319,7 +313,6 @@ public class MediaDetectionService : IMediaDetectionService
             }
             catch (OperationCanceledException) { break; }
 
-            
             var lastEvtTicks = Interlocked.Read(ref _lastEventTimeTicks);
             if (_currentMode == DetectionMode.Idle
                 && lastEvtTicks > 0
@@ -432,8 +425,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 info.MediaSource = "SoundCloud";
                                 info.IsSoundCloudRunning = true;
                                 
-                                // Extract track info from window title
-                                // Format: "Artist - Track | SoundCloud"
+                                // Extract track info from window title Format: "Artist - Track | SoundCloud"
                                 string extractedTitle = ExtractVideoTitle(title, "SoundCloud");
                                 if (extractedTitle.Contains(" - "))
                                 {
@@ -469,6 +461,13 @@ public class MediaDetectionService : IMediaDetectionService
                 double progress = info.Duration.TotalSeconds > 0 ? info.Position.TotalSeconds / info.Duration.TotalSeconds : 0;
                 bool positionStuck = _timelineSimulator.IsPositionStuck(TimeSpan.FromSeconds(1.5));
                 bool atEndStuck = _timelineSimulator.IsAtEndStuck(progress, _lastMetadataChangeTime, TimeSpan.FromSeconds(1.2));
+
+                // When simulated position reaches or exceeds duration while still "playing", the track has likely ended and YouTube auto-played the next one
+                if (progress >= 1.0 && info.Duration.TotalSeconds > 0 && _timelineSimulator.IsThrottled)
+                {
+                    _timelineSimulator.Reset();
+                    _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
+                }
 
                 if (positionStuck || atEndStuck)
                 {
@@ -661,15 +660,9 @@ public class MediaDetectionService : IMediaDetectionService
                 _lastPublishedSourceAppId = info.SourceAppId ?? "";
                 _lastPublishedSessionInstanceKey = info.SessionInstanceKey ?? "";
 
-                
                 UpdateDetectionMode(info);
 
-                // For YouTube sources where we're about to fetch a better thumbnail,
-                // suppress ALL intermediate thumbnails to avoid showing 2-3 different images.
-                // Only show the final thumbnail once the YouTube fetch completes.
-                // EXCEPTION: on track change (isNewTrackForThumbnail), ALWAYS let the SMTC
-                // thumbnail through immediately so the user sees an update right away.
-                // The async fetch will replace it later with a higher-quality version.
+                // For YouTube sources where we're about to fetch a better thumbnail, suppress ALL intermediate thumbnails to avoid showing 2-3 different images
                 bool willFetchYouTubeThumbnail = (info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info)))
                     && !string.IsNullOrEmpty(info.CurrentTrack)
                     && !isNewTrackForThumbnail
@@ -686,11 +679,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                 if (willFetchYouTubeThumbnail && !hasGoodSmtcArtwork)
                 {
-                    // Suppress any intermediate thumbnail until YouTube fetch completes.
-                    // CRITICAL: if this is a NEW track, never reuse the previous track's
-                    // cached thumbnail — that would make the flip animation show the OLD
-                    // image as the "new" target, so user sees no visual change.
-                    // Set null instead; the flip will trigger later when the real thumb arrives.
+                    // Suppress any intermediate thumbnail until YouTube fetch completes
                     if (isNewTrackForThumbnail)
                     {
                         info.Thumbnail = null;
@@ -719,8 +708,6 @@ public class MediaDetectionService : IMediaDetectionService
                     RuntimeLog.Log("MEDIA-EVENT", "WARNING: No dispatcher, cannot fire MediaChanged event");
                 }
 
-                
-                
                 if (!forceRefresh && metadataChanged && !string.IsNullOrEmpty(info.CurrentTrack))
                 {
                     _changeChannel.Writer.TryWrite(ChangeType.ForceRefresh);
@@ -729,18 +716,11 @@ public class MediaDetectionService : IMediaDetectionService
 
             bool isPotentialYouTube = info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info));
 
-            // ── Critical fix: Browser source from a known browser app should
-            // ALWAYS attempt YouTube fetch first. The SoundCloud probe is only
-            // valid when we can positively confirm the user is on SoundCloud
-            // (explicit session override or SoundCloud-specific window title).
-            // Without this, ambiguous "Browser" sources race both probes and
-            // SoundCloud (which resolves faster via name search) overwrites
-            // the correct YouTube thumbnail.
+            // ── Critical fix: Browser source from a known browser app should ALWAYS attempt YouTube fetch first
             bool isBrowserApp = info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId);
             if (isBrowserApp && !isPotentialYouTube)
             {
-                // Treat any browser-sourced media as potential YouTube unless
-                // we have a confirmed SoundCloud session override.
+                // Treat any browser-sourced media as potential YouTube unless we have a confirmed SoundCloud session override.
                 bool hasSoundCloudOverride = TryGetSessionSourceOverride(info, out var scOver) &&
                                              string.Equals(scOver, "SoundCloud", StringComparison.OrdinalIgnoreCase);
                 if (!hasSoundCloudOverride)
@@ -753,14 +733,7 @@ public class MediaDetectionService : IMediaDetectionService
                                                 TryGetSessionSourceOverride(info, out var sourceOverride) &&
                                                 string.Equals(sourceOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase);
 
-            // Hard gate against SoundCloud probing: if any visible browser tab
-            // currently shows a YouTube URL, the SMTC "Browser" source is
-            // categorically YouTube. SoundCloud lookups by track *name* are
-            // ambiguous (different songs share titles, "- Topic" artist
-            // suffixes confuse the search) and have produced 500x500
-            // placeholder artwork that overwrote the correct YouTube
-            // thumbnail mid-flight. We only allow the SoundCloud probe when
-            // we can rule out YouTube here.
+            // Hard gate against SoundCloud probing: if any visible browser tab currently shows a YouTube URL, the SMTC "Browser" source is categorically YouTube
             bool browserHasYouTubeTabOpen = false;
             if (info.MediaSource == "Browser" && !hasSoundCloudSessionOverride)
             {
@@ -777,8 +750,7 @@ public class MediaDetectionService : IMediaDetectionService
                 catch { /* best effort */ }
             }
 
-            // Improved SoundCloud detection from Browser source
-            // Trigger if: Browser source + not YouTube + has track + (no thumbnail OR placeholder OR session override)
+            // Improved SoundCloud detection from Browser source Trigger if: Browser source + not YouTube + has track + (no thumbnail OR placeholder OR session override)
             bool shouldProbeSoundCloudFromBrowser = info.MediaSource == "Browser" &&
                                                     !IsLikelyYouTube(info) &&
                                                     !browserHasYouTubeTabOpen &&
@@ -796,30 +768,7 @@ public class MediaDetectionService : IMediaDetectionService
             bool needsFetch = forceFetchForTrackChange || (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
             if (_timelineSimulator.IsThrottled && _timelineSimulator.RecoveredThumbnail != null && !forceFetchForTrackChange) needsFetch = false;
 
-            // ── Track-change invalidation ────────────────────────────────────
-            // Before kicking off a YouTube fetch for a NEW track, drop any
-            // cached browser URLs and any per-track videoId entry that does
-            // not belong to the new track. This is the single most important
-            // fix for the "background tab thumbnail never updates" bug:
-            //
-            //   1) WindowTitleScanner caches its tab-strip walk for ~1.5s.
-            //      Without invalidation, the first lookup after a track change
-            //      keeps returning the URL of the previous song (because the
-            //      background tab's HelpText hasn't propagated yet), poisoning
-            //      every retry that follows.
-            //
-            //   2) _videoIdCache historically keyed-then-cached the *raw*
-            //      extracted videoId before it was validated against the SMTC
-            //      track title. Once a wrong entry landed in there, the lookup
-            //      loop just kept replaying the same stale id forever
-            //      (the symptom in the user-reported log: 100+ identical
-            //       "discarding stale videoId" lines for the new song).
-            //
-            //   3) The mismatch cache used to be cleared on every thumbnail
-            //      pass, which meant a videoId already known to be wrong was
-            //      retried on every MediaChanged event. We now keep mismatch
-            //      entries between passes and only flush them when the track
-            //      actually changes.
+            // ── Track-change invalidation ──────────────────────────────────── Before kicking off a YouTube fetch for a NEW track, drop any cached browser URLs and any per-track videoId entry that does not belong to the new track
             if (forceFetchForTrackChange)
             {
                 _windowTitleScanner.InvalidateUrlCaches();
@@ -827,9 +776,7 @@ public class MediaDetectionService : IMediaDetectionService
                 ForgetVideoIdCacheExceptForTrack(BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist));
             }
 
-            // If we already have a good cached thumbnail for the SAME track, don't re-fetch.
-            // This prevents the "flash" where thumbnail shows correctly then gets overwritten
-            // because SMTC keeps sending updates with a low-quality browser icon.
+            // If we already have a good cached thumbnail for the SAME track, don't re-fetch
             if (needsFetch && !forceFetchForTrackChange && _cachedThumbnail != null && _cachedThumbnail.PixelWidth >= 200)
             {
                 needsFetch = false;
@@ -838,11 +785,7 @@ public class MediaDetectionService : IMediaDetectionService
                 _timelineSimulator.RecoveredThumbnail = _cachedThumbnail;
             }
 
-            // Skip YouTube thumbnail fetch when SMTC already provides high-quality artwork.
-            // This covers:
-            // - Topic/auto-generated channels (artist ends with " - Topic")
-            // - Any YouTube source where SMTC provides good square artwork (album art)
-            // The SMTC artwork is often better than the YouTube video thumbnail for music videos.
+            // Skip YouTube thumbnail fetch when SMTC already provides high-quality artwork
             if (needsFetch && info.Thumbnail != null && info.Thumbnail.PixelWidth >= 200)
             {
                 double thumbAspect = (double)info.Thumbnail.PixelWidth / info.Thumbnail.PixelHeight;
@@ -850,13 +793,11 @@ public class MediaDetectionService : IMediaDetectionService
                 bool isTopicChannel = !string.IsNullOrEmpty(info.CurrentArtist) &&
                                       info.CurrentArtist.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase);
 
-                // If SMTC provides a near-square thumbnail (album art), keep it.
-                // YouTube video thumbnails are always 16:9, so a square SMTC thumb is album art = better.
+                // If SMTC provides a near-square thumbnail (album art), keep it
                 if (isNearSquare || isTopicChannel)
                 {
                     needsFetch = false;
-                    // Topic channels provide album art — always center crop.
-                    // Near-square images also center crop (already album art).
+                    // Topic channels provide album art — always center crop. Near-square images also center crop (already album art).
                     RuntimeLog.Log("MEDIA-THUMB-CROP",
                         $"path=initial-smtc track='{info.CurrentTrack}' artist='{info.CurrentArtist}' source='{info.MediaSource}' " +
                         $"thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight} aspect={thumbAspect:F2} " +
@@ -891,22 +832,14 @@ public class MediaDetectionService : IMediaDetectionService
                     try
                     {
                         string? videoId = shouldForceThumbFetch ? null : info.YouTubeVideoId;
-                        // When the YouTube Data API is enabled the lookup returns a high-quality
-                        // thumbnail URL (snippet.thumbnails). We prefer it over the i.ytimg cascade
-                        // because the API knows whether maxres exists and picks the best fallback
-                        // automatically. Stays null on the oEmbed-only path so legacy behaviour
-                        // is preserved when the toggle is off.
+                        // When the YouTube Data API is enabled the lookup returns a high-quality thumbnail URL (snippet
                         string? preferredThumbnailUrl = null;
                         int retryCount = 0;
+                        bool titleSearchAttempted = false;
 
-                        // Mismatch cache is intentionally NOT cleared per-pass.
-                        // It is reset only when a real track change happens
-                        // (above), so a videoId already known to be wrong for
-                        // *this* track stays known-wrong across the rapid
-                        // MediaChanged/poll cycle that follows.
+                        // Mismatch cache is intentionally NOT cleared per-pass
 
-                        // ─── Priority 1: Extract video ID from ANY browser window URL ───
-                        // Scans all browser windows, not just foreground. 100% accurate.
+                        // ─── Priority 1: Extract video ID from ANY browser window URL ─── Scans all browser windows, not just foreground
                         if (string.IsNullOrEmpty(videoId))
                         {
                             videoId = TryExtractVideoIdFromAnyBrowserUrl();
@@ -924,17 +857,13 @@ public class MediaDetectionService : IMediaDetectionService
                             videoId = GetCachedVideoIdForTrack(trackDuringFetch);
                         }
 
-                        // If the videoId we picked up (from any source) is in
-                        // the per-track mismatch blocklist, skip it now so we
-                        // don't burn another oEmbed/Data-API round trip just to
-                        // discover the same stale id again.
+                        // If the videoId we picked up (from any source) is in the per-track mismatch blocklist, skip it now so we don't burn another oEmbed/Data-API round trip just to discover the same stale id again
                         if (!string.IsNullOrEmpty(videoId) && TryGetCachedMismatchVideoId(videoId!))
                         {
                             videoId = null;
                         }
 
-                        // If we got a video ID from browser URL, enrich with metadata via the
-                        // metadata lookup service (Data API when enabled, oEmbed otherwise).
+                        // If we got a video ID from browser URL, enrich with metadata via the metadata lookup service (Data API when enabled, oEmbed otherwise)
                         if (!string.IsNullOrEmpty(videoId) && videoId != info.YouTubeVideoId)
                         {
                             string ytUrl = $"https://www.youtube.com/watch?v={videoId}";
@@ -942,9 +871,6 @@ public class MediaDetectionService : IMediaDetectionService
                             if (urlResult != null)
                             {
                                 // ─── Validate: does the resolved video match the currently playing track? ───
-                                // When switching tracks, the browser URL may still point to the PREVIOUS video
-                                // (navigation hasn't completed yet). If the API title doesn't match the SMTC
-                                // track title, discard this videoId so we don't show stale thumbnails.
                                 bool videoMatchesTrack = urlResult.TitleMatches(trackDuringFetch) ||
                                                         (!string.IsNullOrEmpty(urlResult.Author) &&
                                                          !string.IsNullOrEmpty(artistDuringFetch) &&
@@ -955,19 +881,11 @@ public class MediaDetectionService : IMediaDetectionService
                                     RuntimeLog.Log("META-YOUTUBE-API",
                                         $"video-mismatch: api-title='{urlResult.Title}' smtc-track='{trackDuringFetch}' videoId={videoId} -> discarding stale videoId");
                                     CacheMismatchVideoId(videoId!);
-                                    // Also evict any per-track entry that points
-                                    // at this stale id so the next pass doesn't
-                                    // pick it up from GetCachedVideoIdForTrack.
                                     EvictVideoIdCacheEntry(trackDuringFetch, videoId!);
-                                    videoId = null; // Force fallback path to re-extract or retry
+                                    videoId = null;
                                 }
                                 else
                                 {
-                                    // ─── Cache the validated id ───
-                                    // Keying on the *current* SMTC track means
-                                    // every subsequent retry/poll for this same
-                                    // song hits the cache instead of re-walking
-                                    // every browser tab.
                                     CacheVideoIdForTrack(BuildTrackIdentity(trackDuringFetch, artistDuringFetch), videoId!);
                                     CacheVideoIdForTrack(trackDuringFetch, videoId!);
 
@@ -995,6 +913,13 @@ public class MediaDetectionService : IMediaDetectionService
                                         preferredThumbnailUrl = urlResult.ThumbnailUrl;
                                     }
                                 }
+                            }
+                            else if (shouldForceThumbFetch)
+                            {
+                                // oEmbed/API failed to respond — cannot validate this videoId
+                                RuntimeLog.Log("META-YOUTUBE-API",
+                                    $"validation-failed: oEmbed returned null for videoId={videoId} track='{trackDuringFetch}' -> discarding unvalidated videoId");
+                                videoId = null;
                             }
                         }
 
@@ -1040,6 +965,46 @@ public class MediaDetectionService : IMediaDetectionService
                                 }
                             }
 
+                            // ─── Last-resort fallback: search YouTube by track title ─── When the browser tab is in the background, HelpText never updates so URL-based extraction always returns the previous video's ID
+                            if (string.IsNullOrEmpty(videoId) && !titleSearchAttempted)
+                            {
+                                titleSearchAttempted = true;
+                                var searchResult = await _metadataLookup.TrySearchYouTubeByTitleAsync(trackDuringFetch, artistDuringFetch, token);
+                                if (searchResult != null)
+                                {
+                                    videoId = searchResult.Id;
+
+                                    info.MediaSource = "YouTube";
+                                    info.IsYouTubeRunning = true;
+                                    SetSessionSourceOverride(info, "YouTube");
+                                    _sourceCache.SetBoth(trackDuringFetch, BuildTrackIdentity(trackDuringFetch, artistDuringFetch), "YouTube");
+                                    _sourceCache.Save();
+
+                                    CacheVideoIdForTrack(BuildTrackIdentity(trackDuringFetch, artistDuringFetch), videoId!);
+                                    CacheVideoIdForTrack(trackDuringFetch, videoId!);
+
+                                    if (!string.IsNullOrEmpty(searchResult.Author) && searchResult.Author != "YouTube")
+                                    {
+                                        info.CurrentArtist = searchResult.Author;
+                                        _stableArtist = searchResult.Author;
+                                    }
+
+                                    if (searchResult.Duration.TotalSeconds > 0)
+                                    {
+                                        _timelineSimulator.RecoveredDuration = searchResult.Duration;
+                                        info.Duration = searchResult.Duration;
+                                    }
+
+                                    if (!string.IsNullOrWhiteSpace(searchResult.ThumbnailUrl))
+                                    {
+                                        preferredThumbnailUrl = searchResult.ThumbnailUrl;
+                                    }
+
+                                    RuntimeLog.Log("MEDIA-YOUTUBE-FETCH",
+                                        $"title-search-resolved track='{trackDuringFetch}' artist='{artistDuringFetch}' videoId={videoId}");
+                                }
+                            }
+
                             if (!string.IsNullOrEmpty(videoId) && !token.IsCancellationRequested)
                             {
                                 info.YouTubeVideoId = videoId;
@@ -1049,9 +1014,7 @@ public class MediaDetectionService : IMediaDetectionService
                                     BitmapImage? frameBitmap = null;
                                     string thumbnailUrl;
 
-                                    // ─── Preferred path: thumbnail URL from YouTube Data API ───
-                                    // The API already picked the highest-resolution variant that
-                                    // actually exists for this video, so we don't need to probe.
+                                    // ─── Preferred path: thumbnail URL from YouTube Data API ─── The API already picked the highest-resolution variant that actually exists for this video, so we don't need to probe
                                     if (!string.IsNullOrWhiteSpace(preferredThumbnailUrl))
                                     {
                                         thumbnailUrl = preferredThumbnailUrl!;
@@ -1140,13 +1103,11 @@ public class MediaDetectionService : IMediaDetectionService
                                 !token.IsCancellationRequested &&
                                 IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                             {
-                                // When videoId was discarded due to mismatch, the browser hasn't
-                                // navigated yet. Poll rapidly (200ms) up to ~3s total for the URL
-                                // to update, rather than the slow 350ms×3 retry.
+                                // When videoId was discarded due to mismatch, the browser hasn't navigated yet
                                 if (videoId == null)
                                 {
                                     const int pollIntervalMs = 200;
-                                    const int maxPolls = 15; // 15 × 200ms = 3s max
+                                    const int maxPolls = 5; // 5 × 200ms = 1s — keep short since background tabs rarely update HelpText
                                     bool resolved = false;
 
                                     for (int poll = 0; poll < maxPolls && !token.IsCancellationRequested; poll++)
@@ -1155,10 +1116,7 @@ public class MediaDetectionService : IMediaDetectionService
                                         if (!IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                             break;
 
-                                        // Force the scanner to re-read browser
-                                        // tabs each poll iteration. Without this,
-                                        // its internal 1.5s cache would keep
-                                        // serving the very URL we just rejected.
+                                        // Force the scanner to re-read browser tabs each poll iteration
                                         _windowTitleScanner.InvalidateUrlCaches();
 
                                         string? polledId = TryExtractVideoIdFromAnyBrowserUrl();
@@ -1216,7 +1174,47 @@ public class MediaDetectionService : IMediaDetectionService
                                     }
 
                                     if (!resolved)
-                                        break; // Give up — browser never navigated in time
+                                    {
+                                        // Browser HelpText never updated (common when YouTube tab is in the background and auto-plays next track without a full page navigation)
+                                        videoId = null;
+                                        preferredThumbnailUrl = null;
+
+                                        // ─── Immediate title-search: don't wait for another retry ─── The polling loop already wasted ~1s. Search by title now.
+                                        if (!token.IsCancellationRequested &&
+                                            !titleSearchAttempted &&
+                                            IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
+                                        {
+                                            titleSearchAttempted = true;
+                                            var searchResult = await _metadataLookup.TrySearchYouTubeByTitleAsync(trackDuringFetch, artistDuringFetch, token);
+                                            if (searchResult != null)
+                                            {
+                                                videoId = searchResult.Id;
+                                                info.MediaSource = "YouTube";
+                                                info.IsYouTubeRunning = true;
+                                                SetSessionSourceOverride(info, "YouTube");
+                                                _sourceCache.SetBoth(trackDuringFetch, BuildTrackIdentity(trackDuringFetch, artistDuringFetch), "YouTube");
+                                                _sourceCache.Save();
+                                                CacheVideoIdForTrack(BuildTrackIdentity(trackDuringFetch, artistDuringFetch), videoId!);
+                                                CacheVideoIdForTrack(trackDuringFetch, videoId!);
+
+                                                if (!string.IsNullOrEmpty(searchResult.Author) && searchResult.Author != "YouTube")
+                                                {
+                                                    info.CurrentArtist = searchResult.Author;
+                                                    _stableArtist = searchResult.Author;
+                                                }
+                                                if (searchResult.Duration.TotalSeconds > 0)
+                                                {
+                                                    _timelineSimulator.RecoveredDuration = searchResult.Duration;
+                                                    info.Duration = searchResult.Duration;
+                                                }
+                                                if (!string.IsNullOrWhiteSpace(searchResult.ThumbnailUrl))
+                                                    preferredThumbnailUrl = searchResult.ThumbnailUrl;
+
+                                                RuntimeLog.Log("MEDIA-YOUTUBE-FETCH",
+                                                    $"title-search-after-poll track='{trackDuringFetch}' artist='{artistDuringFetch}' videoId={videoId}");
+                                            }
+                                        }
+                                    }
                                 }
                                 else
                                 {
@@ -1318,15 +1316,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 return;
                             }
 
-                            // ── YouTube guard ──────────────────────────────
-                            // If the current track was already resolved as
-                            // YouTube (either via SMTC source upgrade or via
-                            // a verified YouTube thumbnail in cache) by the
-                            // time this background SoundCloud fetch completes,
-                            // do NOT overwrite the YouTube artwork with a
-                            // SoundCloud placeholder. This protects against
-                            // the case where a Browser-source track was racing
-                            // both probes and YouTube finished first.
+                            // ── YouTube guard ────────────────────────────── If the current track was already resolved as YouTube (either via SMTC source upgrade or via a verified YouTube thumbnail in cache) by the time this background SoundCloud fetch completes, do NOT overwrite the YouTube artwork with a SoundCloud placeholder
                             if (info.MediaSource == "YouTube" ||
                                 IsLikelyYouTube(info) ||
                                 string.Equals(_cachedThumbnailSource, "YouTube", StringComparison.OrdinalIgnoreCase))
@@ -1451,8 +1441,7 @@ public class MediaDetectionService : IMediaDetectionService
 
     private bool IsStillSamePublishedTrack(string expectedTrack, string expectedArtist, string expectedSourceAppId, string expectedSessionInstanceKey = "")
     {
-        // Session key is the strongest guard — if the session changed, the track
-        // is definitely not the same context even if title matches.
+        // Session key is the strongest guard — if the session changed, the track is definitely not the same context even if title matches
         if (!string.IsNullOrEmpty(expectedSessionInstanceKey) &&
             !string.Equals(_lastPublishedSessionInstanceKey, expectedSessionInstanceKey, StringComparison.Ordinal))
         {
@@ -1466,9 +1455,7 @@ public class MediaDetectionService : IMediaDetectionService
         }
 
         string expectedIdentity = BuildTrackIdentity(expectedTrack, expectedArtist);
-        // Primary check: full track+artist identity must match.
-        // Only fall back to track-only if the artist was empty at fetch time
-        // (some sources don't provide artist initially).
+        // Primary check: full track+artist identity must match
         if (string.Equals(_lastPublishedTrackIdentity, expectedIdentity, StringComparison.Ordinal))
         {
             return true;
@@ -1564,10 +1551,6 @@ public class MediaDetectionService : IMediaDetectionService
         return PlatformDetector.IsBrowserApp(sourceAppId);
     }
 
-    /// <summary>
-    /// Returns true for apps whose audio sessions should be ignored
-    /// (e.g. Discord notification sounds are not real media playback).
-    /// </summary>
     private static bool IsIgnoredSourceApp(string sourceAppId)
     {
         return sourceAppId.Contains("Discord", StringComparison.OrdinalIgnoreCase);
@@ -1597,13 +1580,11 @@ public class MediaDetectionService : IMediaDetectionService
             return false;
         }
 
-        
         if (thumbnail.PixelWidth <= 320 || thumbnail.PixelHeight <= 320)
         {
             return true;
         }
 
-        
         return HasLowEntropyMonochromeProfile(thumbnail);
     }
 
@@ -1621,7 +1602,6 @@ public class MediaDetectionService : IMediaDetectionService
             return false;
         }
 
-        
         return thumbnail.PixelWidth >= 360 &&
                thumbnail.PixelHeight >= 360 &&
                !IsLikelySoundCloudPlaceholderThumbnail(thumbnail);
@@ -1828,8 +1808,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                                 _lastTrackSignature = "";
                                 _lastThumbTrackIdentity = "";
-                                // Only clear thumbnail cache if this is a different session
-                                // starting playback — not the current active session resuming.
+                                // Only clear thumbnail cache if this is a different session starting playback — not the current active session resuming.
                                 if (!ReferenceEquals(s, _activeDisplaySession))
                                 {
                                     _cachedThumbnail = null;
@@ -1870,11 +1849,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                             if (osCurrentId == sourceApp)
                             {
-                                // Reduce OS-current bonus for browser sessions when a dedicated
-                                // music app is actively playing. This prevents the browser from
-                                // hijacking transport controls just because the OS reports it as
-                                // the "current session" (e.g., user opened a YouTube tab after
-                                // Spotify was already playing).
+                                // Reduce OS-current bonus for browser sessions when a dedicated music app is actively playing
                                 bool isDedicatedMusicAppPlaying = false;
                                 if (isBrowser || isYouTube)
                                 {
@@ -2021,8 +1996,6 @@ public class MediaDetectionService : IMediaDetectionService
                         RuntimeLog.Log("MEDIA-DETECT-CURRENT-STATUS", ex.ToString());
                     }
 
-                    
-                    
                     bool hasFreshTimeline = false;
                     try
                     {
@@ -2031,7 +2004,6 @@ public class MediaDetectionService : IMediaDetectionService
                         {
                             var timelineAge = (DateTimeOffset.UtcNow - bestTimeline.LastUpdatedTime).TotalSeconds;
                             hasFreshTimeline = timelineAge >= 0 && timelineAge < 2.0;
-                            
                             
                             var currentTimeline = _activeDisplaySession.GetTimelineProperties();
                             if (currentTimeline != null && hasFreshTimeline)
@@ -2094,10 +2066,6 @@ public class MediaDetectionService : IMediaDetectionService
                             RuntimeLog.Log("MEDIA-DETECT-FALLBACK-STATUS", ex.ToString());
                         }
 
-                        
-                        
-                        
-                        
                         session = _sessionManager.GetCurrentSession();
                     }
                 }
@@ -2137,8 +2105,7 @@ public class MediaDetectionService : IMediaDetectionService
 
                 _lastTrackSignature = "";
                 _lastThumbTrackIdentity = "";
-                // Session switched — aggressively clear all thumbnail state to prevent
-                // stale thumbnails from a previous session leaking into the new one.
+                // Session switched — aggressively clear all thumbnail state to prevent stale thumbnails from a previous session leaking into the new one
                 _cachedThumbnail = null;
                 _cachedThumbnailSource = "";
                 _timelineSimulator.RecoveredThumbnail = null;
@@ -2241,8 +2208,6 @@ public class MediaDetectionService : IMediaDetectionService
             info.CurrentTrack = sessionTitle;
             info.CurrentArtist = sessionArtist;
 
-            
-
             if (isJunkTitle)
             {
 
@@ -2291,12 +2256,7 @@ public class MediaDetectionService : IMediaDetectionService
             }
 
             var currentSignature = info.GetSignature();
-            // Use track+artist identity (without MediaSource) to decide if the
-            // *actual track* changed. MediaSource can flip-flop between e.g.
-            // "Browser" and "SoundCloud" on the same track, and we must NOT
-            // clear the cached thumbnail in that case — doing so causes the
-            // thumbnail to jump between the SMTC placeholder and the fetched
-            // high-quality artwork repeatedly.
+            // Use track+artist identity (without MediaSource) to decide if the *actual track* changed
             string currentTrackOnlyIdentityForThumb = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
             bool trackChangedForThisPass = !string.Equals(currentTrackOnlyIdentityForThumb, _lastThumbTrackIdentity, StringComparison.Ordinal);
 
@@ -2530,14 +2490,12 @@ public class MediaDetectionService : IMediaDetectionService
             if (!trackChangedForThisPass && _cachedThumbnail != null &&
                 (hasVerifiedYouTubeThumb || hasVerifiedSoundCloudThumbGlobal))
             {
-                // Same track, already have a verified high-quality thumbnail from
-                // YouTube/SoundCloud API — don't let the SMTC thumbnail overwrite it.
+                // Same track, already have a verified high-quality thumbnail from YouTube/SoundCloud API — don't let the SMTC thumbnail overwrite it
                 info.Thumbnail = _cachedThumbnail;
             }
-            else if (!forceRefresh && !trackChangedForThisPass && _cachedThumbnail != null)
+            else if (!trackChangedForThisPass && _cachedThumbnail != null)
             {
-                // Same track (by title+artist) — reuse cached thumbnail regardless
-                // of MediaSource flip-flop.
+                // Same track (by title+artist) — reuse cached thumbnail regardless of forceRefresh or MediaSource flip-flop
                 info.Thumbnail = _cachedThumbnail;
             }
             else
@@ -2560,13 +2518,10 @@ public class MediaDetectionService : IMediaDetectionService
                                                                             trackChangedForThisPass &&
                                                                             !hasVerifiedSoundCloudThumb &&
                                                                             !likelySoundCloudArtwork;
-                                // Never suppress SMTC thumbnail on track change — always show it
-                                // immediately so the user sees the thumbnail update. The async
-                                // YouTube fetch will replace it later with a higher-quality version.
+                                // Never suppress SMTC thumbnail on track change — always show it immediately so the user sees the thumbnail update
                                 bool skipSmtcThumbForFreshYouTubeTrack = false;
                                 if (skipSmtcThumbForFreshSoundCloudTrack || skipSmtcThumbForFreshYouTubeTrack)
                                 {
-                                    
                                     
                                     info.Thumbnail = _cachedThumbnail;
                                 }
@@ -2579,10 +2534,10 @@ public class MediaDetectionService : IMediaDetectionService
                                         info.MediaSource == "SoundCloud" &&
                                         isSquare &&
                                         (newBitmap.PixelWidth <= 320 || newBitmap.PixelHeight <= 320);
-                                    bool isGenericIcon = info.MediaSource == "YouTube" || info.MediaSource == "Browser" || isLikelySoundCloudPlaceholder;
-                                    // On track change, always accept the SMTC thumbnail immediately
-                                    // so the UI updates right away. The async YouTube fetch will
-                                    // replace it later with a cropped/higher-quality version.
+                                    // Browser source SMTC thumbnail is typically the browser icon/favicon (not the actual video thumbnail) when the tab is in the background
+                                    bool isGenericIcon = (info.MediaSource == "YouTube" || info.MediaSource == "Browser" || isLikelySoundCloudPlaceholder)
+                                                         && isSquare && newBitmap.PixelWidth <= 300;
+                                    // On track change, always accept the SMTC thumbnail immediately so the UI updates right away
                                     bool shouldPreferVerifiedYouTubeLookup = isYouTubeLikeSource &&
                                                                             !hasVerifiedYouTubeThumb &&
                                                                             !trackChangedForThisPass;
@@ -2721,9 +2676,12 @@ public class MediaDetectionService : IMediaDetectionService
                             double playbackRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
                             var compensatedPosition = chosenPosition + TimeSpan.FromSeconds(timelineLatency.TotalSeconds * playbackRate);
 
-                            if (duration > TimeSpan.Zero && compensatedPosition > duration)
+                            // Don't let compensation push position to or past duration
+                            if (duration > TimeSpan.Zero)
                             {
-                                compensatedPosition = duration;
+                                TimeSpan maxAllowed = TimeSpan.FromSeconds(duration.TotalSeconds * 0.95);
+                                if (compensatedPosition > maxAllowed)
+                                    compensatedPosition = maxAllowed;
                             }
 
                             if (compensatedPosition > chosenPosition)
@@ -2853,11 +2811,7 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 string videoId = match.Groups[1].Value;
                 System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted video ID from browser URL: {videoId}");
-                // NOTE: Do NOT cache here. The caller validates this id against
-                // the SMTC track title and will cache it post-validation in the
-                // success path. Caching pre-validation poisons the per-track
-                // cache when the foreground/background tab still points at the
-                // *previous* song's URL.
+                // NOTE: Do NOT cache here
                 return videoId;
             }
         }
@@ -2869,10 +2823,6 @@ public class MediaDetectionService : IMediaDetectionService
         return null;
     }
 
-    /// <summary>
-    /// Scans ALL browser windows (not just foreground) to find a YouTube video ID.
-    /// This works even when the browser is in the background.
-    /// </summary>
     private string? TryExtractVideoIdFromAnyBrowserUrl()
     {
         try
@@ -2899,9 +2849,6 @@ public class MediaDetectionService : IMediaDetectionService
         return null;
     }
 
-    /// <summary>
-    /// Extracts a SoundCloud URL from any browser window (foreground or background).
-    /// </summary>
     private string? TryExtractSoundCloudUrlFromAnyBrowser()
     {
         try
@@ -2964,11 +2911,6 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    /// <summary>
-    /// Drop every cached videoId entry whose key does not match the provided
-    /// (current) track identity. Called once per real track-change to make
-    /// sure a stale entry from the previous song cannot leak across.
-    /// </summary>
     private void ForgetVideoIdCacheExceptForTrack(string? currentTrackIdentity)
     {
         lock (_videoIdCacheLock)
@@ -2995,11 +2937,6 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    /// <summary>
-    /// Removes the per-track videoId mapping if (and only if) it currently
-    /// points at the supplied stale id. Used when a validation just rejected
-    /// that id so the next pass does not pick it up from cache again.
-    /// </summary>
     private void EvictVideoIdCacheEntry(string? track, string staleVideoId)
     {
         if (string.IsNullOrEmpty(track) || string.IsNullOrEmpty(staleVideoId)) return;
@@ -3023,7 +2960,6 @@ public class MediaDetectionService : IMediaDetectionService
     {
         if (info.MediaSource == "YouTube") return true;
 
-        
         if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.SourceAppId))
         {
             if (TryGetSessionSourceOverride(info, out var sOver) && sOver == "YouTube")
@@ -3043,21 +2979,11 @@ public class MediaDetectionService : IMediaDetectionService
             }
         }
 
-        
         if (!string.IsNullOrEmpty(info.CurrentArtist) &&
             info.CurrentArtist.Equals("YouTube", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // ── Window-title fallback ─────────────────────────────────────────────
-        // SMTC reports browser-hosted media as "Browser" (not "YouTube") until
-        // we've seen a successful URL/oEmbed lookup that lets us cache an
-        // override. For users who keep the YouTube tab in the *background*,
-        // that lookup may not have happened yet — but the browser still
-        // exposes the YouTube tab title (e.g. "Foo - YouTube") via taskbar
-        // window enumeration, even when the tab isn't focused. Treat that as
-        // a strong YouTube signal so we don't kick off a SoundCloud probe
-        // that would later overwrite the YouTube thumbnail with a 500x500
-        // SoundCloud placeholder.
+        // ── Window-title fallback ───────────────────────────────────────────── SMTC reports browser-hosted media as "Browser" (not "YouTube") until we've seen a successful URL/oEmbed lookup that lets us cache an override
         if (info.MediaSource == "Browser" && !string.IsNullOrEmpty(info.CurrentTrack))
         {
             try
@@ -3110,7 +3036,6 @@ public class MediaDetectionService : IMediaDetectionService
             return false;
         }
 
-        
         if ((DateTime.Now - _lastMetadataChangeTime).TotalSeconds > 3.0)
         {
             return false;
@@ -3205,6 +3130,8 @@ public class MediaDetectionService : IMediaDetectionService
     public Task SeekAsync(TimeSpan position) => _transportService.SeekAsync(position);
 
     public Task SeekRelativeAsync(double seconds) => _transportService.SeekRelativeAsync(seconds);
+
+    public Task SeekToAbsoluteAsync(TimeSpan position) => _transportService.SeekToAbsoluteAsync(position);
 }
 
 [Flags]

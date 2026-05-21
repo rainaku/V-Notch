@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -155,7 +155,6 @@ public partial class MainWindow
 
     private void UpdateBatteryInfo()
     {
-        // Reserved: explicit poke point if we ever need to force a refresh
-        // outside the BatteryModule's own event cadence.
+        // Reserved: explicit poke point if we ever need to force a refresh outside the BatteryModule's own event cadence.
     }
 }

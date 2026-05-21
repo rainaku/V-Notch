@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,25 +9,11 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
     
-    
-    
-    
-    
     public const int CurrentVersion = 3;
 
-    
-    
-    
-    
-    
-    
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
         {
-            
-            
-            
-            
             
             [0] = root =>
             {
@@ -59,12 +45,6 @@ public static class SettingsMigrator
             },
         };
 
-    
-    
-    
-    
-    
-    
     public static (NotchSettings settings, bool migrated) Migrate(string rawJson)
     {
         if (string.IsNullOrWhiteSpace(rawJson))

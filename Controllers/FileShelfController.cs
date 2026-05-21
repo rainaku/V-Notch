@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -30,9 +30,7 @@ public sealed class FileShelfController : IDisposable
     private int _snapshotVersion;
     private int _lastSnapshotVersion = -1;
 
-    // ─── Public State ───
-    // NOTE: Properties that read _filesList/_pendingFiles are guarded by _lock.
-    // _watchers is only accessed from the UI thread (via Dispatcher marshalling).
+    // ─── Public State ─── NOTE: Properties that read _filesList/_pendingFiles are guarded by _lock
 
     public IReadOnlyList<string> Files
     {
@@ -435,10 +433,7 @@ public sealed class FileShelfController : IDisposable
         LayoutRefreshRequested?.Invoke();
     }
 
-    // ─── File Watching ───
-    // IMPORTANT: WatchDirectory/UnwatchDirectory access _watchers without _lock.
-    // They must only be called from the UI thread (which is guaranteed because all
-    // public methods are called from UI, and watcher events are marshalled via Dispatcher).
+    // ─── File Watching ─── IMPORTANT: WatchDirectory/UnwatchDirectory access _watchers without _lock
 
     private void WatchDirectory(string filePath)
     {

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using VNotch.Services;
@@ -12,9 +12,6 @@ public partial class App : Application
     private static Mutex? _mutex;
     private const string MutexName = "VNotch_SingleInstance_Mutex";
 
-    
-    
-    
     public static IServiceProvider Services { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -85,17 +82,13 @@ public partial class App : Application
             args.SetObserved(); // Prevent process termination
         };
 
-        
         var services = new ServiceCollection();
         ConfigureServices(services);
         Services = services.BuildServiceProvider();
 
-        // Eagerly resolve every singleton and kick background warmups before
-        // showing the window. Catches wiring problems early and primes COM /
-        // WinRT / UI Automation cold-start costs off the UI thread.
+        // Eagerly resolve every singleton and kick background warmups before showing the window
         ServicePrewarmer.Prewarm(Services);
 
-        
         var mainWindow = Services.GetRequiredService<MainWindow>();
         mainWindow.Show();
 
@@ -119,7 +112,6 @@ public partial class App : Application
             new DispatcherService(Current.Dispatcher));
         services.AddSingleton<IUpdateService, UpdateService>();
 
-        
         services.AddSingleton<BatteryModule>();
         services.AddSingleton<CalendarModule>();
         services.AddSingleton<BluetoothModule>();
@@ -134,7 +126,6 @@ public partial class App : Application
             return host;
         });
 
-        
         services.AddSingleton<MainWindow>();
     }
 
@@ -142,7 +133,6 @@ public partial class App : Application
     {
         RuntimeLog.Log("SYSTEM", "Application exit");
 
-        
         if (Services is IDisposable disposable)
         {
             disposable.Dispose();

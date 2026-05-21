@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
 using VNotch.Models;
@@ -89,7 +89,6 @@ public class SettingsService : ISettingsService
             var options = new JsonSerializerOptions { WriteIndented = true };
             var json = JsonSerializer.Serialize(settings, options);
 
-            
             var tempPath = _settingsPath + ".tmp";
             File.WriteAllText(tempPath, json);
 
@@ -110,9 +109,6 @@ public class SettingsService : ISettingsService
         }
     }
 
-    
-    
-    
     private string QuarantineCorruptFile(string rawContents, Exception reason)
     {
         try

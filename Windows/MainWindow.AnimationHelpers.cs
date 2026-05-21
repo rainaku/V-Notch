@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -40,7 +40,6 @@ public partial class MainWindow
         var easing = isHovered ? (IEasingFunction)_easeThumbSpring : _easeExpOut6;
         var animFps = 144;
 
-        
         var widthAnim = MakeAnim(notchWidth, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
         var heightAnim = MakeAnim(notchHeight, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
         VNotch.Services.RuntimeLog.Log("NOTCH-WIDTH",
@@ -48,13 +47,11 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
-        
         var thumbScaleAnimX = MakeAnim(thumbScale, duration, easing, animFps);
         var thumbScaleAnimY = MakeAnim(thumbScale, duration, easing, animFps);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, thumbScaleAnimX);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, thumbScaleAnimY);
 
-        
         if (isHovered)
         {
             CompactHoverInfo.Visibility = Visibility.Visible;
@@ -75,7 +72,6 @@ public partial class MainWindow
         }
         CompactHoverInfo.BeginAnimation(OpacityProperty, fadeAnim);
 
-        
         double radius = isHovered ? 24 : _cornerRadiusCollapsed;
         AnimateCornerRadius(radius, duration.TimeSpan);
 
@@ -421,8 +417,7 @@ public partial class MainWindow
 
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
     {
-        // Cancel any in-progress corner radius animation to prevent jitter
-        // from conflicting animations (e.g., hover → expand transition)
+        // Cancel any in-progress corner radius animation to prevent jitter from conflicting animations (e
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
         double startRadius = NotchBorder.CornerRadius.BottomLeft;
@@ -452,8 +447,6 @@ public partial class MainWindow
         var durPeak = TimeSpan.FromMilliseconds(150);
         var durEnd = TimeSpan.FromMilliseconds(800);
 
-        
-        
         var bounceX = new DoubleAnimationUsingKeyFrames();
         bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.12, KeyTime.FromTimeSpan(durPeak), _easeQuadOut));
         bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(durEnd), _easeSoftSpring));
@@ -479,18 +472,15 @@ public partial class MainWindow
         var duration = isHovered ? _dur400 : _dur350;
         var easing = isHovered ? (IEasingFunction)_easeExpOut6 : _easeQuadOut;
 
-        
         var marginAnim = new ThicknessAnimation(ProgressBarContainer.Margin, new Thickness(margin, 0, margin, 0), duration)
         {
             EasingFunction = easing
         };
         ProgressBarContainer.BeginAnimation(MarginProperty, marginAnim);
 
-        
         var scaleAnim = MakeAnim(scaleY, duration, easing);
         ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
 
-        
         var bgFadeAnim = MakeAnim(bgOpacity, duration, _easeQuadOut);
         ProgressBarBg.BeginAnimation(OpacityProperty, bgFadeAnim);
     }

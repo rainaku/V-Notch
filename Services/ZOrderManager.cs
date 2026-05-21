@@ -1,4 +1,4 @@
-using System.Windows.Threading;
+﻿using System.Windows.Threading;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Services;

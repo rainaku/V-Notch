@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
@@ -8,10 +8,6 @@ using System.Threading.Tasks;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Fetches synced lyrics from LRClib (https://lrclib.net).
-/// Free, no API key, no telemetry — only sends track name, artist, and duration.
-/// </summary>
 internal sealed class LyricsService : IDisposable
 {
     private static readonly HttpClient _http = new()
@@ -28,9 +24,6 @@ internal sealed class LyricsService : IDisposable
     private CancellationTokenSource? _cts;
     private string _lastFetchKey = "";
 
-    /// <summary>
-    /// Fetches synced lyrics for a Spotify track. Returns null if not found or not synced.
-    /// </summary>
     public async Task<List<LyricLine>?> FetchSyncedLyricsAsync(string trackName, string artistName, int durationSeconds)
     {
         string fetchKey = $"{trackName}|{artistName}|{durationSeconds}";
@@ -88,18 +81,12 @@ internal sealed class LyricsService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Resets the last fetch key so the same track can be re-fetched.
-    /// </summary>
     public void Reset()
     {
         _lastFetchKey = "";
         _cts?.Cancel();
     }
 
-    /// <summary>
-    /// Parses LRC format: [mm:ss.xx] text
-    /// </summary>
     private static List<LyricLine> ParseLrc(string lrc)
     {
         var lines = new List<LyricLine>();
@@ -127,9 +114,6 @@ internal sealed class LyricsService : IDisposable
         return lines;
     }
 
-    /// <summary>
-    /// Parses timestamp in format mm:ss.xx or mm:ss.xxx
-    /// </summary>
     private static bool TryParseTimestamp(string ts, out TimeSpan result)
     {
         result = TimeSpan.Zero;
@@ -168,7 +152,4 @@ internal sealed class LyricsService : IDisposable
     }
 }
 
-/// <summary>
-/// A single line of synced lyrics with its timestamp.
-/// </summary>
 internal readonly record struct LyricLine(TimeSpan Time, string Text);

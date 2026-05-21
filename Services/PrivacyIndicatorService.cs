@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Threading;
@@ -6,12 +6,6 @@ using Microsoft.Win32;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// iOS-style mic/camera in-use indicator.
-/// Inspects HKCU\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\{microphone|webcam}.
-/// A LastUsedTimeStop value of 0 means the device is currently in use by that app.
-/// Lightweight: registry reads are cheap and bounded; polled on the UI dispatcher.
-/// </summary>
 public sealed class PrivacyIndicatorService : IDisposable
 {
     private const string ConsentRoot =
@@ -147,11 +141,7 @@ public sealed class PrivacyIndicatorService : IDisposable
 
     private static bool DetectScreenRecording()
     {
-        // Only use ConsentStore registry — this is 100% accurate.
-        // Apps using Windows Graphics Capture API (Game Bar, Snipping Tool, 
-        // PowerPoint recording, etc.) register here with LastUsedTimeStop=0 while active.
-        // Note: Some recorders (Bandicam, OBS) use DirectX hooks and won't appear here.
-        // This is acceptable — no false positives is better than false positives.
+        // Only use ConsentStore registry — this is 100% accurate
         if (ScanCapability("graphicsCaptureProgrammatic").Count > 0)
             return true;
         if (ScanCapability("graphicsCaptureWithoutBorder").Count > 0)

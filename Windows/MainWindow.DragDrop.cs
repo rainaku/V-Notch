@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -10,7 +10,6 @@ public partial class MainWindow
 {
     #region Drag-to-Open
 
-    
     private bool _dragAutoExpanded = false;
 
     private System.Windows.Threading.DispatcherTimer? _dragWaitTimer;
@@ -22,7 +21,6 @@ public partial class MainWindow
         e.Effects = DragDropEffects.Copy;
         e.Handled = true;
 
-        
         _dragCollapseTimer?.Stop();
 
         if (!_isExpanded && !_isAnimating)
@@ -56,8 +54,6 @@ public partial class MainWindow
     {
         if (!_dragAutoExpanded) return;
 
-        
-        
         _dragCollapseTimer?.Stop();
         _dragCollapseTimer = new System.Windows.Threading.DispatcherTimer
         {
@@ -151,7 +147,6 @@ public partial class MainWindow
         }
     }
 
-    
     private void StartDragWaitForShelf()
     {
         _dragWaitTimer?.Stop();
@@ -170,7 +165,6 @@ public partial class MainWindow
         _dragWaitTimer.Start();
     }
 
-    
     private void AutoCollapseAfterDrag()
     {
         _dragAutoExpanded = false;

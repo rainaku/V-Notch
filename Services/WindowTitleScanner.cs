@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Automation;
 
@@ -8,18 +8,8 @@ public interface IWindowTitleScanner
 {
     List<string> GetAllWindowTitles(bool isThrottled);
     string? TryGetBrowserUrl();
-    /// <summary>
-    /// Scans ALL visible browser windows (not just foreground) to find a media URL.
-    /// Returns the first YouTube or SoundCloud URL found, or null.
-    /// </summary>
     string? TryGetMediaUrlFromAnyBrowser();
 
-    /// <summary>
-    /// Drops the cached browser URL/media-URL results so the next call always
-    /// performs a fresh UI Automation walk. Call this when you know the active
-    /// media changed (e.g. SMTC fired a new track) so a stale URL from the
-    /// previous track does not leak into the next thumbnail lookup.
-    /// </summary>
     void InvalidateUrlCaches();
 }
 
@@ -137,9 +127,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
     {
         lock (_cacheLock)
         {
-            // Cache successful lookups for 1.5s; cache *misses* for only 400ms
-            // so a tab that just started playing in the background is picked
-            // up quickly when the user opens the notch a moment later.
+            // Cache successful lookups for 1
             int ttlMs = !string.IsNullOrEmpty(_cachedAnyBrowserMediaUrl) ? 1500 : 400;
             if ((DateTime.Now - _lastAnyBrowserMediaUrlTime).TotalMilliseconds < ttlMs)
                 return _cachedAnyBrowserMediaUrl;
@@ -161,17 +149,9 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
         }
     }
 
-    /// <summary>
-    /// Scans ALL visible browser windows to find a YouTube or SoundCloud URL.
-    /// Unlike TryGetBrowserUrl which only checks the foreground window,
-    /// this enumerates all top-level windows and checks each browser window's
-    /// address bar AND tab strip (Chromium-based browsers expose per-tab URLs
-    /// via UI Automation HelpText, so background tabs are also covered).
-    /// </summary>
     private string? ExtractMediaUrlFromAllBrowserWindows()
     {
-        // First try the foreground window (fastest path). If it already shows
-        // a media URL, we're done.
+        // First try the foreground window (fastest path). If it already shows a media URL, we're done.
         var foregroundUrl = ExtractBrowserUrlCore();
         if (!string.IsNullOrEmpty(foregroundUrl) && IsMediaUrl(foregroundUrl))
             return foregroundUrl;
@@ -207,9 +187,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             }
             if (!isBrowser) return true;
 
-            // ExtractUrlFromWindowHandle now also walks the tab strip when the
-            // address bar isn't a media URL, so a background YouTube tab in
-            // this window will still be discovered.
+            // ExtractUrlFromWindowHandle now also walks the tab strip when the address bar isn't a media URL, so a background YouTube tab in this window will still be discovered
             var url = ExtractUrlFromWindowHandle(hWnd, processName);
             if (!string.IsNullOrEmpty(url) && IsMediaUrl(url))
             {
@@ -223,12 +201,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
         return foundUrl;
     }
 
-    /// <summary>
-    /// Extracts the URL from a specific browser window handle using UI Automation.
-    /// Falls back to scanning <see cref="TabItem"/> elements (Chromium exposes
-    /// each tab's URL via <c>HelpText</c>) so background tabs can also be
-    /// inspected, not just the active one.
-    /// </summary>
     private static string? ExtractUrlFromWindowHandle(IntPtr hwnd, string processName)
     {
         try
@@ -285,13 +257,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                     return url;
             }
 
-            // ── Fallback: scan tabs for a media URL ──────────────────────────
-            // Address bar only reflects the *active* tab. When the YouTube /
-            // SoundCloud tab is in the background, address bar will be a
-            // different URL, so we additionally walk the tab strip.
-            // Chromium-based browsers expose the per-tab URL via
-            // AutomationElement.HelpText. Firefox also exposes it on tab
-            // descendants.
+            // ── Fallback: scan tabs for a media URL ────────────────────────── Address bar only reflects the *active* tab
             var tabUrl = TryFindMediaUrlInTabs(element);
             if (!string.IsNullOrEmpty(tabUrl))
                 return tabUrl;
@@ -330,16 +296,11 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             string help = tab.Current.HelpText ?? string.Empty;
             if (LooksLikeUrl(help)) return NormalizeUrl(help);
 
-            // Some Chromium variants and Firefox expose URL as the Name on a
-            // descendant Document or as the Value on a child Hyperlink.
+            // Some Chromium variants and Firefox expose URL as the Name on a descendant Document or as the Value on a child Hyperlink.
             string name = tab.Current.Name ?? string.Empty;
             if (LooksLikeUrl(name)) return NormalizeUrl(name);
 
-            // Firefox-specific: tabs may have a child element with AutomationId
-            // "urlbar-input" containing the URL of the corresponding tab is not
-            // exposed, but a "tab" element's Description sometimes carries it.
-            // Best effort — scan one level of descendants for any element with
-            // a media URL in its Name/HelpText/Value.
+            // Firefox-specific: tabs may have a child element with AutomationId "urlbar-input" containing the URL of the corresponding tab is not exposed, but a "tab" element's Description sometimes carries it
             var subtree = tab.FindAll(TreeScope.Children,
                 new PropertyCondition(AutomationElement.IsControlElementProperty, true));
 
@@ -382,9 +343,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
         return s;
     }
 
-    /// <summary>
-    /// Checks if a URL is a YouTube or SoundCloud media URL.
-    /// </summary>
     private static bool IsMediaUrl(string url)
     {
         return url.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||

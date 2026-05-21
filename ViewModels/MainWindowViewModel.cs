@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Windows.Media.Imaging;
 using VNotch.Models;
@@ -19,10 +19,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isMusicCompactMode;
 
-    
-    
-    
-    
     public Func<bool>? IsExpandedCheck { get; set; }
 
     [ObservableProperty]
@@ -138,40 +134,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     #endregion
 
-    
-    
-    
     public event EventHandler<MediaInfo>? NewTrackDetected;
 
-    
-    
-    
-    
     public event EventHandler<MediaInfo>? MediaInfoUpdated;
 
-    
-    
-    
     public event EventHandler<bool>? PlayPauseToggled;
 
-    
-    
-    
     public event EventHandler<NotchSettings>? SettingsApplied;
 
-    
-    
-    
     public event EventHandler? SessionTransitioned;
 
-    
-    
-    
     public event EventHandler? NextTrackTriggered;
 
-    
-    
-    
     public event EventHandler? PreviousTrackTriggered;
 
     private DateTime _lastMediaActionTime = DateTime.MinValue;
@@ -220,10 +194,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
-            
             MediaSourceIcon = hasRealTrack ? (info.MediaSource ?? "") : "";
 
-            
             if (hasRealTrack)
             {
                 MediaSourceName = info.MediaSource ?? "Now Playing";
@@ -252,7 +224,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 MediaSourceName = "Now Playing";
             }
 
-            
             string currentSig = info.GetSignature();
             bool isNewTrack = currentSig != _lastAnimatedTrackSignature;
 
@@ -274,24 +245,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 HasThumbnail = false;
             }
 
-            
             if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds > 500 && IsPlaying != info.IsPlaying)
             {
                 IsPlaying = info.IsPlaying;
                 PlayPauseToggled?.Invoke(this, IsPlaying);
             }
 
-            
             UpdateProgressTracking(info);
 
-            
             bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
             if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
             CollapsedWidth = Settings.Width;
             IsMusicCompactMode = shouldBeCompact;
 
-            
             MediaInfoUpdated?.Invoke(this, info!);
         });
     }
@@ -375,9 +342,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    
-    
-    
     public void RenderProgressBar()
     {
         if (_isDraggingProgress || CurrentMediaInfo == null) return;
@@ -478,7 +442,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            await _mediaService.SeekRelativeAsync(seconds);
+            // Use absolute seek with the locally predicted position to avoid drift between UI and SMTC's stale timeline position.
+            await _mediaService.SeekToAbsoluteAsync(newPos);
         }
         catch (Exception ex)
         {

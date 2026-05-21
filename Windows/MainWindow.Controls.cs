@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -187,19 +187,6 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// When the user presses the "previous track" button on a non-video source
-    /// (Spotify, Apple Music, etc.), the underlying app may either skip to the
-    /// previous track OR restart the current one. In the restart case, the
-    /// session reports the same track with a brand-new position near 0, and
-    /// the renderer's "no backward during playback" guard would otherwise hold
-    /// the bar at the old position until predicted time climbs all the way back
-    /// (visible as a multi-second freeze). Animate the bar back to 0
-    /// immediately and open the backward-render window so the next snapshot is
-    /// accepted without delay. If the app actually skipped to a different
-    /// track, the track-change reset in UpdateProgressTracking will overwrite
-    /// this state cleanly.
-    /// </summary>
     private void OptimisticPrepareForPreviousTrack()
     {
         try
@@ -207,9 +194,7 @@ public partial class MainWindow
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(TimeSpan.Zero);
 
-            // Animate the rewind so the user sees the bar slide back to 0
-            // instead of snapping. State (display/target/spring ratios) is
-            // committed inside the animation's Completed handler.
+            // Animate the rewind so the user sees the bar slide back to 0 instead of snapping
             AnimateProgressRewindTo(0);
         }
         catch (Exception ex)
@@ -318,11 +303,7 @@ public partial class MainWindow
         if (VolumeIndicatorContainer == null || VolumeIndicatorFill == null) return;
         if (!_isMusicCompactMode) return;
         if (_isBluetoothNotificationVisible) return;
-        // CRITICAL: never run the compact-mode volume UI when the notch is
-        // expanded. ShowVolumeIndicator forces NotchBorder.Width to
-        // (_collapsedWidth + 20), which would shrink the expanded notch
-        // mid-flight and clip its content. The expanded view has its own
-        // VolumeBarScale path (handled by the caller in OnVolumeChanged).
+        // CRITICAL: never run the compact-mode volume UI when the notch is expanded
         if (_isExpanded || _isAnimating) return;
 
         // ─── First time showing: hide compact content ───
@@ -443,10 +424,7 @@ public partial class MainWindow
         // Restore privacy dot
         RestorePrivacyDotVisibility();
 
-        // If the notch is expanded (user opened it while volume indicator was
-        // visible), don't drive the compact-mode shrink animation — that would
-        // collapse the expanded view's width mid-flight. Just clear UI state
-        // so the next compact session starts clean.
+        // If the notch is expanded (user opened it while volume indicator was visible), don't drive the compact-mode shrink animation — that would collapse the expanded view's width mid-flight
         if (_isExpanded || _isAnimating)
         {
             VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);

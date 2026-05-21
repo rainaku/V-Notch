@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -98,10 +98,6 @@ public partial class MainWindow
         RuntimeLog.Log("PRIVACY", "Dot hidden");
     }
 
-    /// <summary>
-    /// Temporarily hides the privacy dot (e.g. during volume bar or bluetooth notification).
-    /// Call RestorePrivacyDotVisibility() when the overlay is dismissed.
-    /// </summary>
     private void SuppressPrivacyDot()
     {
         if (!_privacyIndicatorsVisible) return;
@@ -112,9 +108,6 @@ public partial class MainWindow
         PrivacyIndicatorPanel.Visibility = Visibility.Collapsed;
     }
 
-    /// <summary>
-    /// Restores the privacy dot after a temporary suppression, if still active.
-    /// </summary>
     private void RestorePrivacyDotVisibility()
     {
         if (!_privacyIndicatorsVisible) return;

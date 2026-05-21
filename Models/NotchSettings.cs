@@ -1,11 +1,9 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace VNotch.Models;
 
 public class NotchSettings
 {
-    
-    
     
     public int SettingsVersion { get; set; } = 0;
 

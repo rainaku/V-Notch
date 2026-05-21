@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows.Threading;
 using VNotch.Contracts;
 using VNotch.Services;
@@ -52,9 +52,6 @@ public abstract class NotchModuleBase : INotchModule
         {
             OnStart();
 
-            
-            
-            
             TickSafe();
 
             _timer?.Start();
@@ -132,20 +129,13 @@ public abstract class NotchModuleBase : INotchModule
         }
     }
 
-    
     protected virtual void OnInitialize() { }
 
-    
     protected virtual void OnStart() { }
 
-    
     protected virtual void OnStop() { }
 
-    
-    
-    
     protected abstract void OnTick();
 
-    
     protected virtual void OnDispose() { }
 }

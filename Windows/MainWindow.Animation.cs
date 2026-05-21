@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -36,7 +36,6 @@ public partial class MainWindow
                 return false;
             }
 
-            
             if (Math.Abs(targetX) > 2000 || Math.Abs(targetY) > 2000) return false;
 
             target = (targetX, targetY);
@@ -113,7 +112,6 @@ public partial class MainWindow
         MediaBackground.BeginAnimation(OpacityProperty, null);
         MediaBackground2.BeginAnimation(OpacityProperty, null);
 
-        
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -127,9 +125,7 @@ public partial class MainWindow
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
-        // Force layout pass so ThumbnailBorder gets actual dimensions for target compute.
-        // Without this, the first expand after settings save (which clears the cache)
-        // computes the target before layout finishes, giving wrong coordinates.
+        // Force layout pass so ThumbnailBorder gets actual dimensions for target compute
         ExpandedContent.Width = _expandedWidth - 16;
         ExpandedContent.Height = _expandedHeight - 2;
         ExpandedContent.UpdateLayout();
@@ -155,7 +151,6 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0.15, _dur200);
 
-        
         var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
         var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
         ExpandedContentBlur.Radius = 24;
@@ -171,8 +166,7 @@ public partial class MainWindow
 
             if (!cachedExpandTarget.HasValue)
             {
-                // No animation overlay possible — keep compact thumbnail visible
-                // until expand completes, then expanded view takes over.
+                // No animation overlay possible — keep compact thumbnail visible until expand completes, then expanded view takes over.
                 AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
@@ -245,9 +239,7 @@ public partial class MainWindow
             UpdateCalendarInfo();
             ShowMediaBackground();
             
-            // Start progress bar catch-up animation BEFORE RenderProgressBar
-            // to prevent the snap-to-position that would set _progressDisplayRatio > 0
-            // and cause StartProgressCatchUpAnimation to bail out.
+            // Start progress bar catch-up animation BEFORE RenderProgressBar to prevent the snap-to-position that would set _progressDisplayRatio > 0 and cause StartProgressCatchUpAnimation to bail out
             StartProgressCatchUpAnimation();
             RenderProgressBar();
 
@@ -262,7 +254,6 @@ public partial class MainWindow
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
 
-            
             ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             ExpandedContentBlur.Radius = 0;
             CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -288,8 +279,7 @@ public partial class MainWindow
                 }
             }
 
-            // Always restore opacity — it may have been set to 0 during expand animation
-            // even if _isMusicCompactMode changed during the animation
+            // Always restore opacity — it may have been set to 0 during expand animation even if _isMusicCompactMode changed during the animation
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
             if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
 
@@ -302,14 +292,12 @@ public partial class MainWindow
         CollapsedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         MusicCompactContent.BeginAnimation(OpacityProperty, fadeOutAnim);
 
-        
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
 
-        
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurInAnim);
 
         HoverGlow.BeginAnimation(OpacityProperty, glowAnim);
@@ -411,7 +399,6 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0, _dur150);
 
-        
         var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
         var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
         
@@ -502,7 +489,6 @@ public partial class MainWindow
             NavIconsBackground.Opacity = 0;
             NavIconsBackground.Visibility = Visibility.Collapsed;
 
-            
             ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             ExpandedContentBlur.Radius = 0;
             CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -525,7 +511,6 @@ public partial class MainWindow
                 AnimationThumbnailTranslate.X = 0;
                 AnimationThumbnailTranslate.Y = 0;
 
-                
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
                 CompactThumbnailScale.ScaleX = 1.0;
@@ -555,7 +540,6 @@ public partial class MainWindow
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOutAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, slideOutAnim);
 
-        
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
         if (SecondaryContent.Visibility == Visibility.Visible)
@@ -569,7 +553,6 @@ public partial class MainWindow
         showScale.BeginAnimation(ScaleTransform.ScaleXProperty, springShow);
         showScale.BeginAnimation(ScaleTransform.ScaleYProperty, springShow);
 
-        
         var compactBlurTarget = _isMusicCompactMode ? MusicCompactContentBlur : CollapsedContentBlur;
         compactBlurTarget.BeginAnimation(BlurEffect.RadiusProperty, blurInAnim);
 

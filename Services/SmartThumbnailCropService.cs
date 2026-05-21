@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
@@ -149,9 +149,7 @@ public sealed class SmartThumbnailCropService : IDisposable
                 // ─── Preprocess ───
                 var (scaleX, scaleY, padX, padY) = PreprocessImageFast(source, tensorBuffer);
 
-                // ─── Run inference ───
-                // ArrayPool.Rent returns a buffer >= requested size, but DenseTensor
-                // requires Memory<float>.Length == product(dimensions). Slice to exact size.
+                // ─── Run inference ─── ArrayPool
                 var tensor = new DenseTensor<float>(
                     new Memory<float>(tensorBuffer, 0, requiredLength),
                     new[] { 1, 3, ModelInputSize, ModelInputSize });
@@ -799,13 +797,11 @@ public sealed class SmartThumbnailCropService : IDisposable
                     // Penalize very dark/bright regions (black bars, white bg)
                     double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
 
-                    // Penalize very high contrast (text regions have sharp edges)
-                    // Prefer moderate contrast (subjects) over extreme contrast (text)
+                    // Penalize very high contrast (text regions have sharp edges) Prefer moderate contrast (subjects) over extreme contrast (text)
                     double contrastFactor = avgContrast < 40 ? avgContrast / 40.0 : 1.0 - (avgContrast - 40) / 200.0;
                     contrastFactor = Math.Clamp(contrastFactor, 0.2, 1.0);
 
-                    // Center bias for saliency — strong bias to keep main subject centered
-                    // and avoid pulling crop toward off-center decorative elements (text, logos)
+                    // Center bias for saliency — strong bias to keep main subject centered and avoid pulling crop toward off-center decorative elements (text, logos)
                     float cx = (gx + 0.5f) / gridSize;
                     float cy = (gy + 0.5f) / gridSize;
                     float centerDist = MathF.Sqrt((cx - 0.5f) * (cx - 0.5f) + (cy - 0.5f) * (cy - 0.5f));

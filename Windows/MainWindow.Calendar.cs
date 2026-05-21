@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -277,8 +277,7 @@ public partial class MainWindow
 
     private void UpdateCalendarInfo()
     {
-        // Reserved: explicit poke point when the notch is expanded or the
-        // calendar module otherwise wants a non-event driven refresh.
+        // Reserved: explicit poke point when the notch is expanded or the calendar module otherwise wants a non-event driven refresh
     }
 
     #endregion

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using VNotch.Contracts;
@@ -33,7 +33,6 @@ public sealed class ModuleLifecycleManager : IModuleLifecycleManager
         _modules.Add(module);
         RuntimeLog.Log("MODULE-HOST", $"Registered '{module.ModuleName}'");
 
-        
         if (_startedAll)
         {
             SafeInvoke(module, m => m.Initialize(), "Initialize");

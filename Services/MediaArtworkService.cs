@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Media;
@@ -211,9 +211,7 @@ public sealed class MediaArtworkService : IMediaArtworkService
 
     private static Int32Rect GetFallbackCropRect(int width, int height, int squareSize, string mediaSource, double aspect)
     {
-        // Always center crop — YouTube music thumbnails put the subject (artist/face)
-        // in the center or right. Left-crop was a legacy assumption that breaks for
-        // most music videos and Topic-channel album art.
+        // Always center crop — YouTube music thumbnails put the subject (artist/face) in the center or right
         int offsetX = (width - squareSize) / 2;
         int offsetY = (height - squareSize) / 2;
         return new Int32Rect(offsetX, offsetY, squareSize, squareSize);

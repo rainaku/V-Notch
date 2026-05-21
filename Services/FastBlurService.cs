@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -30,9 +30,7 @@ public static class FastBlurService
                 byte[] pixels = new byte[height * stride];
                 smallBitmap.CopyPixels(pixels, stride, 0);
 
-                
                 byte[] target = new byte[pixels.Length];
-                
                 
                 int passes = 2;
                 for (int i = 0; i < passes; i++)
@@ -41,7 +39,6 @@ public static class FastBlurService
                     BoxBlurVertical(target, pixels, width, height, blurRadius);
                 }
 
-                
                 DarkenPixels(pixels, 0.96f);
 
                 var writeableBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);

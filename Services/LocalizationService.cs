@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace VNotch.Services;
@@ -350,7 +350,7 @@ public static class Loc
             ["greeting.morning"] = "Chào buổi sáng",
             ["greeting.afternoon"] = "Chào buổi chiều",
             ["greeting.evening"] = "Chào buổi tối",
-            ["greeting.enjoyDay"] = "Chúc bạn một ngày tốt lành!",
+            ["greeting.enjoyDay"] = "Chúc bạn một ngày tốt\u00A0lành!",
             ["notch.camera"] = "Máy ảnh",
             ["clipboard.copied"] = "Đã sao chép",
 

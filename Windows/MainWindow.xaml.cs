@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -51,8 +51,7 @@ public partial class MainWindow : Window
     private DateTime _lastFullscreenCheckUtc = DateTime.MinValue;
     private DispatcherTimer? _fullscreenRecheckTimer;
     private DateTime _lastFullscreenStateChangeUtc = DateTime.MinValue;
-    // Minimum dwell before flipping the hide state again. Prevents flicker
-    // during alt-tab and short focus changes (UAC, transient dialogs, ...).
+    // Minimum dwell before flipping the hide state again
     private static readonly TimeSpan FullscreenStateCooldown = TimeSpan.FromMilliseconds(180);
     private bool _isTrayMenuOpen = false;
 
@@ -315,12 +314,7 @@ public partial class MainWindow : Window
             UpdateNotchClip();
             UpdateMediaBackgroundFootprint();
 
-            // Pre-warm layout of hidden content elements so first-time animations
-            // get correct ActualWidth/Height and TransformToAncestor results.
-            // Without this, the very first expand/switch animation calculates
-            // positions before WPF has measured these elements (since they start
-            // Visibility=Collapsed), causing visual glitches like wrong thumbnail
-            // target position, snapped transitions, etc.
+            // Pre-warm layout of hidden content elements so first-time animations get correct ActualWidth/Height and TransformToAncestor results
             PreWarmHiddenContentLayout();
 
             _isStartupLayoutReady = true;
@@ -491,16 +485,13 @@ public partial class MainWindow : Window
         // Already in target state and idle — nothing to do.
         if (shouldBeVisible == _fullscreenSlideVisible && !_isFullscreenSlideAnimating) return;
 
-        // Mid-animation flip (user toggled twice quickly): cancel current
-        // animation and re-target. The translate transform retains its current
-        // Y, which the new animation will smoothly continue from.
+        // Mid-animation flip (user toggled twice quickly): cancel current animation and re-target
         _fullscreenSlideVisible = shouldBeVisible;
         _isFullscreenSlideAnimating = true;
 
         double slideDistance = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight + 10 : _collapsedHeight + 10;
 
-        // Capture current Y (in case we are interrupting an in-flight slide)
-        // before clearing the running animation.
+        // Capture current Y (in case we are interrupting an in-flight slide) before clearing the running animation.
         double currentY = NotchContainerTranslate.Y;
         NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
         NotchContainerTranslate.Y = currentY;
@@ -508,9 +499,7 @@ public partial class MainWindow : Window
         if (shouldBeVisible)
         {
             NotchContainer.Visibility = Visibility.Visible;
-            // If the notch was fully off-screen, start from -slideDistance.
-            // If we're interrupting a hide animation, keep the current Y so
-            // it continues smoothly.
+            // If the notch was fully off-screen, start from -slideDistance
             if (currentY > 0 || currentY < -slideDistance)
             {
                 NotchContainerTranslate.Y = -slideDistance;
@@ -525,9 +514,7 @@ public partial class MainWindow : Window
             AnimateNotchSlide(toY: -slideDistance, durationMs: 250, easeOut: false, onComplete: () =>
             {
                 _isFullscreenSlideAnimating = false;
-                // Only collapse the container if we're still meant to be hidden;
-                // an interrupting show may have re-enabled visibility before the
-                // hide animation completed.
+                // Only collapse the container if we're still meant to be hidden; an interrupting show may have re-enabled visibility before the hide animation completed
                 if (!_fullscreenSlideVisible)
                 {
                     NotchContainer.Visibility = Visibility.Collapsed;
@@ -596,8 +583,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Cooldown only on the show->hide transition. We always allow returning
-        // to visible immediately to avoid stranding the user without a notch.
+        // Cooldown only on the show->hide transition
         if (!force && shouldHide && (now - _lastFullscreenStateChangeUtc) < FullscreenStateCooldown)
         {
             ScheduleFullscreenRecheck();
@@ -768,20 +754,11 @@ public partial class MainWindow : Window
         return processName.Contains("mydockfinder", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Forces WPF to measure and arrange hidden content elements so their first
-    /// animation gets correct ActualWidth/Height and transform coordinates.
-    /// Hidden elements (Visibility=Collapsed) are skipped during normal layout
-    /// passes, so animations triggered before they've ever been visible end up
-    /// reading stale/zero values — causing snap glitches and offset bugs on the
-    /// FIRST expand/switch but working correctly on subsequent runs.
-    /// </summary>
     private void PreWarmHiddenContentLayout()
     {
         try
         {
-            // Track and force show all hidden content elements that animations
-            // depend on for measure/transform calculations.
+            // Track and force show all hidden content elements that animations depend on for measure/transform calculations.
             var elementsToWarm = new System.Collections.Generic.List<(FrameworkElement Element, Visibility Original, double Opacity)>();
 
             void Track(FrameworkElement? el)
@@ -812,16 +789,13 @@ public partial class MainWindow : Window
             Track(BatterySection);
             Track(SettingsButton);
 
-            // Apply the same dimensions ExpandNotch will use later, so child layouts
-            // (especially ThumbnailBorder which determines the flying-thumb target)
-            // get the same coordinates as the real expanded state.
+            // Apply the same dimensions ExpandNotch will use later, so child layouts (especially ThumbnailBorder which determines the flying-thumb target) get the same coordinates as the real expanded state
             double prevExpandedWidth = ExpandedContent.Width;
             double prevExpandedHeight = ExpandedContent.Height;
             ExpandedContent.Width = _expandedWidth - 16;
             ExpandedContent.Height = _expandedHeight - 2;
 
-            // Also temporarily resize the notch border itself so any TransformToAncestor
-            // calculations resolve against the final expanded dimensions.
+            // Also temporarily resize the notch border itself so any TransformToAncestor calculations resolve against the final expanded dimensions
             double prevNotchWidth = NotchBorder.Width;
             double prevNotchHeight = NotchBorder.Height;
             NotchBorder.Width = _expandedWidth;
@@ -868,9 +842,7 @@ public partial class MainWindow : Window
         this.Height = _windowHeight;
         SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
 
-        // Monitor for the notch may have changed (display add/remove,
-        // resolution change). Re-evaluate fullscreen state against the new
-        // notch monitor.
+        // Monitor for the notch may have changed (display add/remove, resolution change)
         if (_hwnd != IntPtr.Zero)
         {
             UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
@@ -977,8 +949,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             _hoverCollapseTimer.Stop();
         }
 
-        // Re-evaluate fullscreen hide state in case user toggled the
-        // HideOnExclusiveFullscreen / HideOnWindowedFullscreen options.
+        // Re-evaluate fullscreen hide state in case user toggled the HideOnExclusiveFullscreen / HideOnWindowedFullscreen options.
         if (_hwnd != IntPtr.Zero)
         {
             UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
@@ -997,8 +968,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             NotchBorder.BeginAnimation(HeightProperty, null);
             this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
-            // On first boot (ActualWidth is 0), set dimensions immediately without animation
-            // to ensure layout is measured correctly before any other animations run.
+            // On first boot (ActualWidth is 0), set dimensions immediately without animation to ensure layout is measured correctly before any other animations run
             bool isFirstLayout = NotchBorder.ActualWidth <= 0 || NotchBorder.ActualHeight <= 0;
             const int fps = 144;
 

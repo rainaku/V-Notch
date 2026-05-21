@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Windows.Media.Control;
 
@@ -101,6 +101,32 @@ public sealed class MediaTransportControlService
         catch (Exception ex)
         {
             RuntimeLog.Error("MEDIA-CTRL", ex, "SeekRelative failed");
+        }
+    }
+
+    public async Task SeekToAbsoluteAsync(TimeSpan position)
+    {
+        try
+        {
+            var session = _getActiveSession();
+            if (session != null)
+            {
+                var timeline = session.GetTimelineProperties();
+                if (timeline != null)
+                {
+                    var target = position;
+                    if (target < TimeSpan.Zero)
+                        target = TimeSpan.Zero;
+                    if (timeline.EndTime > TimeSpan.Zero && target > timeline.EndTime)
+                        target = timeline.EndTime;
+
+                    await session.TryChangePlaybackPositionAsync(target.Ticks);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("MEDIA-CTRL", ex, "SeekToAbsolute failed");
         }
     }
 }

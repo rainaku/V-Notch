@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -122,8 +122,7 @@ public partial class SetupWindow : Window
         storyboard.Begin();
         ForceWindowToFront();
 
-        // Language is now the first page — show it after entrance animation
-        // Hide the XAML welcome elements and show the Language page
+        // Language is now the first page — show it after entrance animation Hide the XAML welcome elements and show the Language page
         IconContainer.Visibility = Visibility.Collapsed;
         HeadlineText.Visibility = Visibility.Collapsed;
         BodyText.Visibility = Visibility.Collapsed;
@@ -1271,9 +1270,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         {
             if (_pathBox != null)
             {
-                // dialog.FileName will be something like "D:\SomeFolder\V-Notch.none"
-                // We want the directory part which gives us "D:\SomeFolder\V-Notch" 
-                // since FileName was set to "V-Notch"
+                // dialog.FileName will be something like "D:\SomeFolder\V-Notch.none" We want the directory part which gives us "D:\Som...
                 var selectedPath = System.IO.Path.GetDirectoryName(dialog.FileName);
                 if (string.IsNullOrEmpty(selectedPath))
                 {

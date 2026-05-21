@@ -1,34 +1,17 @@
-namespace VNotch.Services;
+﻿namespace VNotch.Services;
 
 public interface IVolumeService : IDisposable
 {
     
-    
-    
     bool IsAvailable { get; }
 
-    
-    
-    
     float GetVolume();
 
-    
-    
-    
     bool SetVolume(float volume);
 
-    
-    
-    
     bool GetMute();
 
-    
-    
-    
     void SetMute(bool mute);
 
-    
-    
-    
     void ToggleMute();
 }

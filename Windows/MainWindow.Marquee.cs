@@ -1,4 +1,4 @@
-using VNotch.Controls;
+﻿using VNotch.Controls;
 
 namespace VNotch;
 

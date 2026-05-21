@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using static VNotch.Services.Win32Interop;
@@ -14,9 +14,7 @@ internal enum FullscreenType
 
 internal static class FullscreenDetector
 {
-    // Class names that must never trigger hide. Covers shell surfaces, IME,
-    // start menu, notification flyouts, and other transient overlays that
-    // some apps create at near-fullscreen sizes.
+    // Class names that must never trigger hide
     private static readonly string[] BlockedClassNamesExact = new[]
     {
         "Progman",                   // Desktop
@@ -50,12 +48,6 @@ internal static class FullscreenDetector
         return DetectFullscreenType(hwnd, notchHwnd, IntPtr.Zero);
     }
 
-    /// <summary>
-    /// Detect whether <paramref name="hwnd"/> is a fullscreen window. When
-    /// <paramref name="notchMonitor"/> is non-zero, windows on a different
-    /// monitor are ignored so a fullscreen app on another display does not
-    /// hide the notch.
-    /// </summary>
     public static FullscreenType DetectFullscreenType(IntPtr hwnd, IntPtr notchHwnd, IntPtr notchMonitor)
     {
         if (hwnd == IntPtr.Zero || hwnd == notchHwnd)
@@ -75,8 +67,7 @@ internal static class FullscreenDetector
 
         int width = windowRect.Right - windowRect.Left;
         int height = windowRect.Bottom - windowRect.Top;
-        // Reject obviously sub-fullscreen windows. Floor lifted from 200x120 to
-        // 480x320 so small overlays / popups never qualify.
+        // Reject obviously sub-fullscreen windows. Floor lifted from 200x120 to 480x320 so small overlays / popups never qualify.
         if (width < 480 || height < 320)
         {
             return FullscreenType.None;
@@ -93,10 +84,7 @@ internal static class FullscreenDetector
             return FullscreenType.None;
         }
 
-        // Same-monitor gate: only hide when the fullscreen window lives on the
-        // notch's monitor. This is the single biggest correctness fix for
-        // multi-monitor users (a fullscreen game on display 2 must not affect
-        // a notch on display 1).
+        // Same-monitor gate: only hide when the fullscreen window lives on the notch's monitor
         if (notchMonitor != IntPtr.Zero && monitor != notchMonitor)
         {
             return FullscreenType.None;
@@ -113,9 +101,7 @@ internal static class FullscreenDetector
 
         var monitorRect = monitorInfo.rcMonitor;
 
-        // Slightly looser tolerance helps on high-DPI / fractional scaling
-        // setups where DwmGetWindowAttribute can be off by 1-2px from the
-        // monitor edge.
+        // Slightly looser tolerance helps on high-DPI / fractional scaling setups where DwmGetWindowAttribute can be off by 1-2px from the monitor edge
         const int fullscreenTolerancePx = 6;
 
         // Get window placement once (used by both branches)
@@ -131,9 +117,7 @@ internal static class FullscreenDetector
 
         if (RectCoversArea(windowRect, monitorRect, fullscreenTolerancePx))
         {
-            // Window covers entire monitor.
-            // A normal maximized window with caption/border is NOT fullscreen.
-            // Only borderless windows covering the full monitor are fullscreen.
+            // Window covers entire monitor
             if (hasCaption || hasResizeFrame)
             {
                 // Maximized windows are ignored — the user can interact normally.
@@ -148,8 +132,7 @@ internal static class FullscreenDetector
             return FullscreenType.ExclusiveFullscreen;
         }
 
-        // Windowed fullscreen detection: borderless window matching work area
-        // (taskbar visible) is treated as windowed fullscreen.
+        // Windowed fullscreen detection: borderless window matching work area (taskbar visible) is treated as windowed fullscreen.
         const int workAreaTolerancePx = 8;
         bool matchesWorkArea = RectMatchesArea(windowRect, monitorInfo.rcWork, workAreaTolerancePx);
         bool isBorderless = !hasCaption && !hasResizeFrame;

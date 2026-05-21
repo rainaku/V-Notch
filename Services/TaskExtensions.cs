@@ -1,4 +1,4 @@
-namespace VNotch.Services;
+﻿namespace VNotch.Services;
 public static class TaskExtensions
 {
     public static async void SafeFireAndForget(this Task task, string category = "FIRE-FORGET")

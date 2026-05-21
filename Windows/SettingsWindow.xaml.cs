@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -770,8 +770,7 @@ private void PushLivePreview()
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        // If the user dragged sliders (live preview), revert the notch to the
-        // last-persisted state before closing.
+        // If the user dragged sliders (live preview), revert the notch to the last-persisted state before closing.
         RevertLivePreviewIfNeeded();
         CloseWithAnimation();
     }
@@ -842,8 +841,7 @@ private void CloseWithAnimation()
 
         var totalDur = TimeSpan.FromMilliseconds(650);
 
-        // Get the actual rendered window position using Win32
-        // (WPF Top/Left may return stale values when animations are active)
+        // Get the actual rendered window position using Win32 (WPF Top/Left may return stale values when animations are active)
         var windowInteropHelper = new System.Windows.Interop.WindowInteropHelper(this);
         var hwnd = windowInteropHelper.Handle;
         double currentTop = Top;

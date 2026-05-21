@@ -1,4 +1,4 @@
-using System.Windows.Media.Imaging;
+﻿using System.Windows.Media.Imaging;
 using VNotch.Models;
 
 namespace VNotch.Services;

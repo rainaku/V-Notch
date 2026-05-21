@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -35,8 +35,7 @@ public partial class MainWindow
             return;
         }
 
-        // If thumbnail is temporarily null (e.g., during fetch), keep current
-        // colors rather than flashing white. Only hide if no media is playing.
+        // If thumbnail is temporarily null (e
         if (info.Thumbnail == null)
         {
             return;
@@ -46,8 +45,7 @@ public partial class MainWindow
         var dominantColor = palette.Main;
         var subColor = palette.Sub;
 
-        // Use track identity without MediaSource to avoid false "new track" detection
-        // when background fetches change MediaSource (e.g., "Browser" → "YouTube").
+        // Use track identity without MediaSource to avoid false "new track" detection when background fetches change MediaSource (e
         string currentTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
         bool isNewTrack = _lastTrackId != null && _lastTrackId != currentTrackId;
         _lastTrackId = currentTrackId;
@@ -69,11 +67,7 @@ public partial class MainWindow
         _lastDominantColor = dominantColor;
         _lastSubColor = subColor;
 
-        // Lift dark dominant colors so the blur layer remains visible on the
-        // dark UI. Without this, a deep red (V≈0.15) thumbnail produces an
-        // almost-black tint that disappears against the notch background.
-        // We boost lightness while preserving hue/saturation, so the result
-        // is the same color *visible* — not a different color.
+        // Lift dark dominant colors so the blur layer remains visible on the dark UI
         var liftedDominant = LiftDarkColor(dominantColor);
         var liftedSub = LiftDarkColor(subColor);
 
@@ -98,9 +92,7 @@ public partial class MainWindow
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh))
             ? DynamicIslandColorExtractor.GetAdaptiveBlurOpacity(dominantLuminance, _settings.MediaBlurBrightnessBoost)
             : 0;
-        // For dark thumbnails, boost the tint opacity further so the lifted
-        // color tint is more present in the final blend (otherwise the bright
-        // blurred image dominates and the color barely shows through).
+        // For dark thumbnails, boost the tint opacity further so the lifted color tint is more present in the final blend (otherwise the bright blurred image dominates and the color barely shows through)
         if (targetOpacity > 0 && dominantLuminance < 0.25)
         {
             double darknessBoost = 1.0 + (0.25 - dominantLuminance) * 1.4; // up to ×1.35
@@ -222,11 +214,6 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// Lifts a color's brightness so it remains visible as a blur tint on the
-    /// dark notch UI. Preserves hue and saturation — only the value/lightness
-    /// is boosted. Bright colors (already vibrant) are returned unchanged.
-    /// </summary>
     private static Color LiftDarkColor(Color c)
     {
         double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
@@ -238,9 +225,7 @@ public partial class MainWindow
         // Already bright enough — keep as is
         if (v >= 0.55) return c;
 
-        // Compute target V based on how dark the color is.
-        // Darker source → more lift, but never beyond 0.65 to keep color identity
-        // (we want lifted-red to still look red, not pink).
+        // Compute target V based on how dark the color is
         double targetV;
         if (v < 0.20)        targetV = 0.55;  // very dark → lift to medium-bright
         else if (v < 0.35)   targetV = 0.55;

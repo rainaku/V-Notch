@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -185,7 +185,6 @@ public partial class MainWindow
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
         MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
 
-        
         MediaControls.BeginAnimation(OpacityProperty, null);
         MediaControls.Opacity = 0;
         MediaControls.Visibility = Visibility.Visible;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -52,8 +52,7 @@ public partial class MainWindow
 
     private void NavIconsPanel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        // Swallow clicks on the nav icons area to prevent them from
-        // bubbling up to NotchWrapper and triggering collapse.
+        // Swallow clicks on the nav icons area to prevent them from bubbling up to NotchWrapper and triggering collapse.
         e.Handled = true;
     }
 

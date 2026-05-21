@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Windows;
@@ -118,7 +118,6 @@ namespace VNotch.Controls
             };
             IsVisibleChanged += (s, e) => UpdateTimerState();
 
-            
             for (int i = 0; i < BarCount; i++)
             {
                 _currentHeights[i] = MinHeightRatio;
@@ -223,7 +222,6 @@ namespace VNotch.Controls
 
             string sid = TrackId ?? "";
 
-            
             float[] levels = GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent);
             double audioEnergy = 0;
             for (int i = 0; i < BarCount; i++) audioEnergy += Math.Clamp(levels[i], 0f, 1f);

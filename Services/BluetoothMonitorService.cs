@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using Windows.Devices.Enumeration;
@@ -25,8 +25,7 @@ public sealed class BluetoothMonitorService : IDisposable
 
         try
         {
-            // AQS filter for Bluetooth devices that are currently connected
-            // System.Devices.Aep.IsConnected = true filters to connected devices
+            // AQS filter for Bluetooth devices that are currently connected System
             string aqsFilter = "System.Devices.Aep.ProtocolId:=\"{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}\"" +
                                " AND System.Devices.Aep.IsConnected:=System.StructuredQueryType.Boolean#True";
 
