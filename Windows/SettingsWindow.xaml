@@ -976,6 +976,17 @@
                                             IsSnapToTickEnabled="True"
                                             ValueChanged="BlurBrightnessSlider_ValueChanged"/>
 
+                                    <CheckBox x:Name="EnableSpotifyLyricsCheck"
+                                              x:Uid="enableSpotifyLyrics"
+                                              Content="Show Spotify lyrics"
+                                              Margin="0,14,0,0"
+                                              Checked="EnableSpotifyLyricsCheck_Changed"
+                                              Unchecked="EnableSpotifyLyricsCheck_Changed"/>
+                                    <TextBlock x:Name="EnableSpotifyLyricsHint"
+                                               Text="Display synced lyrics inside the expanded notch when listening on Spotify."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,8,0,0"/>
+
                                     <Grid Margin="0,12,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

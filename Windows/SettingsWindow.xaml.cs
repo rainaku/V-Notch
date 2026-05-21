@@ -87,6 +87,8 @@ public event EventHandler? AnimatedClosing;
         OpacitySlider.Value = _settings.Opacity * 100;
         BlurBrightnessSlider.Value = _settings.MediaBlurBrightnessBoost * 100;
         BlurDarkOverlaySlider.Value = _settings.MediaBlurDarkOverlay * 100;
+        EnableSpotifyLyricsCheck.IsChecked = _settings.EnableSpotifyLyrics;
+        UpdateLyricsDependentControls(_settings.EnableSpotifyLyrics);
 
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
@@ -152,6 +154,8 @@ public event EventHandler? AnimatedClosing;
         BlurHint.Text = Loc.Get("settings.blurBrightness.hint");
         DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay");
         DarkOverlayHint.Text = Loc.Get("settings.lyricsDarkOverlay.hint");
+        EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics");
+        EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint");
 
         // Behavior labels & hints
         HoverExpandCheck.Content = Loc.Get("settings.hoverExpand");
@@ -243,6 +247,29 @@ public event EventHandler? AnimatedClosing;
         if (BlurDarkOverlayValue != null)
             BlurDarkOverlayValue.Text = ((int)e.NewValue).ToString();
         PushLivePreview();
+    }
+
+    private void EnableSpotifyLyricsCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        bool enabled = EnableSpotifyLyricsCheck.IsChecked ?? true;
+        UpdateLyricsDependentControls(enabled);
+        PushLivePreview();
+    }
+
+    private void UpdateLyricsDependentControls(bool lyricsEnabled)
+    {
+        // Dim & disable the dark overlay slider when lyrics are off, since it only affects the lyrics background.
+        if (DarkOverlayLabel == null) return;
+
+        double targetOpacity = lyricsEnabled ? 1.0 : 0.45;
+        DarkOverlayLabel.Opacity = targetOpacity;
+        if (DarkOverlayHint != null) DarkOverlayHint.Opacity = targetOpacity;
+        if (BlurDarkOverlaySlider != null)
+        {
+            BlurDarkOverlaySlider.Opacity = targetOpacity;
+            BlurDarkOverlaySlider.IsEnabled = lyricsEnabled;
+        }
     }
 
     private void HoverDelaySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -393,6 +420,7 @@ public event EventHandler? AnimatedClosing;
             (BlurHint, () => BlurHint.Text = Loc.Get("settings.blurBrightness.hint")),
             (DarkOverlayLabel, () => DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay")),
             (DarkOverlayHint, () => DarkOverlayHint.Text = Loc.Get("settings.lyricsDarkOverlay.hint")),
+            (EnableSpotifyLyricsHint, () => EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint")),
 
             // Behavior
             (HoverExpandHint, () => HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint")),
@@ -455,6 +483,8 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(HoverExpandCheck, () => HoverExpandCheck.Content = Loc.Get("settings.hoverExpand"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(DisableMouseLeaveAutoCloseCheck, () => DisableMouseLeaveAutoCloseCheck.Content = Loc.Get("settings.disableAutoClose"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(EnableSpotifyLyricsCheck, () => EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
 
         foreach (var (element, update) in textUpdates)
@@ -755,6 +785,7 @@ private void PushLivePreview()
         OpacitySlider.Value = defaults.Opacity * 100;
         BlurBrightnessSlider.Value = defaults.MediaBlurBrightnessBoost * 100;
         BlurDarkOverlaySlider.Value = defaults.MediaBlurDarkOverlay * 100;
+        EnableSpotifyLyricsCheck.IsChecked = defaults.EnableSpotifyLyrics;
 
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
         HoverDelaySlider.Value = defaults.HoverExpandDelay;
@@ -1011,6 +1042,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.Opacity = OpacitySlider.Value / 100.0;
         _settings.MediaBlurBrightnessBoost = BlurBrightnessSlider.Value / 100.0;
         _settings.MediaBlurDarkOverlay = BlurDarkOverlaySlider.Value / 100.0;
+        _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
 
         _settings.EnableHoverExpand = HoverExpandCheck.IsChecked ?? true;
         _settings.HoverExpandDelay = (int)HoverDelaySlider.Value;

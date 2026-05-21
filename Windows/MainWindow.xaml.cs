@@ -1078,6 +1078,25 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             LyricsBlurImage.Opacity = lyricsImageOpacity;
         }
 
+        // React to Spotify lyrics toggle: hide the widget if newly disabled,
+        // or kick off a fetch when re-enabled while a Spotify track is playing.
+        if (!_settings.EnableSpotifyLyrics)
+        {
+            if (_isLyricsActive)
+            {
+                _lyricsTrackKey = "";
+                HideLyricsWidget();
+            }
+        }
+        else if (_currentMediaInfo != null
+                 && _currentMediaInfo.MediaSource == "Spotify"
+                 && !string.IsNullOrEmpty(_currentMediaInfo.CurrentTrack)
+                 && !_isLyricsActive)
+        {
+            _lyricsTrackKey = "";
+            FetchLyricsForTrack(_currentMediaInfo);
+        }
+
         if (_currentMediaInfo != null && !_isExpanded)
         {
             UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);

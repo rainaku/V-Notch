@@ -20,6 +20,13 @@ public partial class MainWindow
 
     private async void FetchLyricsForTrack(MediaInfo info)
     {
+        // Honor user setting — Spotify lyrics can be disabled
+        if (!_settings.EnableSpotifyLyrics)
+        {
+            HideLyricsWidget();
+            return;
+        }
+
         string trackKey = $"{info.CurrentTrack}|{info.CurrentArtist}";
 
         // Don't re-fetch for the same track
