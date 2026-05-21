@@ -123,6 +123,17 @@ public partial class MainWindow
 
         SecondaryContent.Visibility = Visibility.Collapsed;
 
+        // Pre-show lyrics blur background if lyrics are active to prevent black flash in the right column
+        if (_isLyricsActive && LyricsBlurBackground != null)
+        {
+            LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
+            if (ThumbnailImage.Source != null)
+                LyricsBlurImage.Source = ThumbnailImage.Source;
+            LyricsBlurBackground.Visibility = Visibility.Visible;
+            double lyricsTargetOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
+            LyricsBlurBackground.Opacity = lyricsTargetOpacity;
+        }
+
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
         // Force layout pass so ThumbnailBorder gets actual dimensions for target compute
@@ -219,7 +230,7 @@ public partial class MainWindow
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightExpand);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
-                AnimateThumbnailAnimationRadius(6, 8, thumbDur, _easeExpOut6, thumbDelay);
+                AnimateThumbnailAnimationRadius(6, 14, thumbDur, _easeExpOut6, thumbDelay);
 
                 AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectExpand);
 
@@ -420,9 +431,9 @@ public partial class MainWindow
 
                 AnimationThumbnailImage.Source = ThumbnailImage.Source;
                 AnimationThumbnailBorder.Visibility = Visibility.Visible;
-                AnimationThumbnailBorder.CornerRadius = new CornerRadius(8);
-                AnimationThumbnailClip.RadiusX = 8;
-                AnimationThumbnailClip.RadiusY = 8;
+                AnimationThumbnailBorder.CornerRadius = new CornerRadius(14);
+                AnimationThumbnailClip.RadiusX = 14;
+                AnimationThumbnailClip.RadiusY = 14;
         AnimationThumbnailBorder.Width = 102;
         AnimationThumbnailBorder.Height = 102;
         AnimationThumbnailClip.Rect = new Rect(0, 0, 102, 102);
@@ -462,7 +473,7 @@ public partial class MainWindow
                 AnimationThumbnailBorder.BeginAnimation(HeightProperty, _cachedThumbHeightCollapse);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, thumbTranslateXAnim);
                 AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, thumbTranslateYAnim);
-                AnimateThumbnailAnimationRadius(8, 6, thumbDur, _easeExpOut6, thumbDelay);
+                AnimateThumbnailAnimationRadius(14, 6, thumbDur, _easeExpOut6, thumbDelay);
 
                 AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
 
