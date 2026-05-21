@@ -31,6 +31,70 @@
 
 ---
 
+## Preview
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="Introduction/listening.gif" alt="Media Pill"><br>
+      <b>Media Pill</b><br>
+      macOS notch-style media pill — control Spotify, YouTube, Apple Music and more with real-time progress, volume control, and album art.
+    </td>
+    <td align="center" width="50%">
+      <img src="Introduction/Spotify.gif" alt="Spotify Integration"><br>
+      <b>Spotify Integration</b><br>
+      Full Spotify support with smart-cropped album art, color-adaptive UI, seamless playback control, and real-time synced lyrics (covers ~90% of global tracks).
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="Introduction/fileshelf.gif" alt="File Shelf"><br>
+      <b>File Shelf</b><br>
+      Drag & drop files onto the notch for quick temporary storage. Pick them up later and drop into any app.
+    </td>
+    <td align="center" width="50%">
+      <img src="Introduction/Copied.gif" alt="Clipboard Notification"><br>
+      <b>Clipboard Notification</b><br>
+      Get a visual confirmation on the notch whenever you copy something to the clipboard.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="Introduction/Bluetooth.gif" alt="Bluetooth"><br>
+      <b>Bluetooth</b><br>
+      See Bluetooth device connections and status directly on the notch.
+    </td>
+    <td align="center" width="50%">
+      <img src="Introduction/privacy.gif" alt="Privacy Indicators"><br>
+      <b>Privacy Indicators</b><br>
+      Know when your camera or microphone is in use with a clear visual indicator on the notch.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="Introduction/volume.gif" alt="Volume Control"><br>
+      <b>Volume Control</b><br>
+      Color-adaptive volume slider that matches the dominant color of the current track, so you always know what you're adjusting.
+    </td>
+    <td align="center" width="50%">
+      <img src="Introduction/camera.gif" alt="Camera Preview"><br>
+      <b>Camera Preview</b><br>
+      Live camera feed right inside the notch — quickly check yourself without opening any app. And NO, VNotch not going to record that.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="Introduction/setting.gif" alt="Settings"><br>
+      <b>Settings & Customization</b><br>
+      Fine-tune your experience — choose monitor, language, startup behavior, and more.
+    </td>
+    <td align="center" width="50%">
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Features
 
 ### Media Controls

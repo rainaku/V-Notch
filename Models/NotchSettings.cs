@@ -46,6 +46,8 @@ public class NotchSettings
 
     public bool EnableSmartCrop { get; set; } = true;
 
+    public bool EnableSpotifyLyrics { get; set; } = true;
+
     public bool IsShelfUploadLimitUnlocked { get; set; } = true;
 
     public bool EnableYouTubeApi { get; set; } = false;
@@ -93,7 +95,8 @@ public class NotchSettings
             IsShelfUploadLimitUnlocked = IsShelfUploadLimitUnlocked,
             EnableYouTubeApi = EnableYouTubeApi,
             YouTubeApiKey = YouTubeApiKey,
-            Language = Language
+            Language = Language,
+            EnableSpotifyLyrics = EnableSpotifyLyrics
         };
     }
 }
