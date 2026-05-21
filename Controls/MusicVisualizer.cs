@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Threading;
 using NAudio.Dmo;
 using NAudio.Wave;
 using NAudio.Dsp;
@@ -93,10 +92,10 @@ namespace VNotch.Controls
 
         #endregion
 
-        private readonly DispatcherTimer _timer;
         private readonly Stopwatch _stopwatch = new Stopwatch();
         private double _lastTickSeconds;
         private DateTime _lastCaptureRetryUtc = DateTime.MinValue;
+        private bool _isRenderingActive;
         
         private readonly double[] _currentHeights = new double[BarCount];
         private readonly double[] _sortedHeights = new double[BarCount];
@@ -107,16 +106,13 @@ namespace VNotch.Controls
 
         public MusicVisualizer()
         {
-            _timer = new DispatcherTimer(DispatcherPriority.Render);
-            _timer.Tick += OnTick;
-            
-            Loaded += (s, e) => UpdateTimerState();
+            Loaded += (s, e) => UpdateRenderingState();
             Unloaded += (s, e) =>
             {
-                _timer.Stop();
+                StopRendering();
                 StopAudioCapture();
             };
-            IsVisibleChanged += (s, e) => UpdateTimerState();
+            IsVisibleChanged += (s, e) => UpdateRenderingState();
 
             for (int i = 0; i < BarCount; i++)
             {
@@ -148,7 +144,7 @@ namespace VNotch.Controls
 
             if (oldState != _state)
             {
-                UpdateTimerState();
+                UpdateRenderingState();
                 if (_state == VisualizerState.Idle)
                 {
                     StopAudioCapture();
@@ -161,37 +157,35 @@ namespace VNotch.Controls
             }
         }
 
-        private void UpdateTimerState()
+        private void UpdateRenderingState()
         {
             if (!IsVisible || _state == VisualizerState.Idle)
             {
-                if (_timer.IsEnabled)
-                {
-                    _timer.Stop();
-                    _stopwatch.Stop();
-                }
+                StopRendering();
                 return;
             }
 
-            double interval = _state switch
-            {
-                VisualizerState.Playing => 8,
-                VisualizerState.Seeking => 8,
-                VisualizerState.Paused => 8,
-                _ => 1000
-            };
-
-            _timer.Interval = TimeSpan.FromMilliseconds(interval);
-
-            if (!_timer.IsEnabled)
-            {
-                _timer.Start();
-                if (!_stopwatch.IsRunning) _stopwatch.Start();
-                _lastTickSeconds = _stopwatch.Elapsed.TotalSeconds;
-            }
+            StartRendering();
         }
 
-        private void OnTick(object? sender, EventArgs e)
+        private void StartRendering()
+        {
+            if (_isRenderingActive) return;
+            _isRenderingActive = true;
+            if (!_stopwatch.IsRunning) _stopwatch.Start();
+            _lastTickSeconds = _stopwatch.Elapsed.TotalSeconds;
+            CompositionTarget.Rendering += OnRendering;
+        }
+
+        private void StopRendering()
+        {
+            if (!_isRenderingActive) return;
+            _isRenderingActive = false;
+            CompositionTarget.Rendering -= OnRendering;
+            _stopwatch.Stop();
+        }
+
+        private void OnRendering(object? sender, EventArgs e)
         {
             EnsureAudioCaptureStarted();
 
@@ -202,6 +196,15 @@ namespace VNotch.Controls
             if (dt <= 0) return;
 
             bool isSettled = UpdateAnimation(dt, totalSec);
+
+            // When paused and animation has settled, stop rendering to save CPU
+            if (isSettled && _state == VisualizerState.Paused)
+            {
+                InvalidateVisual();
+                StopRendering();
+                return;
+            }
+
             InvalidateVisual();
         }
 

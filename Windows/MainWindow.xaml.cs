@@ -48,11 +48,7 @@ public partial class MainWindow : Window
     private bool _isHiddenByFullscreen = false;
     private IntPtr _hwnd;
     private HwndSource? _hwndSource;
-    private DateTime _lastFullscreenCheckUtc = DateTime.MinValue;
     private DispatcherTimer? _fullscreenRecheckTimer;
-    private DateTime _lastFullscreenStateChangeUtc = DateTime.MinValue;
-    // Minimum dwell before flipping the hide state again
-    private static readonly TimeSpan FullscreenStateCooldown = TimeSpan.FromMilliseconds(180);
     private bool _isTrayMenuOpen = false;
 
     private readonly BatteryModule _batteryModule;
@@ -68,6 +64,10 @@ public partial class MainWindow : Window
     private readonly NotchAnimationController _animController;
     private readonly MusicWidgetController _musicController;
     private readonly CameraPreviewController _cameraController;
+    private readonly MediaDisplayController _mediaDisplayController;
+    private readonly FullscreenAutoHideController _fullscreenController;
+    private readonly BluetoothNotificationController _bluetoothController;
+    private DragDropController _dragDropController = null!;
     private readonly TimerManager _timerManager;
 
     // _isAnimating guards ALL animations (expand, collapse, view switch, file delete)
@@ -163,6 +163,10 @@ public partial class MainWindow : Window
         _animController = new NotchAnimationController(_notchState);
         _musicController = new MusicWidgetController(_notchState);
         _cameraController = new CameraPreviewController();
+        _mediaDisplayController = new MediaDisplayController();
+        _fullscreenController = new FullscreenAutoHideController(() => _hwnd, _settings);
+        _fullscreenController.HideStateChanged += FullscreenController_HideStateChanged;
+        _fullscreenController.RecheckNeeded += ScheduleFullscreenRecheck;
         _timerManager = new TimerManager(Dispatcher);
         _moduleHost = moduleHost;
         _batteryModule = batteryModule;
@@ -261,6 +265,10 @@ public partial class MainWindow : Window
         _mediaService.MediaChanged += OnMediaChanged;
 
         InitializeFileShelfController();
+        _dragDropController = new DragDropController(_fileShelf);
+        InitializeDragDropController();
+        _bluetoothController = new BluetoothNotificationController();
+        InitializeBluetoothNotificationController();
     }
 
     #region Window Lifecycle
@@ -547,51 +555,13 @@ public partial class MainWindow : Window
 
     private void UpdateFullscreenAutoHideState(IntPtr foregroundHwnd = default, bool force = false)
     {
-        if (_hwnd == IntPtr.Zero)
-        {
-            return;
-        }
+        _fullscreenController.Evaluate(foregroundHwnd, force);
+    }
 
-        // Bail when the user has both auto-hide options off — no work to do.
-        if (!_settings.HideOnExclusiveFullscreen && !_settings.HideOnWindowedFullscreen)
-        {
-            if (_isHiddenByFullscreen)
-            {
-                _isHiddenByFullscreen = false;
-                _lastFullscreenStateChangeUtc = DateTime.UtcNow;
-                ApplyNotchVisibilityState();
-                if (_isNotchVisible)
-                {
-                    TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
-                    EnsureTopmost(force: true);
-                }
-            }
-            return;
-        }
-
-        var now = DateTime.UtcNow;
-        if (!force && (now - _lastFullscreenCheckUtc) < TimeSpan.FromMilliseconds(50))
-        {
-            return;
-        }
-
-        _lastFullscreenCheckUtc = now;
-        var targetHwnd = foregroundHwnd == IntPtr.Zero ? GetForegroundWindow() : foregroundHwnd;
-        bool shouldHide = ShouldHideForFullscreen(targetHwnd);
-        if (shouldHide == _isHiddenByFullscreen)
-        {
-            return;
-        }
-
-        // Cooldown only on the show->hide transition
-        if (!force && shouldHide && (now - _lastFullscreenStateChangeUtc) < FullscreenStateCooldown)
-        {
-            ScheduleFullscreenRecheck();
-            return;
-        }
-
+    private void FullscreenController_HideStateChanged(bool shouldHide)
+    {
         _isHiddenByFullscreen = shouldHide;
-        _lastFullscreenStateChangeUtc = now;
+
         if (_isHiddenByFullscreen)
         {
             if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
@@ -611,66 +581,6 @@ public partial class MainWindow : Window
             EnsureTopmost(force: true);
         }
     }
-
-    private bool ShouldHideForFullscreen(IntPtr hwnd)
-    {
-        IntPtr notchMonitor = FullscreenDetector.GetWindowMonitor(_hwnd);
-
-        if (hwnd == _hwnd)
-        {
-            return CheckFullscreenBehind(_hwnd, notchMonitor);
-        }
-
-        if (hwnd != IntPtr.Zero)
-        {
-            GetWindowThreadProcessId(hwnd, out uint fgPid);
-            GetWindowThreadProcessId(_hwnd, out uint myPid);
-            if (fgPid == myPid)
-            {
-                return CheckFullscreenBehind(hwnd, notchMonitor);
-            }
-        }
-
-        return IsForegroundWindowFullscreen(hwnd, notchMonitor);
-    }
-
-    private bool CheckFullscreenBehind(IntPtr startHwnd, IntPtr notchMonitor)
-    {
-        var next = Win32Interop.GetWindow(startHwnd, GW_HWNDNEXT);
-        const int maxWalk = 24;
-        GetWindowThreadProcessId(_hwnd, out uint myPid);
-
-        for (int i = 0; i < maxWalk && next != IntPtr.Zero; i++)
-        {
-            if (IsWindowVisible(next) && !IsIconic(next))
-            {
-                GetWindowThreadProcessId(next, out uint nextPid);
-                if (nextPid != myPid)
-                {
-                    var type = FullscreenDetector.DetectFullscreenType(next, _hwnd, notchMonitor);
-                    if (type != FullscreenType.None)
-                    {
-                        return ShouldHideForType(type);
-                    }
-                }
-            }
-            next = Win32Interop.GetWindow(next, GW_HWNDNEXT);
-        }
-        return false;
-    }
-
-    private bool IsForegroundWindowFullscreen(IntPtr hwnd, IntPtr notchMonitor)
-    {
-        var type = FullscreenDetector.DetectFullscreenType(hwnd, _hwnd, notchMonitor);
-        return ShouldHideForType(type);
-    }
-
-    private bool ShouldHideForType(FullscreenType type) => type switch
-    {
-        FullscreenType.ExclusiveFullscreen => _settings.HideOnExclusiveFullscreen,
-        FullscreenType.WindowedFullscreen => _settings.HideOnWindowedFullscreen,
-        _ => false
-    };
 
     private void ScheduleFullscreenRecheck()
     {

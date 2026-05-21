@@ -1,0 +1,325 @@
+using System;
+using System.Windows.Media;
+using VNotch.Models;
+
+namespace VNotch.Controllers;
+
+/// <summary>
+/// Manages media display state: track identity, source stabilization,
+/// thumbnail decision logic, and display text resolution.
+/// No WPF/UI references — pure business logic.
+/// </summary>
+public sealed class MediaDisplayController
+{
+    private static readonly string[] GenericTitles =
+    {
+        "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser"
+    };
+
+    // ─── State ───
+
+    private string _lastAnimatedTrackSignature = "";
+    private string _lastColorTrackSignature = "";
+    private string _lastRenderedMediaSource = "";
+    private ImageSource? _lastAnimatedThumbnail;
+    private bool _thumbnailShownForCurrentTrack = false;
+    private int _thumbnailSwitchGeneration = 0;
+
+    // ─── Public State Queries ───
+
+    public string LastAnimatedTrackSignature => _lastAnimatedTrackSignature;
+    public string LastColorTrackSignature => _lastColorTrackSignature;
+    public string LastRenderedMediaSource => _lastRenderedMediaSource;
+    public ImageSource? LastAnimatedThumbnail => _lastAnimatedThumbnail;
+    public bool ThumbnailShownForCurrentTrack => _thumbnailShownForCurrentTrack;
+    public int ThumbnailSwitchGeneration => _thumbnailSwitchGeneration;
+
+    // ─── Events ───
+
+    // NOTE: These events are available for future use when MainWindow is further
+    // decoupled and can subscribe to controller events instead of reading results.
+    // Suppressing warnings as they are part of the public API contract.
+#pragma warning disable CS0067
+    /// <summary>Fired when a new track is detected (title/artist changed).</summary>
+    public event Action<TrackChangeInfo>? NewTrackDetected;
+
+    /// <summary>Fired when the same track gets a thumbnail update (async fetch completed).</summary>
+    public event Action<ThumbnailUpdateInfo>? ThumbnailUpdateDetected;
+
+    /// <summary>Fired when media stops entirely (no track playing).</summary>
+    public event Action? MediaCleared;
+
+    /// <summary>Fired when the color track signature changes (new artwork for background).</summary>
+    public event Action<MediaInfo>? BackgroundUpdateNeeded;
+#pragma warning restore CS0067
+
+    // ─── Core Logic ───
+
+    /// <summary>
+    /// Processes an incoming MediaInfo update and determines what UI actions are needed.
+    /// Returns a <see cref="MediaDisplayResult"/> describing the decisions made.
+    /// </summary>
+    public MediaDisplayResult ProcessMediaUpdate(MediaInfo info, bool isExpanded, bool isMusicExpanded, bool isMusicCompactMode, bool isAnimating)
+    {
+        var result = new MediaDisplayResult();
+
+        // Handle thumbnail-only updates: reject if stale
+        if (info.IsThumbnailOnlyUpdate)
+        {
+            string incomingTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
+            if (!string.IsNullOrEmpty(_lastAnimatedTrackSignature) &&
+                incomingTrackId != _lastAnimatedTrackSignature)
+            {
+                result.Action = MediaDisplayAction.Ignore;
+                return result;
+            }
+        }
+
+        bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
+
+        // ─── Source Stabilization ───
+        string incomingSource = hasRealTrack ? (info.MediaSource ?? "") : "";
+        string currentTrackKey = $"{info.CurrentTrack}|{info.CurrentArtist}";
+        bool sameTrackAsBefore = hasRealTrack && currentTrackKey == _lastAnimatedTrackSignature;
+
+        string renderedSource = StabilizeSource(incomingSource, sameTrackAsBefore);
+        result.RenderedSource = renderedSource;
+        result.SourceChanged = renderedSource != _lastRenderedMediaSource;
+
+        // ─── Track Identity ───
+        string trackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
+        bool isNewTrack = trackIdentity != _lastAnimatedTrackSignature;
+        result.IsNewTrack = isNewTrack;
+        result.TrackIdentity = trackIdentity;
+
+        // ─── Display Text ───
+        result.DisplayText = ResolveDisplayText(info, hasRealTrack, renderedSource);
+
+        // ─── Thumbnail Decision ───
+        if (hasRealTrack)
+        {
+            result.HasRealTrack = true;
+
+            if (info.HasThumbnail && info.Thumbnail != null)
+            {
+                result.HasThumbnail = true;
+
+                if (isNewTrack)
+                {
+                    bool isFirstEverTrack = string.IsNullOrEmpty(_lastAnimatedTrackSignature);
+                    result.ThumbnailAction = isFirstEverTrack
+                        ? ThumbnailAction.RevealFirst
+                        : ThumbnailAction.AnimateSwitch;
+
+                    _lastAnimatedTrackSignature = trackIdentity;
+                    _lastAnimatedThumbnail = info.Thumbnail;
+                    _thumbnailShownForCurrentTrack = true;
+                }
+                else
+                {
+                    // Same track, thumbnail may have changed (async fetch)
+                    result.ThumbnailAction = ResolveSameTrackThumbnailAction(info);
+                }
+
+                // Background color update
+                if (isNewTrack || _lastColorTrackSignature != trackIdentity)
+                {
+                    _lastColorTrackSignature = trackIdentity;
+                    result.NeedsBackgroundUpdate = true;
+                }
+            }
+            else if (isNewTrack)
+            {
+                // New track without thumbnail
+                _lastAnimatedTrackSignature = trackIdentity;
+                _lastAnimatedThumbnail = null;
+                _thumbnailShownForCurrentTrack = false;
+                result.ThumbnailAction = ThumbnailAction.ShowFallback;
+            }
+
+            result.Action = MediaDisplayAction.Update;
+        }
+        else
+        {
+            // No real track
+            result.HasRealTrack = false;
+
+            if (!info.IsAnyMediaPlaying)
+            {
+                _lastColorTrackSignature = "";
+                result.Action = MediaDisplayAction.Clear;
+            }
+            else
+            {
+                result.Action = MediaDisplayAction.Update;
+            }
+        }
+
+        _lastRenderedMediaSource = renderedSource;
+        return result;
+    }
+
+    /// <summary>
+    /// Determines whether a compact mode thumbnail switch animation should run.
+    /// </summary>
+    public bool ShouldAnimateCompactThumbnail(MediaInfo info)
+    {
+        if (info?.Thumbnail == null) return false;
+
+        string compactTrackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
+        if (compactTrackIdentity != _lastAnimatedTrackSignature)
+        {
+            _lastAnimatedTrackSignature = compactTrackIdentity;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Determines whether compact mode should be active.
+    /// </summary>
+    public bool ShouldBeCompactMode(MediaInfo? info)
+    {
+        if (info == null) return false;
+        if (!info.IsAnyMediaPlaying || string.IsNullOrEmpty(info.CurrentTrack)) return false;
+        if (info.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Increments and returns the new thumbnail switch generation token.
+    /// Used to invalidate in-flight animation Completed handlers.
+    /// </summary>
+    public int IncrementGeneration() => ++_thumbnailSwitchGeneration;
+
+    /// <summary>
+    /// Marks that the thumbnail has been shown for the current track.
+    /// </summary>
+    public void MarkThumbnailShown()
+    {
+        _thumbnailShownForCurrentTrack = true;
+    }
+
+    /// <summary>
+    /// Updates the last animated thumbnail reference (after animation completes).
+    /// </summary>
+    public void SetLastAnimatedThumbnail(ImageSource? thumb)
+    {
+        _lastAnimatedThumbnail = thumb;
+    }
+
+    /// <summary>
+    /// Resets all state (e.g., when media is cleared).
+    /// </summary>
+    public void Reset()
+    {
+        _lastAnimatedTrackSignature = "";
+        _lastColorTrackSignature = "";
+        _lastRenderedMediaSource = "";
+        _lastAnimatedThumbnail = null;
+        _thumbnailShownForCurrentTrack = false;
+        _thumbnailSwitchGeneration++;
+    }
+
+    // ─── Private Helpers ───
+
+    private string StabilizeSource(string incomingSource, bool sameTrackAsBefore)
+    {
+        string renderedSource = incomingSource;
+
+        if (sameTrackAsBefore &&
+            !string.IsNullOrEmpty(_lastRenderedMediaSource) &&
+            _lastRenderedMediaSource != "Browser" &&
+            (incomingSource == "" || incomingSource == "Browser"))
+        {
+            // Keep the previously-rendered specific source instead of flipping
+            // back to the generic Browser icon on the same track.
+            renderedSource = _lastRenderedMediaSource;
+        }
+
+        return renderedSource;
+    }
+
+    private static DisplayTextResult ResolveDisplayText(MediaInfo info, bool hasRealTrack, string renderedSource)
+    {
+        if (!hasRealTrack)
+        {
+            return new DisplayTextResult("No media playing", "Open Spotify or YouTube");
+        }
+
+        string titleText = info.CurrentTrack;
+        string artistText;
+
+        if (!string.IsNullOrEmpty(info.CurrentArtist) &&
+            info.CurrentArtist != "YouTube" &&
+            info.CurrentArtist != "Browser" &&
+            info.CurrentArtist != "Spotify")
+        {
+            artistText = info.CurrentArtist;
+        }
+        else if (!string.IsNullOrEmpty(renderedSource))
+        {
+            artistText = renderedSource;
+        }
+        else
+        {
+            artistText = "Unknown Artist";
+        }
+
+        return new DisplayTextResult(titleText, artistText);
+    }
+
+    private ThumbnailAction ResolveSameTrackThumbnailAction(MediaInfo info)
+    {
+        if (ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail))
+            return ThumbnailAction.None;
+
+        // If thumbnail was already shown and this is NOT a genuine thumbnail-only update,
+        // skip animation (prevents spurious crossfade on pause→play).
+        if (_thumbnailShownForCurrentTrack && !info.IsThumbnailOnlyUpdate)
+            return ThumbnailAction.None;
+
+        // Genuine new thumbnail for this track (async fetch completed)
+        _lastAnimatedThumbnail = info.Thumbnail;
+        _thumbnailShownForCurrentTrack = true;
+        return ThumbnailAction.AnimateUpdate;
+    }
+}
+
+// ─── Result Types ───
+
+public enum MediaDisplayAction
+{
+    Ignore,
+    Update,
+    Clear
+}
+
+public enum ThumbnailAction
+{
+    None,
+    RevealFirst,
+    AnimateSwitch,
+    AnimateUpdate,
+    ShowFallback
+}
+
+public record DisplayTextResult(string Title, string Artist);
+
+public record TrackChangeInfo(string TrackIdentity, string Title, string Artist, bool IsFirstTrack);
+
+public record ThumbnailUpdateInfo(string TrackIdentity, ImageSource Thumbnail);
+
+public sealed class MediaDisplayResult
+{
+    public MediaDisplayAction Action { get; set; } = MediaDisplayAction.Ignore;
+    public bool IsNewTrack { get; set; }
+    public bool HasRealTrack { get; set; }
+    public bool HasThumbnail { get; set; }
+    public bool NeedsBackgroundUpdate { get; set; }
+    public bool SourceChanged { get; set; }
+    public string TrackIdentity { get; set; } = "";
+    public string RenderedSource { get; set; } = "";
+    public ThumbnailAction ThumbnailAction { get; set; } = ThumbnailAction.None;
+    public DisplayTextResult DisplayText { get; set; } = new("", "");
+}

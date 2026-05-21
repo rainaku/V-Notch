@@ -1,7 +1,5 @@
 ﻿using System;
-using System.IO;
 using System.Windows;
-using System.Windows.Media;
 using System.Windows.Threading;
 using VNotch.Controllers;
 
@@ -10,10 +8,23 @@ public partial class MainWindow
 {
     #region Drag-to-Open
 
-    private bool _dragAutoExpanded = false;
+    private DispatcherTimer? _dragWaitTimer;
+    private DispatcherTimer? _dragCollapseTimer;
 
-    private System.Windows.Threading.DispatcherTimer? _dragWaitTimer;
-    private System.Windows.Threading.DispatcherTimer? _dragCollapseTimer;
+    private void InitializeDragDropController()
+    {
+        _dragDropController.ExpandRequested += () => ExpandNotch();
+        _dragDropController.SwitchToSecondaryRequested += () => SwitchToSecondaryView();
+        _dragDropController.SwitchToPrimaryRequested += () => SwitchToPrimaryView();
+        _dragDropController.CollapseRequested += () => CollapseNotch();
+        _dragDropController.FilesAccepted += files => _fileShelf.EnqueueFiles(files);
+        _dragDropController.UnlockPromptRequested += (files, count) =>
+        {
+            _pendingUnlockFiles = files;
+            ShowShelfUnlockBanner(count);
+        };
+        _dragDropController.DropRejected += msg => SetShelfDropRejectVisualState(msg);
+    }
 
     private void NotchWrapper_DragEnter(object sender, DragEventArgs e)
     {
@@ -23,24 +34,17 @@ public partial class MainWindow
 
         _dragCollapseTimer?.Stop();
 
-        if (!_isExpanded && !_isAnimating)
+        bool handled = _dragDropController.HandleDragEnter(
+            hasFiles: true,
+            isExpanded: _isExpanded,
+            isAnimating: _isAnimating,
+            isSecondaryView: _isSecondaryView);
+
+        if (handled && _isExpanded && _isAnimating)
         {
-            
-            _dragAutoExpanded = true;
-            ExpandNotch();
+            // Wait for animation to finish, then let controller decide next step
             StartDragWaitForShelf();
         }
-        else if (_isExpanded && _isAnimating)
-        {
-            
-            StartDragWaitForShelf();
-        }
-        else if (_isExpanded && !_isSecondaryView && !_isAnimating)
-        {
-            
-            SwitchToSecondaryView();
-        }
-        
     }
 
     private void NotchWrapper_DragOver(object sender, DragEventArgs e)
@@ -52,17 +56,32 @@ public partial class MainWindow
 
     private void NotchWrapper_DragLeave(object sender, DragEventArgs e)
     {
-        if (!_dragAutoExpanded) return;
+        if (!_dragDropController.HandleDragLeave()) return;
 
         _dragCollapseTimer?.Stop();
-        _dragCollapseTimer = new System.Windows.Threading.DispatcherTimer
+        _dragCollapseTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(150)
         };
         _dragCollapseTimer.Tick += (s, args) =>
         {
             _dragCollapseTimer?.Stop();
-            AutoCollapseAfterDrag();
+            _dragDropController.AutoCollapseAfterDrag(_isExpanded, _isSecondaryView, _isAnimating);
+
+            // If we switched to primary, wait for animation then collapse
+            if (_isExpanded && !_isSecondaryView && _isAnimating)
+            {
+                var collapseWait = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+                collapseWait.Tick += (s2, args2) =>
+                {
+                    if (!_isAnimating)
+                    {
+                        collapseWait.Stop();
+                        _dragDropController.CollapseAfterViewSwitch(_isSecondaryView, _isAnimating);
+                    }
+                };
+                collapseWait.Start();
+            }
         };
         _dragCollapseTimer.Start();
     }
@@ -71,11 +90,11 @@ public partial class MainWindow
     {
         _dragWaitTimer?.Stop();
         _dragCollapseTimer?.Stop();
-        _dragAutoExpanded = false;
 
         if (!e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             e.Handled = true;
+            _dragDropController.Reset();
             return;
         }
 
@@ -83,7 +102,6 @@ public partial class MainWindow
         e.Handled = true;
 
         var files = e.Data.GetData(DataFormats.FileDrop) as string[];
-        var validation = _fileShelf.ValidateDrop(files);
 
         // Ensure the notch is expanded and file shelf is visible
         if (!_isExpanded)
@@ -115,42 +133,24 @@ public partial class MainWindow
                         if (!_isAnimating)
                         {
                             shelfReadyTimer.Stop();
-                            ProcessDroppedFiles(validation);
+                            _dragDropController.HandleDrop(files);
                         }
                     };
                     shelfReadyTimer.Start();
                 }
                 else
                 {
-                    ProcessDroppedFiles(validation);
+                    _dragDropController.HandleDrop(files);
                 }
             }
         };
         dropProcessTimer.Start();
     }
 
-    private void ProcessDroppedFiles(FileShelfController.DropValidation validation)
-    {
-        switch (validation.Result)
-        {
-            case FileShelfController.DropResult.Accept:
-                _fileShelf.EnqueueFiles(validation.NewFiles);
-                break;
-            case FileShelfController.DropResult.UnlockPrompt:
-                _pendingUnlockFiles = validation.NewFiles;
-                ShowShelfUnlockBanner(validation.FileCount);
-                break;
-            default:
-                if (!string.IsNullOrEmpty(validation.Message))
-                    SetShelfDropRejectVisualState(validation.Message);
-                break;
-        }
-    }
-
     private void StartDragWaitForShelf()
     {
         _dragWaitTimer?.Stop();
-        _dragWaitTimer = new System.Windows.Threading.DispatcherTimer
+        _dragWaitTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(40)
         };
@@ -159,48 +159,11 @@ public partial class MainWindow
             if (_isExpanded && !_isAnimating)
             {
                 _dragWaitTimer?.Stop();
-                if (!_isSecondaryView) SwitchToSecondaryView();
+                _dragDropController.OnAnimationCompleted(_isExpanded, _isSecondaryView);
             }
         };
         _dragWaitTimer.Start();
     }
 
-    private void AutoCollapseAfterDrag()
-    {
-        _dragAutoExpanded = false;
-        _dragWaitTimer?.Stop();
-
-        if (!_isExpanded) return;
-
-        if (_isSecondaryView && !_isAnimating)
-        {
-            
-            SwitchToPrimaryView();
-
-            var collapseWait = new System.Windows.Threading.DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(40)
-            };
-            collapseWait.Tick += (s2, args2) =>
-            {
-                if (!_isSecondaryView && !_isAnimating)
-                {
-                    collapseWait.Stop();
-                    CollapseNotch();
-                }
-                else if (!_isAnimating && !_isSecondaryView)
-                {
-                    collapseWait.Stop();
-                }
-            };
-            collapseWait.Start();
-        }
-        else if (!_isAnimating)
-        {
-            CollapseNotch();
-        }
-    }
-
     #endregion
 }
-

@@ -5,6 +5,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using VNotch.Controllers;
 using VNotch.Models;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
@@ -20,9 +21,6 @@ public partial class MainWindow
     private ImageSource? _lastAnimatedThumbnail;
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
     private int _thumbnailSwitchGeneration = 0;
-    // Tracks whether the thumbnail has already been shown for the current track.
-    // Set to true after the first successful thumbnail display for a track.
-    // Reset to false only on actual track change. Prevents re-animation on pause/play.
     private bool _thumbnailShownForCurrentTrack = false;
 
     private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
@@ -35,133 +33,63 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() =>
         {
+            var result = _mediaDisplayController.ProcessMediaUpdate(
+                info, _isExpanded, _isMusicExpanded, _isMusicCompactMode, _isAnimating);
 
-            if (info.IsThumbnailOnlyUpdate)
+            if (result.Action == MediaDisplayAction.Ignore)
+                return;
+
+            // Sync local tracking fields from controller state
+            _lastAnimatedTrackSignature = _mediaDisplayController.LastAnimatedTrackSignature;
+            _lastColorTrackSignature = _mediaDisplayController.LastColorTrackSignature;
+            _lastRenderedMediaSource = _mediaDisplayController.LastRenderedMediaSource;
+            _lastAnimatedThumbnail = _mediaDisplayController.LastAnimatedThumbnail;
+            _thumbnailShownForCurrentTrack = _mediaDisplayController.ThumbnailShownForCurrentTrack;
+
+            string trackIdentity = result.TrackIdentity;
+            string renderedSource = result.RenderedSource;
+
+            // ─── Display Text ───
+            if (result.IsNewTrack)
             {
-                string incomingTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
-                if (!string.IsNullOrEmpty(_lastAnimatedTrackSignature) &&
-                    incomingTrackId != _lastAnimatedTrackSignature)
-                {
-                    return; // Stale thumbnail for a previous track — ignore
-                }
-            }
-
-            // Skip expensive UI updates when notch is collapsed and no compact thumbnail visible
-            bool isCollapsedWithoutCompact = !_isExpanded && !_isMusicExpanded && !_isMusicCompactMode;
-
-            bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
-
-            // Stable source for display purposes.
-            //
-            // The backend can flip-flop MediaSource between e.g. "Browser" and
-            // "SoundCloud" on the same track due to window-title heuristics +
-            // cached track→source map. We handle that here by:
-            //  1) not changing the rendered icon when the source is unchanged;
-            //  2) not "degrading" a known-specific source (Spotify/YouTube/
-            //     SoundCloud/…) back to the generic "Browser" fallback while
-            //     still playing the same track. Only upgrades (Browser -> X) or
-            //     a real track change can flip the icon.
-            string incomingSource = hasRealTrack ? (info.MediaSource ?? "") : "";
-            string currentTrackKey = $"{info.CurrentTrack}|{info.CurrentArtist}";
-            bool sameTrackAsBefore = hasRealTrack &&
-                                     currentTrackKey == _lastAnimatedTrackSignature;
-
-            string renderedSource = incomingSource;
-            if (sameTrackAsBefore &&
-                !string.IsNullOrEmpty(_lastRenderedMediaSource) &&
-                _lastRenderedMediaSource != "Browser" &&
-                (incomingSource == "" || incomingSource == "Browser"))
-            {
-                // Keep the previously-rendered specific source instead of flipping
-                // back to the generic Browser icon on the same track.
-                renderedSource = _lastRenderedMediaSource;
-            }
-
-            if (renderedSource != _lastRenderedMediaSource)
-            {
-                // Platform icons removed — no icon switching needed
-            }
-
-            string currentSig = info.GetSignature();
-            // Track identity used to decide whether to re-animate the thumbnail.
-            // IMPORTANT: do NOT include MediaSource here — the backend can flip-flop
-            // the source between e.g. "Browser" and "SoundCloud" on the same track
-            // (stale window-title heuristics + cached track->source map), and using
-            // GetSignature() here would re-trigger the flip animation and icon swap
-            // every time. The thumbnail should only "change" when the track itself
-            // changes (title + artist).
-            string trackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
-            bool isNewTrack = trackIdentity != _lastAnimatedTrackSignature;
-
-            string titleText, artistText;
-            if (hasRealTrack)
-            {
-                titleText = info.CurrentTrack;
-                if (!string.IsNullOrEmpty(info.CurrentArtist) && info.CurrentArtist != "YouTube" && info.CurrentArtist != "Browser" && info.CurrentArtist != "Spotify")
-                {
-                    artistText = info.CurrentArtist;
-                }
-                else if (!string.IsNullOrEmpty(renderedSource))
-                {
-                    artistText = renderedSource;
-                }
-                else
-                {
-                    artistText = "Unknown Artist";
-                }
-            }
-            else
-            {
-                titleText = "No media playing";
-                artistText = "Open Spotify or YouTube";
-            }
-
-            if (isNewTrack)
-            {
-                UpdateTitleText(titleText);
-                UpdateArtistText(artistText);
-                CompactTitleMarquee.Text = titleText;
+                UpdateTitleText(result.DisplayText.Title);
+                UpdateArtistText(result.DisplayText.Artist);
+                CompactTitleMarquee.Text = result.DisplayText.Title;
 
                 // Fetch synced lyrics for Spotify tracks
-                if (hasRealTrack && renderedSource == "Spotify")
+                if (result.HasRealTrack && renderedSource == "Spotify")
                 {
                     FetchLyricsForTrack(info);
                 }
                 else if (!_isLyricsActive)
                 {
-                    // Only clear if lyrics aren't already showing (avoid flash during metadata refinement)
                     ClearLyrics();
                 }
             }
             else
             {
-                TrackTitle.Text = titleText;
-                TrackArtist.Text = artistText;
-                CompactTitleMarquee.Text = titleText;
+                TrackTitle.Text = result.DisplayText.Title;
+                TrackArtist.Text = result.DisplayText.Artist;
+                CompactTitleMarquee.Text = result.DisplayText.Title;
             }
 
-            if (hasRealTrack)
+            // ─── Thumbnail Handling ───
+            if (result.HasRealTrack)
             {
-                if (info.HasThumbnail && info.Thumbnail != null)
+                if (result.HasThumbnail && info.Thumbnail != null)
                 {
                     // Update LyricsBlurImage with crossfade when expanded + lyrics active
                     if (LyricsBlurImage != null && _isExpanded && _isLyricsActive)
                     {
-                        // Only crossfade if the image actually changed
                         if (!ReferenceEquals(LyricsBlurImage.Source, info.Thumbnail) &&
                             !ReferenceEquals(LyricsBlurImageNext.Source, info.Thumbnail))
                         {
-                            // Cancel any in-progress crossfade
                             LyricsBlurImageNext.BeginAnimation(OpacityProperty, null);
-
-                            // If previous crossfade was mid-way, promote it first
                             if (LyricsBlurImageNext.Opacity > 0.5 && LyricsBlurImageNext.Source != null)
                             {
                                 LyricsBlurImage.Source = LyricsBlurImageNext.Source;
                             }
                             LyricsBlurImageNext.Opacity = 0;
-
-                            // Start new crossfade
                             LyricsBlurImageNext.Source = info.Thumbnail;
                             var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(400))
                             {
@@ -169,7 +97,6 @@ public partial class MainWindow
                             };
                             fadeIn.Completed += (s, e) =>
                             {
-                                // Only promote if this is still the current target
                                 if (ReferenceEquals(LyricsBlurImageNext.Source, info.Thumbnail))
                                 {
                                     LyricsBlurImage.Source = info.Thumbnail;
@@ -185,86 +112,38 @@ public partial class MainWindow
                         LyricsBlurImage.Source = info.Thumbnail;
                     }
 
-                    if (isNewTrack)
+                    switch (result.ThumbnailAction)
                     {
-                        bool isFirstEverTrack = string.IsNullOrEmpty(_lastAnimatedTrackSignature);
-                        _lastAnimatedTrackSignature = trackIdentity;
-                        _lastAnimatedThumbnail = info.Thumbnail;
-                        _thumbnailShownForCurrentTrack = true;
-
-                        VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
-                            $"new-track-with-thumb track='{trackIdentity}' isFirst={isFirstEverTrack} " +
-                            $"isAnimating={_isAnimating} isExpanded={_isExpanded} thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight}");
-
-                        if (isFirstEverTrack)
-                        {
-                            // Boot: set thumbnail then play a subtle reveal animation
-                            // so the compact pill feels alive instead of popping in instantly.
+                        case ThumbnailAction.RevealFirst:
                             ThumbnailImage.Source = info.Thumbnail;
                             CompactThumbnail.Source = info.Thumbnail;
                             PlayThumbnailRevealAnimation();
-                        }
-                        else
-                        {
+                            break;
+
+                        case ThumbnailAction.AnimateSwitch:
                             AnimateThumbnailSwitchOnly(info.Thumbnail, force: true);
                             PlayTrackChangeBounce();
-                        }
-                    }
-                    else
-                    {
+                            break;
 
-                        if (ThumbnailImage.Source != info.Thumbnail)
-                        {
-                            // Thumbnail changed for the same track (e.g. smart crop update,
-                            // YouTube fetch completing) — use flip animation.
-                            if (!ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail) &&
-                                !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
-                            {
-                                // If thumbnail was already shown for this track and this is NOT
-                                // a genuine thumbnail-only update (async YouTube/SoundCloud fetch),
-                                // skip animation entirely. This prevents spurious crossfade on
-                                // pause→play where SMTC re-sends the same artwork with a new
-                                // BitmapImage reference or slightly different crop dimensions.
-                                if (_thumbnailShownForCurrentTrack && !info.IsThumbnailOnlyUpdate)
-                                {
-                                    // Same artwork (just a new BitmapImage from re-crop).
-                                    // Don't update the source — it's already the right
-                                    // visual. Setting source again triggers a re-render
-                                    // which can cause a visible flash/shift due to
-                                    // UniformToFill stretch with slightly different
-                                    // source dimensions.
-                                }
-                                else
-                                {
-                                    // Genuine new thumbnail for this track (async fetch completed)
-                                    VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
-                                        $"thumb-update-same-track track='{trackIdentity}' " +
-                                        $"isAnimating={_isAnimating} isExpanded={_isExpanded} thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight}");
-                                    AnimateThumbnailSwitchOnly(info.Thumbnail, force: _lastAnimatedThumbnail == null);
-                                    _lastAnimatedThumbnail = info.Thumbnail;
-                                    _thumbnailShownForCurrentTrack = true;
-                                }
-                            }
-                        }
+                        case ThumbnailAction.AnimateUpdate:
+                            AnimateThumbnailSwitchOnly(info.Thumbnail, force: _lastAnimatedThumbnail == null);
+                            break;
+
+                        case ThumbnailAction.None:
+                            // No animation needed
+                            break;
                     }
 
                     ThumbnailImage.Visibility = Visibility.Visible;
                     ThumbnailFallback.Visibility = Visibility.Collapsed;
 
-                    
-                    if (isNewTrack || _lastColorTrackSignature != trackIdentity)
+                    if (result.NeedsBackgroundUpdate)
                     {
-                        _lastColorTrackSignature = trackIdentity;
                         UpdateMediaBackground(info);
                     }
                 }
-                else if (isNewTrack)
+                else if (result.IsNewTrack)
                 {
-
-                    _lastAnimatedTrackSignature = trackIdentity;
-                    _lastAnimatedThumbnail = null; // Signal that no thumbnail has been shown for this track yet
-                    _thumbnailShownForCurrentTrack = false;
-
                     if (ThumbnailImage.Source == null)
                     {
                         ThumbnailImage.Visibility = Visibility.Collapsed;
@@ -277,7 +156,6 @@ public partial class MainWindow
                         {
                             CompactThumbnail.Source = ThumbnailImage.Source;
                         }
-
                         ThumbnailImage.Visibility = Visibility.Visible;
                         ThumbnailFallback.Visibility = Visibility.Collapsed;
                     }
@@ -285,7 +163,6 @@ public partial class MainWindow
             }
             else
             {
-                
                 if (info.IsAnyMediaPlaying)
                 {
                     if (ThumbnailImage.Source != null)
@@ -302,51 +179,8 @@ public partial class MainWindow
                 }
                 else
                 {
-
-                    _lastColorTrackSignature = "";
-
-                    _thumbnailSwitchGeneration++; // Invalidate any in-flight Completed handlers
-
-                    ThumbnailImage.BeginAnimation(OpacityProperty, null);
-                    ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-                    ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-                    ThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-                    ThumbnailImageNext.BeginAnimation(OpacityProperty, null);
-                    ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-                    ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-                    ThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-
-                    CompactThumbnail.BeginAnimation(OpacityProperty, null);
-                    CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-                    CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-                    CompactThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-                    CompactThumbnailNext.BeginAnimation(OpacityProperty, null);
-                    CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-                    CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-                    CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-
-                    // Reset overlay layer only (don't touch base layer sources)
-                    ThumbnailImageNext.Opacity = 0.0;
-                    ThumbnailImageNext.Source = null;
-                    ThumbnailNextScale.ScaleX = 1.0;
-                    ThumbnailNextScale.ScaleY = 1.0;
-                    ThumbnailNextBlur.Radius = 0.0;
-                    CompactThumbnailNext.Opacity = 0.0;
-                    CompactThumbnailNext.Source = null;
-                    CompactThumbnailNextScale.ScaleX = 1.0;
-                    CompactThumbnailNextScale.ScaleY = 1.0;
-                    CompactThumbnailNextBlur.Radius = 0.0;
-
-                    // Reset base layer visual state (opacity/blur) without changing source
-                    ThumbnailImage.Opacity = 1.0;
-                    ThumbnailOutScale.ScaleX = 1.0;
-                    ThumbnailOutScale.ScaleY = 1.0;
-                    ThumbnailOutBlur.Radius = 0.0;
-                    CompactThumbnail.Opacity = 1.0;
-                    CompactThumbnailOutScale.ScaleX = 1.0;
-                    CompactThumbnailOutScale.ScaleY = 1.0;
-                    CompactThumbnailOutBlur.Radius = 0.0;
-
+                    _thumbnailSwitchGeneration = _mediaDisplayController.ThumbnailSwitchGeneration;
+                    CancelThumbnailSwitchAnimations();
                     ThumbnailImage.Visibility = Visibility.Collapsed;
                     ThumbnailFallback.Visibility = Visibility.Visible;
                     HideMediaBackground();
@@ -366,7 +200,6 @@ public partial class MainWindow
 
             MusicViz.TrackId = info?.GetSignature() ?? "";
             MusicViz.IsPlaying = info?.IsPlaying ?? false;
-            _lastRenderedMediaSource = renderedSource;
         });
     }
 
@@ -621,9 +454,7 @@ public partial class MainWindow
 
     private void UpdateMusicCompactMode(MediaInfo info)
     {
-        bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
-
-        if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
+        bool shouldBeCompact = _mediaDisplayController.ShouldBeCompactMode(info);
 
         _collapsedWidth = _settings.Width;
 
@@ -633,12 +464,9 @@ public partial class MainWindow
             {
                 if (info?.Thumbnail != null)
                 {
-                    // Use track-only identity (not GetSignature) so a MediaSource
-                    // flip-flop on the same track does not re-trigger the flip anim.
-                    string compactTrackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
-                    if (compactTrackIdentity != _lastAnimatedTrackSignature)
+                    if (_mediaDisplayController.ShouldAnimateCompactThumbnail(info))
                     {
-                        _lastAnimatedTrackSignature = compactTrackIdentity;
+                        _lastAnimatedTrackSignature = _mediaDisplayController.LastAnimatedTrackSignature;
                         AnimateThumbnailSwitchOnly(info.Thumbnail);
                     }
                 }
