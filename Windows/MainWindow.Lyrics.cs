@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -33,31 +33,23 @@ public partial class MainWindow
             return;
         }
 
-        // Immediately clear old lyrics and show new track placeholder
+        // Clear old lyrics data immediately
         _currentLyrics = null;
         _currentLyricIndex = -1;
+
+        // If lyrics widget is active, keep it visible but show new track placeholder
+        // Don't hide to calendar yet — wait for fetch result
         if (_isLyricsActive)
         {
             Dispatcher.Invoke(() =>
             {
-                // Clear old lyric text immediately
                 LyricTextA.BeginAnimation(OpacityProperty, null);
                 LyricTextB.BeginAnimation(OpacityProperty, null);
                 LyricTextA.Opacity = 0;
                 LyricTextB.Opacity = 0;
                 LyricTextA.Text = "";
                 LyricTextB.Text = "";
-
-                // Update placeholder text directly (no animation) to avoid flicker on metadata refinement
-                if (LyricsPlaceholderPanel != null && LyricsPlaceholderPanel.Opacity > 0.5)
-                {
-                    LyricsPlaceholderTitle.Text = info.CurrentTrack;
-                    LyricsPlaceholderArtist.Text = info.CurrentArtist;
-                }
-                else
-                {
-                    ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
-                }
+                ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
             });
         }
 
@@ -73,7 +65,9 @@ public partial class MainWindow
 
         if (lyrics == null || lyrics.Count == 0)
         {
-            HideLyricsWidget();
+            // No lyrics — NOW hide lyrics widget and show calendar
+            if (_isLyricsActive)
+                HideLyricsWidget();
             return;
         }
 
@@ -82,8 +76,8 @@ public partial class MainWindow
 
         if (!_isLyricsActive)
         {
+            // First time showing lyrics for this session
             ShowLyricsWidget();
-            // Show track info placeholder until first lyric line
             Dispatcher.Invoke(() => ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist));
         }
     }
@@ -96,7 +90,9 @@ public partial class MainWindow
         LyricsPlaceholderArtist.Text = artist;
         LyricsPlaceholderPanel.Visibility = Visibility.Visible;
 
-        // Hide lyric text lines
+        // Hide lyric text lines so they don't overlap
+        LyricTextA.BeginAnimation(OpacityProperty, null);
+        LyricTextB.BeginAnimation(OpacityProperty, null);
         LyricTextA.Opacity = 0;
         LyricTextB.Opacity = 0;
 
@@ -140,10 +136,28 @@ public partial class MainWindow
         if (!_isLyricsActive || _currentLyrics == null || _currentLyrics.Count == 0)
             return;
 
-        var frame = _progressEngine.GetUiFrame();
-        if (frame.Duration.TotalSeconds <= 0) return;
+        // Use raw media position for lyrics sync (more accurate than progress engine which has anti-jitter guards)
+        TimeSpan position;
+        if (_currentMediaInfo != null && _currentMediaInfo.IsPlaying && _currentMediaInfo.Duration.TotalSeconds > 0)
+        {
+            // Calculate position from last SMTC snapshot + elapsed time
+            var elapsed = DateTimeOffset.UtcNow - _currentMediaInfo.LastUpdated.ToUniversalTime();
+            if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+            if (elapsed > TimeSpan.FromSeconds(10)) elapsed = TimeSpan.FromSeconds(10);
+            position = _currentMediaInfo.Position + elapsed;
+            if (position > _currentMediaInfo.Duration) position = _currentMediaInfo.Duration;
+        }
+        else if (_currentMediaInfo != null)
+        {
+            position = _currentMediaInfo.Position;
+        }
+        else
+        {
+            var frame = _progressEngine.GetUiFrame();
+            if (frame.Duration.TotalSeconds <= 0) return;
+            position = frame.Position;
+        }
 
-        var position = frame.Position;
         int newIndex = FindLyricIndex(position);
 
         if (newIndex != _currentLyricIndex && newIndex >= 0)
@@ -262,7 +276,8 @@ public partial class MainWindow
             };
             GreetingSection.BeginAnimation(OpacityProperty, fadeOutGreeting);
 
-            // Fade in lyrics (delayed slightly so calendar fades first)
+            // Cancel any pending fade-out and show lyrics
+            LyricsWidget.BeginAnimation(OpacityProperty, null);
             LyricsWidget.Visibility = Visibility.Visible;
             LyricsWidget.Opacity = 0;
 
@@ -273,17 +288,14 @@ public partial class MainWindow
             };
             LyricsWidget.BeginAnimation(OpacityProperty, fadeIn);
 
-            // Show lyrics blur background (blurred thumbnail glow)
+            // Show lyrics blur background
             if (LyricsBlurBackground != null)
             {
-                LyricsBlurImage.Source = ThumbnailImage.Source;
+                LyricsBlurImage.BeginAnimation(OpacityProperty, null);
+                LyricsBlurImage.Opacity = 1;
+                LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
                 LyricsBlurBackground.Visibility = Visibility.Visible;
-                var fadeInBlur = new DoubleAnimation(0, 0.55, new Duration(TimeSpan.FromMilliseconds(500)))
-                {
-                    EasingFunction = new ExponentialEase { Exponent = 5, EasingMode = EasingMode.EaseOut },
-                    BeginTime = TimeSpan.FromMilliseconds(150)
-                };
-                LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeInBlur);
+                LyricsBlurBackground.Opacity = 0.55;
             }
         });
     }
@@ -304,6 +316,9 @@ public partial class MainWindow
             };
             fadeOutLyrics.Completed += (s, e) =>
             {
+                // If lyrics were re-activated while fading out, don't collapse
+                if (_isLyricsActive) return;
+
                 LyricsWidget.Visibility = Visibility.Collapsed;
                 LyricsWidget.BeginAnimation(OpacityProperty, null);
                 LyricsWidget.Opacity = 0;
@@ -329,6 +344,7 @@ public partial class MainWindow
                 };
                 fadeOutBlur.Completed += (s, e) =>
                 {
+                    if (_isLyricsActive) return;
                     LyricsBlurBackground.Visibility = Visibility.Collapsed;
                     LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
                 };

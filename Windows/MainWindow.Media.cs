@@ -127,8 +127,9 @@ public partial class MainWindow
                 {
                     FetchLyricsForTrack(info);
                 }
-                else
+                else if (!_isLyricsActive)
                 {
+                    // Only clear if lyrics aren't already showing (avoid flash during metadata refinement)
                     ClearLyrics();
                 }
             }
@@ -143,6 +144,28 @@ public partial class MainWindow
             {
                 if (info.HasThumbnail && info.Thumbnail != null)
                 {
+                    // Crossfade LyricsBlurImage only when expanded and lyrics visible
+                    if (LyricsBlurImage != null && _isExpanded && _isLyricsActive &&
+                        !ReferenceEquals(LyricsBlurImage.Source, info.Thumbnail))
+                    {
+                        LyricsBlurImageNext.Source = info.Thumbnail;
+                        var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(400))
+                        {
+                            EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
+                        };
+                        fadeIn.Completed += (s, e) =>
+                        {
+                            LyricsBlurImage.Source = LyricsBlurImageNext.Source;
+                            LyricsBlurImageNext.BeginAnimation(OpacityProperty, null);
+                            LyricsBlurImageNext.Opacity = 0;
+                        };
+                        LyricsBlurImageNext.BeginAnimation(OpacityProperty, fadeIn);
+                    }
+                    else if (LyricsBlurImage != null)
+                    {
+                        // Not expanded or no lyrics — just set directly (no animation)
+                        LyricsBlurImage.Source = info.Thumbnail;
+                    }
 
                     if (isNewTrack)
                     {
@@ -161,7 +184,6 @@ public partial class MainWindow
                             // so the compact pill feels alive instead of popping in instantly.
                             ThumbnailImage.Source = info.Thumbnail;
                             CompactThumbnail.Source = info.Thumbnail;
-                            if (_isLyricsActive && LyricsBlurImage != null) LyricsBlurImage.Source = info.Thumbnail;
                             PlayThumbnailRevealAnimation();
                         }
                         else
@@ -489,19 +511,8 @@ public partial class MainWindow
             CompactThumbnail.Source = newThumb;
             if (_isLyricsActive && LyricsBlurImage != null)
             {
-                // Crossfade lyrics blur image
-                var currentOpacity = LyricsBlurImage.Opacity;
-                var fadeOut = new DoubleAnimation(currentOpacity, 0, TimeSpan.FromMilliseconds(200));
-                fadeOut.Completed += (s, e) =>
-                {
-                    LyricsBlurImage.Source = newThumb;
-                    var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350))
-                    {
-                        EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
-                    };
-                    LyricsBlurImage.BeginAnimation(OpacityProperty, fadeIn);
-                };
-                LyricsBlurImage.BeginAnimation(OpacityProperty, fadeOut);
+                LyricsBlurImage.BeginAnimation(OpacityProperty, null);
+                LyricsBlurImage.Opacity = 1;
             }
             ThumbnailImageNext.Source = null;
             CompactThumbnailNext.Source = null;

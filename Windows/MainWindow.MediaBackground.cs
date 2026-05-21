@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -402,12 +402,6 @@ public partial class MainWindow
                 // Simply set the blurred image source (no crossfade on main blur)
                 MediaBackgroundImage.Source = blurredImage;
                 MediaBackgroundImage2.Source = blurredImage;
-
-                // Update lyrics blur background if active (use raw thumbnail, not blurred)
-                if (_isLyricsActive && LyricsBlurImage != null && LyricsBlurImage.Source == null)
-                {
-                    LyricsBlurImage.Source = thumbnail;
-                }
             }
         }
         catch (Exception ex)

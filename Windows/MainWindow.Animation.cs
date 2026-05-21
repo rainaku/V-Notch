@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -256,7 +256,6 @@ public partial class MainWindow
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;
-                LyricsBlurImage.Source = ThumbnailImage.Source;
                 LyricsBlurBackground.Visibility = Visibility.Visible;
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
                 var fadeIn = new DoubleAnimation(0, 0.55, new Duration(TimeSpan.FromMilliseconds(250)))

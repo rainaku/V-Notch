@@ -1013,6 +1013,7 @@
                             </Border.OpacityMask>
                             <Grid>
                                 <Image x:Name="LyricsBlurImage" Stretch="UniformToFill" Opacity="1.0"/>
+                                <Image x:Name="LyricsBlurImageNext" Stretch="UniformToFill" Opacity="0"/>
                             </Grid>
                         </Border>
 
