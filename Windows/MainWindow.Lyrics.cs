@@ -33,6 +33,34 @@ public partial class MainWindow
             return;
         }
 
+        // Immediately clear old lyrics and show new track placeholder
+        _currentLyrics = null;
+        _currentLyricIndex = -1;
+        if (_isLyricsActive)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                // Clear old lyric text immediately
+                LyricTextA.BeginAnimation(OpacityProperty, null);
+                LyricTextB.BeginAnimation(OpacityProperty, null);
+                LyricTextA.Opacity = 0;
+                LyricTextB.Opacity = 0;
+                LyricTextA.Text = "";
+                LyricTextB.Text = "";
+
+                // Update placeholder text directly (no animation) to avoid flicker on metadata refinement
+                if (LyricsPlaceholderPanel != null && LyricsPlaceholderPanel.Opacity > 0.5)
+                {
+                    LyricsPlaceholderTitle.Text = info.CurrentTrack;
+                    LyricsPlaceholderArtist.Text = info.CurrentArtist;
+                }
+                else
+                {
+                    ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
+                }
+            });
+        }
+
         int durationSec = (int)info.Duration.TotalSeconds;
         // If duration is 0 (not yet known), use a reasonable default
         if (durationSec <= 0) durationSec = 240;
@@ -51,7 +79,60 @@ public partial class MainWindow
 
         _currentLyrics = lyrics;
         _currentLyricIndex = -1;
-        ShowLyricsWidget();
+
+        if (!_isLyricsActive)
+        {
+            ShowLyricsWidget();
+            // Show track info placeholder until first lyric line
+            Dispatcher.Invoke(() => ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist));
+        }
+    }
+
+    private void ShowLyricsPlaceholder(string title, string artist)
+    {
+        if (LyricsPlaceholderPanel == null) return;
+
+        LyricsPlaceholderTitle.Text = title;
+        LyricsPlaceholderArtist.Text = artist;
+        LyricsPlaceholderPanel.Visibility = Visibility.Visible;
+
+        // Hide lyric text lines
+        LyricTextA.Opacity = 0;
+        LyricTextB.Opacity = 0;
+
+        var dur = new Duration(TimeSpan.FromMilliseconds(350));
+        var ease = new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut };
+
+        var fadeIn = new DoubleAnimation(0, 1, dur) { EasingFunction = ease };
+        var slideIn = new DoubleAnimation(6, 0, dur) { EasingFunction = ease };
+        Timeline.SetDesiredFrameRate(fadeIn, 120);
+        Timeline.SetDesiredFrameRate(slideIn, 120);
+
+        LyricsPlaceholderPanel.BeginAnimation(OpacityProperty, fadeIn);
+        LyricsPlaceholderTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
+    }
+
+    private void HideLyricsPlaceholder()
+    {
+        if (LyricsPlaceholderPanel == null || LyricsPlaceholderPanel.Opacity < 0.01) return;
+
+        var dur = new Duration(TimeSpan.FromMilliseconds(300));
+        var ease = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseIn };
+
+        var fadeOut = new DoubleAnimation(LyricsPlaceholderPanel.Opacity, 0, dur) { EasingFunction = ease };
+        var slideOut = new DoubleAnimation(0, -6, dur) { EasingFunction = ease };
+        Timeline.SetDesiredFrameRate(fadeOut, 120);
+        Timeline.SetDesiredFrameRate(slideOut, 120);
+
+        fadeOut.Completed += (s, e) =>
+        {
+            LyricsPlaceholderPanel.Visibility = Visibility.Collapsed;
+            LyricsPlaceholderPanel.BeginAnimation(OpacityProperty, null);
+            LyricsPlaceholderPanel.Opacity = 0;
+        };
+
+        LyricsPlaceholderPanel.BeginAnimation(OpacityProperty, fadeOut);
+        LyricsPlaceholderTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
     }
 
     private void UpdateLyricsDisplay()
@@ -67,15 +148,22 @@ public partial class MainWindow
 
         if (newIndex != _currentLyricIndex && newIndex >= 0)
         {
+            // Hide placeholder when first real lyric appears
+            if (_currentLyricIndex < 0)
+                HideLyricsPlaceholder();
+
             _currentLyricIndex = newIndex;
             string lineText = _currentLyrics[newIndex].Text;
             AnimateLyricLine(lineText);
         }
         else if (newIndex < 0 && _currentLyricIndex >= 0)
         {
-            // Before first lyric line — show nothing or instrumental
+            // Seeked back before first lyric — show placeholder again
             _currentLyricIndex = -1;
-            AnimateLyricLine("♪");
+            string trackKey = _lyricsTrackKey;
+            string[] parts = trackKey.Split('|', 2);
+            if (parts.Length == 2)
+                ShowLyricsPlaceholder(parts[0], parts[1]);
         }
     }
 
@@ -220,9 +308,15 @@ public partial class MainWindow
                 LyricsWidget.BeginAnimation(OpacityProperty, null);
                 LyricsWidget.Opacity = 0;
 
-                // Reset lyric text
+                // Reset lyric text and placeholder
                 if (LyricTextA != null) LyricTextA.Text = "";
                 if (LyricTextB != null) LyricTextB.Text = "";
+                if (LyricsPlaceholderPanel != null)
+                {
+                    LyricsPlaceholderPanel.Visibility = Visibility.Collapsed;
+                    LyricsPlaceholderPanel.BeginAnimation(OpacityProperty, null);
+                    LyricsPlaceholderPanel.Opacity = 0;
+                }
             };
             LyricsWidget.BeginAnimation(OpacityProperty, fadeOutLyrics);
 

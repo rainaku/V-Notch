@@ -318,20 +318,35 @@ public class ProgressEngine
 
             if (absDiffSeconds < SmoothCorrectionThreshold.TotalSeconds)
             {
-                // High correction factor for fast convergence — with 3s heartbeat intervals, 0
+                // For non-browser sources (Spotify), never pull position backward during playback
+                if (!_isYouTube && diff < TimeSpan.Zero)
+                {
+                    // Instead of snapping backward, slightly slow down by nudging base forward less aggressively
+                    double slowdownFactor = 0.15;
+                    double nudge = diff.TotalSeconds * slowdownFactor;
+                    double correctedSeconds = predictedNow.TotalSeconds + nudge;
+                    // Never go below current predicted minus a tiny threshold
+                    double minAllowed = predictedNow.TotalSeconds - 0.05;
+                    if (correctedSeconds < minAllowed)
+                        correctedSeconds = minAllowed;
+                    _basePosition = ClampPosition(TimeSpan.FromSeconds(correctedSeconds));
+                    _baseTimeUtc = nowUtc;
+                    return;
+                }
+
                 const double correctionFactor = 0.9;
-                double correctedSeconds = predictedNow.TotalSeconds + (diff.TotalSeconds * correctionFactor);
+                double correctedSeconds2 = predictedNow.TotalSeconds + (diff.TotalSeconds * correctionFactor);
 
                 if (diff < TimeSpan.Zero)
                 {
                     double minAllowedBackward = predictedNow.TotalSeconds - SmoothBackwardCap.TotalSeconds;
-                    if (correctedSeconds < minAllowedBackward)
+                    if (correctedSeconds2 < minAllowedBackward)
                     {
-                        correctedSeconds = minAllowedBackward;
+                        correctedSeconds2 = minAllowedBackward;
                     }
                 }
 
-                _basePosition = ClampPosition(TimeSpan.FromSeconds(correctedSeconds));
+                _basePosition = ClampPosition(TimeSpan.FromSeconds(correctedSeconds2));
                 _baseTimeUtc = nowUtc;
                 return;
             }

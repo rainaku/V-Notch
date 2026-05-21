@@ -33,6 +33,7 @@ public partial class MainWindow
     private DateTime _seekSpringStartTime = DateTime.MinValue;
     private bool _isClickSeekPending = false;
     private DateTime _allowProgressBackwardRenderUntil = DateTime.MinValue;
+    private DateTime _blockBackwardAfterSeekUntil = DateTime.MinValue;
     private Point _mouseDownPoint;
     private const double DRAG_THRESHOLD = 3.0;  
     private DateTime _suppressExternalSeekDetectionUntil = DateTime.MinValue;
@@ -361,6 +362,7 @@ public partial class MainWindow
         _springSettleFrames = 0;
         _isSeekSpringActive = false;
         _seekSpringStartTime = DateTime.MinValue;
+        _blockBackwardAfterSeekUntil = DateTime.MinValue;
         _lastRenderTime = DateTime.MinValue;
         _lastRenderedDuration = TimeSpan.Zero;
         _lastDisplayedSecond = -1;
@@ -558,6 +560,7 @@ public partial class MainWindow
                 }
                 
                 bool isUserSeekWindow = frame.State == ProgressState.Seeking || DateTime.Now < _allowProgressBackwardRenderUntil;
+                bool isPostSeekStabilization = DateTime.Now < _blockBackwardAfterSeekUntil;
 
                 if (_progressTargetRatio < _progressDisplayRatio)
                 {
@@ -567,15 +570,24 @@ public partial class MainWindow
                     {
                         // User is seeking — allow backward movement freely
                     }
+                    else if (isPostSeekStabilization)
+                    {
+                        // Just finished a seek — block backward snap to prevent jitter on pause
+                        _progressTargetRatio = _progressDisplayRatio;
+                    }
                     else if (isRealtimeProgressing)
                     {
-                        // During normal playback, allow small backward corrections from the engine (which already validates snapshots and rejects stale data)
-                        if (backwardSeconds > 0.5)
+                        // During normal playback, block backward jumps to prevent visible snapping
+                        bool isBrowserSourceForBackward = _currentMediaInfo != null &&
+                            (string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(_currentMediaInfo.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase));
+
+                        double allowedBackward = isBrowserSourceForBackward ? 0.5 : 0.08;
+                        if (backwardSeconds > allowedBackward)
                         {
-                            // Large backward during playback — likely jitter, block it
                             _progressTargetRatio = _progressDisplayRatio;
                         }
-                        // else: small correction (≤500ms) — allow it through so the progress bar converges to the real position
                     }
                     else if (backwardSeconds > backwardThreshold)
                     {
@@ -722,6 +734,7 @@ public partial class MainWindow
             {
                 // Click seek (no drag): spring is already animating to target
                 _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
+                _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(2);
                 _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
                 _progressEngine.NotifyUserSeek(_dragSeekPosition);
 
@@ -910,6 +923,7 @@ public partial class MainWindow
         try 
         {
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
+            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(2);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(newPos);
 
@@ -953,6 +967,7 @@ public partial class MainWindow
         try
         {
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
+            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(2);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(newPos);
 
@@ -1182,6 +1197,7 @@ public partial class MainWindow
             StopRewindTextAnimation();
             _isRewindAnimating = false;
             _lastRenderTime = DateTime.Now;
+            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(2);
         };
 
         // IMPORTANT: do NOT pre-commit `_progressDisplayRatio = targetRatio` here

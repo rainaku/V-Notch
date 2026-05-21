@@ -1762,6 +1762,37 @@
                                             <BlurEffect Radius="20" RenderingBias="Performance"/>
                                         </Border.Effect>
                                     </Border>
+                                    <!-- Track info placeholder (shown before first lyric line) -->
+                                    <StackPanel x:Name="LyricsPlaceholderPanel"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Stretch"
+                                                Opacity="0"
+                                                Visibility="Collapsed">
+                                        <TextBlock x:Name="LyricsPlaceholderTitle"
+                                                   Text=""
+                                                   FontSize="12.5"
+                                                   FontWeight="Bold"
+                                                   Foreground="#EEFFFFFF"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Right"
+                                                   HorizontalAlignment="Stretch"
+                                                   FontFamily="{StaticResource MainSystemFont}"
+                                                   TextOptions.TextFormattingMode="Ideal"/>
+                                        <TextBlock x:Name="LyricsPlaceholderArtist"
+                                                   Text=""
+                                                   FontSize="10.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#99FFFFFF"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   TextAlignment="Right"
+                                                   HorizontalAlignment="Stretch"
+                                                   Margin="0,2,0,0"
+                                                   FontFamily="{StaticResource MainSystemFont}"
+                                                   TextOptions.TextFormattingMode="Ideal"/>
+                                        <StackPanel.RenderTransform>
+                                            <TranslateTransform x:Name="LyricsPlaceholderTranslate" Y="0"/>
+                                        </StackPanel.RenderTransform>
+                                    </StackPanel>
                                     <!-- Lyric line A -->
                                     <TextBlock x:Name="LyricTextA"
                                                Text=""
