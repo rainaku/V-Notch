@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Reflection;
+using System.Text.Json.Serialization;
 
 namespace VNotch.Models;
 
@@ -58,45 +59,24 @@ public class NotchSettings
     [JsonIgnore]
     public bool IsDirty { get; set; } = false;
 
+    // ─── Cached property list for reflection-based Clone ───
+    private static readonly PropertyInfo[] _cloneableProperties = Array.FindAll(
+        typeof(NotchSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance),
+        p => p.CanRead && p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
+
+    /// <summary>
+    /// Creates a deep copy of this settings instance.
+    /// Uses cached reflection to automatically copy all serializable properties —
+    /// new properties are included without manual maintenance.
+    /// </summary>
     public NotchSettings Clone()
     {
-        return new NotchSettings
+        var clone = new NotchSettings();
+        for (int i = 0; i < _cloneableProperties.Length; i++)
         {
-            SettingsVersion = SettingsVersion,
-            Width = Width,
-            Height = Height,
-            CornerRadius = CornerRadius,
-            Opacity = Opacity,
-            MediaBlurBrightnessBoost = MediaBlurBrightnessBoost,
-            MediaBlurDarkOverlay = MediaBlurDarkOverlay,
-            MonitorIndex = MonitorIndex,
-            AutoStart = AutoStart,
-            EnableHoverExpand = EnableHoverExpand,
-            EnableCursorBypass = EnableCursorBypass,
-            EnableAnimations = EnableAnimations,
-            DisableMouseLeaveAutoClose = DisableMouseLeaveAutoClose,
-            AnimationSpeed = AnimationSpeed,
-            EnableBounceEffect = EnableBounceEffect,
-            HoverExpandDelay = HoverExpandDelay,
-            HoverCollapseDelay = HoverCollapseDelay,
-            HoverZoneMargin = HoverZoneMargin,
-            CompactExpandMultiplier = CompactExpandMultiplier,
-            MediumExpandMultiplier = MediumExpandMultiplier,
-            LargeExpandMultiplier = LargeExpandMultiplier,
-            EnableShadow = EnableShadow,
-            EnableGlowOnHover = EnableGlowOnHover,
-            NotchStyle = NotchStyle,
-            HideOnExclusiveFullscreen = HideOnExclusiveFullscreen,
-            HideOnWindowedFullscreen = HideOnWindowedFullscreen,
-            ShowMusicNotifications = ShowMusicNotifications,
-            ShowSystemNotifications = ShowSystemNotifications,
-            NotificationDuration = NotificationDuration,
-            EnableSmartCrop = EnableSmartCrop,
-            IsShelfUploadLimitUnlocked = IsShelfUploadLimitUnlocked,
-            EnableYouTubeApi = EnableYouTubeApi,
-            YouTubeApiKey = YouTubeApiKey,
-            Language = Language,
-            EnableSpotifyLyrics = EnableSpotifyLyrics
-        };
+            var prop = _cloneableProperties[i];
+            prop.SetValue(clone, prop.GetValue(this));
+        }
+        return clone;
     }
 }

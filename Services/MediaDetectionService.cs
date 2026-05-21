@@ -47,10 +47,7 @@ public class MediaDetectionService : IMediaDetectionService
     private CancellationTokenSource? _thumbCts;
     private string _lastStableTrackSignature = "";
     private DateTime _emptyMetadataStartTime = DateTime.MinValue;
-    private readonly Dictionary<string, DateTime> _sessionLastPlayingTimes = new();
-    private readonly Dictionary<string, DateTime> _sessionPlayStartTimes = new();
-    private readonly Dictionary<string, bool> _sessionPlayingStates = new();
-    private readonly Dictionary<string, string> _sessionSourceOverrides = new();
+    private readonly MediaSessionState _sessionState = new();
     private readonly MediaSourceCache _sourceCache;
     private string _latestPlayingSessionKey = "";
     private DateTime _latestPlayingSessionStartUtc = DateTime.MinValue;
@@ -1503,7 +1500,7 @@ public class MediaDetectionService : IMediaDetectionService
 
         string key = BuildSourceOverrideKey(info.SessionInstanceKey, info.SourceAppId);
         if (string.IsNullOrEmpty(key) ||
-            !_sessionSourceOverrides.TryGetValue(key, out string? resolvedOverride) ||
+            !_sessionState.TryGetSourceOverride(key, out string? resolvedOverride) ||
             string.IsNullOrWhiteSpace(resolvedOverride))
         {
             return false;
@@ -1521,7 +1518,7 @@ public class MediaDetectionService : IMediaDetectionService
             return;
         }
 
-        _sessionSourceOverrides[key] = mediaSource;
+        _sessionState.SetSourceOverride(key, mediaSource);
     }
 
     private void ClearSessionSourceOverride(string sessionInstanceKey, string sourceAppId)
@@ -1529,7 +1526,7 @@ public class MediaDetectionService : IMediaDetectionService
         string key = BuildSourceOverrideKey(sessionInstanceKey, sourceAppId);
         if (!string.IsNullOrEmpty(key))
         {
-            _sessionSourceOverrides.Remove(key);
+            _sessionState.RemoveSourceOverride(key);
         }
     }
 
@@ -1796,11 +1793,11 @@ public class MediaDetectionService : IMediaDetectionService
 
                             bool isActive = IsSessionPlayingStatus(status);
                             bool isPrevActive = ReferenceEquals(_activeDisplaySession, s);
-                            bool wasPlaying = _sessionPlayingStates.TryGetValue(sessionInstanceKey, out var prevPlaying) && prevPlaying;
+                            bool wasPlaying = _sessionState.GetPlayingState(sessionInstanceKey);
 
                             if (isActive && !wasPlaying)
                             {
-                                _sessionPlayStartTimes[sessionInstanceKey] = nowUtc;
+                                _sessionState.SetPlayStartTime(sessionInstanceKey, nowUtc);
                                 _latestPlayingSessionKey = sessionInstanceKey;
                                 _latestPlayingSessionStartUtc = nowUtc;
 
@@ -1816,7 +1813,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 }
                             }
 
-                            _sessionPlayingStates[sessionInstanceKey] = isActive;
+                            _sessionState.SetPlayingState(sessionInstanceKey, isActive);
 
                             int score = 0;
                             GlobalSystemMediaTransportControlsSessionMediaProperties? props = null;
@@ -1879,10 +1876,10 @@ public class MediaDetectionService : IMediaDetectionService
                             {
                                 score += 500;
                                 if (osCurrentId == sourceApp && !(isBrowser || isYouTube)) score += 1000;
-                                _sessionLastPlayingTimes[sourceApp] = DateTime.Now;
+                                _sessionState.SetLastPlayingTime(sourceApp, DateTime.Now);
                             }
 
-                            if (isActive && _sessionPlayStartTimes.TryGetValue(sessionInstanceKey, out var playStartUtc))
+                            if (isActive && _sessionState.TryGetPlayStartTime(sessionInstanceKey, out var playStartUtc))
                             {
                                 var ageSeconds = (nowUtc - playStartUtc).TotalSeconds;
                                 if (ageSeconds >= 0 && ageSeconds < 45)
@@ -1901,7 +1898,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 }
                             }
 
-                            if (_sessionLastPlayingTimes.TryGetValue(sourceApp, out var lastPlaying))
+                            if (_sessionState.TryGetLastPlayingTime(sourceApp, out var lastPlaying))
                             {
                                 var idleSeconds = (DateTime.Now - lastPlaying).TotalSeconds;
                                 if (idleSeconds < 30) score += (int)((30 - idleSeconds) * 10);
@@ -3112,13 +3109,21 @@ public class MediaDetectionService : IMediaDetectionService
     {
         if (_disposed) return;
         _disposed = true;
+
         _bgCts?.Cancel();
         _changeChannel.Writer.TryComplete();
+
+        UnsubscribeFromSession();
 
         if (_sessionManager != null)
         {
             _sessionManager.CurrentSessionChanged -= OnSessionChanged;
         }
+
+        _thumbCts?.Cancel();
+        _thumbCts?.Dispose();
+        _bgCts?.Dispose();
+        _updateLock.Dispose();
     }
 
     public Task PlayPauseAsync() => _transportService.PlayPauseAsync();

@@ -413,6 +413,10 @@ public partial class MainWindow : Window
         _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
+        _bluetoothModule.DeviceConnected -= BluetoothModule_DeviceConnected;
+        _bluetoothModule.DeviceDisconnected -= BluetoothModule_DeviceDisconnected;
+        _fullscreenController.HideStateChanged -= FullscreenController_HideStateChanged;
+        _fullscreenController.RecheckNeeded -= ScheduleFullscreenRecheck;
 
         // Unsubscribe static events
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
@@ -421,6 +425,11 @@ public partial class MainWindow : Window
         _hwndSource?.RemoveHook(WndProc);
         StopZOrderWatchdog();
         StopTitleGradientShift();
+
+        // Stop DragDrop timers
+        _dragWaitTimer?.Stop();
+        _dragCollapseTimer?.Stop();
+
         _progressTimer?.Stop();
         _mediaService?.Dispose();
         _lyricsService?.Dispose();
