@@ -5,7 +5,7 @@
 <h1 align="center">V-Notch</h1>
 
 <p align="center">
-  <b>Dynamic Island for Windows — Smart Notch Experience</b>
+  <b>macOS Notch for Windows — Smart Notch Experience</b>
 </p>
 
 <p align="center">
@@ -74,7 +74,7 @@
     <td align="center" width="50%">
       <img src="Introduction/volume.gif" alt="Volume Control"><br>
       <b>Volume Control</b><br>
-      Color-adaptive volume slider that matches the dominant color of the current track, so you always know what you're adjusting.
+      A color-adaptive volume slider that matches the dominant color of the current track, so you always know what you're adjusting just by scrolling.
     </td>
     <td align="center" width="50%">
       <img src="Introduction/camera.gif" alt="Camera Preview"><br>
@@ -83,12 +83,15 @@
     </td>
   </tr>
   <tr>
+  <td align="center" width="50%">
+      <img src="Introduction/Onnx.gif" alt="Smart Crop"><br>
+      <b>ONNX's Crop</b><br>
+      AI-powered thumbnail cropping using ONNX intelligently focuses on the subject for a clean, centered display.
+    </td>
     <td align="center" width="50%">
       <img src="Introduction/setting.gif" alt="Settings"><br>
       <b>Settings & Customization</b><br>
       Fine-tune your experience — choose monitor, language, startup behavior, and more.
-    </td>
-    <td align="center" width="50%">
     </td>
   </tr>
 </table>
