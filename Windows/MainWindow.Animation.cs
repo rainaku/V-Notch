@@ -123,19 +123,16 @@ public partial class MainWindow
 
         SecondaryContent.Visibility = Visibility.Collapsed;
 
-        // Pre-show lyrics blur background if lyrics are active to prevent black flash in the right column
+        ExpandedContent.Opacity = 0;
+        ExpandedContent.Visibility = Visibility.Visible;
+
+        // Hide lyrics blur during expand to prevent visual artifacts, will show after completion
         if (_isLyricsActive && LyricsBlurBackground != null)
         {
             LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
-            if (ThumbnailImage.Source != null)
-                LyricsBlurImage.Source = ThumbnailImage.Source;
-            LyricsBlurBackground.Visibility = Visibility.Visible;
-            double lyricsTargetOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
-            LyricsBlurBackground.Opacity = lyricsTargetOpacity;
+            LyricsBlurBackground.Opacity = 0;
+            LyricsBlurBackground.Visibility = Visibility.Collapsed;
         }
-
-        ExpandedContent.Opacity = 0;
-        ExpandedContent.Visibility = Visibility.Visible;
         // Force layout pass so ThumbnailBorder gets actual dimensions for target compute
         ExpandedContent.Width = _expandedWidth - 16;
         ExpandedContent.Height = _expandedHeight - 2;
@@ -234,7 +231,11 @@ public partial class MainWindow
 
                 AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectExpand);
 
-                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
+                if (CompactThumbnailBorder != null)
+                {
+                    CompactThumbnailBorder.Opacity = 0;
+                    CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+                }
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
             }
         }
@@ -249,6 +250,21 @@ public partial class MainWindow
             UpdateBatteryInfo();
             UpdateCalendarInfo();
             ShowMediaBackground();
+
+            // Show lyrics blur now that layout is stable
+            if (_isLyricsActive && LyricsBlurBackground != null)
+            {
+                LyricsBlurImage.BeginAnimation(OpacityProperty, null);
+                LyricsBlurImage.Opacity = 1;
+                LyricsBlurImage.Source = ThumbnailImage.Source;
+                LyricsBlurBackground.Visibility = Visibility.Visible;
+                LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
+                var fadeIn = new DoubleAnimation(0, 0.55, new Duration(TimeSpan.FromMilliseconds(250)))
+                {
+                    EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
+                };
+                LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeIn);
+            }
             
             // Start progress bar catch-up animation BEFORE RenderProgressBar to prevent the snap-to-position that would set _progressDisplayRatio > 0 and cause StartProgressCatchUpAnimation to bail out
             StartProgressCatchUpAnimation();
@@ -292,7 +308,11 @@ public partial class MainWindow
 
             // Always restore opacity — it may have been set to 0 during expand animation even if _isMusicCompactMode changed during the animation
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
+            if (CompactThumbnailBorder != null)
+            {
+                CompactThumbnailBorder.Visibility = Visibility.Visible;
+                CompactThumbnailBorder.Opacity = 1;
+            }
 
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
@@ -418,6 +438,14 @@ public partial class MainWindow
 
         if (_isMusicCompactMode && ThumbnailImage.Source != null)
         {
+            // Hide both real thumbnails immediately to prevent double-thumbnail during crossfade
+            if (CompactThumbnailBorder != null)
+            {
+                CompactThumbnailBorder.Opacity = 0;
+                CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+            }
+            if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
+
             if (!_cachedThumbnailExpandTarget.HasValue &&
                 TryComputeThumbnailExpandTarget(out var measuredTarget))
             {
@@ -476,9 +504,6 @@ public partial class MainWindow
                 AnimateThumbnailAnimationRadius(14, 6, thumbDur, _easeExpOut6, thumbDelay);
 
                 AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, _cachedThumbRectCollapse);
-
-                if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 0;
-                if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
             }
         }
 
@@ -532,7 +557,11 @@ public partial class MainWindow
             }
 
             // Always restore opacity — may have been set to 0 during collapse animation
-            if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
+            if (CompactThumbnailBorder != null)
+            {
+                CompactThumbnailBorder.Visibility = Visibility.Visible;
+                CompactThumbnailBorder.Opacity = 1;
+            }
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
             // Play queued thumbnail flip animation (track changed mid-collapse)

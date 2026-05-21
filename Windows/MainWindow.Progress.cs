@@ -458,20 +458,51 @@ public partial class MainWindow
         }
         else if (_isSeekSpringActive)
         {
-            // Safety: if spring is active but render hook was not running, restart it.
-            if (!Spring.IsHooked)
+            // If spring has finished (settled or timed out), transition to normal rendering
+            if (!Spring.IsActive)
             {
-                StartSpringRenderLoop();
+                _isSeekSpringActive = false;
+                _progressDisplayRatio = Spring.DisplayRatio;
+                _progressVelocity = 0;
+                _springSettleFrames = 0;
+                RuntimeLog.Log("PROGRESS-SPRING", $"settled at ratio={_progressDisplayRatio:F4} engineRatio={engineRatio:F4}");
+                // Fall through to normal rendering below
             }
+            else
+            {
+                // Safety: if spring is active but render hook was not running, restart it.
+                if (!Spring.IsHooked)
+                {
+                    StartSpringRenderLoop();
+                }
 
-            _progressTargetRatio = engineRatio;
-            if (Math.Abs(_progressTargetRatio - _progressSpringTargetRatio) > 0.12)
-            {
-                _seekSpringStartTime = DateTime.Now;
+                // Don't overwrite spring target from engine during pending click seek (engine hasn't been notified yet)
+                if (!_isClickSeekPending)
+                {
+                    _progressTargetRatio = engineRatio;
+                    if (Math.Abs(_progressTargetRatio - _progressSpringTargetRatio) > 0.12)
+                    {
+                        _seekSpringStartTime = DateTime.Now;
+                    }
+                }
+                _lastRenderedDuration = frame.Duration;  
+                // Update time text while spring is animating
+                if (frame.Duration.TotalSeconds > 0)
+                {
+                    var pos = TimeSpan.FromSeconds(_progressDisplayRatio * frame.Duration.TotalSeconds);
+                    int sec = (int)pos.TotalSeconds;
+                    if (sec != _lastDisplayedSecond)
+                    {
+                        _lastDisplayedSecond = sec;
+                        CurrentTimeText.Text = FormatTime(pos);
+                        RemainingTimeText.Text = FormatTime(frame.Duration - pos);
+                    }
+                }
+                return;
             }
-            _lastRenderedDuration = frame.Duration;  
         }
-        else
+
+        if (!_isSeekSpringActive)
         {
             DateTime now = DateTime.Now;
             double dt = _lastRenderTime == DateTime.MinValue ? 0.016 : (now - _lastRenderTime).TotalSeconds;
@@ -734,7 +765,7 @@ public partial class MainWindow
             {
                 // Click seek (no drag): spring is already animating to target
                 _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
-                _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(2);
+                _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
                 _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
                 _progressEngine.NotifyUserSeek(_dragSeekPosition);
 
@@ -923,7 +954,7 @@ public partial class MainWindow
         try 
         {
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
-            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(2);
+            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(newPos);
 
@@ -967,7 +998,7 @@ public partial class MainWindow
         try
         {
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
-            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(2);
+            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(newPos);
 
@@ -1197,7 +1228,7 @@ public partial class MainWindow
             StopRewindTextAnimation();
             _isRewindAnimating = false;
             _lastRenderTime = DateTime.Now;
-            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(2);
+            _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
         };
 
         // IMPORTANT: do NOT pre-commit `_progressDisplayRatio = targetRatio` here
@@ -1242,3 +1273,4 @@ public partial class MainWindow
 
     #endregion
 }
+

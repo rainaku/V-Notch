@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -20,7 +20,9 @@ public partial class MainWindow
     private ImageSource? _lastAnimatedThumbnail;
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
     private int _thumbnailSwitchGeneration = 0;
-    // Tracks whether the thumbnail has already been shown for the current track
+    // Tracks whether the thumbnail has already been shown for the current track.
+    // Set to true after the first successful thumbnail display for a track.
+    // Reset to false only on actual track change. Prevents re-animation on pause/play.
     private bool _thumbnailShownForCurrentTrack = false;
 
     private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
@@ -33,7 +35,7 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() =>
         {
-            // Guard: if this is a thumbnail-only update from an async fetch, verify it still matches the track currently displayed
+
             if (info.IsThumbnailOnlyUpdate)
             {
                 string incomingTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
@@ -49,7 +51,16 @@ public partial class MainWindow
 
             bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
-            // Stable source for display purposes
+            // Stable source for display purposes.
+            //
+            // The backend can flip-flop MediaSource between e.g. "Browser" and
+            // "SoundCloud" on the same track due to window-title heuristics +
+            // cached track→source map. We handle that here by:
+            //  1) not changing the rendered icon when the source is unchanged;
+            //  2) not "degrading" a known-specific source (Spotify/YouTube/
+            //     SoundCloud/…) back to the generic "Browser" fallback while
+            //     still playing the same track. Only upgrades (Browser -> X) or
+            //     a real track change can flip the icon.
             string incomingSource = hasRealTrack ? (info.MediaSource ?? "") : "";
             string currentTrackKey = $"{info.CurrentTrack}|{info.CurrentArtist}";
             bool sameTrackAsBefore = hasRealTrack &&
@@ -61,7 +72,8 @@ public partial class MainWindow
                 _lastRenderedMediaSource != "Browser" &&
                 (incomingSource == "" || incomingSource == "Browser"))
             {
-                // Keep the previously-rendered specific source instead of flipping back to the generic Browser icon on the same track.
+                // Keep the previously-rendered specific source instead of flipping
+                // back to the generic Browser icon on the same track.
                 renderedSource = _lastRenderedMediaSource;
             }
 
@@ -71,7 +83,13 @@ public partial class MainWindow
             }
 
             string currentSig = info.GetSignature();
-            // Track identity used to decide whether to re-animate the thumbnail
+            // Track identity used to decide whether to re-animate the thumbnail.
+            // IMPORTANT: do NOT include MediaSource here — the backend can flip-flop
+            // the source between e.g. "Browser" and "SoundCloud" on the same track
+            // (stale window-title heuristics + cached track->source map), and using
+            // GetSignature() here would re-trigger the flip animation and icon swap
+            // every time. The thumbnail should only "change" when the track itself
+            // changes (title + artist).
             string trackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
             bool isNewTrack = trackIdentity != _lastAnimatedTrackSignature;
 
@@ -139,9 +157,11 @@ public partial class MainWindow
 
                         if (isFirstEverTrack)
                         {
-                            // Boot: set thumbnail then play a subtle reveal animation so the compact pill feels alive instead of popping in instantly.
+                            // Boot: set thumbnail then play a subtle reveal animation
+                            // so the compact pill feels alive instead of popping in instantly.
                             ThumbnailImage.Source = info.Thumbnail;
                             CompactThumbnail.Source = info.Thumbnail;
+                            if (_isLyricsActive && LyricsBlurImage != null) LyricsBlurImage.Source = info.Thumbnail;
                             PlayThumbnailRevealAnimation();
                         }
                         else
@@ -155,14 +175,24 @@ public partial class MainWindow
 
                         if (ThumbnailImage.Source != info.Thumbnail)
                         {
-                            // Thumbnail changed for the same track (e.g. smart crop update, YouTube fetch completing) — use flip animation.
+                            // Thumbnail changed for the same track (e.g. smart crop update,
+                            // YouTube fetch completing) — use flip animation.
                             if (!ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail) &&
                                 !ReferenceEquals(ThumbnailImage.Source, info.Thumbnail))
                             {
-                                // If thumbnail was already shown for this track and this is NOT a genuine thumbnail-only update (async YouTube/SoundCloud fetch), skip animation entirely
+                                // If thumbnail was already shown for this track and this is NOT
+                                // a genuine thumbnail-only update (async YouTube/SoundCloud fetch),
+                                // skip animation entirely. This prevents spurious crossfade on
+                                // pause→play where SMTC re-sends the same artwork with a new
+                                // BitmapImage reference or slightly different crop dimensions.
                                 if (_thumbnailShownForCurrentTrack && !info.IsThumbnailOnlyUpdate)
                                 {
-                                    // Same artwork (just a new BitmapImage from re-crop)
+                                    // Same artwork (just a new BitmapImage from re-crop).
+                                    // Don't update the source — it's already the right
+                                    // visual. Setting source again triggers a re-render
+                                    // which can cause a visible flash/shift due to
+                                    // UniformToFill stretch with slightly different
+                                    // source dimensions.
                                 }
                                 else
                                 {
@@ -181,6 +211,7 @@ public partial class MainWindow
                     ThumbnailImage.Visibility = Visibility.Visible;
                     ThumbnailFallback.Visibility = Visibility.Collapsed;
 
+                    
                     if (isNewTrack || _lastColorTrackSignature != trackIdentity)
                     {
                         _lastColorTrackSignature = trackIdentity;
@@ -312,9 +343,7 @@ public partial class MainWindow
         {
             VNotch.Services.RuntimeLog.Log("THUMB-ANIM", "skipped (same reference, no force)");
             return;
-        }
-
-        // Hard guard: if a thumbnail was already shown for the current track and this is not a forced update, suppress the crossfade animation entirely
+        } 
         if (!force && _thumbnailShownForCurrentTrack && newThumb != null)
         {
             VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
@@ -328,6 +357,7 @@ public partial class MainWindow
 
         var generation = ++_thumbnailSwitchGeneration;
 
+       
         var outDur     = TimeSpan.FromMilliseconds(420);
         var inDur      = TimeSpan.FromMilliseconds(440);
         var overlap    = TimeSpan.FromMilliseconds(180); // when the new layer starts
@@ -366,7 +396,10 @@ public partial class MainWindow
         CompactThumbnail.Opacity = 1.0;
         CompactThumbnailOutBlur.Radius = 0.0;
 
-        // ─── Outgoing animations ─── Blur ramps up first (cubic out → fast at start, slow at end), then opacity fades (cubic in → starts slow, accelerates) so dissolve feels gradual instead of an instant fade
+        // ─── Outgoing animations ───
+        // Blur ramps up first (cubic out → fast at start, slow at end), then
+        // opacity fades (cubic in → starts slow, accelerates) so dissolve feels
+        // gradual instead of an instant fade.
         var outBlurExpanded = new DoubleAnimation(0.0, expandedPeakBlur, outDur) { EasingFunction = cubicOut };
         var outBlurCompact  = new DoubleAnimation(0.0, compactPeakBlur,  outDur) { EasingFunction = cubicOut };
         var outFade         = new DoubleAnimation(1.0, 0.0, outDur)              { EasingFunction = cubicIn };
@@ -376,7 +409,8 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(outFade, 144);
         Timeline.SetDesiredFrameRate(outScale, 144);
 
-        // ─── Incoming animations (delayed by 'overlap') ─── Hold blurred + invisible for 'overlap', then bloom into focus.
+        // ─── Incoming animations (delayed by 'overlap') ───
+        // Hold blurred + invisible for 'overlap', then bloom into focus.
         DoubleAnimationUsingKeyFrames MakeInBlur(double peak)
         {
             var a = new DoubleAnimationUsingKeyFrames();
@@ -424,7 +458,9 @@ public partial class MainWindow
         CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, inScale);
         CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, inBlurCompact);
 
-        // Single Completed handler on the longest timeline commits the swap: promote the overlay's image to the base layer, clear the overlay, and reset every transient transform/opacity/blur
+        // Single Completed handler on the longest timeline commits the swap:
+        // promote the overlay's image to the base layer, clear the overlay,
+        // and reset every transient transform/opacity/blur.
         inScale.Completed += (s, e) =>
         {
             if (_thumbnailSwitchGeneration != generation) return;
@@ -451,7 +487,22 @@ public partial class MainWindow
             // Promote overlay → base.
             ThumbnailImage.Source = newThumb;
             CompactThumbnail.Source = newThumb;
-            if (_isLyricsActive && LyricsBlurImage != null) LyricsBlurImage.Source = newThumb;
+            if (_isLyricsActive && LyricsBlurImage != null)
+            {
+                // Crossfade lyrics blur image
+                var currentOpacity = LyricsBlurImage.Opacity;
+                var fadeOut = new DoubleAnimation(currentOpacity, 0, TimeSpan.FromMilliseconds(200));
+                fadeOut.Completed += (s, e) =>
+                {
+                    LyricsBlurImage.Source = newThumb;
+                    var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350))
+                    {
+                        EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
+                    };
+                    LyricsBlurImage.BeginAnimation(OpacityProperty, fadeIn);
+                };
+                LyricsBlurImage.BeginAnimation(OpacityProperty, fadeOut);
+            }
             ThumbnailImageNext.Source = null;
             CompactThumbnailNext.Source = null;
 
@@ -514,7 +565,9 @@ public partial class MainWindow
         CompactThumbnailOutBlur.Radius = 0.0;
         CompactThumbnailNextBlur.Radius = 0.0;
 
-        // If an in-flight transition was interrupted, the overlay layer may hold the most recent target frame — promote it onto the base so the user doesn't see the old thumbnail snap back
+        // If an in-flight transition was interrupted, the overlay layer may hold
+        // the most recent target frame — promote it onto the base so the user
+        // doesn't see the old thumbnail snap back.
         var overlayTarget = ThumbnailImageNext.Source ?? CompactThumbnailNext.Source;
         var resolvedThumb = targetThumb ?? overlayTarget ?? _currentMediaInfo?.Thumbnail
                             ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
@@ -551,7 +604,8 @@ public partial class MainWindow
             {
                 if (info?.Thumbnail != null)
                 {
-                    // Use track-only identity (not GetSignature) so a MediaSource flip-flop on the same track does not re-trigger the flip anim
+                    // Use track-only identity (not GetSignature) so a MediaSource
+                    // flip-flop on the same track does not re-trigger the flip anim.
                     string compactTrackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
                     if (compactTrackIdentity != _lastAnimatedTrackSignature)
                     {
@@ -573,7 +627,9 @@ public partial class MainWindow
         
         if (!_isExpanded)
         {
-            // Don't animate content switch while bluetooth notification is showing — the notification owns the collapsed area
+            // Don't animate content switch while bluetooth notification is showing —
+            // the notification owns the collapsed area. State is updated so that
+            // AnimateBluetoothNotificationOut restores the correct content.
             if (_isBluetoothNotificationVisible)
             {
                 return;
@@ -592,7 +648,10 @@ public partial class MainWindow
             {
                 if (info?.Thumbnail != null)
                 {
-                    // When re-entering compact mode for the same track (e
+                    // When re-entering compact mode for the same track (e.g. pause→play),
+                    // don't touch the source at all. The track hasn't changed — the
+                    // existing thumbnail is correct. Setting source would trigger a
+                    // re-render which can cause a visible flash/shift.
                     string compactTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
                     if (compactTrackId != _lastAnimatedTrackSignature && !_thumbnailShownForCurrentTrack)
                     {
@@ -620,6 +679,11 @@ public partial class MainWindow
 
     #region Thumbnail Transition
 
+    /// <summary>
+    /// Plays a subtle "pop-in" reveal animation on the compact thumbnail
+    /// when it transitions from empty (null) to having an image for the first time.
+    /// Scale 0→1 with a soft spring + opacity fade-in for a polished feel.
+    /// </summary>
     private void PlayThumbnailRevealAnimation()
     {
         // Start from scale 0 and opacity 0
