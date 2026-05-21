@@ -103,8 +103,6 @@ namespace VNotch.Controls
         private readonly double[] _smoothedHeights = new double[BarCount];
         private double _currentOpacity = 0.2;
         private VisualizerState _state = VisualizerState.Idle;
-        private DateTime _pausedSinceUtc = DateTime.MinValue;
-        private const double PausedCaptureTimeoutSeconds = 5.0;
 
         public MusicVisualizer()
         {
@@ -150,15 +148,6 @@ namespace VNotch.Controls
                 if (_state == VisualizerState.Idle)
                 {
                     StopAudioCapture();
-                    _pausedSinceUtc = DateTime.MinValue;
-                }
-                else if (_state == VisualizerState.Paused)
-                {
-                    _pausedSinceUtc = DateTime.UtcNow;
-                }
-                else
-                {
-                    _pausedSinceUtc = DateTime.MinValue;
                 }
             }
 
@@ -393,17 +382,6 @@ namespace VNotch.Controls
         private void EnsureAudioCaptureStarted(bool force = false)
         {
             if (_state == VisualizerState.Idle) return;
-
-            // Release audio capture after being paused for a while to save CPU
-            if (_state == VisualizerState.Paused && _pausedSinceUtc != DateTime.MinValue && _capture != null)
-            {
-                if ((DateTime.UtcNow - _pausedSinceUtc).TotalSeconds > PausedCaptureTimeoutSeconds)
-                {
-                    StopAudioCapture();
-                    return;
-                }
-            }
-
             if (_capture != null) return;
 
             var now = DateTime.UtcNow;

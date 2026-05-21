@@ -125,7 +125,7 @@ public partial class MainWindow
 
     private void GlobalMouseHook_MouseLeftButtonDown(object? sender, InputMonitorService.POINT pt)
     {
-        Dispatcher.BeginInvoke(() =>
+        Dispatcher.Invoke(() =>
         {
             if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
             {

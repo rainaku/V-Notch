@@ -3109,21 +3109,13 @@ public class MediaDetectionService : IMediaDetectionService
     {
         if (_disposed) return;
         _disposed = true;
-
         _bgCts?.Cancel();
         _changeChannel.Writer.TryComplete();
-
-        UnsubscribeFromSession();
 
         if (_sessionManager != null)
         {
             _sessionManager.CurrentSessionChanged -= OnSessionChanged;
         }
-
-        _thumbCts?.Cancel();
-        _thumbCts?.Dispose();
-        _bgCts?.Dispose();
-        _updateLock.Dispose();
     }
 
     public Task PlayPauseAsync() => _transportService.PlayPauseAsync();
