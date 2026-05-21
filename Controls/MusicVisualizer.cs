@@ -90,10 +90,14 @@ namespace VNotch.Controls
         private const double RightBiasDeadzone = 0.05;
         private const double MinHeightChangeThreshold = 0.0005;
 
+        // Reference frame interval the alpha constants were tuned for (old DispatcherTimer effective rate)
+        private const double ReferenceFrameMs = 16.0;
+
         #endregion
 
         private readonly Stopwatch _stopwatch = new Stopwatch();
         private double _lastTickSeconds;
+        private double _lastDtMs;
         private DateTime _lastCaptureRetryUtc = DateTime.MinValue;
         private bool _isRenderingActive;
         
@@ -195,6 +199,7 @@ namespace VNotch.Controls
 
             if (dt <= 0) return;
 
+            _lastDtMs = dt * 1000.0;
             bool isSettled = UpdateAnimation(dt, totalSec);
 
             // When paused and animation has settled, stop rendering to save CPU
@@ -271,16 +276,16 @@ namespace VNotch.Controls
                 }
 
                 double dynamicRelease = Math.Max(0.70, AlphaRelease - (beatAccent * 0.05));
-                double alpha;
+                double baseAlpha;
                 if (targetH > _currentHeights[i])
                 {
-                    alpha = AlphaAttack;
+                    baseAlpha = AlphaAttack;
                 }
                 else
                 {
                     if (_state == VisualizerState.Paused)
                     {
-                        alpha = AlphaPauseRelease;
+                        baseAlpha = AlphaPauseRelease;
                     }
                     else
                     {
@@ -288,9 +293,13 @@ namespace VNotch.Controls
                         double fallRatio = Math.Clamp(
                             (_currentHeights[i] - targetH) / (MaxHeightRatio - MinHeightRatio),
                             0.0, 1.0);
-                        alpha = Math.Max(MinReleaseAlpha, dynamicRelease - (fallRatio * DownwardDropBoost));
+                        baseAlpha = Math.Max(MinReleaseAlpha, dynamicRelease - (fallRatio * DownwardDropBoost));
                     }
                 }
+
+                // Frame-rate independent smoothing: adjust alpha for actual dt vs reference 16ms
+                double dtMs = dt * 1000.0;
+                double alpha = Math.Pow(baseAlpha, dtMs / ReferenceFrameMs);
                 
                 double oldH = _currentHeights[i];
                 double newH = (_currentHeights[i] * alpha) + (targetH * (1 - alpha));
@@ -393,7 +402,8 @@ namespace VNotch.Controls
 
         private void PrepareDrawHeights()
         {
-            const double smoothingFactor = 0.58;
+            // Frame-rate independent smoothing (0.58 was tuned for ~16ms frames)
+            double smoothingFactor = Math.Pow(0.58, _lastDtMs / ReferenceFrameMs);
             for (int i = 0; i < BarCount; i++)
             {
                 _smoothedHeights[i] = (_smoothedHeights[i] * smoothingFactor) + (_currentHeights[i] * (1 - smoothingFactor));
