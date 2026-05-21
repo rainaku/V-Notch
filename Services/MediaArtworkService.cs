@@ -66,12 +66,23 @@ public sealed class MediaArtworkService : IMediaArtworkService
             {
                 await dispatcher.InvokeAsync(() =>
                 {
-                    bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.StreamSource = new MemoryStream(bytes);
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
+                    var ms = BitmapBufferPool.RentStream();
+                    try
+                    {
+                        ms.Write(bytes, 0, bytes.Length);
+                        ms.Position = 0;
+
+                        bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.StreamSource = ms;
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+                    }
+                    finally
+                    {
+                        BitmapBufferPool.ReturnStream(ms);
+                    }
                 });
             }
 
@@ -158,7 +169,13 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 }
             }
 
-            // Fast path: CroppedBitmap → direct pixel copy → BitmapImage
+            // Fast path: CroppedBitmap → pooled buffer → BMP encode → BitmapImage
+            // (BMP is ~10-20x faster than PNG — no compression overhead)
+            var result = BitmapBufferPool.CreateCroppedBitmapImage(workingSource, rect);
+            if (result != null)
+                return result;
+
+            // Fallback: original path if pooled creation fails
             var cropped = new CroppedBitmap(workingSource, rect);
             cropped.Freeze();
 
@@ -174,7 +191,6 @@ public sealed class MediaArtworkService : IMediaArtworkService
                 cropSource = converted;
             }
 
-            // Direct WriteableBitmap — skip BMP encode/decode entirely
             var wb = new WriteableBitmap(cropW, cropH, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
             wb.Lock();
             try
@@ -188,20 +204,26 @@ public sealed class MediaArtworkService : IMediaArtworkService
             }
             wb.Freeze();
 
-            // Convert WriteableBitmap to BitmapImage via PNG in-memory (fast, lossless)
-            using var ms = new MemoryStream();
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(wb));
-            encoder.Save(ms);
-            ms.Position = 0;
+            var ms = BitmapBufferPool.RentStream();
+            try
+            {
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(wb));
+                encoder.Save(ms);
+                ms.Position = 0;
 
-            var bitmapImage = new BitmapImage();
-            bitmapImage.BeginInit();
-            bitmapImage.StreamSource = ms;
-            bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-            bitmapImage.EndInit();
-            bitmapImage.Freeze();
-            return bitmapImage;
+                var bitmapImage = new BitmapImage();
+                bitmapImage.BeginInit();
+                bitmapImage.StreamSource = ms;
+                bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+                bitmapImage.EndInit();
+                bitmapImage.Freeze();
+                return bitmapImage;
+            }
+            finally
+            {
+                BitmapBufferPool.ReturnStream(ms);
+            }
         }
         catch
         {
@@ -271,7 +293,9 @@ public sealed class MediaArtworkService : IMediaArtworkService
         if (sw < 4 || sh < 4) return new Int32Rect(0, 0, width, height);
 
         int stride = sw * 4;
-        byte[] pixels = new byte[sh * stride];
+        byte[] pixels = System.Buffers.ArrayPool<byte>.Shared.Rent(sh * stride);
+        try
+        {
 
         BitmapSource src = small;
         if (small.Format != System.Windows.Media.PixelFormats.Bgra32)
@@ -367,13 +391,20 @@ public sealed class MediaArtworkService : IMediaArtworkService
             return new Int32Rect(0, 0, width, height);
 
         return new Int32Rect(contentX, contentY, contentW, contentH);
+
+        } // end pixel processing try
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(pixels);
+        }
     }
 
     private static BitmapImage? ConvertToBitmapImage(BitmapSource source)
     {
+        MemoryStream? ms = null;
         try
         {
-            using var ms = new MemoryStream();
+            ms = BitmapBufferPool.RentStream();
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(source));
             encoder.Save(ms);
@@ -390,6 +421,11 @@ public sealed class MediaArtworkService : IMediaArtworkService
         catch
         {
             return null;
+        }
+        finally
+        {
+            if (ms != null)
+                BitmapBufferPool.ReturnStream(ms);
         }
     }
 }

@@ -405,7 +405,9 @@ public sealed class SmartThumbnailCropService : IDisposable
             if (w < 8 || h < 8) return regions;
 
             int stride = w * 4;
-            byte[] pixels = new byte[h * stride];
+            byte[] pixels = ArrayPool<byte>.Shared.Rent(h * stride);
+            try
+            {
 
             BitmapSource scaledSource = scaled;
             if (scaled.Format != PixelFormats.Bgra32)
@@ -473,6 +475,12 @@ public sealed class SmartThumbnailCropService : IDisposable
                         });
                     }
                 }
+            }
+
+            } // end try
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(pixels);
             }
         }
         catch (Exception ex)
@@ -722,7 +730,9 @@ public sealed class SmartThumbnailCropService : IDisposable
             if (w < 4 || h < 4) return null;
 
             int stride = w * 4;
-            byte[] pixels = new byte[h * stride];
+            byte[] pixels = ArrayPool<byte>.Shared.Rent(h * stride);
+            try
+            {
 
             BitmapSource scaledSource = scaled;
             if (scaled.Format != PixelFormats.Bgra32)
@@ -836,6 +846,12 @@ public sealed class SmartThumbnailCropService : IDisposable
             float saliencyCenterY = (bestGy + 1.0f) / gridSize * imgHeight;
 
             return BuildCropRect(saliencyCenterX, saliencyCenterY, imgWidth, imgHeight, cropSize);
+
+            } // end pixel processing try
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(pixels);
+            }
         }
         catch (Exception ex)
         {
