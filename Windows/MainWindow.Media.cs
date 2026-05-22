@@ -61,7 +61,7 @@ public partial class MainWindow
                 {
                     FetchLyricsForTrack(info);
                 }
-                else if (!_isLyricsActive)
+                else
                 {
                     ClearLyrics();
                 }
