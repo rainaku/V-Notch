@@ -98,9 +98,10 @@ public partial class MainWindow
                 HideLyricsPlaceholder();
                 AnimateLyricLine(_currentLyrics[idx].Text);
             }
-            else
+            else if (LyricsPlaceholderPanel.Visibility != Visibility.Visible || LyricsPlaceholderPanel.Opacity < 0.01)
             {
-                // Before first lyric — show placeholder
+                // Before first lyric — show placeholder only if not already showing
+                // (avoids double-triggering the animation when placeholder was shown at fetch start)
                 ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
             }
         });
