@@ -126,7 +126,7 @@ public partial class MainWindow
                             break;
 
                         case ThumbnailAction.AnimateUpdate:
-                            AnimateThumbnailSwitchOnly(info.Thumbnail, force: _lastAnimatedThumbnail == null);
+                            AnimateThumbnailSwitchOnly(info.Thumbnail, force: true);
                             break;
 
                         case ThumbnailAction.None:
