@@ -72,23 +72,23 @@ namespace VNotch.Controls
         private const double BarSpacingRatio = 0.05;
         private const double CornerRadiusRatio = 0.5;
 
-        private const double AlphaAttack = 0.86;
-        private const double AlphaRelease = 0.90;
+        private const double AlphaAttack = 0.88;
+        private const double AlphaRelease = 0.92;
         private const double AlphaPauseRelease = 0.98;
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
-        private const double NoAudioPulseAmplitude = 0.08;
-        private const double NoAudioPulseBase = 0.06;
+        private const double NoAudioPulseAmplitude = 0.05;
+        private const double NoAudioPulseBase = 0.05;
         private const double LegacyRhythmMinMix = 0.18;
         private const double LegacyRhythmMaxMix = 0.38;
         private const double AudioPresenceThreshold = 0.012;
         private const double DownwardDropBoost = 0.08;
-        private const double MinReleaseAlpha = 0.82;
+        private const double MinReleaseAlpha = 0.84;
         private const double MotionContrast = 2.25;
         private const double LeftMiniBarSensitivity = 0.58;
         private const double RightBiasStrength = 1.00;
         private const double RightBiasDeadzone = 0.05;
-        private const double MinHeightChangeThreshold = 0.0005;
+        private const double MinHeightChangeThreshold = 0.002;
 
         // Reference frame interval the alpha constants were tuned for (old DispatcherTimer effective rate)
         private const double ReferenceFrameMs = 16.0;
