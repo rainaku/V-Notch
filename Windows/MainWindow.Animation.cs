@@ -283,11 +283,13 @@ public partial class MainWindow
             RenderProgressBar();
 
             // Play queued thumbnail flip animation
+            // force:true is required — early-exit guards (e.g. _thumbnailShownForCurrentTrack)
+            // would otherwise silently skip this morph and the user sees a snap-jump.
             if (_pendingFlipThumbnail != null)
             {
                 var thumb = _pendingFlipThumbnail;
                 _pendingFlipThumbnail = null;
-                AnimateThumbnailSwitchOnly(thumb);
+                AnimateThumbnailSwitchOnly(thumb, force: true);
             }
 
             ExpandedContent.Opacity = 1;
@@ -594,11 +596,12 @@ public partial class MainWindow
             MusicCompactContent.UpdateLayout();
 
             // Play queued thumbnail flip animation (track changed mid-collapse)
+            // force:true is required — see expand-completion comment for details.
             if (_pendingFlipThumbnail != null)
             {
                 var thumb = _pendingFlipThumbnail;
                 _pendingFlipThumbnail = null;
-                AnimateThumbnailSwitchOnly(thumb);
+                AnimateThumbnailSwitchOnly(thumb, force: true);
             }
 
         };

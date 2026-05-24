@@ -370,6 +370,12 @@ public partial class MainWindow : Window
                 {
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
+                        // In overlay mode (WS_EX_NOACTIVATE), this message only fires
+                        // spuriously from the initial Show() activation. Outside-click
+                        // collapse is handled by GlobalMouseHook instead.
+                        // Only act on this when in SecondaryView (keyboard input enabled).
+                        if (!_isSecondaryView) return;
+
                         if (_isExpanded && !_isAnimating)
                         {
                             CollapseNotch();
@@ -392,8 +398,13 @@ public partial class MainWindow : Window
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
+        // Only collapse via Deactivated when the window is in activatable mode
+        // (i.e. SecondaryView with keyboard input enabled). In normal overlay mode
+        // (WS_EX_NOACTIVATE), the GlobalMouseHook handles outside-click collapse,
+        // and this event only fires spuriously (e.g. from the initial Show() activation).
+        if (!_isSecondaryView) return;
 
-        if ((_isExpanded || _isMusicExpanded) && !_isAnimating && !_isSecondaryView)
+        if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
         {
             CollapseAll();
         }
