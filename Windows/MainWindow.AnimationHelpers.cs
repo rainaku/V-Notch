@@ -31,9 +31,9 @@ public partial class MainWindow
     {
         if (_isExpanded || _isAnimating) return;
 
-        double thumbScale = isHovered ? 1.3 : 1.0;
+        double thumbScale = isHovered ? 1.5 : 1.0;
         double notchWidth = isHovered ? _collapsedWidth + 32 : _collapsedWidth;
-        double notchHeight = isHovered ? _collapsedHeight + 24 : _collapsedHeight;
+        double notchHeight = isHovered ? _collapsedHeight + 36 : _collapsedHeight;
         double infoOpacity = isHovered ? 1 : 0;
         
         var duration = isHovered ? _dur500 : _dur350;

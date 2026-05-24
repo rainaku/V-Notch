@@ -47,6 +47,8 @@ public class NotchSettings
 
     public bool EnableSmartCrop { get; set; } = true;
 
+    public bool EnableGestureControls { get; set; } = true;
+
     public bool EnableSpotifyLyrics { get; set; } = true;
 
     public bool IsShelfUploadLimitUnlocked { get; set; } = true;

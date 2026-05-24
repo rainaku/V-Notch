@@ -267,6 +267,7 @@ public partial class MainWindow : Window
         InitializeFileShelfController();
         _dragDropController = new DragDropController(_fileShelf);
         InitializeDragDropController();
+        InitializeGestureController();
         _bluetoothController = new BluetoothNotificationController();
         InitializeBluetoothNotificationController();
     }
@@ -432,6 +433,7 @@ public partial class MainWindow : Window
         _moduleHost?.Dispose();
         _cameraController?.Dispose();
         _timerManager?.Dispose();
+        DisposeGestureController();
         DisposeAllShelfWatchers();
         base.OnClosed(e);
     }
@@ -1045,6 +1047,13 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         // Don't open notch while volume indicator is active (dragging)
         if (_isVolumeIndicatorActive || _isDraggingVolumeIndicator)        {
+            e.Handled = true;
+            return;
+        }
+
+        // Try gesture tracking when collapsed with media playing
+        if (TryBeginGesture(e))
+        {
             e.Handled = true;
             return;
         }
