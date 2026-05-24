@@ -430,8 +430,13 @@ public partial class MainWindow
         // If an in-flight transition was interrupted, the overlay layer may hold
         // the most recent target frame — promote it onto the base so the user
         // doesn't see the old thumbnail snap back.
+        // NOTE: Do NOT fall back to _currentMediaInfo?.Thumbnail here. When this
+        // method is called as the preamble of AnimateThumbnailSwitchOnly, that
+        // value is the morph's destination; promoting it to the base layer would
+        // make the upcoming morph render new→new (invisible) and the user sees a
+        // snap-jump. The base layer's current Source is the correct "from" frame.
         var overlayTarget = ThumbnailImageNext.Source ?? CompactThumbnailNext.Source;
-        var resolvedThumb = targetThumb ?? overlayTarget ?? _currentMediaInfo?.Thumbnail
+        var resolvedThumb = targetThumb ?? overlayTarget
                             ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
         if (resolvedThumb != null)
         {
@@ -484,10 +489,10 @@ public partial class MainWindow
         
         if (!_isExpanded)
         {
-            // Don't animate content switch while bluetooth notification is showing —
+            // Don't animate content switch while bluetooth/charging notification is showing —
             // the notification owns the collapsed area. State is updated so that
-            // AnimateBluetoothNotificationOut restores the correct content.
-            if (_isBluetoothNotificationVisible)
+            // dismiss restores the correct content.
+            if (_isBluetoothNotificationVisible || _isChargingNotificationVisible)
             {
                 return;
             }

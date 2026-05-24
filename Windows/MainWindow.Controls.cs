@@ -59,6 +59,7 @@ public partial class MainWindow
             }
             else
             {
+                OptimisticPrepareForNextTrack();
                 await _mediaService.NextTrackAsync();
             }
         }
@@ -151,6 +152,7 @@ public partial class MainWindow
             }
             else
             {
+                OptimisticPrepareForNextTrack();
                 await _mediaService.NextTrackAsync();
             }
         }
@@ -200,6 +202,23 @@ public partial class MainWindow
         catch (Exception ex)
         {
             RuntimeLog.Log("PROGRESS-PREV-PREP", ex.Message);
+        }
+    }
+
+    private void OptimisticPrepareForNextTrack()
+    {
+        try
+        {
+            // Freeze the progress bar at its current position to prevent the "jump to end"
+            // glitch that occurs when the media player briefly reports position=duration
+            // before the track change is detected.
+            var frame = _progressEngine.GetUiFrame();
+            _progressEngine.NotifyUserSeek(frame.Position);
+            _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("PROGRESS-NEXT-PREP", ex.Message);
         }
     }
 
@@ -307,6 +326,7 @@ public partial class MainWindow
         if (VolumeIndicatorContainer == null || VolumeIndicatorFill == null) return;
         if (!_isMusicCompactMode) return;
         if (_isBluetoothNotificationVisible) return;
+        if (_isChargingNotificationVisible) return;
         // CRITICAL: never run the compact-mode volume UI when the notch is expanded
         if (_isExpanded || _isAnimating) return;
 
@@ -597,7 +617,12 @@ public partial class MainWindow
         VolumeBarScale.ScaleX = newVolume;
         UpdateVolumeIcon(newVolume, false);
 
-        _mediaService.TrySetCurrentSessionVolume(newVolume);
+        // Apply to system on thread pool (non-blocking) for real-time responsiveness
+        float volumeToSet = newVolume;
+        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+        {
+            _mediaService.TrySetCurrentSessionVolume(volumeToSet);
+        });
     }
 
     private void SyncVolumeFromActiveSession()
