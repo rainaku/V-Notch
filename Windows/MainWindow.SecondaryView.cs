@@ -169,11 +169,12 @@ public partial class MainWindow
             SecondaryContent.RenderTransform = null;
 
             // Play queued thumbnail flip animation (track changed mid-transition)
+            // force:true is required so the morph isn't suppressed by early-exit guards.
             if (_pendingFlipThumbnail != null)
             {
                 var thumb = _pendingFlipThumbnail;
                 _pendingFlipThumbnail = null;
-                AnimateThumbnailSwitchOnly(thumb);
+                AnimateThumbnailSwitchOnly(thumb, force: true);
             }
 
             if (_isCameraActive)
@@ -277,11 +278,12 @@ public partial class MainWindow
             ExpandedContent.RenderTransform = null;
 
             // Play queued thumbnail flip animation (track changed mid-transition)
+            // force:true is required so the morph isn't suppressed by early-exit guards.
             if (_pendingFlipThumbnail != null)
             {
                 var thumb = _pendingFlipThumbnail;
                 _pendingFlipThumbnail = null;
-                AnimateThumbnailSwitchOnly(thumb);
+                AnimateThumbnailSwitchOnly(thumb, force: true);
             }
         };
 

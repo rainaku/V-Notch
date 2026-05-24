@@ -283,6 +283,15 @@ public class ProgressEngine
                     startPos = _basePosition;
                 }
 
+                // Guard: if raw position is near 0 but effective position jumped to >80% of duration,
+                // the timestamp compensation is using a stale timestamp. Use raw position instead.
+                if (_duration > TimeSpan.Zero &&
+                    snapshot.Position.TotalSeconds < 5.0 &&
+                    startPos.TotalSeconds > _duration.TotalSeconds * 0.8)
+                {
+                    startPos = ClampPosition(snapshot.Position);
+                }
+
                 _isPlaying = true;
                 _state = ProgressState.Playing;
                 _basePosition = startPos;
@@ -459,6 +468,15 @@ public class ProgressEngine
         if (snapshot.Duration > TimeSpan.Zero && effectivePosition > snapshot.Duration)
         {
             effectivePosition = snapshot.Duration;
+        }
+
+        // Guard: if position was near the start but compensation pushed it past 90% of duration,
+        // the timestamp is likely stale (carried over from previous track). Reject the compensation.
+        if (snapshot.Duration > TimeSpan.Zero &&
+            snapshot.Position.TotalSeconds < 5.0 &&
+            effectivePosition.TotalSeconds > snapshot.Duration.TotalSeconds * 0.9)
+        {
+            return snapshot.Position;
         }
 
         return effectivePosition;

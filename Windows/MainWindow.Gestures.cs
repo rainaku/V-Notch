@@ -113,6 +113,7 @@ public partial class MainWindow
         {
             PlayGestureSwipeFeedback(isLeft: true);
             PlayNextSkipAnimation();
+            OptimisticPrepareForNextTrack();
         });
 
         try
