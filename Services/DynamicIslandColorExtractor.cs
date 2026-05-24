@@ -126,6 +126,83 @@ internal static class DynamicIslandColorExtractor
         return 0.90 - t * 0.15;
     }
 
+    /// <summary>
+    /// Analyzes a thumbnail's overall brightness and returns an overlay opacity
+    /// to dim overly bright backgrounds. Returns 0 for normal thumbnails,
+    /// up to ~0.55 for extremely bright ones.
+    /// </summary>
+    public static double GetBrightnessDimOverlay(BitmapSource bitmap)
+    {
+        if (bitmap == null) return 0;
+
+        try
+        {
+            // Downscale to 32x32 for fast analysis
+            int sampleSize = 32;
+            var formatted = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+            var scaled = new TransformedBitmap(formatted,
+                new ScaleTransform((double)sampleSize / formatted.PixelWidth, (double)sampleSize / formatted.PixelHeight));
+
+            int stride = sampleSize * 4;
+            byte[] pixels = new byte[sampleSize * sampleSize * 4];
+            scaled.CopyPixels(pixels, stride, 0);
+
+            double totalLuminance = 0;
+            int brightPixelCount = 0;
+            int pixelCount = sampleSize * sampleSize;
+
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                double r = pixels[i + 2] / 255.0;
+                double g = pixels[i + 1] / 255.0;
+                double b = pixels[i] / 255.0;
+
+                // Perceived luminance (ITU-R BT.709)
+                double lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                totalLuminance += lum;
+
+                // Count pixels above brightness threshold
+                if (lum > 0.75) brightPixelCount++;
+            }
+
+            double avgLuminance = totalLuminance / pixelCount;
+            double brightRatio = (double)brightPixelCount / pixelCount;
+
+            // Determine overlay intensity based on average brightness and bright pixel ratio
+            // Threshold: avg luminance > 0.55 or bright pixel ratio > 0.40
+            double overlayOpacity = 0;
+
+            if (avgLuminance > 0.55)
+            {
+                // Scale from 0 at 0.55 to 0.45 at 1.0
+                double t = Math.Clamp((avgLuminance - 0.55) / 0.45, 0.0, 1.0);
+                overlayOpacity = t * 0.45;
+            }
+
+            if (brightRatio > 0.40)
+            {
+                // Additional dimming for images with many bright pixels
+                double t = Math.Clamp((brightRatio - 0.40) / 0.50, 0.0, 1.0);
+                overlayOpacity = Math.Max(overlayOpacity, t * 0.40);
+            }
+
+            // Combine both signals: use the stronger one + a small boost from the weaker
+            double combined = overlayOpacity;
+            if (avgLuminance > 0.55 && brightRatio > 0.40)
+            {
+                double lumContrib = Math.Clamp((avgLuminance - 0.55) / 0.45, 0.0, 1.0) * 0.45;
+                double ratioContrib = Math.Clamp((brightRatio - 0.40) / 0.50, 0.0, 1.0) * 0.40;
+                combined = Math.Max(lumContrib, ratioContrib) + Math.Min(lumContrib, ratioContrib) * 0.3;
+            }
+
+            return Math.Clamp(combined, 0.0, 0.55);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     #endregion
 
     #region Advanced palette extraction (K-Means HSV + weighted zones)

@@ -59,6 +59,17 @@ public partial class MainWindow
 
         UpdateBlurredBackgroundAsync(info.Thumbnail).SafeFireAndForget("MEDIA-BG-BLUR");
 
+        // Detect overly bright thumbnails and apply dimming overlay
+        double brightnessDimOpacity = DynamicIslandColorExtractor.GetBrightnessDimOverlay(info.Thumbnail);
+        var dimOverlayAnim = new DoubleAnimation
+        {
+            To = brightnessDimOpacity,
+            Duration = TimeSpan.FromMilliseconds(400),
+            EasingFunction = _easeQuadOut
+        };
+        BrightnessDimOverlay.BeginAnimation(OpacityProperty, dimOverlayAnim);
+        BrightnessDimOverlay2.BeginAnimation(OpacityProperty, dimOverlayAnim);
+
         if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49 && !isNewTrack)
         {
             return;
@@ -134,14 +145,32 @@ public partial class MainWindow
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
 
-        EnsureUnfrozen(ProgressBar.Background, c => ProgressBar.Background = new SolidColorBrush(c ?? Colors.White));
         EnsureUnfrozen(IndeterminateProgress.Background, c => IndeterminateProgress.Background = new SolidColorBrush(c ?? Colors.White));
         EnsureUnfrozen(CurrentTimeText.Foreground, c => CurrentTimeText.Foreground = new SolidColorBrush(c ?? Color.FromRgb(136, 136, 136)));
         EnsureUnfrozen(RemainingTimeText.Foreground, c => RemainingTimeText.Foreground = new SolidColorBrush(c ?? Color.FromRgb(136, 136, 136)));
         EnsureUnfrozen(CompactTitleMarquee.Foreground, c => CompactTitleMarquee.Foreground = new SolidColorBrush(c ?? Colors.White));
 
-        if (ProgressBar.Background is SolidColorBrush pbb && !pbb.IsFrozen)
-            pbb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        // Progress bar gradient: bright color at start → darkened 35% at end
+        var progressDarkColor = Color.FromArgb(
+            vibrantTargetColor.A,
+            (byte)(vibrantTargetColor.R * 0.65),
+            (byte)(vibrantTargetColor.G * 0.65),
+            (byte)(vibrantTargetColor.B * 0.65));
+
+        var progressStartAnim = new ColorAnimation
+        {
+            To = vibrantTargetColor,
+            Duration = TimeSpan.FromMilliseconds(420),
+            EasingFunction = _easeQuadOut
+        };
+        var progressEndAnim = new ColorAnimation
+        {
+            To = progressDarkColor,
+            Duration = TimeSpan.FromMilliseconds(420),
+            EasingFunction = _easeQuadOut
+        };
+        ProgressBarGradientStart.BeginAnimation(GradientStop.ColorProperty, progressStartAnim);
+        ProgressBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, progressEndAnim);
 
         if (IndeterminateProgress.Background is SolidColorBrush ipb && !ipb.IsFrozen)
             ipb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
@@ -165,14 +194,39 @@ public partial class MainWindow
         EnsureUnfrozen(VolumeIcon.Foreground, c => VolumeIcon.Foreground = new SolidColorBrush(c ?? Color.FromRgb(136, 136, 136)));
         ((SolidColorBrush)VolumeIcon.Foreground).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
-        EnsureUnfrozen(VolumeBarFront.Background, c => VolumeBarFront.Background = new SolidColorBrush(c ?? Colors.White));
-        ((SolidColorBrush)VolumeBarFront.Background).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+        // Volume bar gradient: bright color at start → darkened at end
+        var volStartAnim = new ColorAnimation
+        {
+            To = vibrantTargetColor,
+            Duration = TimeSpan.FromMilliseconds(420),
+            EasingFunction = _easeQuadOut
+        };
+        var volEndAnim = new ColorAnimation
+        {
+            To = progressDarkColor,
+            Duration = TimeSpan.FromMilliseconds(420),
+            EasingFunction = _easeQuadOut
+        };
+        VolumeBarGradientStart.BeginAnimation(GradientStop.ColorProperty, volStartAnim);
+        VolumeBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, volEndAnim);
 
         // Volume scroll indicator (center bar shown when scrolling on collapsed notch)
         if (VolumeIndicatorFill != null)
         {
-            EnsureUnfrozen(VolumeIndicatorFill.Background, c => VolumeIndicatorFill.Background = new SolidColorBrush(c ?? Colors.White));
-            ((SolidColorBrush)VolumeIndicatorFill.Background).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
+            var volIndStartAnim = new ColorAnimation
+            {
+                To = vibrantTargetColor,
+                Duration = TimeSpan.FromMilliseconds(420),
+                EasingFunction = _easeQuadOut
+            };
+            var volIndEndAnim = new ColorAnimation
+            {
+                To = progressDarkColor,
+                Duration = TimeSpan.FromMilliseconds(420),
+                EasingFunction = _easeQuadOut
+            };
+            VolumeIndicatorGradientStart.BeginAnimation(GradientStop.ColorProperty, volIndStartAnim);
+            VolumeIndicatorGradientEnd.BeginAnimation(GradientStop.ColorProperty, volIndEndAnim);
         }
 
         void EnsureUnfrozenFill(System.Windows.Shapes.Shape shape)
@@ -297,7 +351,13 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(400)
         };
 
-        if (ProgressBar.Background is SolidColorBrush sb && !sb.IsFrozen) sb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+        ProgressBarGradientStart.BeginAnimation(GradientStop.ColorProperty, defaultColorAnim);
+        var defaultGradientEndAnim = new ColorAnimation
+        {
+            To = Color.FromRgb(140, 140, 140),
+            Duration = TimeSpan.FromMilliseconds(400)
+        };
+        ProgressBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, defaultGradientEndAnim);
         if (IndeterminateProgress.Background is SolidColorBrush ipb && !ipb.IsFrozen) ipb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
         if (CurrentTimeText.Foreground is SolidColorBrush st && !st.IsFrozen) st.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
@@ -306,8 +366,20 @@ public partial class MainWindow
         ResetTitleGradientToWhite();
 
         if (VolumeIcon.Foreground is SolidColorBrush volIco && !volIco.IsFrozen) volIco.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
-        if (VolumeBarFront.Background is SolidColorBrush volBar && !volBar.IsFrozen) volBar.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
-        if (VolumeIndicatorFill?.Background is SolidColorBrush volInd && !volInd.IsFrozen) volInd.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
+        VolumeBarGradientStart.BeginAnimation(GradientStop.ColorProperty, defaultColorAnim);
+        var defaultVolEndAnim = new ColorAnimation
+        {
+            To = Color.FromRgb(140, 140, 140),
+            Duration = TimeSpan.FromMilliseconds(400)
+        };
+        VolumeBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, defaultVolEndAnim);
+        var defaultVolIndEndAnim = new ColorAnimation
+        {
+            To = Color.FromRgb(204, 204, 204),
+            Duration = TimeSpan.FromMilliseconds(400)
+        };
+        VolumeIndicatorGradientStart.BeginAnimation(GradientStop.ColorProperty, defaultColorAnim);
+        VolumeIndicatorGradientEnd.BeginAnimation(GradientStop.ColorProperty, defaultVolIndEndAnim);
 
         void ResetUnfrozenFill(System.Windows.Shapes.Shape shape)
         {
