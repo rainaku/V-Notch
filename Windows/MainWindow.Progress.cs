@@ -213,6 +213,7 @@ public partial class MainWindow
             string newSignature = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}";
             bool isTrackChanged = newSignature != _lastProgressSignature;
             bool isSessionSwitch = !string.IsNullOrEmpty(info.SourceAppId) && info.SourceAppId != _lastSessionId;
+            bool isFirstEverTrack = string.IsNullOrEmpty(_lastProgressSignature);
             
             if (isTrackChanged)
             {
@@ -232,7 +233,8 @@ public partial class MainWindow
                 StopRewindTextAnimation();
 
                 // If a rewind animation is already running toward 0 (e.g., external seek detection
-                // fired when position jumped to 0 before track metadata changed), let it finish
+                // fired when position jumped to 0 before track metadata changed, or
+                // OptimisticPrepareForPreviousTrack already started a rewind), let it finish
                 // instead of starting a duplicate rewind.
                 bool alreadyRewindingToZero = _isRewindAnimating && _progressTargetRatio <= 0.01;
 
@@ -268,9 +270,28 @@ public partial class MainWindow
                     _progressDisplayRatio = 0;
                     ProgressBarScale.ScaleX = 0;
                 }
-                else if (fromRatio > 0.01)
+                else if (isFirstEverTrack)
                 {
-                    // Animate rewind from current position to 0
+                    // First track after app launch — no meaningful prior state to rewind from.
+                    // Snap to 0 to avoid a spurious rewind animation caused by metadata
+                    // stabilization firing multiple track-change events on boot.
+                    _progressDisplayRatio = 0;
+                    ProgressBarScale.ScaleX = 0;
+                }
+                else if (fromRatio > 0.97)
+                {
+                    // Track ended naturally (progress was near 100%) — snap to 0 immediately.
+                    // A rewind animation from the very end looks unnatural since the user
+                    // expects the bar to simply reset when a song finishes.
+                    _progressDisplayRatio = 0;
+                    ProgressBarScale.ScaleX = 0;
+                }
+                else if (fromRatio > 0.01 && (_isExpanded || _isMusicExpanded))
+                {
+                    // Animate rewind from current position to 0 — only when expanded
+                    // (progress bar is visible). When in compact pill state the bar is
+                    // hidden, so running the animation is pointless and would be seen
+                    // as a "reverse" glitch if the user expands mid-rewind.
                     AnimateTrackChangeRewindToZero(fromRatio, info.Duration);
                 }
                 else
@@ -473,11 +494,15 @@ public partial class MainWindow
             {
                 StopCatchUpAnimation();
                 
-                // Immediately snap to the new position after external seek
-                _progressDisplayRatio = engineRatio;
+                // Animate to the new position after external seek (spring)
                 _progressTargetRatio = engineRatio;
-                _progressSpringTargetRatio = engineRatio;
-                ProgressBarScale.ScaleX = engineRatio;
+                _progressSpringTargetRatio = _progressDisplayRatio;
+                _progressVelocity = 0;
+                _springSettleFrames = 0;
+                _isSeekSpringActive = true;
+                _seekSpringStartTime = DateTime.Now;
+                _protectSpringTargetUntil = DateTime.UtcNow.AddSeconds(1.5);
+                StartSpringRenderLoop();
                 CurrentTimeText.Text = FormatTime(frame.Position);
                 _lastRenderedRatio = engineRatio;
             }
@@ -516,6 +541,13 @@ public partial class MainWindow
                 _progressVelocity = 0;
                 _springSettleFrames = 0;
                 RuntimeLog.Log("PROGRESS-SPRING", $"settled at ratio={_progressDisplayRatio:F4} engineRatio={engineRatio:F4}");
+                
+                // Snap to engine position and suppress external seek detection briefly
+                // to prevent the gap between spring-settled position and engine from
+                // triggering a false "external seek" animation.
+                _progressDisplayRatio = engineRatio;
+                ProgressBarScale.ScaleX = engineRatio;
+                _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(1.5);
                 // Fall through to normal rendering below
             }
             else
@@ -608,6 +640,9 @@ public partial class MainWindow
                 if (playing && (forwardJump || backwardJump) && !isLikelyTrackSkip)
                 {
                     AnimateExternalSeekTo(rawTargetRatio, frame);
+                    // Suppress re-detection while the animation runs to prevent
+                    // multiple triggers from SMTC latency jitter.
+                    _suppressExternalSeekDetectionUntil = DateTime.Now.AddMilliseconds(800);
                     _lastRenderTime = now;
                     _lastRenderedDuration = frame.Duration;
                     return;
@@ -747,11 +782,17 @@ public partial class MainWindow
 
         _dragSeekPosition = TimeSpan.FromSeconds(duration.TotalSeconds * ratio);
         _progressTargetRatio = ratio;
-        _progressSpringTargetRatio = _progressDisplayRatio;
-        _progressVelocity = 0;
+        // Only reset spring origin and velocity if spring is not already active (avoid jitter on rapid clicks)
+        if (!_isSeekSpringActive)
+        {
+            _progressSpringTargetRatio = _progressDisplayRatio;
+            _progressVelocity = 0;
+        }
         _springSettleFrames = 0;
         _isSeekSpringActive = true;
         _seekSpringStartTime = DateTime.Now;
+        // Reset protection so the new target takes effect immediately
+        _protectSpringTargetUntil = DateTime.UtcNow.AddSeconds(1.5);
         StartSpringRenderLoop();
 
         CurrentTimeText.Text = FormatTime(_dragSeekPosition);
@@ -876,17 +917,19 @@ public partial class MainWindow
     private void AnimateSeekProgressTo(double targetRatio)
     {
         targetRatio = Math.Clamp(targetRatio, 0, 1);
-        ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
 
-        // Jump directly — no spring animation
-        _progressDisplayRatio = targetRatio;
+        // Use spring animation to reach target (same as click seek)
         _progressTargetRatio = targetRatio;
-        _progressSpringTargetRatio = targetRatio;
-        _progressVelocity = 0;
+        if (!_isSeekSpringActive)
+        {
+            _progressSpringTargetRatio = _progressDisplayRatio;
+            _progressVelocity = 0;
+        }
         _springSettleFrames = 0;
-        _isSeekSpringActive = false;
-        StopSpringRenderLoop();
-        ProgressBarScale.ScaleX = targetRatio;
+        _isSeekSpringActive = true;
+        _seekSpringStartTime = DateTime.Now;
+        _protectSpringTargetUntil = DateTime.UtcNow.AddSeconds(1.5);
+        StartSpringRenderLoop();
     }
 
     private DispatcherTimer? _rewindTextTimer;
@@ -1096,20 +1139,17 @@ public partial class MainWindow
 
     private void ProgressBar_MouseEnter(object sender, MouseEventArgs e)
     {
-        var anim = new System.Windows.Media.Animation.DoubleAnimation(1.8, TimeSpan.FromMilliseconds(150))
-        {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
-        };
-        ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+        _isProgressBarExpanded = true;
+        AnimateProgressBarHover(true);
     }
 
     private void ProgressBar_MouseLeave(object sender, MouseEventArgs e)
     {
-        var anim = new System.Windows.Media.Animation.DoubleAnimation(1.0, TimeSpan.FromMilliseconds(200))
+        if (!_isDraggingProgress && !_isClickSeekPending)
         {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
-        };
-        ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+            _isProgressBarExpanded = false;
+            AnimateProgressBarHover(false);
+        }
     }
 
     #endregion

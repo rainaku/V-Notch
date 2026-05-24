@@ -463,26 +463,105 @@ public partial class MainWindow
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);
     }
 
+    private BlurEffect? _mediaControlsHoverBlur;
+    private TransformGroup? _currentTimeHoverTransform;
+    private TransformGroup? _remainingTimeHoverTransform;
+    private ScaleTransform? _currentTimeHoverScale;
+    private ScaleTransform? _remainingTimeHoverScale;
+    private TranslateTransform? _currentTimeHoverTranslate;
+    private TranslateTransform? _remainingTimeHoverTranslate;
+
     private void AnimateProgressBarHover(bool isHovered)
     {
-        double margin = isHovered ? 0 : (_isMusicExpanded ? 6 : 17);
-        double scaleY = isHovered ? 1.8 : 1.0;
-        double bgOpacity = isHovered ? 0.4 : 1.0;
+        double scaleX = isHovered ? 1.04 : 1.0;
+        double blurRadius = isHovered ? 4.0 : 0.0;
+        double surroundOpacity = isHovered ? 0.45 : 1.0;
+        double timeScale = isHovered ? 1.22 : 1.0;
+        double timeTranslateY = isHovered ? 3.0 : 0.0;
         
-        var duration = isHovered ? _dur400 : _dur350;
-        var easing = isHovered ? (IEasingFunction)_easeExpOut6 : _easeQuadOut;
+        var duration = TimeSpan.FromMilliseconds(isHovered ? 400 : 350);
+        var easing = (IEasingFunction)(isHovered
+            ? new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut }
+            : new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut });
+        int fps = 144;
 
-        var marginAnim = new ThicknessAnimation(ProgressBarContainer.Margin, new Thickness(margin, 0, margin, 0), duration)
+        // Progress bar — animate height directly (preserves corner radius proportions)
+        ProgressBarContainer.BeginAnimation(MarginProperty, null);
+        double barHeight = isHovered ? 10 : 4;
+        var heightAnim = new DoubleAnimation { To = barHeight, Duration = duration, EasingFunction = easing };
+        var scaleXAnim = new DoubleAnimation { To = scaleX, Duration = duration, EasingFunction = easing };
+        Timeline.SetDesiredFrameRate(heightAnim, fps);
+        Timeline.SetDesiredFrameRate(scaleXAnim, fps);
+        ProgressBarBg.BeginAnimation(HeightProperty, heightAnim);
+        ProgressBar.BeginAnimation(HeightProperty, heightAnim);
+        ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
+
+        // Animate clip radius to keep rounded ends (half of height)
+        double barRadius = barHeight / 2.0;
+        var clipRadiusAnim = new DoubleAnimation { To = barRadius, Duration = duration, EasingFunction = easing };
+        Timeline.SetDesiredFrameRate(clipRadiusAnim, fps);
+        ProgressBarClip.BeginAnimation(RectangleGeometry.RadiusXProperty, clipRadiusAnim);
+        ProgressBarClip.BeginAnimation(RectangleGeometry.RadiusYProperty, clipRadiusAnim);
+
+        // Time text — scale + translate down
+        if (_currentTimeHoverTransform == null)
         {
-            EasingFunction = easing
-        };
-        ProgressBarContainer.BeginAnimation(MarginProperty, marginAnim);
+            _currentTimeHoverScale = new ScaleTransform(1, 1);
+            _currentTimeHoverTranslate = new TranslateTransform(0, 0);
+            _currentTimeHoverTransform = new TransformGroup();
+            _currentTimeHoverTransform.Children.Add(_currentTimeHoverScale);
+            _currentTimeHoverTransform.Children.Add(_currentTimeHoverTranslate);
+            CurrentTimeText.RenderTransformOrigin = new Point(0, 0.5);
+            CurrentTimeText.RenderTransform = _currentTimeHoverTransform;
+        }
+        if (_remainingTimeHoverTransform == null)
+        {
+            _remainingTimeHoverScale = new ScaleTransform(1, 1);
+            _remainingTimeHoverTranslate = new TranslateTransform(0, 0);
+            _remainingTimeHoverTransform = new TransformGroup();
+            _remainingTimeHoverTransform.Children.Add(_remainingTimeHoverScale);
+            _remainingTimeHoverTransform.Children.Add(_remainingTimeHoverTranslate);
+            RemainingTimeText.RenderTransformOrigin = new Point(1, 0.5);
+            RemainingTimeText.RenderTransform = _remainingTimeHoverTransform;
+        }
 
-        var scaleAnim = MakeAnim(scaleY, duration, easing);
-        ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+        var timeScaleAnim = new DoubleAnimation { To = timeScale, Duration = duration, EasingFunction = easing };
+        var timeTranslateAnim = new DoubleAnimation { To = timeTranslateY, Duration = duration, EasingFunction = easing };
+        Timeline.SetDesiredFrameRate(timeScaleAnim, fps);
+        Timeline.SetDesiredFrameRate(timeTranslateAnim, fps);
 
-        var bgFadeAnim = MakeAnim(bgOpacity, duration, _easeQuadOut);
-        ProgressBarBg.BeginAnimation(OpacityProperty, bgFadeAnim);
+        _currentTimeHoverScale!.BeginAnimation(ScaleTransform.ScaleXProperty, timeScaleAnim);
+        _currentTimeHoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, timeScaleAnim);
+        _currentTimeHoverTranslate!.BeginAnimation(TranslateTransform.YProperty, timeTranslateAnim);
+        _remainingTimeHoverScale!.BeginAnimation(ScaleTransform.ScaleXProperty, timeScaleAnim);
+        _remainingTimeHoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, timeScaleAnim);
+        _remainingTimeHoverTranslate!.BeginAnimation(TranslateTransform.YProperty, timeTranslateAnim);
+
+        // Blur & dim controls only (not title/artist)
+        var blurAnim = new DoubleAnimation { To = blurRadius, Duration = duration, EasingFunction = easing };
+        var dimAnim = new DoubleAnimation { To = surroundOpacity, Duration = duration, EasingFunction = easing };
+        Timeline.SetDesiredFrameRate(blurAnim, fps);
+        Timeline.SetDesiredFrameRate(dimAnim, fps);
+
+        _mediaControlsHoverBlur ??= new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+        MediaControls.Effect = _mediaControlsHoverBlur;
+        _mediaControlsHoverBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+        MediaControls.BeginAnimation(OpacityProperty, dimAnim);
+
+        // Glow effect — increase shadow blur and opacity on hover
+        double glowBlur = isHovered ? 14 : 6;
+        double glowOpacity = isHovered ? 0.8 : 0.45;
+        var glowBlurAnim = new DoubleAnimation { To = glowBlur, Duration = duration, EasingFunction = easing };
+        var glowOpacityAnim = new DoubleAnimation { To = glowOpacity, Duration = duration, EasingFunction = easing };
+        Timeline.SetDesiredFrameRate(glowBlurAnim, fps);
+        Timeline.SetDesiredFrameRate(glowOpacityAnim, fps);
+        ProgressBarShadow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, glowBlurAnim);
+        ProgressBarShadow.BeginAnimation(DropShadowEffect.OpacityProperty, glowOpacityAnim);
+
+        // Change shadow color to match progress bar color for colored glow
+        var glowColor = isHovered ? _progressBarVibrantColor : Colors.Black;
+        var glowColorAnim = new ColorAnimation { To = glowColor, Duration = duration, EasingFunction = easing };
+        ProgressBarShadow.BeginAnimation(DropShadowEffect.ColorProperty, glowColorAnim);
     }
 
     #endregion

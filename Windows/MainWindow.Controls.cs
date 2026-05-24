@@ -194,6 +194,7 @@ public partial class MainWindow
         try
         {
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
+            _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(TimeSpan.Zero);
 
             // Animate the rewind so the user sees the bar slide back to 0 instead of snapping

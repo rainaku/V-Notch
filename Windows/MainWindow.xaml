@@ -1459,7 +1459,7 @@
                                                   Grid.Row="0"
                                                   Grid.Column="0"
                                                   Grid.ColumnSpan="3"
-                                                  Height="14"
+                                                  Height="24"
                                                   Background="Transparent"
                                                   Cursor="Hand"
                                                   MouseEnter="ProgressBar_MouseEnter"
@@ -1472,7 +1472,7 @@
                                                     <ScaleTransform x:Name="ProgressBarMainScale" ScaleY="1"/>
                                                 </Grid.RenderTransform>
                                                 <Grid.Effect>
-                                                    <DropShadowEffect BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.45" Color="Black" RenderingBias="Performance"/>
+                                                    <DropShadowEffect x:Name="ProgressBarShadow" BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.45" Color="Black" RenderingBias="Performance"/>
                                                 </Grid.Effect>
 
                                                 <Border x:Name="ProgressBarBg" Background="#262626" Height="4" CornerRadius="2" VerticalAlignment="Center" SizeChanged="ProgressBarBg_SizeChanged">

@@ -323,6 +323,9 @@ public partial class MainWindow
         {
             ProgressBarClip.Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
         }
+        // Keep corner radius = half height so ends stay fully rounded
+        double radius = e.NewSize.Height / 2.0;
+        ProgressBarBg.CornerRadius = new CornerRadius(radius);
     }
 
     private void MediaWidgetContainer_SizeChanged(object sender, SizeChangedEventArgs e)

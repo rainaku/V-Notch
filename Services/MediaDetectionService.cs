@@ -1749,7 +1749,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 if (_activeDisplaySession.SourceAppUserModelId?.Contains("Spotify", StringComparison.OrdinalIgnoreCase) == true)
                                 {
                                     spotifyGroundTruth = GetSpotifyWindowTitle();
-                                    if (string.IsNullOrEmpty(spotifyGroundTruth) || !spotifyGroundTruth.Contains(props.Title, StringComparison.OrdinalIgnoreCase))
+                                    if (string.IsNullOrEmpty(spotifyGroundTruth) || !SpotifyTitleContainsTrack(spotifyGroundTruth, props.Title))
                                     {
 
                                         session = null;
@@ -2276,7 +2276,7 @@ public class MediaDetectionService : IMediaDetectionService
                 bool isStaleSMTC = false;
                 if (!string.IsNullOrEmpty(spotifyGroundTruth) &&
                     !string.IsNullOrEmpty(info.CurrentTrack) &&
-                    !spotifyGroundTruth.Contains(info.CurrentTrack, StringComparison.OrdinalIgnoreCase))
+                    !SpotifyTitleContainsTrack(spotifyGroundTruth, info.CurrentTrack))
                 {
                     ParseSpotifyTitle(spotifyGroundTruth, info);
                     isStaleSMTC = true;
@@ -3101,6 +3101,79 @@ public class MediaDetectionService : IMediaDetectionService
         var (artist, track) = PlatformDetector.ParseSpotifyTitle(title);
         info.CurrentArtist = artist;
         info.CurrentTrack = track;
+    }
+
+    /// <summary>
+    /// Checks whether the Spotify window title likely contains the given SMTC track name.
+    /// Handles cases where Spotify uses " - " in the window title but SMTC uses parentheses
+    /// for remix/version info. E.g., window: "Sơn Tùng M-TP - Chạy Ngay Đi - Onionn Remix"
+    /// vs SMTC track: "Chạy Ngay Đi (Onionn Remix)".
+    /// </summary>
+    private static bool SpotifyTitleContainsTrack(string spotifyWindowTitle, string smtcTrack)
+    {
+        if (string.IsNullOrEmpty(spotifyWindowTitle) || string.IsNullOrEmpty(smtcTrack))
+            return false;
+
+        // Direct match (fast path)
+        if (spotifyWindowTitle.Contains(smtcTrack, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Normalize: strip parentheses/brackets and their content markers, replace with " - "
+        // so "Chạy Ngay Đi (Onionn Remix)" becomes "Chạy Ngay Đi - Onionn Remix"
+        // and can match against "Sơn Tùng M-TP - Chạy Ngay Đi - Onionn Remix"
+        string normalizedTrack = NormalizeTrackForComparison(smtcTrack);
+        string normalizedTitle = NormalizeTrackForComparison(spotifyWindowTitle);
+
+        if (normalizedTitle.Contains(normalizedTrack, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Also try: extract core track name (before parentheses) and check if window title contains it
+        string coreTrack = ExtractCoreTrackName(smtcTrack);
+        if (!string.IsNullOrEmpty(coreTrack) && coreTrack.Length >= 3 &&
+            spotifyWindowTitle.Contains(coreTrack, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Normalizes a track name for comparison by replacing parenthesized/bracketed suffixes
+    /// with " - " separated form, matching Spotify's window title format.
+    /// </summary>
+    private static string NormalizeTrackForComparison(string text)
+    {
+        // Replace " (" or " [" with " - " and remove closing ")" or "]"
+        var result = text
+            .Replace(" (", " - ", StringComparison.Ordinal)
+            .Replace("(", " - ", StringComparison.Ordinal)
+            .Replace(")", "", StringComparison.Ordinal)
+            .Replace(" [", " - ", StringComparison.Ordinal)
+            .Replace("[", " - ", StringComparison.Ordinal)
+            .Replace("]", "", StringComparison.Ordinal);
+        return result.Trim();
+    }
+
+    /// <summary>
+    /// Extracts the core track name before any parenthesized suffix.
+    /// E.g., "Chạy Ngay Đi (Onionn Remix)" → "Chạy Ngay Đi"
+    /// </summary>
+    private static string ExtractCoreTrackName(string track)
+    {
+        int parenIdx = track.IndexOf('(');
+        int bracketIdx = track.IndexOf('[');
+        int cutIdx = -1;
+
+        if (parenIdx > 0 && bracketIdx > 0)
+            cutIdx = Math.Min(parenIdx, bracketIdx);
+        else if (parenIdx > 0)
+            cutIdx = parenIdx;
+        else if (bracketIdx > 0)
+            cutIdx = bracketIdx;
+
+        if (cutIdx > 0)
+            return track.Substring(0, cutIdx).Trim();
+
+        return track;
     }
 
     private string ExtractVideoTitle(string windowTitle, string platform)

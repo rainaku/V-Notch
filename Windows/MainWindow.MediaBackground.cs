@@ -18,6 +18,7 @@ public partial class MainWindow
 
     private Color _lastDominantColor = Colors.Transparent;
     private Color _lastSubColor = Colors.White;
+    private Color _progressBarVibrantColor = Colors.White;
     private string? _lastTrackId = null;
     private bool _isFadingTrack = false;
     private DispatcherTimer? _titleGradientTimer;
@@ -151,6 +152,7 @@ public partial class MainWindow
         EnsureUnfrozen(CompactTitleMarquee.Foreground, c => CompactTitleMarquee.Foreground = new SolidColorBrush(c ?? Colors.White));
 
         // Progress bar gradient: bright color at start → darkened 35% at end
+        _progressBarVibrantColor = vibrantTargetColor;
         var progressDarkColor = Color.FromArgb(
             vibrantTargetColor.A,
             (byte)(vibrantTargetColor.R * 0.65),

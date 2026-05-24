@@ -453,6 +453,86 @@ public partial class MainWindow
         CompactThumbnail.Opacity = 1.0;
     }
 
+    /// <summary>
+    /// Variant of CancelThumbnailSwitchAnimations for use during expand.
+    /// Resolves the correct thumbnail source (promoting overlay if mid-morph)
+    /// but does NOT snap compact layer opacity/blur/scale back to defaults,
+    /// since the compact content will be faded out by the expand animation anyway.
+    /// This prevents the visible "reverse snap" when a track-change morph is
+    /// interrupted by expanding the notch.
+    /// </summary>
+    private void CancelThumbnailSwitchForExpand()
+    {
+        // Stop animations on expanded layers (these will be used by expand).
+        ThumbnailImage.BeginAnimation(OpacityProperty, null);
+        ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
+        ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        ThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        ThumbnailImageNext.BeginAnimation(OpacityProperty, null);
+        ThumbnailImageNext.BeginAnimation(Image.SourceProperty, null);
+        ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        ThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+
+        // Stop compact layer animations but DON'T reset their visual state —
+        // the expand animation will fade out compact content, so any mid-morph
+        // state (partial blur/opacity) will naturally disappear with the fade.
+        CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
+
+        // Capture current animated values before cancelling to prevent snap-back.
+        double compactOutScaleX = CompactThumbnailOutScale.ScaleX;
+        double compactOutScaleY = CompactThumbnailOutScale.ScaleY;
+        double compactOutBlur = CompactThumbnailOutBlur.Radius;
+        CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        CompactThumbnailOutScale.ScaleX = compactOutScaleX;
+        CompactThumbnailOutScale.ScaleY = compactOutScaleY;
+        CompactThumbnailOutBlur.Radius = compactOutBlur;
+
+        CompactThumbnailNext.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailNext.BeginAnimation(Image.SourceProperty, null);
+        CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+
+        // Cancel opacity animation but preserve current visual value (no snap to 1.0).
+        // In WPF, BeginAnimation(null) reverts to the local value (1.0), so we must
+        // capture the animated value first and set it as the new local value.
+        double compactThumbOpacity = CompactThumbnail.Opacity;
+        CompactThumbnail.BeginAnimation(OpacityProperty, null);
+        CompactThumbnail.Opacity = compactThumbOpacity;
+
+        // Reset expanded layer transforms (these are needed clean for expand).
+        ThumbnailOutScale.ScaleX = 1.0;
+        ThumbnailOutScale.ScaleY = 1.0;
+        ThumbnailNextScale.ScaleX = 1.0;
+        ThumbnailNextScale.ScaleY = 1.0;
+        ThumbnailOutBlur.Radius = 0.0;
+        ThumbnailNextBlur.Radius = 0.0;
+
+        // Resolve the correct thumbnail: prefer overlay target (the new track's thumb)
+        // since that's what the user should see in the expanded view.
+        var overlayTarget = ThumbnailImageNext.Source ?? CompactThumbnailNext.Source;
+        var resolvedThumb = overlayTarget
+                            ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
+        if (resolvedThumb != null)
+        {
+            ThumbnailImage.Source = resolvedThumb;
+            CompactThumbnail.Source = resolvedThumb;
+        }
+
+        // Clear overlay layers.
+        ThumbnailImageNext.Source = null;
+        CompactThumbnailNext.Source = null;
+        ThumbnailImageNext.Opacity = 0.0;
+        CompactThumbnailNext.Opacity = 0.0;
+        ThumbnailImage.Opacity = 1.0;
+        // NOTE: CompactThumbnail.Opacity is NOT reset to 1.0 here — let it stay
+        // at whatever mid-morph value it has; expand fade-out will handle it.
+    }
+
     #endregion
 
     #region Music Compact Mode

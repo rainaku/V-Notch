@@ -62,7 +62,18 @@ public partial class MainWindow
         if (_isAnimating || _isExpanded) return;
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Expanding);
-        CancelThumbnailSwitchAnimations();
+        CancelThumbnailSwitchForExpand();
+
+        // Cancel any in-progress rewind animation immediately so the user doesn't
+        // see the progress bar animating backward while the notch is expanding.
+        if (_isRewindAnimating)
+        {
+            _isRewindAnimating = false;
+            StopRewindTextAnimation();
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ProgressBarScale.ScaleX = 0;
+            _progressDisplayRatio = 0;
+        }
 
         // Immediately dismiss any active notification overlays to prevent them
         // lingering over the expanded content or persisting through collapse
@@ -120,15 +131,54 @@ public partial class MainWindow
         NotchBorder.Width = currentWidth;
         NotchBorder.Height = currentHeight;
 
+        // Capture current animated scale before cancelling — if a track-change bounce
+        // is mid-flight, snapping to 1.0 causes a visible reverse-jump.
+        double liveScaleX = NotchScale.ScaleX;
+        double liveScaleY = NotchScale.ScaleY;
+
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        NotchScale.ScaleX = 1.0;
-        NotchScale.ScaleY = 1.0;
-
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        NotchShadowScale.ScaleX = 1.0;
-        NotchShadowScale.ScaleY = 1.0;
+
+        // If the scale was mid-bounce (not at 1.0), animate it smoothly to 1.0
+        // instead of snapping — prevents the visual "reverse" glitch.
+        bool wasBouncing = Math.Abs(liveScaleX - 1.0) > 0.005 || Math.Abs(liveScaleY - 1.0) > 0.005;
+        if (wasBouncing)
+        {
+            NotchScale.ScaleX = liveScaleX;
+            NotchScale.ScaleY = liveScaleY;
+            NotchShadowScale.ScaleX = liveScaleX;
+            NotchShadowScale.ScaleY = liveScaleY;
+
+            var settleX = MakeAnim(liveScaleX, 1.0, _dur200, _easeQuadOut);
+            var settleY = MakeAnim(liveScaleY, 1.0, _dur200, _easeQuadOut);
+            settleX.Completed += (s, e) =>
+            {
+                NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                NotchScale.ScaleX = 1.0;
+                NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                NotchShadowScale.ScaleX = 1.0;
+            };
+            settleY.Completed += (s, e) =>
+            {
+                NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                NotchScale.ScaleY = 1.0;
+                NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                NotchShadowScale.ScaleY = 1.0;
+            };
+            NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, settleX);
+            NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, settleY);
+            NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, settleX);
+            NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, settleY);
+        }
+        else
+        {
+            NotchScale.ScaleX = 1.0;
+            NotchScale.ScaleY = 1.0;
+            NotchShadowScale.ScaleX = 1.0;
+            NotchShadowScale.ScaleY = 1.0;
+        }
 
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.BeginAnimation(OpacityProperty, null);
@@ -353,6 +403,12 @@ public partial class MainWindow
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
                 CompactThumbnailScale.ScaleX = 1.0;
                 CompactThumbnailScale.ScaleY = 1.0;
+
+                // Reset compact thumbnail morph state (may have been left mid-morph by CancelThumbnailSwitchForExpand)
+                CompactThumbnailOutScale.ScaleX = 1.0;
+                CompactThumbnailOutScale.ScaleY = 1.0;
+                CompactThumbnailOutBlur.Radius = 0.0;
+                CompactThumbnail.Opacity = 1.0;
             }
 
             CollapsedContent.Visibility = Visibility.Collapsed;
@@ -382,6 +438,17 @@ public partial class MainWindow
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Collapsing);
         CancelThumbnailSwitchAnimations();
+
+        // Cancel any in-progress rewind animation to prevent it continuing
+        // invisibly during collapse and causing state drift.
+        if (_isRewindAnimating)
+        {
+            _isRewindAnimating = false;
+            StopRewindTextAnimation();
+            ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ProgressBarScale.ScaleX = 0;
+            _progressDisplayRatio = 0;
+        }
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
