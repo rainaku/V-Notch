@@ -212,7 +212,11 @@ public partial class MainWindow
     private void CompactThumbnailBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        OpenCurrentMediaSourceFromThumbnail();
+        // Click on compact thumbnail (hover state) → expand the notch
+        if (!_isExpanded && !_isAnimating)
+        {
+            ExpandNotch();
+        }
     }
 
     private void OpenCurrentMediaSourceFromThumbnail()

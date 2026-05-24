@@ -64,16 +64,15 @@ public partial class MainWindow
         _notchState.TryTransitionTo(NotchState.Expanding);
         CancelThumbnailSwitchAnimations();
 
-        // Reset compact thumbnail hover state immediately
+        // Stop hover state tracking but DON'T reset thumbnail scale —
+        // let it fade out naturally with the collapsed content
+        bool wasHovered = _isCompactThumbnailHovered;
         if (_isCompactThumbnailHovered)
         {
             _isCompactThumbnailHovered = false;
             _compactThumbnailHoverLeaveTimer.Stop();
         }
-        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        CompactThumbnailScale.ScaleX = 1.0;
-        CompactThumbnailScale.ScaleY = 1.0;
+        // Hide hover info immediately (title text below thumbnail)
         CompactHoverInfo.BeginAnimation(OpacityProperty, null);
         CompactHoverInfo.Opacity = 0;
         CompactHoverInfo.Visibility = Visibility.Collapsed;
@@ -86,10 +85,18 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // Cancel hover animations on notch size and corner radius to prevent jitter
+        // Capture current visual size before cancelling hover animations (prevents snap-back jitter)
+        double currentWidth = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
+        double currentHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight;
+
+        // Cancel hover animations on notch size and corner radius
         NotchBorder.BeginAnimation(WidthProperty, null);
         NotchBorder.BeginAnimation(HeightProperty, null);
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
+
+        // Set local value to current visual size so expand animation starts from here (no snap)
+        NotchBorder.Width = currentWidth;
+        NotchBorder.Height = currentHeight;
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -317,6 +324,11 @@ public partial class MainWindow
             {
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
                 CompactThumbnailBorder.Opacity = 1;
+                // Reset thumbnail scale after expand completes (was left at hover scale during transition)
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                CompactThumbnailScale.ScaleX = 1.0;
+                CompactThumbnailScale.ScaleY = 1.0;
             }
 
             CollapsedContent.Visibility = Visibility.Collapsed;
