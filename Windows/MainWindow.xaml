@@ -1475,7 +1475,7 @@
                                                     <DropShadowEffect BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.45" Color="Black" RenderingBias="Performance"/>
                                                 </Grid.Effect>
 
-                                                <Border x:Name="ProgressBarBg" Background="#333333" Height="4" CornerRadius="2" VerticalAlignment="Center" SizeChanged="ProgressBarBg_SizeChanged">
+                                                <Border x:Name="ProgressBarBg" Background="#262626" Height="4" CornerRadius="2" VerticalAlignment="Center" SizeChanged="ProgressBarBg_SizeChanged">
                                                     <Grid>
                                                         <Grid.Clip>
                                                             <RectangleGeometry x:Name="ProgressBarClip" RadiusX="2" RadiusY="2"/>

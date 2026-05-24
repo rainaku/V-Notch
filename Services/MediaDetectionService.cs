@@ -426,9 +426,10 @@ public class MediaDetectionService : IMediaDetectionService
                                 string extractedTitle = ExtractVideoTitle(title, "SoundCloud");
                                 if (extractedTitle.Contains(" - "))
                                 {
-                                    var parts = extractedTitle.Split(" - ", 2);
-                                    info.CurrentArtist = parts[0].Trim();
-                                    info.CurrentTrack = parts[1].Trim();
+                                    // Use last " - " to split: artist names can contain " - "
+                                    int lastSep = extractedTitle.LastIndexOf(" - ", StringComparison.Ordinal);
+                                    info.CurrentArtist = extractedTitle.Substring(0, lastSep).Trim();
+                                    info.CurrentTrack = extractedTitle.Substring(lastSep + 3).Trim();
                                 }
                                 else
                                 {
@@ -496,9 +497,11 @@ public class MediaDetectionService : IMediaDetectionService
 
                                 if (extractedTitle.Contains(" - "))
                                 {
-                                    var parts = extractedTitle.Split(" - ", 2);
-                                    trackName = parts[1].Trim();
-                                    artistName = parts[0].Trim();
+                                    // Use last " - " to split: YouTube titles can have multiple separators
+                                    // when artist names contain " - "
+                                    int lastSep = extractedTitle.LastIndexOf(" - ", StringComparison.Ordinal);
+                                    trackName = extractedTitle.Substring(lastSep + 3).Trim();
+                                    artistName = extractedTitle.Substring(0, lastSep).Trim();
                                 }
 
                                 bool isNewTrack = trackName != _lastTrackName && !_lastTrackName.Contains(trackName);

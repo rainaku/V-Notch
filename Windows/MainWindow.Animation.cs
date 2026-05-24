@@ -64,6 +64,28 @@ public partial class MainWindow
         _notchState.TryTransitionTo(NotchState.Expanding);
         CancelThumbnailSwitchAnimations();
 
+        // Immediately dismiss any active notification overlays to prevent them
+        // lingering over the expanded content or persisting through collapse
+        if (_isChargingNotificationVisible)
+        {
+            _chargingNotificationDismissTimer?.Stop();
+            ChargingNotification.BeginAnimation(OpacityProperty, null);
+            ChargingNotification.Opacity = 0;
+            ChargingNotification.Visibility = Visibility.Collapsed;
+            _isChargingNotificationVisible = false;
+        }
+        if (_isBluetoothNotificationVisible)
+        {
+            _bluetoothController.MarkDismissed();
+            BluetoothNotification.BeginAnimation(OpacityProperty, null);
+            BluetoothNotification.Opacity = 0;
+            BluetoothNotification.Visibility = Visibility.Collapsed;
+            BluetoothDisconnectNotification.BeginAnimation(OpacityProperty, null);
+            BluetoothDisconnectNotification.Opacity = 0;
+            BluetoothDisconnectNotification.Visibility = Visibility.Collapsed;
+            _isBluetoothNotificationVisible = false;
+        }
+
         // Stop hover state tracking but DON'T reset thumbnail scale —
         // let it fade out naturally with the collapsed content
         bool wasHovered = _isCompactThumbnailHovered;
@@ -535,6 +557,28 @@ public partial class MainWindow
             UpdateProgressTimerState();
 
             contentToShow.RenderTransform = null;
+
+            // Safety: ensure notification overlays are hidden after collapse to prevent
+            // them overlapping with the restored collapsed content (thumbnail + equalizer)
+            if (_isChargingNotificationVisible)
+            {
+                _chargingNotificationDismissTimer?.Stop();
+                ChargingNotification.BeginAnimation(OpacityProperty, null);
+                ChargingNotification.Opacity = 0;
+                ChargingNotification.Visibility = Visibility.Collapsed;
+                _isChargingNotificationVisible = false;
+            }
+            if (_isBluetoothNotificationVisible)
+            {
+                _bluetoothController.MarkDismissed();
+                BluetoothNotification.BeginAnimation(OpacityProperty, null);
+                BluetoothNotification.Opacity = 0;
+                BluetoothNotification.Visibility = Visibility.Collapsed;
+                BluetoothDisconnectNotification.BeginAnimation(OpacityProperty, null);
+                BluetoothDisconnectNotification.Opacity = 0;
+                BluetoothDisconnectNotification.Visibility = Visibility.Collapsed;
+                _isBluetoothNotificationVisible = false;
+            }
 
             // Safety: ensure nav icons are always hidden in collapsed state
             NavIconsPanel.BeginAnimation(OpacityProperty, null);
