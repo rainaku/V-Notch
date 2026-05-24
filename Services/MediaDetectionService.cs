@@ -1740,13 +1740,13 @@ public class MediaDetectionService : IMediaDetectionService
                     else if (string.IsNullOrEmpty(osCurrentId) || osCurrentId == _activeDisplaySession.SourceAppUserModelId)
                     {
                         var playback = _activeDisplaySession.GetPlaybackInfo();
-                        if (playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                        if (playback != null && playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
                         {
                             var props = await _activeDisplaySession.TryGetMediaPropertiesAsync();
                             if (props != null && !string.IsNullOrEmpty(props.Title))
                             {
 
-                                if (_activeDisplaySession.SourceAppUserModelId.Contains("Spotify", StringComparison.OrdinalIgnoreCase))
+                                if (_activeDisplaySession.SourceAppUserModelId?.Contains("Spotify", StringComparison.OrdinalIgnoreCase) == true)
                                 {
                                     spotifyGroundTruth = GetSpotifyWindowTitle();
                                     if (string.IsNullOrEmpty(spotifyGroundTruth) || !spotifyGroundTruth.Contains(props.Title, StringComparison.OrdinalIgnoreCase))

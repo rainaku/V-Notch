@@ -17,7 +17,6 @@ public partial class MainWindow
 {
     private bool _isDraggingProgress = false; 
     private bool _isProgressBarExpanded = false;
-    private bool _isReleasingMouseCapture = false; 
     private int _lastDisplayedSecond = -1;
     private TimeSpan _dragSeekPosition = TimeSpan.Zero; 
     
@@ -800,12 +799,10 @@ public partial class MainWindow
         _isDraggingProgress = false;
         _isClickSeekPending = false;
 
-        _isReleasingMouseCapture = true;
         ProgressBarContainer.ReleaseMouseCapture();
 
         _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (System.Action)(() =>
         {
-            _isReleasingMouseCapture = false;
 
             if (prevExpanded && !ProgressBarContainer.IsMouseOver)
             {
@@ -1097,8 +1094,6 @@ public partial class MainWindow
         }
     }
 
-    private DispatcherTimer? _progressHoverTimer;
-
     private void ProgressBar_MouseEnter(object sender, MouseEventArgs e)
     {
         var anim = new System.Windows.Media.Animation.DoubleAnimation(1.8, TimeSpan.FromMilliseconds(150))
@@ -1168,7 +1163,6 @@ public partial class MainWindow
 
     private bool _isCatchUpAnimating = false;
     private DispatcherTimer? _catchUpTimer;
-    private double _catchUpTargetRatio = 0;
     private TimeSpan _catchUpTargetPosition = TimeSpan.Zero;
 
     private void StartProgressCatchUpAnimation()

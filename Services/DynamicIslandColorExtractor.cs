@@ -412,7 +412,6 @@ internal static class DynamicIslandColorExtractor
         public float H, S, V;
         public float Coverage;
         public bool InCropZone;
-        public float FinalScore;
     }
 
     private static List<HsvCluster> KMeansHsv(List<(float H, float S, float V, float Weight)> samples, int k, int maxIter)

@@ -23,6 +23,7 @@ public sealed class MediaDisplayController
     private string _lastRenderedMediaSource = "";
     private ImageSource? _lastAnimatedThumbnail;
     private bool _thumbnailShownForCurrentTrack = false;
+    private bool _trackChangeBounceNeeded = false;
     private int _thumbnailSwitchGeneration = 0;
 
     // ─── Public State Queries ───
@@ -32,6 +33,7 @@ public sealed class MediaDisplayController
     public string LastRenderedMediaSource => _lastRenderedMediaSource;
     public ImageSource? LastAnimatedThumbnail => _lastAnimatedThumbnail;
     public bool ThumbnailShownForCurrentTrack => _thumbnailShownForCurrentTrack;
+    public bool TrackChangeBounceNeeded => _trackChangeBounceNeeded;
     public int ThumbnailSwitchGeneration => _thumbnailSwitchGeneration;
 
     // ─── Events ───
@@ -114,6 +116,7 @@ public sealed class MediaDisplayController
                     _lastAnimatedTrackSignature = trackIdentity;
                     _lastAnimatedThumbnail = info.Thumbnail;
                     _thumbnailShownForCurrentTrack = true;
+                    _trackChangeBounceNeeded = false;
                 }
                 else
                 {
@@ -130,10 +133,11 @@ public sealed class MediaDisplayController
             }
             else if (isNewTrack)
             {
-                // New track without thumbnail
+                // New track without thumbnail — defer bounce until thumbnail arrives
                 _lastAnimatedTrackSignature = trackIdentity;
                 _lastAnimatedThumbnail = null;
                 _thumbnailShownForCurrentTrack = false;
+                _trackChangeBounceNeeded = true;
                 result.ThumbnailAction = ThumbnailAction.ShowFallback;
             }
 
@@ -218,6 +222,7 @@ public sealed class MediaDisplayController
         _lastRenderedMediaSource = "";
         _lastAnimatedThumbnail = null;
         _thumbnailShownForCurrentTrack = false;
+        _trackChangeBounceNeeded = false;
         _thumbnailSwitchGeneration++;
     }
 
@@ -287,6 +292,15 @@ public sealed class MediaDisplayController
         // Genuine new thumbnail for this track (async fetch completed)
         _lastAnimatedThumbnail = info.Thumbnail;
         _thumbnailShownForCurrentTrack = true;
+
+        // If the track change bounce was deferred (track arrived before thumbnail),
+        // promote this to AnimateSwitch so the bounce plays now.
+        if (_trackChangeBounceNeeded)
+        {
+            _trackChangeBounceNeeded = false;
+            return ThumbnailAction.AnimateSwitch;
+        }
+
         return ThumbnailAction.AnimateUpdate;
     }
 }

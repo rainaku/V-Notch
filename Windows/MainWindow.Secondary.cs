@@ -207,8 +207,6 @@ public partial class MainWindow
         if (ShelfStatusText == null || ShelfPlaceholder == null || ShelfCountText == null)
             return;
 
-        const string defaultPlaceholderText = "Drag files here for temporary storage";
-
         ShelfPlaceholder.Text = Loc.Get("shelf.placeholder");
         ShelfPlaceholder.Visibility = _fileShelf.FileCount == 0 ? Visibility.Visible : Visibility.Collapsed;
 

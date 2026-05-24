@@ -473,6 +473,7 @@ public partial class MainWindow
                     {
                         _lastAnimatedTrackSignature = _mediaDisplayController.LastAnimatedTrackSignature;
                         AnimateThumbnailSwitchOnly(info.Thumbnail);
+                        PlayTrackChangeBounce();
                     }
                 }
                 

@@ -408,12 +408,6 @@ namespace VNotch.Controls
             {
                 _smoothedHeights[i] = (_smoothedHeights[i] * smoothingFactor) + (_currentHeights[i] * (1 - smoothingFactor));
             }
-            
-            if (RightBiasStrength <= 0)
-            {
-                Array.Copy(_smoothedHeights, _drawHeights, BarCount);
-                return;
-            }
 
             Array.Copy(_smoothedHeights, _sortedHeights, BarCount);
             for (int i = 0; i < BarCount - 1; i++)
