@@ -444,6 +444,40 @@ namespace VNotch.Controls
             }
         }
 
+        // Cached gradient brush — recreated only when ActiveBrush color changes
+        private Color _cachedGradientBaseColor;
+        private LinearGradientBrush? _cachedBarGradient;
+
+        private LinearGradientBrush GetBarGradientBrush(double top, double bottom)
+        {
+            Color baseColor;
+            if (ActiveBrush is SolidColorBrush scb)
+            {
+                baseColor = scb.Color;
+            }
+            else
+            {
+                baseColor = Colors.White;
+            }
+
+            // Only recreate if color changed
+            if (_cachedBarGradient == null || baseColor != _cachedGradientBaseColor)
+            {
+                _cachedGradientBaseColor = baseColor;
+
+                // Bottom: darken the color (pull toward black) for visible gradient even on bright colors
+                byte dr = (byte)(baseColor.R * 0.55);
+                byte dg = (byte)(baseColor.G * 0.55);
+                byte db = (byte)(baseColor.B * 0.55);
+                var darkColor = Color.FromArgb(baseColor.A, dr, dg, db);
+
+                _cachedBarGradient = new LinearGradientBrush(baseColor, darkColor, 90.0);
+                _cachedBarGradient.MappingMode = BrushMappingMode.RelativeToBoundingBox;
+            }
+
+            return _cachedBarGradient;
+        }
+
         protected override void OnRender(DrawingContext dc)
         {
             double width = ActualWidth;
@@ -466,6 +500,9 @@ namespace VNotch.Controls
 
             PrepareDrawHeights();
 
+            // Get the gradient brush (light at top → base color at bottom)
+            var gradientBrush = GetBarGradientBrush(0, height);
+
             for (int i = 0; i < BarCount; i++)
             {
                 double barHeight = _drawHeights[i] * height;
@@ -482,7 +519,7 @@ namespace VNotch.Controls
 
                 double radius = snappedW * CornerRadiusRatio;
                 
-                dc.DrawRoundedRectangle(ActiveBrush, null, 
+                dc.DrawRoundedRectangle(gradientBrush, null, 
                     new Rect(snappedX, snappedTop, snappedW, snappedH), 
                     radius, radius);
             }
