@@ -13,6 +13,12 @@ public sealed class MediaSessionVolumeService
     private string _cachedProcessSourceAppId = "";
     private DateTime _cachedProcessIdsAtUtc = DateTime.MinValue;
     private HashSet<uint> _cachedProcessIds = new();
+
+    // ─── Fast-path session cache for rapid volume changes ───
+    private SimpleAudioVolume? _cachedSimpleVolume;
+    private string _cachedVolumeSourceAppId = "";
+    private DateTime _cachedVolumeSessionAtUtc = DateTime.MinValue;
+    private const double SessionCacheLifetimeMs = 3000; // reuse session for 3s
     public bool TryGetVolume(string sourceAppId, out float volume, out bool isMuted)
     {
         float resolvedVolume = 0f;
@@ -34,19 +40,64 @@ public sealed class MediaSessionVolumeService
     {
         float target = Math.Clamp(volume, 0f, 1f);
 
+        // ─── Fast path: reuse cached SimpleAudioVolume if same source and fresh ───
+        if (_cachedSimpleVolume != null &&
+            string.Equals(sourceAppId, _cachedVolumeSourceAppId, StringComparison.OrdinalIgnoreCase) &&
+            (DateTime.UtcNow - _cachedVolumeSessionAtUtc).TotalMilliseconds < SessionCacheLifetimeMs)
+        {
+            try
+            {
+                _cachedSimpleVolume.Volume = target;
+                if (target > 0.001f && _cachedSimpleVolume.Mute)
+                {
+                    _cachedSimpleVolume.Mute = false;
+                }
+                return true;
+            }
+            catch
+            {
+                // Session became invalid — fall through to full resolution
+                InvalidateVolumeSessionCache();
+            }
+        }
+
+        // ─── Slow path: resolve session and cache it ───
         return TryWithAudioSession(sourceAppId, session =>
         {
-            using var simpleVolume = session.SimpleAudioVolume;
-            simpleVolume.Volume = target;
-            if (target > 0.001f && simpleVolume.Mute)
+            // Cache the SimpleAudioVolume for fast subsequent calls
+            // Dispose old cached volume if different session
+            if (_cachedSimpleVolume != null)
             {
-                simpleVolume.Mute = false;
+                try { _cachedSimpleVolume.Dispose(); } catch { }
+            }
+            _cachedSimpleVolume = session.SimpleAudioVolume;
+            _cachedVolumeSourceAppId = sourceAppId;
+            _cachedVolumeSessionAtUtc = DateTime.UtcNow;
+
+            _cachedSimpleVolume.Volume = target;
+            if (target > 0.001f && _cachedSimpleVolume.Mute)
+            {
+                _cachedSimpleVolume.Mute = false;
             }
             return true;
-        });
+        }, skipSimpleVolumeDispose: true);
+    }
+
+    /// <summary>Invalidates the cached volume session so the next call does a full resolve.</summary>
+    public void InvalidateVolumeSessionCache()
+    {
+        if (_cachedSimpleVolume != null)
+        {
+            try { _cachedSimpleVolume.Dispose(); } catch { }
+            _cachedSimpleVolume = null;
+        }
+        _cachedVolumeSourceAppId = "";
     }
     public bool TryToggleMute(string sourceAppId)
     {
+        // Mute state change invalidates the cached volume session
+        InvalidateVolumeSessionCache();
+
         return TryWithAudioSession(sourceAppId, session =>
         {
             using var simpleVolume = session.SimpleAudioVolume;
@@ -55,7 +106,7 @@ public sealed class MediaSessionVolumeService
         });
     }
 
-    private bool TryWithAudioSession(string sourceAppId, Func<AudioSessionControl, bool> action)
+    private bool TryWithAudioSession(string sourceAppId, Func<AudioSessionControl, bool> action, bool skipSimpleVolumeDispose = false)
     {
         if (string.IsNullOrWhiteSpace(sourceAppId))
             return false;
