@@ -1411,6 +1411,7 @@
                                                 <Border x:Name="NextButton"
                                                         Grid.Column="2"
                                                         Background="Transparent"
+                                                        CornerRadius="8"
                                                         Cursor="Hand"
                                                         MouseLeftButtonDown="NextButton_Click"
                                                         MouseEnter="MediaButton_MouseEnter"
@@ -1424,17 +1425,17 @@
                                                     </Border.RenderTransform>
                                                 <Viewbox Width="17" Height="12.5" Margin="0,-1,0,0">
                                                     <Canvas Width="19" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
-                                                        <Path x:Name="NextArrow0" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="-8" Canvas.Top="0" Opacity="0">
+                                                        <Path x:Name="NextArrow0" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="-8" Canvas.Top="0" Opacity="0">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
                                                         </Path>
-                                                        <Path x:Name="NextArrow1" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="0" Canvas.Top="0">
+                                                        <Path x:Name="NextArrow1" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="0" Canvas.Top="0">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
                                                         </Path>
-                                                        <Path x:Name="NextArrow2" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="8" Canvas.Top="0">
+                                                        <Path x:Name="NextArrow2" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="8" Canvas.Top="0">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
