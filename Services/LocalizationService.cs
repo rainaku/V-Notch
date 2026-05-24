@@ -197,6 +197,9 @@ public static class Loc
             ["bluetooth.connected"] = "Connected",
             ["bluetooth.disconnected"] = "Disconnected",
 
+            // ─── Battery ───
+            ["battery.charging"] = "Charging",
+
             // ─── Privacy Indicators ───
             ["privacy.mic.inUse"] = "Microphone in use",
             ["privacy.cam.inUse"] = "Camera in use",
@@ -361,6 +364,9 @@ public static class Loc
             // ─── Bluetooth ───
             ["bluetooth.connected"] = "Đã kết nối",
             ["bluetooth.disconnected"] = "Đã ngắt kết nối",
+
+            // ─── Battery ───
+            ["battery.charging"] = "Đang sạc",
 
             // ─── Privacy Indicators ───
             ["privacy.mic.inUse"] = "Đang dùng micro",
