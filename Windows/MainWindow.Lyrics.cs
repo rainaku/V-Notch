@@ -268,23 +268,39 @@ public partial class MainWindow
 
         incoming.Text = newText;
 
-        var dur = new Duration(TimeSpan.FromMilliseconds(400));
-        var easeOut = new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut };
+        // Cancel any in-flight animations to prevent overlap
+        outgoing.BeginAnimation(OpacityProperty, null);
+        outTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        incoming.BeginAnimation(OpacityProperty, null);
+        inTransform.BeginAnimation(TranslateTransform.YProperty, null);
 
-        // Fade out + slide up outgoing
-        var fadeOut = new DoubleAnimation(1, 0, dur) { EasingFunction = easeOut };
-        var slideOut = new DoubleAnimation(0, -6, dur) { EasingFunction = easeOut };
-        Timeline.SetDesiredFrameRate(fadeOut, 120);
-        Timeline.SetDesiredFrameRate(slideOut, 120);
+        // Reset positions
+        outgoing.Opacity = 1;
+        outTransform.Y = 0;
+        incoming.Opacity = 0;
+        inTransform.Y = 14;
+
+        const int fps = 144;
+        var outDur = new Duration(TimeSpan.FromMilliseconds(300));
+        var inDur = new Duration(TimeSpan.FromMilliseconds(450));
+        var inDelay = TimeSpan.FromMilliseconds(80);
+        var easeOut = new ExponentialEase { Exponent = 5, EasingMode = EasingMode.EaseOut };
+        var easeIn = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        // Outgoing: slide up + fade out
+        var fadeOut = new DoubleAnimation(1, 0, outDur) { EasingFunction = easeIn };
+        var slideOut = new DoubleAnimation(0, -14, outDur) { EasingFunction = easeIn };
+        Timeline.SetDesiredFrameRate(fadeOut, fps);
+        Timeline.SetDesiredFrameRate(slideOut, fps);
 
         outgoing.BeginAnimation(OpacityProperty, fadeOut);
         outTransform.BeginAnimation(TranslateTransform.YProperty, slideOut);
 
-        // Fade in + slide up incoming
-        var fadeIn = new DoubleAnimation(0, 1, dur) { EasingFunction = easeOut };
-        var slideIn = new DoubleAnimation(6, 0, dur) { EasingFunction = easeOut };
-        Timeline.SetDesiredFrameRate(fadeIn, 120);
-        Timeline.SetDesiredFrameRate(slideIn, 120);
+        // Incoming: slide up from below + fade in (with slight delay for stagger effect)
+        var fadeIn = new DoubleAnimation(0, 1, inDur) { EasingFunction = easeOut, BeginTime = inDelay };
+        var slideIn = new DoubleAnimation(14, 0, inDur) { EasingFunction = easeOut, BeginTime = inDelay };
+        Timeline.SetDesiredFrameRate(fadeIn, fps);
+        Timeline.SetDesiredFrameRate(slideIn, fps);
 
         incoming.BeginAnimation(OpacityProperty, fadeIn);
         inTransform.BeginAnimation(TranslateTransform.YProperty, slideIn);
