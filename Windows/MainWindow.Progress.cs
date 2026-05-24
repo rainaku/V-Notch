@@ -810,7 +810,10 @@ public partial class MainWindow
         if (_isClickSeekPending && !_isDraggingProgress)
         {
             double dist = Math.Abs(currentPos.X - _mouseDownPoint.X);
-            if (dist < DRAG_THRESHOLD) return; 
+            // While spring animation is running from click seek, require much larger movement
+            // to initiate drag — prevents accidental drag from small mouse jitter
+            double threshold = _isSeekSpringActive ? 25.0 : DRAG_THRESHOLD;
+            if (dist < threshold) return; 
 
             _isClickSeekPending = false;
             _isDraggingProgress = true;
