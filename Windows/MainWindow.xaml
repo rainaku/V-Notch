@@ -1059,6 +1059,7 @@
                             </Border.OpacityMask>
                             <Grid>
                                 <Image x:Name="MediaBackgroundImage" Stretch="UniformToFill" Opacity="1.0"/>
+                                <Rectangle x:Name="BrightnessDimOverlay" Fill="Black" Opacity="0" IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
 
@@ -1080,6 +1081,7 @@
                             </Border.OpacityMask>
                             <Grid>
                                 <Image x:Name="MediaBackgroundImage2" Stretch="UniformToFill" Opacity="1.0"/>
+                                <Rectangle x:Name="BrightnessDimOverlay2" Fill="Black" Opacity="0" IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
 
