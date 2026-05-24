@@ -452,7 +452,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             jsonStr = jsonStr.TrimEnd(';');
 
             // Parse and extract video IDs from the search results
-            var videoIds = new List<(string id, string? title)>();
+            var videoIds = new List<(string id, string? title, string? channel)>();
             var videoIdPattern = new Regex(@"""videoId""\s*:\s*""([a-zA-Z0-9_-]{11})""");
 
             // Simple approach: find all videoId occurrences and pair with nearby titles
@@ -465,10 +465,11 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 if (!seenIds.Add(videoId))
                     continue; // Skip duplicates
 
-                // Look for title AFTER this videoId (within 500 chars)
+                // Look for title and channel AFTER this videoId (within 800 chars)
                 string? videoTitle = null;
+                string? channelName = null;
                 int searchStart = idMatch.Index;
-                int searchLen = Math.Min(500, jsonStr.Length - searchStart);
+                int searchLen = Math.Min(800, jsonStr.Length - searchStart);
                 string context = jsonStr.Substring(searchStart, searchLen);
 
                 // Match YouTube's actual format: "title":{"runs":[{"text":"TITLE"}
@@ -476,7 +477,12 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 if (titleMatch.Success)
                     videoTitle = System.Net.WebUtility.HtmlDecode(titleMatch.Groups[1].Value);
 
-                videoIds.Add((videoId, videoTitle));
+                // Extract channel name from ownerText or longBylineText
+                var channelMatch = Regex.Match(context, @"""(?:ownerText|longBylineText|shortBylineText)"":\{""runs"":\[\{""text"":""([^""]+)""");
+                if (channelMatch.Success)
+                    channelName = System.Net.WebUtility.HtmlDecode(channelMatch.Groups[1].Value);
+
+                videoIds.Add((videoId, videoTitle, channelName));
 
                 if (videoIds.Count >= 5)
                     break; // Enough candidates
@@ -486,13 +492,13 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 return null;
 
             // Try to find a match
-            foreach (var (videoId, videoTitle) in videoIds)
+            foreach (var (videoId, videoTitle, channelName) in videoIds)
             {
                 var candidate = new YouTubeLookupResult
                 {
                     Id = videoId,
                     Title = videoTitle,
-                    Author = null,
+                    Author = channelName,
                     Duration = TimeSpan.Zero,
                     ThumbnailUrl = null,
                     Source = YouTubeLookupSource.OEmbed,
@@ -517,7 +523,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             }
 
             // No title match — use first result
-            var (firstId, firstTitle2) = videoIds[0];
+            var (firstId, firstTitle2, firstChannel) = videoIds[0];
             var enrichedFirst = await ResolveVideoIdAsync(firstId, ct);
             if (enrichedFirst != null)
             {
@@ -531,7 +537,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             {
                 Id = firstId,
                 Title = firstTitle2,
-                Author = null,
+                Author = firstChannel,
                 Duration = TimeSpan.Zero,
                 ThumbnailUrl = null,
                 Source = YouTubeLookupSource.OEmbed,

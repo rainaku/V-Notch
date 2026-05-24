@@ -104,6 +104,15 @@ public sealed class MediaArtworkService : IMediaArtworkService
             VNotch.Services.RuntimeLog.Log("CROP-START",
                 $"src={width}x{height} aspect={(double)width / height:F2} mediaSource='{mediaSource}' forceCenterCrop={forceCenterCrop} smartEnabled={EnableSmartCrop} smartAvail={_smartCropAvailable}");
 
+            // If image is already square (within 2% tolerance), return as-is — no crop needed.
+            // This prevents unnecessary 3% zoom-crop on Spotify/SMTC album art that's already square.
+            double srcAspect = (double)width / height;
+            if (Math.Abs(srcAspect - 1.0) < 0.02 && !forceCenterCrop)
+            {
+                VNotch.Services.RuntimeLog.Log("CROP-PATH", $"already square ({width}x{height}) — skip crop");
+                return source;
+            }
+
             // Detect and trim letterbox (black bars top/bottom or left/right)
             var contentRect = DetectContentBounds(source, width, height);
             BitmapSource workingSource = source;
@@ -120,7 +129,9 @@ public sealed class MediaArtworkService : IMediaArtworkService
 
             double aspect = (double)width / height;
 
-            double zoom = 0.97;
+            // Use full size (no zoom) for near-square images to avoid visible crop on large screens.
+            // Only apply 0.97 zoom for wide/tall images where trimming edges improves framing.
+            double zoom = aspect >= 0.9 && aspect <= 1.1 ? 1.0 : 0.97;
             int squareSize = (int)(Math.Min(width, height) * zoom);
 
             Int32Rect rect;

@@ -4,13 +4,18 @@
         Title="V-Notch Setup"
         Width="680"
         Height="520"
+        MinWidth="520"
+        MinHeight="420"
+        MaxWidth="900"
+        MaxHeight="700"
         WindowStyle="None"
-        ResizeMode="NoResize"
+        ResizeMode="CanResize"
         ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen"
         AllowsTransparency="True"
         Background="Transparent"
-        Loaded="Window_Loaded">
+        Loaded="Window_Loaded"
+        SizeChanged="Window_SizeChanged">
     
     <Window.Resources>
         <!-- Apple-like easing -->
@@ -372,7 +377,7 @@
                 <Border Grid.Row="1" Background="#0A0A0C">
                     <Grid Margin="28,22">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="188"/>
+                        <ColumnDefinition Width="Auto" MinWidth="140" MaxWidth="200"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -393,7 +398,9 @@
                         </StackPanel>
                     </Border>
 
-                    <Grid Grid.Column="1">
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0" Background="Transparent" BorderThickness="0">
+                    <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -406,7 +413,7 @@
                             </Image.RenderTransform>
                         </Image>
                         
-                        <TextBlock x:Name="HeadlineText" Grid.Row="1" Text="Welcome to V-Notch" FontSize="34" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif" Margin="0,0,0,12" Opacity="0">
+                        <TextBlock x:Name="HeadlineText" Grid.Row="1" Text="Welcome to V-Notch" FontSize="34" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif" Margin="0,0,0,12" TextWrapping="Wrap" Opacity="0">
                             <TextBlock.RenderTransform>
                                 <TranslateTransform x:Name="HeadlineTranslate" Y="8"/>
                             </TextBlock.RenderTransform>
@@ -425,6 +432,7 @@
                         
                         <ContentPresenter x:Name="ContentPresenter" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed"/>
                     </Grid>
+                    </ScrollViewer>
                     </Grid>
                 </Border>
                 

@@ -148,6 +148,12 @@ public partial class SetupWindow : Window
             DragMove();
     }
 
+    private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // Adjust corner radius clip to match the window border
+        MainBorder.CornerRadius = new CornerRadius(ActualWidth < 580 ? 18 : 24);
+    }
+
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isInstalling)

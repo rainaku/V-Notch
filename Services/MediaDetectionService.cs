@@ -408,7 +408,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 info.YouTubeTitle = ExtractVideoTitle(title, "YouTube");
                                 info.CurrentTrack = info.YouTubeTitle;
 
-                                info.CurrentArtist = !string.IsNullOrEmpty(_stableArtist) && (DateTime.Now - _lastSourceConfirmedTime).TotalSeconds < 3.0 ? _stableArtist : "YouTube";
+                                info.CurrentArtist = !string.IsNullOrEmpty(_stableArtist) && (DateTime.Now - _lastSourceConfirmedTime).TotalSeconds < 15.0 ? _stableArtist : "YouTube";
                                 break;
                             }
                         }
@@ -572,6 +572,13 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 _lastTrackName = info.CurrentTrack;
                 _lastMetadataChangeTime = DateTime.Now;
+
+                // Reset _stableArtist on genuine track change so the previous track's artist
+                // doesn't bleed into the new track via the stabilization logic.
+                if (!string.IsNullOrEmpty(info.CurrentTrack))
+                {
+                    _stableArtist = "";
+                }
 
                 if (_timelineSimulator.IsThrottled) _timelineSimulator.Reset();
             }
@@ -896,6 +903,7 @@ public class MediaDetectionService : IMediaDetectionService
                                     {
                                         info.CurrentArtist = urlResult.Author;
                                         _stableArtist = urlResult.Author;
+                                        _lastSourceConfirmedTime = DateTime.Now;
                                     }
 
                                     if (urlResult.Duration.TotalSeconds > 0)
@@ -946,6 +954,7 @@ public class MediaDetectionService : IMediaDetectionService
                                     {
                                         info.CurrentArtist = result.Author;
                                         _stableArtist = result.Author;
+                                        _lastSourceConfirmedTime = DateTime.Now;
                                     }
 
                                     if (result.Duration.TotalSeconds > 0)
@@ -984,6 +993,7 @@ public class MediaDetectionService : IMediaDetectionService
                                     {
                                         info.CurrentArtist = searchResult.Author;
                                         _stableArtist = searchResult.Author;
+                                        _lastSourceConfirmedTime = DateTime.Now;
                                     }
 
                                     if (searchResult.Duration.TotalSeconds > 0)
@@ -1005,6 +1015,27 @@ public class MediaDetectionService : IMediaDetectionService
                             if (!string.IsNullOrEmpty(videoId) && !token.IsCancellationRequested)
                             {
                                 info.YouTubeVideoId = videoId;
+
+                                // Fire MediaChanged immediately if artist was resolved from API/oEmbed
+                                // so the UI updates without waiting for the thumbnail fetch
+                                if (!string.IsNullOrEmpty(_stableArtist) && 
+                                    _stableArtist != "YouTube" &&
+                                    IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
+                                {
+                                    var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                                    if (dispatcher != null)
+                                    {
+                                        await dispatcher.InvokeAsync(() =>
+                                        {
+                                            if (!token.IsCancellationRequested &&
+                                                IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
+                                            {
+                                                _lastTrackSignature = info.GetSignature();
+                                                MediaChanged?.Invoke(this, info);
+                                            }
+                                        });
+                                    }
+                                }
 
                                 if (needsBetterThumb || info.MediaSource == "YouTube") 
                                 {
@@ -1155,6 +1186,7 @@ public class MediaDetectionService : IMediaDetectionService
                                         {
                                             info.CurrentArtist = pollResult.Author;
                                             _stableArtist = pollResult.Author;
+                                            _lastSourceConfirmedTime = DateTime.Now;
                                         }
                                         if (pollResult.Duration.TotalSeconds > 0)
                                         {
@@ -1198,6 +1230,7 @@ public class MediaDetectionService : IMediaDetectionService
                                                 {
                                                     info.CurrentArtist = searchResult.Author;
                                                     _stableArtist = searchResult.Author;
+                                                    _lastSourceConfirmedTime = DateTime.Now;
                                                 }
                                                 if (searchResult.Duration.TotalSeconds > 0)
                                                 {
@@ -2226,7 +2259,7 @@ public class MediaDetectionService : IMediaDetectionService
             }
 
             if ((info.CurrentArtist == "YouTube" || info.CurrentArtist == "Browser") &&
-                !string.IsNullOrEmpty(_stableArtist) && (DateTime.Now - _lastSourceConfirmedTime).TotalSeconds < 5.0)
+                !string.IsNullOrEmpty(_stableArtist) && (DateTime.Now - _lastSourceConfirmedTime).TotalSeconds < 15.0)
             {
                 info.CurrentArtist = _stableArtist;
             }

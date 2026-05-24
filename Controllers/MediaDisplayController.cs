@@ -256,6 +256,11 @@ public sealed class MediaDisplayController
             info.CurrentArtist != "Spotify")
         {
             artistText = info.CurrentArtist;
+            // Strip YouTube Music's " - Topic" suffix from channel names
+            if (artistText.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase))
+            {
+                artistText = artistText[..^" - Topic".Length].Trim();
+            }
         }
         else if (!string.IsNullOrEmpty(renderedSource))
         {
