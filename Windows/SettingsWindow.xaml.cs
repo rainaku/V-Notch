@@ -171,6 +171,8 @@ public event EventHandler? AnimatedClosing;
         CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion());
         ReportBugLabel.Text = Loc.Get("settings.reportBug");
         ReportBugHint.Text = Loc.Get("settings.reportBug.hint");
+        RequestFeatureLabel.Text = Loc.Get("settings.requestFeature");
+        RequestFeatureHint.Text = Loc.Get("settings.requestFeature.hint");
 
         // Display
         MonitorLabel.Text = Loc.Get("settings.activeMonitor");
@@ -433,6 +435,8 @@ public event EventHandler? AnimatedClosing;
             (CurrentVersionText, () => CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion())),
             (ReportBugLabel, () => ReportBugLabel.Text = Loc.Get("settings.reportBug")),
             (ReportBugHint, () => ReportBugHint.Text = Loc.Get("settings.reportBug.hint")),
+            (RequestFeatureLabel, () => RequestFeatureLabel.Text = Loc.Get("settings.requestFeature")),
+            (RequestFeatureHint, () => RequestFeatureHint.Text = Loc.Get("settings.requestFeature.hint")),
 
             // Display
             (MonitorLabel, () => MonitorLabel.Text = Loc.Get("settings.activeMonitor")),
@@ -842,6 +846,15 @@ private void RevertLivePreviewIfNeeded()
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = "https://github.com/rainaku/V-Notch/issues/new",
+            UseShellExecute = true
+        });
+    }
+
+    private void RequestFeature_Click(object sender, RoutedEventArgs e)
+    {
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "https://github.com/rainaku/V-Notch/issues/new?labels=enhancement&template=feature_request.md",
             UseShellExecute = true
         });
     }

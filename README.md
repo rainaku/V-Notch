@@ -219,11 +219,14 @@ Apache License 2.0 — See [LICENSE](LICENSE) for details.
 </p>
 
 <p align="center">
-  <a href="https://www.facebook.com/rain.107/">
-    <img src="https://img.shields.io/badge/Facebook-1877F2?logo=facebook&logoColor=white" alt="Facebook">
+  <a href="https://v-notch.vercel.app">
+    <img src="https://img.shields.io/badge/Website-000000?logo=vercel&logoColor=white" alt="Website">
   </a>
   <a href="https://github.com/rainaku/V-Notch">
     <img src="https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white" alt="GitHub">
+  </a>
+  <a href="https://www.facebook.com/rain.107/">
+    <img src="https://img.shields.io/badge/Facebook-1877F2?logo=facebook&logoColor=white" alt="Facebook">
   </a>
   <a href="https://rainaku.id.vn">
     <img src="https://img.shields.io/badge/Website-FF7139?logo=firefox&logoColor=white" alt="Website">
