@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,6 +30,16 @@ public partial class MainWindow
     private bool _cameraPreviewMorphPending = false;
     private const int CameraSectionExpandDurationMs = 420;
     private const int CameraSectionCollapseDurationMs = 420;
+
+    // ─── Performance: frame throttling & buffer reuse ───
+    private long _lastFrameTimestamp;
+    private const long FrameIntervalTicks = 333_333; // ~30fps cap (10_000_000 / 30)
+    private byte[]? _cameraFrameBuffer;
+    private int _cameraFrameBufferSize;
+
+    // ─── Lifecycle serialization: prevent race conditions on rapid click ───
+    private bool _cameraStarting = false;
+    private bool _cameraStopping = false;
 
     private void PrimeCameraPreviewMorphIn()
     {
@@ -282,6 +294,7 @@ public partial class MainWindow
         e.Handled = true; 
 
         if (_isAnimating || !_isSecondaryView) return;
+        if (_cameraStarting || _cameraStopping) return; // block rapid clicks
 
         if (!_isCameraActive)
         {
@@ -302,7 +315,9 @@ public partial class MainWindow
     private async void StartCameraPreview()
     {
         if (_isCameraActive && _frameReader != null) return;
+        if (_cameraStarting) return;
 
+        _cameraStarting = true;
         try
         {
             _cameraPreviewFadeToken++;
@@ -310,17 +325,27 @@ public partial class MainWindow
             CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             PrimeCameraPreviewMorphIn();
             _isCameraActive = true;
+            _lastFrameTimestamp = 0;
             CameraErrorOverlay.Visibility = Visibility.Collapsed;
 
-            _mediaCapture = new MediaCapture();
+            // Offload heavy device enumeration to background thread
+            // so the expand animation runs stutter-free
+            var (selectedGroup, errorMsg) = await Task.Run(async () =>
+            {
+                var groups = await MediaFrameSourceGroup.FindAllAsync();
+                var group = groups.FirstOrDefault(g =>
+                    g.SourceInfos.Any(s => s.SourceKind == MediaFrameSourceKind.Color));
+                if (group == null)
+                    return (group, "Cannot detect camera device");
+                return (group, (string?)null);
+            });
 
-            var frameSourceGroups = await MediaFrameSourceGroup.FindAllAsync();
-            var selectedGroup = frameSourceGroups.FirstOrDefault(g => g.SourceInfos.Any(s => s.SourceKind == MediaFrameSourceKind.Color));
+            if (!_isCameraActive) return; // user cancelled during init
 
             if (selectedGroup == null)
-            {
-                throw new Exception("Cannot detect camera device");
-            }
+                throw new Exception(errorMsg ?? "Cannot detect camera device");
+
+            _mediaCapture = new MediaCapture();
 
             var settings = new MediaCaptureInitializationSettings
             {
@@ -331,11 +356,11 @@ public partial class MainWindow
 
             await _mediaCapture.InitializeAsync(settings);
 
+            if (!_isCameraActive) { StopCameraPreviewSafe(); return; }
+
             var colorSource = _mediaCapture.FrameSources.Values.FirstOrDefault(s => s.Info.SourceKind == MediaFrameSourceKind.Color);
             if (colorSource == null)
-            {
                 throw new Exception("Cannot detect color source");
-            }
 
             _frameReader = await _mediaCapture.CreateFrameReaderAsync(colorSource, MediaEncodingSubtypes.Bgra8);
             _frameReader.FrameArrived += FrameReader_FrameArrived;
@@ -348,12 +373,18 @@ public partial class MainWindow
             CameraErrorOverlay.Visibility = Visibility.Visible;
             RuntimeLog.Error("CAMERA", ex, "Camera initialization failed");
         }
+        finally
+        {
+            _cameraStarting = false;
+        }
     }
     private void StopCameraPreviewSafe()
     {
         _isCameraActive = false;
         _cameraPreviewMorphPending = false;
         _cameraPreviewFadeToken++;
+        _cameraFrameBuffer = null;
+        _cameraFrameBufferSize = 0;
 
         if (_frameReader != null)
         {
@@ -371,6 +402,12 @@ public partial class MainWindow
 
     private void FrameReader_FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
     {
+        // ─── Frame throttle: skip frames if we're rendering faster than 30fps ───
+        long now = Stopwatch.GetTimestamp();
+        if (now - _lastFrameTimestamp < FrameIntervalTicks)
+            return;
+        _lastFrameTimestamp = now;
+
         using var frame = sender.TryAcquireLatestFrame();
         if (frame?.VideoMediaFrame?.SoftwareBitmap == null) return;
 
@@ -382,22 +419,34 @@ public partial class MainWindow
             softwareBitmap = SoftwareBitmap.Convert(softwareBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
         }
 
-        Dispatcher.BeginInvoke(new Action(() =>
+        int width = softwareBitmap.PixelWidth;
+        int height = softwareBitmap.PixelHeight;
+        int requiredSize = width * height * 4;
+
+        // Reuse buffer to avoid GC pressure
+        if (_cameraFrameBuffer == null || _cameraFrameBufferSize < requiredSize)
+        {
+            _cameraFrameBuffer = new byte[requiredSize];
+            _cameraFrameBufferSize = requiredSize;
+        }
+
+        softwareBitmap.CopyToBuffer(_cameraFrameBuffer.AsBuffer());
+        softwareBitmap.Dispose();
+
+        // Capture buffer reference for the closure
+        var buffer = _cameraFrameBuffer;
+
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
         {
             if (!_isCameraActive) return;
             try
             {
-                var width = softwareBitmap.PixelWidth;
-                var height = softwareBitmap.PixelHeight;
-
                 if (CameraPreviewImage.Source is not WriteableBitmap wbmp || wbmp.PixelWidth != width || wbmp.PixelHeight != height)
                 {
                     wbmp = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
                     CameraPreviewImage.Source = wbmp;
                 }
 
-                var buffer = new byte[width * height * 4];
-                softwareBitmap.CopyToBuffer(buffer.AsBuffer());
                 wbmp.WritePixels(new Int32Rect(0, 0, width, height), buffer, width * 4, 0);
 
                 if (_cameraPreviewMorphPending)
@@ -407,22 +456,23 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-            RuntimeLog.Error("CAMERA", ex, "Frame update failed");
-            }
-            finally
-            {
-                softwareBitmap.Dispose();
+                RuntimeLog.Error("CAMERA", ex, "Frame update failed");
             }
         }));
     }
 
     private async void StopCameraPreview()
     {
+        if (_cameraStopping) return;
+        _cameraStopping = true;
+
         try
         {
             AnimateCameraSectionToShelf(false);
             _isCameraActive = false;
             _cameraPreviewMorphPending = false;
+            _cameraFrameBuffer = null;
+            _cameraFrameBufferSize = 0;
             int fadeToken = ++_cameraPreviewFadeToken;
         CameraOverlay.BeginAnimation(OpacityProperty, null);
         CameraOverlay.Visibility = Visibility.Visible;
@@ -516,6 +566,10 @@ public partial class MainWindow
         {
             RuntimeLog.Error("CAMERA", ex, "StopCameraPreview failed");
             StopCameraPreviewSafe();
+        }
+        finally
+        {
+            _cameraStopping = false;
         }
     }
 

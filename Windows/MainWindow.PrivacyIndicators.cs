@@ -33,6 +33,17 @@ public partial class MainWindow
             return;
         }
 
+        // If our own camera preview is active, suppress the camera-in-use flag
+        // so V-Notch doesn't show a privacy dot for its own camera usage.
+        if (_isCameraActive && state.CameraInUse)
+        {
+            state = state with
+            {
+                CameraInUse = false,
+                CameraConsumers = Array.Empty<string>()
+            };
+        }
+
         bool shouldShow = state.AnyInUse;
         bool wasShowing = _privacyIndicatorsVisible;
 
