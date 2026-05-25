@@ -2283,63 +2283,67 @@ public class MediaDetectionService : IMediaDetectionService
                 }
 
                 // ─── Spotify metadata sanity check ───
-                // Spotify window title ("Artist - Track") is the authoritative source.
                 // SMTC metadata can be malformed for some tracks (artist/title fields
                 // swapped, producer tags in wrong field, etc.).
-                // Detect and correct common malformation patterns:
-                //  1. SMTC artist contains " - " (Spotify never uses this; they use ", ")
-                //  2. SMTC title is just a parenthetical tag that appears inside the
-                //     actual track name (e.g. "Prod.Suno" when track is "X (Prod.Suno)")
-                if (!isStaleSMTC && !string.IsNullOrEmpty(spotifyGroundTruth))
+                // Use the window title ("Artist - Track") to cross-validate, but parse
+                // it using SMTC artist as anchor (since ParseSpotifyTitle with LastIndexOf
+                // fails when track names contain " - ").
+                if (!isStaleSMTC && !string.IsNullOrEmpty(spotifyGroundTruth) &&
+                    !string.IsNullOrEmpty(info.CurrentArtist))
                 {
                     bool needsCorrection = false;
-                    var (wtArtist, wtTrack) = PlatformDetector.ParseSpotifyTitle(spotifyGroundTruth);
+                    string correctedTrack = "";
+                    string correctedArtist = "";
 
-                    if (!string.IsNullOrEmpty(wtTrack))
+                    if (info.CurrentArtist.Contains(" - ", StringComparison.Ordinal))
                     {
-                        // Pattern 1: SMTC artist contains " - " (never valid for Spotify)
-                        if (!string.IsNullOrEmpty(info.CurrentArtist) &&
-                            info.CurrentArtist.Contains(" - ", StringComparison.Ordinal))
+                        // SMTC artist contains " - " which Spotify never uses for artist
+                        // names (they use ", "). This means metadata is malformed.
+                        // Try to extract the real artist from window title using first " - ".
+                        int firstSep = spotifyGroundTruth.IndexOf(" - ", StringComparison.Ordinal);
+                        if (firstSep > 0)
                         {
-                            needsCorrection = true;
-                        }
+                            string wtArtistFirst = spotifyGroundTruth.Substring(0, firstSep).Trim();
+                            string wtTrackFirst = spotifyGroundTruth.Substring(firstSep + 3).Trim();
 
-                        // Pattern 2: SMTC title is a substring/tag within the real track name
-                        // e.g. SMTC title="Prod.Suno", real track="Keep Phong Trần (Prod.Suno)"
-                        if (!needsCorrection &&
-                            !string.IsNullOrEmpty(info.CurrentTrack) &&
-                            !string.Equals(info.CurrentTrack, wtTrack, StringComparison.OrdinalIgnoreCase) &&
-                            wtTrack.Contains(info.CurrentTrack, StringComparison.OrdinalIgnoreCase) &&
-                            wtTrack.Length > info.CurrentTrack.Length + 3)
-                        {
-                            needsCorrection = true;
-                        }
-
-                        // Pattern 3: SMTC artist contains what should be the track name
-                        // e.g. SMTC artist="Lãng - Keep Phong Trần", title="Prod.Suno"
-                        if (!needsCorrection &&
-                            !string.IsNullOrEmpty(info.CurrentArtist) &&
-                            !string.IsNullOrEmpty(wtTrack) &&
-                            wtTrack.Length >= 4 &&
-                            info.CurrentArtist.Contains(wtTrack, StringComparison.OrdinalIgnoreCase) &&
-                            !string.Equals(info.CurrentArtist, wtArtist, StringComparison.OrdinalIgnoreCase))
-                        {
-                            needsCorrection = true;
-                        }
-
-                        if (needsCorrection)
-                        {
-                            info.CurrentTrack = wtTrack;
-                            // Keep SMTC artist if it's a clean value (no " - "),
-                            // otherwise use window title artist
-                            if (string.IsNullOrEmpty(info.CurrentArtist) ||
-                                info.CurrentArtist.Contains(" - ", StringComparison.Ordinal) ||
-                                info.CurrentArtist.Contains(wtTrack, StringComparison.OrdinalIgnoreCase))
+                            // Validate: the extracted artist should NOT contain " - "
+                            // (if it does, we can't reliably parse)
+                            if (!wtArtistFirst.Contains(" - ", StringComparison.Ordinal) &&
+                                !string.IsNullOrEmpty(wtTrackFirst))
                             {
-                                info.CurrentArtist = wtArtist;
+                                correctedArtist = wtArtistFirst;
+                                correctedTrack = wtTrackFirst;
+                                needsCorrection = true;
                             }
-                            isStaleSMTC = true;
                         }
+                    }
+
+                    // Pattern 2: SMTC title is just a tag/substring within the real track
+                    // e.g. SMTC title="Prod.Suno" when real track="Keep Phong Trần (Prod.Suno)"
+                    if (!needsCorrection && !string.IsNullOrEmpty(info.CurrentTrack))
+                    {
+                        // Use SMTC artist (which is clean) to split window title correctly
+                        string artistPrefix = info.CurrentArtist + " - ";
+                        if (spotifyGroundTruth.StartsWith(artistPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string realTrack = spotifyGroundTruth.Substring(artistPrefix.Length).Trim();
+                            if (!string.IsNullOrEmpty(realTrack) &&
+                                !string.Equals(realTrack, info.CurrentTrack, StringComparison.OrdinalIgnoreCase) &&
+                                realTrack.Contains(info.CurrentTrack, StringComparison.OrdinalIgnoreCase) &&
+                                realTrack.Length > info.CurrentTrack.Length + 3)
+                            {
+                                correctedTrack = realTrack;
+                                correctedArtist = info.CurrentArtist;
+                                needsCorrection = true;
+                            }
+                        }
+                    }
+
+                    if (needsCorrection)
+                    {
+                        info.CurrentTrack = correctedTrack;
+                        info.CurrentArtist = correctedArtist;
+                        isStaleSMTC = true;
                     }
                 }
 

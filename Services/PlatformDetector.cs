@@ -179,26 +179,21 @@ public static string ExtractTitleFromWindow(string windowTitle, string platformF
     }
 public static (string Artist, string Track) ParseSpotifyTitle(string title)
     {
-        // Use last " - " separator to split artist from track.
         // Spotify window title format: "Artist(s) - Track"
-        // When multiple artists are joined with " - " (e.g. "Jack - J97 - Ngôi Sao Cô Đơn"),
-        // splitting from the right ensures the track name stays clean.
-        int lastSep = title.LastIndexOf(" - ", StringComparison.Ordinal);
-        if (lastSep > 0)
+        // Use FIRST " - " separator to split artist from track.
+        // Spotify joins multiple artists with ", " (not " - "), so the first
+        // " - " is always the artist/track boundary. Track names can contain
+        // " - " (e.g. "The Only Thing I Know For Real - Maniac Agenda Mix")
+        // so splitting from the left preserves the full track name.
+        int firstSep = title.IndexOf(" - ", StringComparison.Ordinal);
+        if (firstSep > 0)
         {
-            string artist = title.Substring(0, lastSep).Trim();
-            string track = title.Substring(lastSep + 3).Trim();
+            string artist = title.Substring(0, firstSep).Trim();
+            string track = title.Substring(firstSep + 3).Trim();
             if (!string.IsNullOrEmpty(track))
             {
                 return (artist, track);
             }
-        }
-
-        // Fallback: single separator or no separator
-        var parts = title.Split(" - ", 2);
-        if (parts.Length == 2)
-        {
-            return (parts[0].Trim(), parts[1].Trim());
         }
 
         return ("Spotify", title.Trim());

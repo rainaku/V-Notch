@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Threading;
@@ -173,6 +174,18 @@ public partial class MainWindow
         };
         ProgressBarGradientStart.BeginAnimation(GradientStop.ColorProperty, progressStartAnim);
         ProgressBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, progressEndAnim);
+
+        // If progress bar is currently hovered, update the glow shadow color to match
+        if (_isProgressBarExpanded)
+        {
+            var glowColorAnim = new ColorAnimation
+            {
+                To = vibrantTargetColor,
+                Duration = TimeSpan.FromMilliseconds(420),
+                EasingFunction = _easeQuadOut
+            };
+            ProgressBarShadow.BeginAnimation(DropShadowEffect.ColorProperty, glowColorAnim);
+        }
 
         if (IndeterminateProgress.Background is SolidColorBrush ipb && !ipb.IsFrozen)
             ipb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
