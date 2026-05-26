@@ -86,14 +86,25 @@ public class ProgressEngine
                 : snapshot.Timestamp.ToUniversalTime();
             TimeSpan effectiveSnapshotPosition = GetEffectiveSnapshotPosition(snapshot, snapshotTsUtc, nowUtc);
 
+            // ── Diagnostic: log every snapshot with key state ──
+            TimeSpan snapshotAge = nowUtc - snapshotTsUtc;
+            TimeSpan currentPredictedForLog = _baseTimeUtc != DateTime.MinValue ? PredictPosition(nowUtc) : TimeSpan.FromSeconds(-1);
+            RuntimeLog.Log("PROGRESS-ENGINE-SNAP",
+                $"seq={snapshot.SequenceNumber} rawPos={snapshot.Position.TotalSeconds:F2}s effectivePos={effectiveSnapshotPosition.TotalSeconds:F2}s " +
+                $"dur={snapshot.Duration.TotalSeconds:F1}s playing={snapshot.IsPlaying} isBrowser={snapshot.IsYouTube} " +
+                $"snapshotAge={snapshotAge.TotalSeconds:F2}s predicted={currentPredictedForLog.TotalSeconds:F2}s " +
+                $"basePos={_basePosition.TotalSeconds:F2}s state={_state} rate={snapshot.PlaybackRate:F2}");
+
             if (snapshot.SequenceNumber > 0 && snapshot.SequenceNumber <= _lastSnapshotSequence)
             {
+                RuntimeLog.Log("PROGRESS-ENGINE-REJECT", $"out-of-order seq={snapshot.SequenceNumber} <= last={_lastSnapshotSequence}");
                 return;
             }
 
             if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
                 snapshotTsUtc < _lastSnapshotTimestampUtc - SnapshotOutOfOrderTolerance)
             {
+                RuntimeLog.Log("PROGRESS-ENGINE-REJECT", $"timestamp out-of-order: snapshot={snapshotTsUtc:O} < last={_lastSnapshotTimestampUtc:O}");
                 return;
             }
             
@@ -102,6 +113,7 @@ public class ProgressEngine
                 snapshotTsUtc == _lastSnapshotTimestampUtc &&
                 Math.Abs((snapshot.Position - _lastSnapshotPosition).TotalSeconds) < 0.01)
             {
+                RuntimeLog.Log("PROGRESS-ENGINE-REJECT", $"duplicate snapshot: ts={snapshotTsUtc:O} pos={snapshot.Position.TotalSeconds:F2}s");
                 return;
             }
 
@@ -118,11 +130,30 @@ public class ProgressEngine
                 bool likelyUserSeekBackward = backwardDiff.TotalSeconds > 5.0 && 
                     Math.Abs((effectiveSnapshotPosition - _basePosition).TotalSeconds) > 5.0;
                 
+                // Guard: if position jumps to near-zero while we're well into the track,
+                // this is almost certainly a SMTC glitch (browser tab backgrounded, ad break,
+                // buffering reset) — NOT a real user seek to the beginning.
+                bool isFalseZeroGlitch = effectiveSnapshotPosition.TotalSeconds < 1.0 &&
+                    currentPredicted.TotalSeconds > 15.0 &&
+                    _duration.TotalSeconds > 0;
+                
+                if (isFalseZeroGlitch)
+                {
+                    RuntimeLog.Log("PROGRESS-ENGINE-REJECT",
+                        $"false-zero-glitch: predicted={currentPredicted.TotalSeconds:F2}s snapshot={snapshotPredicted.TotalSeconds:F2}s " +
+                        $"rawPos={snapshot.Position.TotalSeconds:F2}s — rejecting SMTC zero report");
+                    return;
+                }
+                
                 // Platform-aware backward threshold Browser sources have higher latency but need balance Too high (3
                 double backwardThreshold = snapshot.IsYouTube ? 2.0 : 0.5;
                 
                 if (backwardDiff.TotalSeconds > backwardThreshold && !likelySessionSwitch && !likelyUserSeekBackward)
                 {
+                    RuntimeLog.Log("PROGRESS-ENGINE-REJECT",
+                        $"backward-guard: predicted={currentPredicted.TotalSeconds:F2}s snapshot={snapshotPredicted.TotalSeconds:F2}s " +
+                        $"backwardDiff={backwardDiff.TotalSeconds:F2}s threshold={backwardThreshold:F1}s " +
+                        $"sessionSwitch={likelySessionSwitch} userSeek={likelyUserSeekBackward}");
                     return;
                 }
             }
@@ -280,6 +311,9 @@ public class ProgressEngine
                 TimeSpan startPos = ClampPosition(effectiveSnapshotPosition);
                 if (_state == ProgressState.Paused && startPos < _basePosition - ResumeBackstepTolerance)
                 {
+                    RuntimeLog.Log("PROGRESS-ENGINE-RESUME",
+                        $"backstep-blocked: startPos={startPos.TotalSeconds:F2}s < basePos={_basePosition.TotalSeconds:F2}s " +
+                        $"tolerance={ResumeBackstepTolerance.TotalMilliseconds}ms -> using basePos");
                     startPos = _basePosition;
                 }
 
@@ -289,8 +323,14 @@ public class ProgressEngine
                     snapshot.Position.TotalSeconds < 5.0 &&
                     startPos.TotalSeconds > _duration.TotalSeconds * 0.8)
                 {
+                    RuntimeLog.Log("PROGRESS-ENGINE-RESUME",
+                        $"stale-compensation-guard: rawPos={snapshot.Position.TotalSeconds:F2}s effective={startPos.TotalSeconds:F2}s " +
+                        $"> 80% of dur={_duration.TotalSeconds:F1}s -> using rawPos");
                     startPos = ClampPosition(snapshot.Position);
                 }
+
+                RuntimeLog.Log("PROGRESS-ENGINE-RESUME",
+                    $"play-start: pos={startPos.TotalSeconds:F2}s prevState={_state} prevBase={_basePosition.TotalSeconds:F2}s");
 
                 _isPlaying = true;
                 _state = ProgressState.Playing;
@@ -338,6 +378,9 @@ public class ProgressEngine
                     double minAllowed = predictedNow.TotalSeconds - 0.05;
                     if (correctedSeconds < minAllowed)
                         correctedSeconds = minAllowed;
+                    RuntimeLog.Log("PROGRESS-ENGINE-CORRECT",
+                        $"smooth-native-backward: predicted={predictedNow.TotalSeconds:F2}s observed={observedPos.TotalSeconds:F2}s " +
+                        $"diff={diff.TotalSeconds:F2}s corrected={correctedSeconds:F2}s (slowdown)");
                     _basePosition = ClampPosition(TimeSpan.FromSeconds(correctedSeconds));
                     _baseTimeUtc = nowUtc;
                     return;
@@ -353,12 +396,28 @@ public class ProgressEngine
                     {
                         correctedSeconds2 = minAllowedBackward;
                     }
+                    RuntimeLog.Log("PROGRESS-ENGINE-CORRECT",
+                        $"smooth-browser-backward: predicted={predictedNow.TotalSeconds:F2}s observed={observedPos.TotalSeconds:F2}s " +
+                        $"diff={diff.TotalSeconds:F2}s corrected={correctedSeconds2:F2}s cap={SmoothBackwardCap.TotalMilliseconds}ms");
+                }
+                else
+                {
+                    RuntimeLog.Log("PROGRESS-ENGINE-CORRECT",
+                        $"smooth-forward: predicted={predictedNow.TotalSeconds:F2}s observed={observedPos.TotalSeconds:F2}s " +
+                        $"diff={diff.TotalSeconds:F2}s corrected={correctedSeconds2:F2}s");
                 }
 
                 _basePosition = ClampPosition(TimeSpan.FromSeconds(correctedSeconds2));
                 _baseTimeUtc = nowUtc;
                 return;
             }
+
+            // ── LARGE CORRECTION (>= 2s diff) — this is the most likely cause of visible backward jumps ──
+            RuntimeLog.Log("PROGRESS-ENGINE-CORRECT",
+                $"*** LARGE-SNAP: predicted={predictedNow.TotalSeconds:F2}s observed={observedPos.TotalSeconds:F2}s " +
+                $"diff={diff.TotalSeconds:F2}s direction={(diff < TimeSpan.Zero ? "BACKWARD" : "forward")} " +
+                $"rawSnapshotPos={snapshot.Position.TotalSeconds:F2}s snapshotAge={(nowUtc - snapshotTsUtc).TotalSeconds:F2}s " +
+                $"isBrowser={_isYouTube} dur={_duration.TotalSeconds:F1}s");
 
             _basePosition = observedPos;
             _baseTimeUtc = nowUtc;
@@ -453,6 +512,9 @@ public class ProgressEngine
 
         if (snapshotAge > maxCompensationWindow)
         {
+            RuntimeLog.Log("PROGRESS-ENGINE-COMP",
+                $"compensation-skipped: snapshotAge={snapshotAge.TotalSeconds:F2}s > maxWindow={maxCompensationWindow.TotalSeconds:F1}s " +
+                $"rawPos={snapshot.Position.TotalSeconds:F2}s isBrowser={snapshot.IsYouTube}");
             return effectivePosition;
         }
 
@@ -476,7 +538,21 @@ public class ProgressEngine
             snapshot.Position.TotalSeconds < 5.0 &&
             effectivePosition.TotalSeconds > snapshot.Duration.TotalSeconds * 0.9)
         {
+            RuntimeLog.Log("PROGRESS-ENGINE-COMP",
+                $"compensation-rejected-stale: rawPos={snapshot.Position.TotalSeconds:F2}s " +
+                $"compensated={effectivePosition.TotalSeconds:F2}s > 90% of dur={snapshot.Duration.TotalSeconds:F1}s " +
+                $"snapshotAge={snapshotAge.TotalSeconds:F2}s");
             return snapshot.Position;
+        }
+
+        // Log significant compensation for diagnostics
+        double compensationAmount = (effectivePosition - snapshot.Position).TotalSeconds;
+        if (compensationAmount > 3.0)
+        {
+            RuntimeLog.Log("PROGRESS-ENGINE-COMP",
+                $"large-compensation: rawPos={snapshot.Position.TotalSeconds:F2}s -> effective={effectivePosition.TotalSeconds:F2}s " +
+                $"added={compensationAmount:F2}s snapshotAge={snapshotAge.TotalSeconds:F2}s rate={playbackRate:F2} " +
+                $"isBrowser={snapshot.IsYouTube}");
         }
 
         return effectivePosition;

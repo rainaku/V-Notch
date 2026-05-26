@@ -64,6 +64,19 @@ public partial class MainWindow
         _notchState.TryTransitionTo(NotchState.Expanding);
         CancelThumbnailSwitchForExpand();
 
+        // Cancel any competing width/height animations on NotchBorder (e.g. from
+        // UpdateMusicCompactMode or CollapseAfterGreeting) to prevent two animations
+        // fighting over the same property simultaneously.
+        NotchBorder.BeginAnimation(WidthProperty, null);
+        NotchBorder.BeginAnimation(HeightProperty, null);
+
+        // Suppress hover-collapse during expand animation and shortly after.
+        // WPF can fire spurious MouseLeave events during layout recalculation
+        // when the NotchBorder resizes, causing the collapse timer to start
+        // while the user is still hovering over the notch.
+        _hoverCollapseTimer.Stop();
+        _suppressHoverCollapseUntilUtc = DateTime.UtcNow.AddMilliseconds(800);
+
         // Cancel any in-progress rewind animation immediately so the user doesn't
         // see the progress bar animating backward while the notch is expanding.
         if (_isRewindAnimating)

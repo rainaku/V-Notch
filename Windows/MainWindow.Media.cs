@@ -236,6 +236,10 @@ public partial class MainWindow
 
         VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"BLUR-MORPH-START force={force}");
 
+        // Suppress outside-click collapse during thumbnail animation to prevent
+        // WindowFromPoint misses caused by WPF visual tree changes (blur, opacity, scale)
+        _suppressOutsideClickUntilUtc = DateTime.UtcNow.AddMilliseconds(700);
+
         CancelThumbnailSwitchAnimations();
 
         var generation = ++_thumbnailSwitchGeneration;
@@ -581,7 +585,8 @@ public partial class MainWindow
         if (!_isExpanded)
         {
             // Don't animate content switch while bluetooth/charging notification or greeting is showing
-            if (_isBluetoothNotificationVisible || _isChargingNotificationVisible || _isGreetingActive)
+            // or while the notch is in the middle of expanding (would conflict with expand animation)
+            if (_isBluetoothNotificationVisible || _isChargingNotificationVisible || _isGreetingActive || _isAnimating)
             {
                 return;
             }

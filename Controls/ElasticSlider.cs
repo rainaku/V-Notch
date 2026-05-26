@@ -106,6 +106,21 @@ public class ElasticSlider : Slider
     protected override void OnValueChanged(double oldValue, double newValue)
     {
         base.OnValueChanged(oldValue, newValue);
+
+        // Snap value to the fixed 20-tick grid if not already on it
+        if (Maximum > Minimum && !_isDragging)
+        {
+            const int totalTicks = 20;
+            double tickStep = (Maximum - Minimum) / totalTicks;
+            double snapped = Math.Round((newValue - Minimum) / tickStep) * tickStep + Minimum;
+            snapped = Math.Max(Minimum, Math.Min(Maximum, snapped));
+            if (Math.Abs(snapped - newValue) > 0.001)
+            {
+                Value = snapped;
+                return; // OnValueChanged will be called again with the snapped value
+            }
+        }
+
         UpdateValueText();
         UpdateIndicatorPosition();
 
@@ -162,18 +177,17 @@ public class ElasticSlider : Slider
         if (width <= 0 || height <= 0) return;
         if (Maximum <= Minimum) return;
 
-        double step = TickFrequency > 0 ? TickFrequency : (Maximum - Minimum) / 10.0;
-        int tickCount = (int)((Maximum - Minimum) / step) + 1;
+        // Fixed tick count for consistent density across all sliders
+        const int totalTicks = 20;
 
         double leftPad = 12;
         double rightReserve = GetRightReserve();
         double usableWidth = width - leftPad - rightReserve;
         if (usableWidth <= 0) return;
 
-        for (int i = 0; i < tickCount; i++)
+        for (int i = 0; i <= totalTicks; i++)
         {
-            double fraction = (i * step) / (Maximum - Minimum);
-            if (fraction > 1.001) break;
+            double fraction = (double)i / totalTicks;
 
             double x = leftPad + fraction * usableWidth;
 
@@ -433,8 +447,11 @@ public class ElasticSlider : Slider
         }
 
         double rawValue = Minimum + fraction * (Maximum - Minimum);
-        if (IsSnapToTickEnabled && TickFrequency > 0)
-            rawValue = Math.Round(rawValue / TickFrequency) * TickFrequency;
+
+        // Always snap to the fixed 20-tick grid so value lands exactly on a tick mark
+        const int totalTicks = 20;
+        double tickStep = (Maximum - Minimum) / totalTicks;
+        rawValue = Math.Round((rawValue - Minimum) / tickStep) * tickStep + Minimum;
 
         Value = Math.Max(Minimum, Math.Min(Maximum, rawValue));
     }
@@ -492,9 +509,8 @@ public class ElasticSlider : Slider
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        double step = IsSnapToTickEnabled && TickFrequency > 0
-            ? TickFrequency
-            : (Maximum - Minimum) / 20.0;
+        // Step matches the fixed 20-tick grid
+        double step = (Maximum - Minimum) / 20.0;
 
         bool handled = false;
         switch (e.Key)

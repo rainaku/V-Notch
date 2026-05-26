@@ -37,6 +37,8 @@ public partial class MainWindow
     private const double DRAG_THRESHOLD = 3.0;  
     private DateTime _suppressExternalSeekDetectionUntil = DateTime.MinValue;
     private DateTime _protectSpringTargetUntil = DateTime.MinValue;
+    private DateTime _suppressOutsideClickUntilUtc = DateTime.MinValue;
+    private DateTime _suppressHoverCollapseUntilUtc = DateTime.MinValue;
 
     // Spring render loop is driven by a dedicated helper; this partial keeps the per-frame ratios/velocity in its own fields (and pushes them into the renderer state every time the spring restarts) because many sites across Progress
     private ProgressSpringRenderer? _springRenderer;
@@ -140,8 +142,27 @@ public partial class MainWindow
                         pt.x >= rc.Left && pt.x <= rc.Right &&
                         pt.y >= rc.Top && pt.y <= rc.Bottom)
                     {
+                        RuntimeLog.Log("COLLAPSE-BLOCKED",
+                            $"Click inside window rect but WindowFromPoint missed: pt=({pt.x},{pt.y}) " +
+                            $"rect=({rc.Left},{rc.Top},{rc.Right},{rc.Bottom}) hWndAtPoint=0x{hWndAtPoint:X}");
                         return;
                     }
+
+                    // Grace period: suppress outside-click collapse briefly after thumbnail
+                    // animation starts. During blur-morph transitions, WindowFromPoint can
+                    // return stale/wrong handles due to WPF visual tree changes.
+                    if (DateTime.UtcNow < _suppressOutsideClickUntilUtc)
+                    {
+                        RuntimeLog.Log("COLLAPSE-BLOCKED",
+                            $"Suppressed during thumbnail animation grace: pt=({pt.x},{pt.y}) " +
+                            $"hWndAtPoint=0x{hWndAtPoint:X} remaining={((_suppressOutsideClickUntilUtc - DateTime.UtcNow).TotalMilliseconds):F0}ms");
+                        return;
+                    }
+
+                    RuntimeLog.Log("COLLAPSE-TRIGGER",
+                        $"Outside click detected: pt=({pt.x},{pt.y}) hWndAtPoint=0x{hWndAtPoint:X} _hwnd=0x{_hwnd:X} " +
+                        $"isExpanded={_isExpanded} isMusicExpanded={_isMusicExpanded} isSecondary={_isSecondaryView} " +
+                        $"isAnimating={_isAnimating}");
 
                     if (_isSecondaryView)
                     {
@@ -150,6 +171,7 @@ public partial class MainWindow
 
                         if ((now - _lastOutsideClickTime).TotalMilliseconds < doubleClickTime)
                         {
+                            RuntimeLog.Log("COLLAPSE-TRIGGER", "Secondary view double-click -> CollapseAll");
                             CollapseAll();
                             _lastOutsideClickTime = DateTime.MinValue;
                         }
@@ -160,6 +182,7 @@ public partial class MainWindow
                     }
                     else
                     {
+                        RuntimeLog.Log("COLLAPSE-TRIGGER", "Normal view single outside click -> CollapseAll");
                         CollapseAll();
                     }
                 }
@@ -176,6 +199,19 @@ public partial class MainWindow
             current = GetParent(current);
         }
         return false;
+    }
+
+    /// <summary>
+    /// Checks if the actual cursor position (via Win32) is inside the notch window rect.
+    /// More reliable than WPF IsMouseOver for layered/non-activatable windows.
+    /// </summary>
+    private bool IsCursorInsideWindow()
+    {
+        if (_hwnd == IntPtr.Zero) return false;
+        if (!GetCursorPos(out var cursorPt)) return false;
+        if (!GetWindowRect(_hwnd, out var rc)) return false;
+        return cursorPt.X >= rc.Left && cursorPt.X <= rc.Right &&
+               cursorPt.Y >= rc.Top && cursorPt.Y <= rc.Bottom;
     }
 
     [DllImport("user32.dll")]
@@ -715,6 +751,10 @@ public partial class MainWindow
 
             if (rawDiffSeconds >= SOURCE_SMOOTH_SECONDS)
             {
+                RuntimeLog.Log("PROGRESS-RENDER-JUMP",
+                    $"*** LARGE-RENDER-SNAP: display={_progressDisplayRatio:F4} -> target={rawTargetRatio:F4} " +
+                    $"diffSec={rawDiffSeconds:F2}s direction={(rawTargetRatio < _progressDisplayRatio ? "BACKWARD" : "forward")} " +
+                    $"state={frame.State} pos={frame.Position.TotalSeconds:F2}s dur={frame.Duration.TotalSeconds:F1}s");
                 _progressDisplayRatio = rawTargetRatio;
                 _progressTargetRatio = rawTargetRatio;
                 _progressSpringTargetRatio = rawTargetRatio;
@@ -755,6 +795,8 @@ public partial class MainWindow
                     if (isUserSeekWindow)
                     {
                         // User is seeking — allow backward movement freely
+                        RuntimeLog.Log("PROGRESS-RENDER-BACKWARD",
+                            $"allowed (user-seek): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} backSec={backwardSeconds:F2}s");
                     }
                     else if (isPostSeekStabilization)
                     {
@@ -772,7 +814,16 @@ public partial class MainWindow
                         double allowedBackward = isBrowserSourceForBackward ? 0.5 : 0.08;
                         if (backwardSeconds > allowedBackward)
                         {
+                            RuntimeLog.Log("PROGRESS-RENDER-BACKWARD",
+                                $"BLOCKED (playback): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} " +
+                                $"backSec={backwardSeconds:F2}s > allowed={allowedBackward:F2}s isBrowser={isBrowserSourceForBackward}");
                             _progressTargetRatio = _progressDisplayRatio;
+                        }
+                        else
+                        {
+                            RuntimeLog.Log("PROGRESS-RENDER-BACKWARD",
+                                $"allowed (small): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} " +
+                                $"backSec={backwardSeconds:F2}s <= allowed={allowedBackward:F2}s");
                         }
                     }
                     else if (backwardSeconds > backwardThreshold)
@@ -781,6 +832,9 @@ public partial class MainWindow
                         double maxBackwardStepSeconds = 0.22;
                         double maxBackwardRatioStep = maxBackwardStepSeconds / frame.Duration.TotalSeconds;
                         double cappedTarget = Math.Max(_progressTargetRatio, _progressDisplayRatio - maxBackwardRatioStep);
+                        RuntimeLog.Log("PROGRESS-RENDER-BACKWARD",
+                            $"capped (paused): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} " +
+                            $"backSec={backwardSeconds:F2}s capped={cappedTarget:F4}");
                         _progressTargetRatio = cappedTarget;
                     }
                     // else: paused + small backward — allow correction via lerp

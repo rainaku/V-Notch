@@ -220,6 +220,26 @@ public partial class MainWindow : Window
             _hoverCollapseTimer.Stop();
             if (_isExpanded && !NotchWrapper.IsMouseOver)
             {
+                // Final safety check: don't collapse if still in grace period
+                if (DateTime.UtcNow < _suppressHoverCollapseUntilUtc)
+                {
+                    RuntimeLog.Log("COLLAPSE-BLOCKED",
+                        $"HoverCollapseTimer suppressed at fire time: remaining={(_suppressHoverCollapseUntilUtc - DateTime.UtcNow).TotalMilliseconds:F0}ms");
+                    return;
+                }
+
+                // WPF IsMouseOver can be unreliable with layered/non-activatable windows.
+                // Double-check with Win32 cursor position against actual window rect.
+                if (_hwnd != IntPtr.Zero && IsCursorInsideWindow())
+                {
+                    RuntimeLog.Log("COLLAPSE-BLOCKED",
+                        $"HoverCollapseTimer: WPF says IsMouseOver=False but cursor is inside window rect — suppressing");
+                    return;
+                }
+
+                RuntimeLog.Log("COLLAPSE-TRIGGER",
+                    $"HoverCollapseTimer fired: isExpanded={_isExpanded} isMouseOver={NotchWrapper.IsMouseOver} " +
+                    $"isSecondary={_isSecondaryView} isMusicExpanded={_isMusicExpanded}");
                 CollapseNotch();
             }
         };
@@ -382,6 +402,8 @@ public partial class MainWindow : Window
 
                         if (_isExpanded && !_isAnimating)
                         {
+                            RuntimeLog.Log("COLLAPSE-TRIGGER",
+                                $"WM_ACTIVATEAPP(deactivate) -> CollapseNotch: isSecondary={_isSecondaryView}");
                             CollapseNotch();
                         }
                     }));
@@ -410,6 +432,8 @@ public partial class MainWindow : Window
 
         if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
         {
+            RuntimeLog.Log("COLLAPSE-TRIGGER",
+                $"Deactivated event -> CollapseAll: isExpanded={_isExpanded} isMusicExpanded={_isMusicExpanded} isSecondary={_isSecondaryView}");
             CollapseAll();
         }
     }
@@ -583,6 +607,8 @@ public partial class MainWindow : Window
         {
             if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
             {
+                RuntimeLog.Log("COLLAPSE-TRIGGER",
+                    $"FullscreenAutoHide -> CollapseAll: shouldHide={shouldHide} isExpanded={_isExpanded} isMusicExpanded={_isMusicExpanded}");
                 CollapseAll();
             }
 
@@ -761,7 +787,7 @@ public partial class MainWindow : Window
         if (screen == null) return;
 
         _windowWidth = (int)(_expandedWidth + 40);
-        _windowHeight = (int)(_expandedHeight + 20);
+        _windowHeight = (int)(_expandedHeight + 80);
         _fixedX = screen.Bounds.Left + (screen.Bounds.Width - _windowWidth) / 2;
         _fixedY = 0;
 
@@ -1140,6 +1166,26 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         if (_isExpanded && !_isAnimating && !_isSecondaryView)
         {
+            // Suppress hover-collapse if we're in the grace period after expand/thumbnail animation
+            if (DateTime.UtcNow < _suppressHoverCollapseUntilUtc)
+            {
+                RuntimeLog.Log("COLLAPSE-BLOCKED",
+                    $"MouseLeave suppressed during grace period: remaining={(_suppressHoverCollapseUntilUtc - DateTime.UtcNow).TotalMilliseconds:F0}ms");
+                return;
+            }
+
+            // WPF IsMouseOver is unreliable with layered windows during animations/clicks.
+            // Verify with Win32 cursor position before starting collapse timer.
+            if (IsCursorInsideWindow())
+            {
+                RuntimeLog.Log("COLLAPSE-BLOCKED",
+                    $"MouseLeave: WPF fired leave but cursor still inside window rect — ignoring");
+                return;
+            }
+
+            RuntimeLog.Log("COLLAPSE-HOVER",
+                $"MouseLeave -> starting hoverCollapseTimer: interval={_hoverCollapseTimer.Interval.TotalMilliseconds}ms " +
+                $"isExpanded={_isExpanded} isMusicExpanded={_isMusicExpanded}");
             _hoverCollapseTimer.Start();
         }
         else if (!_isExpanded)
@@ -1170,6 +1216,15 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             if (_settings.DisableMouseLeaveAutoClose) return;
             if (_isExpanded && !_isAnimating && !_isSecondaryView)
             {
+                // Suppress hover-collapse if we're in the grace period after expand/thumbnail animation
+                if (DateTime.UtcNow < _suppressHoverCollapseUntilUtc)
+                {
+                    RuntimeLog.Log("COLLAPSE-BLOCKED",
+                        $"HoverService_HoverLeave suppressed during grace period: remaining={(_suppressHoverCollapseUntilUtc - DateTime.UtcNow).TotalMilliseconds:F0}ms");
+                    return;
+                }
+                RuntimeLog.Log("COLLAPSE-HOVER",
+                    $"HoverService_HoverLeave -> starting hoverCollapseTimer: interval={_hoverCollapseTimer.Interval.TotalMilliseconds}ms");
                 _hoverCollapseTimer.Start();
             }
         }));

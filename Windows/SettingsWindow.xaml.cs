@@ -95,6 +95,8 @@ public event EventHandler? AnimatedClosing;
 
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
+        HoverDelaySlider.IsEnabled = _settings.EnableHoverExpand;
+        HoverDelaySlider.Opacity = _settings.EnableHoverExpand ? 1.0 : 0.4;
         DisableMouseLeaveAutoCloseCheck.IsChecked = _settings.DisableMouseLeaveAutoClose;
 
         var monitors = NotchManager.GetMonitorNames();
@@ -292,6 +294,13 @@ public event EventHandler? AnimatedClosing;
         if (HoverDelayValue != null)
             HoverDelayValue.Text = ((int)e.NewValue).ToString();
         PushLivePreview();
+    }
+
+    private void HoverExpandCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        bool enabled = HoverExpandCheck.IsChecked ?? false;
+        HoverDelaySlider.IsEnabled = enabled;
+        HoverDelaySlider.Opacity = enabled ? 1.0 : 0.4;
     }
 
     private void LanguageCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -801,6 +810,8 @@ private void PushLivePreview()
 
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
         HoverDelaySlider.Value = defaults.HoverExpandDelay;
+        HoverDelaySlider.IsEnabled = defaults.EnableHoverExpand;
+        HoverDelaySlider.Opacity = defaults.EnableHoverExpand ? 1.0 : 0.4;
         DisableMouseLeaveAutoCloseCheck.IsChecked = defaults.DisableMouseLeaveAutoClose;
 
         MusicNotifyCheck.IsChecked = defaults.ShowMusicNotifications;
