@@ -199,6 +199,8 @@ public event EventHandler? AnimatedClosing;
         SaveButton.Content = Loc.Get("settings.btn.save");
 
         // System checkboxes & hints
+        HelloGreetingCheck.Content = Loc.Get("settings.helloGreeting");
+        HelloGreetingHint.Text = Loc.Get("settings.helloGreeting.hint");
         AutoStartCheck.Content = Loc.Get("settings.autoStart");
         AutoStartHint.Text = Loc.Get("settings.autoStart.hint");
         HideOnExclusiveFullscreenCheck.Content = Loc.Get("settings.hideExclusiveFs");
@@ -461,6 +463,7 @@ public event EventHandler? AnimatedClosing;
 
             // System
             (AutoStartHint, () => AutoStartHint.Text = Loc.Get("settings.autoStart.hint")),
+            (HelloGreetingHint, () => HelloGreetingHint.Text = Loc.Get("settings.helloGreeting.hint")),
             (HideOnExclusiveFullscreenHint, () => HideOnExclusiveFullscreenHint.Text = Loc.Get("settings.hideExclusiveFs.hint")),
             (HideOnWindowedFullscreenHint, () => HideOnWindowedFullscreenHint.Text = Loc.Get("settings.hideWindowedFs.hint")),
             (MusicNotifyHint, () => MusicNotifyHint.Text = Loc.Get("settings.musicNotify.hint")),
@@ -488,6 +491,8 @@ public event EventHandler? AnimatedClosing;
 
         // Checkboxes (Content property)
         AnimateContentChange(AutoStartCheck, () => AutoStartCheck.Content = Loc.Get("settings.autoStart"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(HelloGreetingCheck, () => HelloGreetingCheck.Content = Loc.Get("settings.helloGreeting"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(HideOnExclusiveFullscreenCheck, () => HideOnExclusiveFullscreenCheck.Content = Loc.Get("settings.hideExclusiveFs"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;

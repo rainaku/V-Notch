@@ -84,9 +84,9 @@
   </tr>
   <tr>
   <td align="center" width="50%">
-      <img src="Introduction/Onnx.gif" alt="Smart Crop"><br>
-      <b>ONNX's Crop</b><br>
-      AI-powered thumbnail cropping using ONNX intelligently focuses on the subject for a clean, centered display.
+      <img src="Introduction/gesture.gif" alt="Gesture Controls"><br>
+      <b>Gesture Controls</b><br>
+      Use hand gestures via your webcam — fist-drag left/right to skip or rewind media, fist-drag down to quickly open the file tray.
     </td>
     <td align="center" width="50%">
       <img src="Introduction/setting.gif" alt="Settings"><br>
