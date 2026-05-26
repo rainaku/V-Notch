@@ -1855,11 +1855,12 @@ public class MediaDetectionService : IMediaDetectionService
                                 ClearSessionSourceOverride(sessionInstanceKey, sourceApp);
 
                                 _lastTrackSignature = "";
-                                _lastThumbTrackIdentity = "";
-                                // Always clear thumbnail cache when a session transitions to playing
-                                // (even if it's the same session object — browser tabs can change)
-                                _cachedThumbnail = null;
-                                _cachedThumbnailSource = "";
+                                // Do NOT clear _lastThumbTrackIdentity or _cachedThumbnail here.
+                                // When the same session resumes playing (pause→play), the track
+                                // hasn't changed — clearing thumbnail state causes unnecessary
+                                // re-fetch and visual flicker. The track-change check at the
+                                // thumbnail processing stage (trackChangedForThisPass) will
+                                // properly invalidate if the track actually changed.
                             }
 
                             _sessionState.SetPlayingState(sessionInstanceKey, isActive);
