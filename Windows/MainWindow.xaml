@@ -141,16 +141,14 @@
 
         <SolidColorBrush x:Key="MusicVisualizerBrush" Color="White"/>
 
-        <LinearGradientBrush x:Key="TrackTitleGradient" StartPoint="0,0" EndPoint="1,0" MappingMode="RelativeToBoundingBox" SpreadMethod="Repeat">
-            <GradientStop Color="Transparent" Offset="0"/>
-            <GradientStop Color="Transparent" Offset="0.5"/>
-            <GradientStop Color="Transparent" Offset="1"/>
+        <LinearGradientBrush x:Key="TrackTitleGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="White" Offset="0"/>
+            <GradientStop Color="White" Offset="1"/>
         </LinearGradientBrush>
 
-        <LinearGradientBrush x:Key="TrackTitleNextGradient" StartPoint="0,0" EndPoint="1,0" MappingMode="RelativeToBoundingBox" SpreadMethod="Repeat">
-            <GradientStop Color="Transparent" Offset="0"/>
-            <GradientStop Color="Transparent" Offset="0.5"/>
-            <GradientStop Color="Transparent" Offset="1"/>
+        <LinearGradientBrush x:Key="TrackTitleNextGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="White" Offset="0"/>
+            <GradientStop Color="White" Offset="1"/>
         </LinearGradientBrush>
         <Style x:Key="TrayMenuItemText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="White"/>
@@ -1236,7 +1234,7 @@
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
-                                                                   Foreground="White" />
+                                                                   Foreground="{DynamicResource TrackTitleGradient}" />
                                                     </Grid>
 
                                                     <Grid Opacity="{Binding Opacity, ElementName=TrackTitleNext}">
@@ -1259,7 +1257,7 @@
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
-                                                                   Foreground="White" />
+                                                                   Foreground="{DynamicResource TrackTitleNextGradient}" />
                                                     </Grid>
                                                 </Grid>
                                             </Canvas>
@@ -1472,9 +1470,6 @@
                                                 <Grid.RenderTransform>
                                                     <ScaleTransform x:Name="ProgressBarMainScale" ScaleY="1"/>
                                                 </Grid.RenderTransform>
-                                                <Grid.Effect>
-                                                    <DropShadowEffect x:Name="ProgressBarShadow" BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.45" Color="Black" RenderingBias="Performance"/>
-                                                </Grid.Effect>
 
                                                 <Border x:Name="ProgressBarBg" Background="#262626" Height="4" CornerRadius="2" VerticalAlignment="Center" SizeChanged="ProgressBarBg_SizeChanged">
                                                     <Grid>
