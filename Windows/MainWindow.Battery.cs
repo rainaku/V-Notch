@@ -76,8 +76,8 @@ public partial class MainWindow
 
     private void ShowChargingNotification(int percentage)
     {
-        // Don't show if expanded, animating, or another notification is visible
-        if (_isExpanded || _isAnimating || _isBluetoothNotificationVisible || _isChargingNotificationVisible)
+        // Don't show if expanded, animating, greeting active, or another notification is visible
+        if (_isExpanded || _isAnimating || _isGreetingActive || _isBluetoothNotificationVisible || _isChargingNotificationVisible)
             return;
 
         _isChargingNotificationVisible = true;

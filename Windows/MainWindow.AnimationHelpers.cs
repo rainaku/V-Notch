@@ -16,7 +16,7 @@ public partial class MainWindow
 
     private void AnimateNotchHover(bool isHovered)
     {
-        if (_isExpanded || _isAnimating) return;
+        if (_isExpanded || _isAnimating || _isGreetingActive) return;
 
         double targetScale = isHovered ? 1.08 : 1.0;
         var duration = isHovered ? _dur500 : _dur350;
@@ -29,7 +29,7 @@ public partial class MainWindow
 
     private void AnimateThumbnailHover(bool isHovered)
     {
-        if (_isExpanded || _isAnimating) return;
+        if (_isExpanded || _isAnimating || _isGreetingActive) return;
 
         double thumbScale = isHovered ? 1.5 : 1.0;
         double notchWidth = isHovered ? _collapsedWidth + 32 : _collapsedWidth;
@@ -327,6 +327,10 @@ public partial class MainWindow
 
     private void PlayAppearAnimation()
     {
+        // Mark greeting active immediately so deferred init won't start media/modules
+        _isGreetingActive = true;
+        _isAnimating = true;
+
         NotchBorder.Opacity = 0;
 
         var opacityAnim = new DoubleAnimation
@@ -335,6 +339,12 @@ public partial class MainWindow
             To = 1,
             Duration = new Duration(TimeSpan.FromMilliseconds(400)),
             EasingFunction = _easeQuadOut
+        };
+
+        opacityAnim.Completed += (s, e) =>
+        {
+            // Start greeting animation after notch appears
+            PlayGreetingAnimation();
         };
 
         NotchBorder.BeginAnimation(OpacityProperty, opacityAnim);

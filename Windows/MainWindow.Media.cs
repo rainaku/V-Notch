@@ -570,10 +570,8 @@ public partial class MainWindow
         
         if (!_isExpanded)
         {
-            // Don't animate content switch while bluetooth/charging notification is showing —
-            // the notification owns the collapsed area. State is updated so that
-            // dismiss restores the correct content.
-            if (_isBluetoothNotificationVisible || _isChargingNotificationVisible)
+            // Don't animate content switch while bluetooth/charging notification or greeting is showing
+            if (_isBluetoothNotificationVisible || _isChargingNotificationVisible || _isGreetingActive)
             {
                 return;
             }

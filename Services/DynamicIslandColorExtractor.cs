@@ -15,26 +15,39 @@ internal static class DynamicIslandColorExtractor
     private const int KClusters = 6;
     private const int KMeansMaxIter = 12;
 
+    // Cache: avoid re-extracting palette for the same thumbnail
+    private static WeakReference<BitmapSource>? _lastPaletteBitmap;
+    private static Palette _lastPaletteResult;
+
     #region Public entry points
 
     public static Palette GetDynamicIslandPalette(BitmapSource bitmap)
     {
+        // Fast path: return cached result if same bitmap reference
+        if (_lastPaletteBitmap != null && _lastPaletteBitmap.TryGetTarget(out var cached) && ReferenceEquals(cached, bitmap))
+            return _lastPaletteResult;
+
         var result = ExtractAdvancedPalette(bitmap, Rect.Empty);
+        Palette palette;
         if (result.IsMonotone || result.Primary == default)
         {
             RuntimeLog.Log("COLOR-PICK",
                 $"FALLBACK: IsMonotone={result.IsMonotone} Primary={result.Primary} (R={result.Primary.R},G={result.Primary.G},B={result.Primary.B})");
-            // Grayscale/monotone: use a warm gray that feels less sterile than pure white
-            return new Palette(Color.FromRgb(34, 34, 34), Color.FromRgb(180, 180, 180));
+            palette = new Palette(Color.FromRgb(34, 34, 34), Color.FromRgb(180, 180, 180));
+        }
+        else
+        {
+            RuntimeLog.Log("COLOR-PICK",
+                $"OK: Primary=({result.Primary.R},{result.Primary.G},{result.Primary.B}) Secondary=({result.Secondary.R},{result.Secondary.G},{result.Secondary.B})");
+            var main = result.Primary;
+            var darkUiBackground = Colors.Black;
+            var sub = EnsureTextOnDarkBackground(main, darkUiBackground, 4.5);
+            palette = new Palette(main, sub);
         }
 
-        RuntimeLog.Log("COLOR-PICK",
-            $"OK: Primary=({result.Primary.R},{result.Primary.G},{result.Primary.B}) Secondary=({result.Secondary.R},{result.Secondary.G},{result.Secondary.B})");
-        var main = result.Primary;
-        var darkUiBackground = Colors.Black;
-        // Sub color (progress bar, text accent) = primary color adjusted for readability
-        var sub = EnsureTextOnDarkBackground(main, darkUiBackground, 4.5);
-        return new Palette(main, sub);
+        _lastPaletteBitmap = new WeakReference<BitmapSource>(bitmap);
+        _lastPaletteResult = palette;
+        return palette;
     }
 
     public static Palette GetDynamicIslandPalette(BitmapSource bitmap, Rect smartCropBbox)
@@ -217,9 +230,9 @@ internal static class DynamicIslandColorExtractor
         {
             // ═══════════════════════════════════════════════════════════════════ Pipeline: Resize → Filter → Quantize → Score → Pick Goal: find the most VIBRANT, eye-catching color — not the most common one
 
-            // Step 1: Resize to 64×64 for fast processing
+            // Step 1: Resize to 40×40 for fast processing
             var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-            const int analysisSize = 64;
+            const int analysisSize = 40;
             double scaleX = (double)analysisSize / formattedBitmap.PixelWidth;
             double scaleY = (double)analysisSize / formattedBitmap.PixelHeight;
             var small = new TransformedBitmap(formattedBitmap, new ScaleTransform(scaleX, scaleY));

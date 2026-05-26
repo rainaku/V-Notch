@@ -59,7 +59,7 @@ public partial class MainWindow
 
     private void ExpandNotch()
     {
-        if (_isAnimating || _isExpanded) return;
+        if (_isAnimating || _isExpanded || _isGreetingActive) return;
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Expanding);
         CancelThumbnailSwitchForExpand();
@@ -434,7 +434,7 @@ public partial class MainWindow
 
     private void CollapseNotch()
     {
-        if (_isAnimating || !_isExpanded) return;
+        if (_isAnimating || !_isExpanded || _isGreetingActive) return;
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Collapsing);
         CancelThumbnailSwitchAnimations();

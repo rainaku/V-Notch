@@ -329,8 +329,12 @@ public partial class MainWindow : Window
             _isStartupLayoutReady = true;
             _pendingStartupClickToggle = false;
 
-            _mediaService.Start();
-            _moduleHost.StartAll();
+            // Delay media/module start if greeting is active — they will start after greeting completes
+            if (!_isGreetingActive)
+            {
+                _mediaService.Start();
+                _moduleHost.StartAll();
+            }
 
             // Trim working set after startup to release pages back to OS.
             Task.Delay(3000).ContinueWith(_ =>
