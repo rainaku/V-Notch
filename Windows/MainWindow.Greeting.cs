@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
@@ -14,6 +15,7 @@ public partial class MainWindow
 
     private bool _isGreetingActive = false;
     private DispatcherTimer? _greetingDismissTimer;
+    private bool _isVietnameseGreeting = false;
 
     private void PlayGreetingAnimation()
     {
@@ -21,6 +23,7 @@ public partial class MainWindow
 
         _isGreetingActive = true;
         _isAnimating = true;
+        _isVietnameseGreeting = Loc.CurrentLanguage == "vi";
 
         // Hide ALL content — nothing should be visible except the hello animation
         CollapsedContent.Opacity = 0;
@@ -46,9 +49,34 @@ public partial class MainWindow
         GreetingOverlay.Visibility = Visibility.Visible;
         GreetingOverlay.Opacity = 1;
 
-        // Prepare paths — initially fully hidden (offset = length so nothing draws)
-        PreparePath(HelloPath1);
-        PreparePath(HelloPath2);
+        if (_isVietnameseGreeting)
+        {
+            // Vietnamese: hide English paths, show Vietnamese paths
+            HelloPathContainer.Visibility = Visibility.Collapsed;
+            XinChaoPathContainer.Visibility = Visibility.Visible;
+
+            // Prepare all Vietnamese paths
+            PreparePath(ViPath1);
+            PreparePath(ViPath2);
+            PreparePath(ViPath3);
+            PreparePath(ViPath4);
+            PreparePath(ViPath5);
+            PreparePath(ViPath6);
+            PreparePath(ViPath7);
+            PreparePath(ViPath8);
+            PreparePath(ViPath9);
+            PreparePath(ViPath10);
+        }
+        else
+        {
+            // English: show English paths, hide Vietnamese paths
+            HelloPathContainer.Visibility = Visibility.Visible;
+            XinChaoPathContainer.Visibility = Visibility.Collapsed;
+
+            // Prepare paths — initially fully hidden (offset = length so nothing draws)
+            PreparePath(HelloPath1);
+            PreparePath(HelloPath2);
+        }
 
         // Expand the notch
         NotchBorder.BeginAnimation(WidthProperty, null);
@@ -62,14 +90,102 @@ public partial class MainWindow
         // Animate corner radius to expanded
         AnimateCornerRadius(_cornerRadiusExpanded, TimeSpan.FromMilliseconds(400));
 
-        // After expand completes, start the handwriting animation
+        // After expand completes, start the greeting animation
         heightAnim.Completed += (s, e) =>
         {
-            PlayHelloStrokeAnimation();
+            if (_isVietnameseGreeting)
+                PlayXinChaoStrokeAnimation();
+            else
+                PlayHelloStrokeAnimation();
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+    }
+
+    private void PlayXinChaoStrokeAnimation()
+    {
+        // Timing from the React component (in seconds), converted to ms
+        // Each path has a duration and delay matching the original animation
+        var paths = new (Path path, double durationMs, double delayMs)[]
+        {
+            (ViPath1,  200,    0),      // x1
+            (ViPath2,  450,  250),      // x2
+            (ViPath3,  350,  650),      // i
+            (ViPath4,  200,  950),      // n1
+            (ViPath5,  600, 1100),      // n2
+            (ViPath6,  750, 1650),      // c, h1
+            (ViPath7,  650, 2350),      // h2
+            (ViPath8,  550, 2950),      // a1
+            (ViPath9, 1000, 3450),      // a2, o
+            (ViPath10, 500, 4500),      // dấu huyền (accent)
+        };
+
+        foreach (var (path, durationMs, delayMs) in paths)
+        {
+            double pathLength = (double)path.Tag;
+
+            // Keep path invisible until its animation starts
+            if (delayMs > 0)
+            {
+                path.Opacity = 0;
+                var showTimer = new DispatcherTimer(DispatcherPriority.Render)
+                {
+                    Interval = TimeSpan.FromMilliseconds(delayMs)
+                };
+                var capturedPath = path;
+                showTimer.Tick += (s, e) =>
+                {
+                    ((DispatcherTimer)s!).Stop();
+                    capturedPath.Opacity = 1;
+                };
+                showTimer.Start();
+            }
+            else
+            {
+                path.Opacity = 1;
+            }
+
+            var anim = new DoubleAnimation
+            {
+                From = pathLength,
+                To = 0,
+                Duration = TimeSpan.FromMilliseconds(durationMs),
+                BeginTime = TimeSpan.FromMilliseconds(delayMs),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
+            };
+
+            path.BeginAnimation(Shape.StrokeDashOffsetProperty, anim);
+        }
+
+        // The last animation starts at 4500ms and lasts 500ms = completes at 5000ms
+        // Set a timer to dismiss after the full animation completes + hold time
+        var totalDurationMs = 4500 + 500 + 1500; // last delay + last duration + hold time
+
+        // Animate the dot on "i" — appears when the "i" stroke starts (delay 650ms)
+        ViDotI.Visibility = Visibility.Visible;
+        ViDotI.Opacity = 0;
+        var dotFadeIn = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(250),
+            BeginTime = TimeSpan.FromMilliseconds(650),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        ViDotI.BeginAnimation(OpacityProperty, dotFadeIn);
+
+        _greetingDismissTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(totalDurationMs)
+        };
+        _greetingDismissTimer.Tick += (s, e) =>
+        {
+            _greetingDismissTimer.Stop();
+            _greetingDismissTimer = null;
+            DismissGreeting();
+        };
+        _greetingDismissTimer.Start();
     }
 
     private void PreparePath(Path path)
@@ -86,6 +202,8 @@ public partial class MainWindow
         // so that when offset = normalizedLength, nothing is visible
         // and when offset = 0, the full stroke is visible (no dots/artifacts)
         path.StrokeDashCap = PenLineCap.Flat;
+        path.StrokeStartLineCap = PenLineCap.Flat;
+        path.StrokeEndLineCap = PenLineCap.Flat;
         path.StrokeDashArray = new DoubleCollection { normalizedLength, normalizedLength * 3 };
         path.StrokeDashOffset = normalizedLength;
         path.Tag = normalizedLength; // store for animation
@@ -179,8 +297,28 @@ public partial class MainWindow
         {
             GreetingOverlay.Visibility = Visibility.Collapsed;
             GreetingOverlay.Opacity = 0;
-            HelloPath1.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
-            HelloPath2.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+
+            if (_isVietnameseGreeting)
+            {
+                ViPath1.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath2.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath3.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath4.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath5.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath6.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath7.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath8.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath9.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViPath10.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                ViDotI.BeginAnimation(OpacityProperty, null);
+                ViDotI.Opacity = 0;
+                ViDotI.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                HelloPath1.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+                HelloPath2.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
+            }
 
             // Collapse notch back
             CollapseAfterGreeting();

@@ -594,6 +594,19 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
+                                <!-- i dot -->
+                                <Ellipse x:Name="ViDotI"
+                                         Width="16" Height="16"
+                                         Canvas.Left="162" Canvas.Top="68"
+                                         Visibility="Collapsed"
+                                         Opacity="0">
+                                    <Ellipse.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#FFFFFF" Offset="0"/>
+                                            <GradientStop Color="#A0A0A0" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Ellipse.Fill>
+                                </Ellipse>
                                 <!-- n1 -->
                                 <Path x:Name="ViPath4"
                                       Data="M248.139 96.2278C243.424 127.741 239.454 158.759 234.491 190.272"
