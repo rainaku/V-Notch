@@ -40,7 +40,28 @@ public partial class MainWindow
         {
             if (_isSecondaryView)
             {
-                SwitchToPrimaryView();
+                // If camera is active, stop it first and wait for section to collapse
+                // before switching views so the user sees the camera fold animation.
+                if (_isCameraActive)
+                {
+                    StopCameraPreview();
+                    // Delay view switch until camera section collapse finishes
+                    var cameraCollapseWait = new System.Windows.Threading.DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs + 50)
+                    };
+                    cameraCollapseWait.Tick += (s2, e2) =>
+                    {
+                        cameraCollapseWait.Stop();
+                        if (_isSecondaryView && !_isAnimating)
+                            SwitchToPrimaryView();
+                    };
+                    cameraCollapseWait.Start();
+                }
+                else
+                {
+                    SwitchToPrimaryView();
+                }
             }
         }
     }
@@ -199,6 +220,12 @@ public partial class MainWindow
         _isSecondaryView = false;
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
+
+        // Stop camera if still active (e.g. called from nav button without scroll)
+        if (_isCameraActive)
+        {
+            StopCameraPreview();
+        }
 
         UpdateNavIconsActiveState();
         NavIconsBackground.BeginAnimation(OpacityProperty, null);
