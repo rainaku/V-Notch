@@ -119,6 +119,16 @@ public partial class MainWindow
             // Gesture was triggered during move — snap back animation already played
             AnimateGestureSnapBack();
         }
+
+        // After gesture ends, restore correct hover state based on whether cursor is still over the notch
+        if (!NotchWrapper.IsMouseOver)
+        {
+            AnimateNotchHover(false);
+            if (_isMusicCompactMode && _isCompactThumbnailHovered)
+            {
+                SetCompactThumbnailHover(false);
+            }
+        }
     }
 
     // ─── Gesture Handlers ───

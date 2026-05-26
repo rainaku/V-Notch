@@ -18,6 +18,9 @@ public partial class MainWindow
     {
         if (_isExpanded || _isAnimating || _isGreetingActive) return;
 
+        // Don't reset hover visuals while a gesture drag is active — the user is still interacting
+        if (!isHovered && _isGestureActive) return;
+
         double targetScale = isHovered ? 1.08 : 1.0;
         var duration = isHovered ? _dur500 : _dur350;
         var easing = isHovered ? (IEasingFunction)_easeSoftSpring : _easeQuadOut;
@@ -30,6 +33,9 @@ public partial class MainWindow
     private void AnimateThumbnailHover(bool isHovered)
     {
         if (_isExpanded || _isAnimating || _isGreetingActive) return;
+
+        // Don't reset hover visuals while a gesture drag is active
+        if (!isHovered && _isGestureActive) return;
 
         double thumbScale = isHovered ? 1.5 : 1.0;
         double notchWidth = isHovered ? _collapsedWidth + 32 : _collapsedWidth;
@@ -436,13 +442,17 @@ public partial class MainWindow
 
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
     {
-        // Cancel any in-progress corner radius animation to prevent jitter from conflicting animations (e
+        // Capture the current visual radius BEFORE cancelling the animation.
+        // BeginAnimation(null) reverts to the local value which may differ from the
+        // in-flight animated value, causing a visual jump.
+        double startRadius = NotchBorder.CornerRadius.BottomLeft;
+
+        // Cancel any in-progress corner radius animation
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
-        double startRadius = NotchBorder.CornerRadius.BottomLeft;
-        
         if (Math.Abs(targetRadius - startRadius) < 0.5) return;
 
+        // Set local value to the captured visual state so there's no jump
         CurrentCornerRadius = startRadius;
 
         var anim = MakeAnim(startRadius, targetRadius, new Duration(duration), _easeExpOut6, null);
