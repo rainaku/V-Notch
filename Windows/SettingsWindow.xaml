@@ -1,6 +1,7 @@
 ﻿<Window x:Class="VNotch.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:VNotch.Controls"
         Title="V-Notch Settings"
         Width="860"
         Height="620"
@@ -50,11 +51,11 @@
 
         <Style x:Key="CardBorderStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardBg}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
+            <Setter Property="BorderBrush" Value="#0AFFFFFF"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="18"/>
-            <Setter Property="Padding" Value="18"/>
-            <Setter Property="Margin" Value="0,0,0,14"/>
+            <Setter Property="Padding" Value="18,14"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
             <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
             <Setter Property="RenderTransform">
                 <Setter.Value>
@@ -64,11 +65,6 @@
                     </TransformGroup>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="#20FFFFFF"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <Style x:Key="SettingTitleText" TargetType="TextBlock">
@@ -95,12 +91,11 @@
         </Style>
 
         <Style x:Key="SettingRowBorder" TargetType="Border">
-            <Setter Property="Background" Value="#0AFFFFFF"/>
-            <Setter Property="BorderBrush" Value="#10FFFFFF"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="14"/>
-            <Setter Property="Padding" Value="14,12"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="0,8"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
         </Style>
 
         <Style TargetType="CheckBox">
@@ -253,61 +248,81 @@
             </Setter>
         </Style>
 
-        <Style TargetType="Slider">
-            <Setter Property="Margin" Value="0,6,0,14"/>
-            <Setter Property="Height" Value="30"/>
+        <Style TargetType="controls:ElasticSlider">
+            <Setter Property="Margin" Value="0,2,0,4"/>
+            <Setter Property="Height" Value="Auto"/>
+            <Setter Property="MinHeight" Value="62"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="True"/>
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Slider">
-                        <Grid Height="30" SnapsToDevicePixels="True">
-                            <Track x:Name="PART_Track" VerticalAlignment="Center" Height="30">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
-                                        <RepeatButton.Template>
-                                            <ControlTemplate TargetType="RepeatButton">
-                                                <Border Height="6" CornerRadius="3" Background="{StaticResource AccentBrush}"/>
-                                            </ControlTemplate>
-                                        </RepeatButton.Template>
-                                    </RepeatButton>
-                                </Track.DecreaseRepeatButton>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
-                                        <RepeatButton.Template>
-                                            <ControlTemplate TargetType="RepeatButton">
-                                                <Border Height="6" CornerRadius="3" Background="{StaticResource TrackBg}"/>
-                                            </ControlTemplate>
-                                        </RepeatButton.Template>
-                                    </RepeatButton>
-                                </Track.IncreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Width="22" Height="22">
-                                        <Thumb.Template>
-                                            <ControlTemplate TargetType="Thumb">
-                                                <Grid RenderTransformOrigin="0.5,0.5">
-                                                    <Grid.RenderTransform>
-                                                        <ScaleTransform ScaleX="1" ScaleY="1"/>
-                                                    </Grid.RenderTransform>
-                                                    <Ellipse Fill="#0B000000" Margin="1,2,1,0" Opacity="0.34"/>
-                                                    <Ellipse x:Name="ThumbFace" Fill="#F7FAFD" Stroke="#E2EAF3" StrokeThickness="1"/>
-                                                </Grid>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="ThumbFace" Property="Fill" Value="White"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsDragging" Value="True">
-                                                        <Setter Property="RenderTransform">
-                                                            <Setter.Value>
-                                                                <ScaleTransform ScaleX="1.12" ScaleY="1.12"/>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Thumb.Template>
-                                    </Thumb>
-                                </Track.Thumb>
-                            </Track>
-                        </Grid>
+                    <ControlTemplate TargetType="controls:ElasticSlider">
+                        <StackPanel>
+                            <!-- Title label -->
+                            <TextBlock x:Name="PART_Label"
+                                       Margin="2,0,0,2"
+                                       FontSize="13"
+                                       FontWeight="Bold"
+                                       Foreground="White"
+                                       FontFamily="{StaticResource SFProDisplay}"
+                                       IsHitTestVisible="False"/>
+                            <!-- Description hint -->
+                            <TextBlock x:Name="PART_Description"
+                                       Margin="2,0,0,6"
+                                       FontSize="11.5"
+                                       FontWeight="Medium"
+                                       Foreground="{StaticResource MutedText}"
+                                       TextWrapping="Wrap"
+                                       FontFamily="{StaticResource SettingsFont}"
+                                       IsHitTestVisible="False"/>
+                            <!-- Capsule slider -->
+                            <Border x:Name="PART_Root"
+                                    Height="38"
+                                    CornerRadius="10"
+                                    Background="#14FFFFFF"
+                                    SnapsToDevicePixels="True"
+                                    ClipToBounds="True">
+                                <Grid>
+                                    <!-- Filled portion -->
+                                    <Border x:Name="PART_Fill"
+                                            HorizontalAlignment="Left"
+                                            CornerRadius="10"
+                                            Background="#1EFFFFFF"
+                                            Width="0"/>
+                                    <!-- Tick marks canvas -->
+                                    <Canvas x:Name="PART_Ticks"
+                                            IsHitTestVisible="False"/>
+                                    <!-- White indicator bar at current position -->
+                                    <Canvas IsHitTestVisible="False">
+                                        <Rectangle x:Name="PART_Indicator"
+                                                   Width="3"
+                                                   Height="18"
+                                                   RadiusX="1.5"
+                                                   RadiusY="1.5"
+                                                   Fill="White"
+                                                   Canvas.Top="10"
+                                                   Canvas.Left="0">
+                                            <Rectangle.Effect>
+                                                <DropShadowEffect BlurRadius="5" ShadowDepth="0"
+                                                                  Opacity="0.45" Color="White"/>
+                                            </Rectangle.Effect>
+                                        </Rectangle>
+                                    </Canvas>
+                                    <!-- Value text (right) — SF Pro Bold -->
+                                    <TextBlock x:Name="PART_Value"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               FontSize="13"
+                                               FontWeight="Bold"
+                                               Foreground="#DDFFFFFF"
+                                               FontFamily="{StaticResource SFProDisplay}"
+                                               IsHitTestVisible="False"/>
+                                    <!-- Hidden track for WPF internals -->
+                                    <Track x:Name="PART_Track" Visibility="Hidden"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -860,19 +875,14 @@
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SliderLabelGrid}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="WidthLabel" Text="Width" Style="{StaticResource SettingTitleText}"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
-                                            <Run x:Name="WidthValue" Text="360"/><Run Text=" px"/>
-                                        </TextBlock>
-                                    </Grid>
-                                    <TextBlock x:Name="WidthHint" Text="How wide the compact notch should sit on screen."
-                                               Style="{StaticResource SettingHintText}"/>
-                                    <Slider x:Name="WidthSlider"
+                                    <TextBlock x:Name="WidthLabel" Text="Width" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                        <Run x:Name="WidthValue" Text="360"/><Run Text=" px"/>
+                                    </TextBlock>
+                                    <TextBlock x:Name="WidthHint" Visibility="Collapsed"/>
+                                    <controls:ElasticSlider x:Name="WidthSlider"
+                                            Label="Width" Unit=" px"
+                                            Description="How wide the compact notch should sit on screen."
                                             Minimum="100"
                                             Maximum="400"
                                             Value="200"
@@ -884,19 +894,14 @@
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SliderLabelGrid}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="HeightLabel" Text="Height" Style="{StaticResource SettingTitleText}"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
-                                            <Run x:Name="HeightValue" Text="32"/><Run Text=" px"/>
-                                        </TextBlock>
-                                    </Grid>
-                                    <TextBlock x:Name="HeightHint" Text="Controls the compact profile thickness."
-                                               Style="{StaticResource SettingHintText}"/>
-                                    <Slider x:Name="HeightSlider"
+                                    <TextBlock x:Name="HeightLabel" Text="Height" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                        <Run x:Name="HeightValue" Text="32"/><Run Text=" px"/>
+                                    </TextBlock>
+                                    <TextBlock x:Name="HeightHint" Visibility="Collapsed"/>
+                                    <controls:ElasticSlider x:Name="HeightSlider"
+                                            Label="Height" Unit=" px"
+                                            Description="Controls the compact profile thickness."
                                             Minimum="20"
                                             Maximum="50"
                                             Value="32"
@@ -908,19 +913,14 @@
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SliderLabelGrid}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="RadiusLabel" Text="Corner Radius" Style="{StaticResource SettingTitleText}"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
-                                            <Run x:Name="RadiusValue" Text="16"/><Run Text=" px"/>
-                                        </TextBlock>
-                                    </Grid>
-                                    <TextBlock x:Name="RadiusHint" Text="Sharper for utility, softer for an island-like feel."
-                                               Style="{StaticResource SettingHintText}"/>
-                                    <Slider x:Name="RadiusSlider"
+                                    <TextBlock x:Name="RadiusLabel" Text="Corner Radius" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                        <Run x:Name="RadiusValue" Text="16"/><Run Text=" px"/>
+                                    </TextBlock>
+                                    <TextBlock x:Name="RadiusHint" Visibility="Collapsed"/>
+                                    <controls:ElasticSlider x:Name="RadiusSlider"
+                                            Label="Corner Radius" Unit=" px"
+                                            Description="Sharper for utility, softer for an island-like feel."
                                             Minimum="0"
                                             Maximum="30"
                                             Value="16"
@@ -932,19 +932,14 @@
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SliderLabelGrid}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="OpacityLabel" Text="Opacity" Style="{StaticResource SettingTitleText}"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
-                                            <Run x:Name="OpacityValue" Text="100"/><Run Text=" %"/>
-                                        </TextBlock>
-                                    </Grid>
-                                    <TextBlock x:Name="OpacityHint" Text="Blend the notch into the desktop or keep it crisp and solid."
-                                               Style="{StaticResource SettingHintText}"/>
-                                    <Slider x:Name="OpacitySlider"
+                                    <TextBlock x:Name="OpacityLabel" Text="Opacity" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                        <Run x:Name="OpacityValue" Text="100"/><Run Text=" %"/>
+                                    </TextBlock>
+                                    <TextBlock x:Name="OpacityHint" Visibility="Collapsed"/>
+                                    <controls:ElasticSlider x:Name="OpacitySlider"
+                                            Label="Opacity" Unit="%"
+                                            Description="Blend the notch into the desktop or keep it crisp and solid."
                                             Minimum="50"
                                             Maximum="100"
                                             Value="100"
@@ -956,19 +951,14 @@
 
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SliderLabelGrid}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="BlurLabel" Text="Blur Brightness" Style="{StaticResource SettingTitleText}"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
-                                            <Run x:Name="BlurBrightnessValue" Text="140"/><Run Text=" %"/>
-                                        </TextBlock>
-                                    </Grid>
-                                    <TextBlock x:Name="BlurHint" Text="Brighten the expanded media blur without changing the notch body opacity."
-                                               Style="{StaticResource SettingHintText}"/>
-                                    <Slider x:Name="BlurBrightnessSlider"
+                                    <TextBlock x:Name="BlurLabel" Text="Blur Brightness" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                        <Run x:Name="BlurBrightnessValue" Text="140"/><Run Text=" %"/>
+                                    </TextBlock>
+                                    <TextBlock x:Name="BlurHint" Visibility="Collapsed"/>
+                                    <controls:ElasticSlider x:Name="BlurBrightnessSlider"
+                                            Label="Blur Brightness" Unit="%"
+                                            Description="Brighten the expanded media blur without changing the notch body opacity."
                                             Minimum="100"
                                             Maximum="200"
                                             Value="140"
@@ -987,25 +977,21 @@
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,8,0,0"/>
 
-                                    <Grid Margin="0,12,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
-                                            <Run x:Name="BlurDarkOverlayValue" Text="30"/><Run Text=" %"/>
-                                        </TextBlock>
-                                    </Grid>
-                                    <TextBlock x:Name="DarkOverlayHint" Text="Add a dark layer over the lyrics background image to improve text readability."
-                                               Style="{StaticResource SettingHintText}"/>
-                                    <Slider x:Name="BlurDarkOverlaySlider"
+                                    <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}" Visibility="Collapsed" Margin="0,12,0,0"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                        <Run x:Name="BlurDarkOverlayValue" Text="30"/><Run Text=" %"/>
+                                    </TextBlock>
+                                    <TextBlock x:Name="DarkOverlayHint" Visibility="Collapsed"/>
+                                    <controls:ElasticSlider x:Name="BlurDarkOverlaySlider"
+                                            Label="Dark Overlay" Unit="%"
+                                            Description="Add a dark layer over the lyrics background image to improve text readability."
                                             Minimum="0"
                                             Maximum="80"
                                             Value="30"
                                             TickFrequency="5"
                                             IsSnapToTickEnabled="True"
-                                            ValueChanged="BlurDarkOverlaySlider_ValueChanged"/>
+                                            ValueChanged="BlurDarkOverlaySlider_ValueChanged"
+                                            Margin="0,12,0,0"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1029,19 +1015,14 @@
 
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SliderLabelGrid}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="ExpandDelayLabel" Text="Expand Delay" Style="{StaticResource SettingTitleText}"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource ValueText}">
-                                            <Run x:Name="HoverDelayValue" Text="100"/><Run Text=" ms"/>
-                                        </TextBlock>
-                                    </Grid>
-                                    <TextBlock x:Name="ExpandDelayHint" Text="Delay before hover opens the notch."
-                                               Style="{StaticResource SettingHintText}"/>
-                                    <Slider x:Name="HoverDelaySlider"
+                                    <TextBlock x:Name="ExpandDelayLabel" Text="Expand Delay" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                        <Run x:Name="HoverDelayValue" Text="100"/><Run Text=" ms"/>
+                                    </TextBlock>
+                                    <TextBlock x:Name="ExpandDelayHint" Visibility="Collapsed"/>
+                                    <controls:ElasticSlider x:Name="HoverDelaySlider"
+                                            Label="Expand Delay" Unit=" ms"
+                                            Description="Delay before hover opens the notch."
                                             Minimum="0"
                                             Maximum="500"
                                             Value="100"

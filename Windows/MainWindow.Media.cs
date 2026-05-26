@@ -73,6 +73,16 @@ public partial class MainWindow
                 CompactTitleMarquee.Text = result.DisplayText.Title;
             }
 
+            // ─── Shimmer effect for idle state ───
+            if (!result.HasRealTrack && !info.IsAnyMediaPlaying)
+            {
+                StartTitleShimmer();
+            }
+            else
+            {
+                StopTitleShimmer();
+            }
+
             // ─── Thumbnail Handling ───
             if (result.HasRealTrack)
             {
@@ -663,6 +673,106 @@ public partial class MainWindow
             CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
             CompactThumbnailBorder.Opacity = 1.0;
         };
+    }
+
+    #endregion
+
+    #region Title Shimmer Effect
+
+    private Storyboard? _titleShimmerStoryboard;
+    private bool _isShimmerActive;
+
+    /// <summary>
+    /// Starts a subtle shimmering highlight sweep on the "No media playing" text.
+    /// Uses an animated LinearGradientBrush that sweeps a bright highlight across the text.
+    /// </summary>
+    private void StartTitleShimmer()
+    {
+        if (_isShimmerActive) return;
+        _isShimmerActive = true;
+
+        // Create a shimmer gradient brush: dark gray → white highlight → dark gray
+        var shimmerBrush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0.5),
+            EndPoint = new Point(1, 0.5),
+            MappingMode = BrushMappingMode.RelativeToBoundingBox
+        };
+
+        // Base color is a muted gray, highlight is white
+        var stop0 = new GradientStop(Color.FromArgb(180, 255, 255, 255), 0.0);
+        var stop1 = new GradientStop(Color.FromArgb(255, 255, 255, 255), 0.0);
+        var stop2 = new GradientStop(Color.FromArgb(180, 255, 255, 255), 0.0);
+
+        shimmerBrush.GradientStops.Add(stop0);
+        shimmerBrush.GradientStops.Add(stop1);
+        shimmerBrush.GradientStops.Add(stop2);
+
+        // Apply the brush to the TrackTitle
+        TrackTitle.Foreground = shimmerBrush;
+
+        // Animate the gradient stops to sweep from left to right
+        var duration = TimeSpan.FromMilliseconds(2200);
+        var storyboard = new Storyboard
+        {
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+
+        // Stop 0: leading edge of highlight
+        var anim0 = new DoubleAnimation(-0.4, 0.6, duration)
+        {
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        Storyboard.SetTarget(anim0, TrackTitle);
+        Storyboard.SetTargetProperty(anim0,
+            new PropertyPath("(TextBlock.Foreground).(GradientBrush.GradientStops)[0].(GradientStop.Offset)"));
+
+        // Stop 1: center of highlight (bright peak)
+        var anim1 = new DoubleAnimation(-0.2, 0.8, duration)
+        {
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        Storyboard.SetTarget(anim1, TrackTitle);
+        Storyboard.SetTargetProperty(anim1,
+            new PropertyPath("(TextBlock.Foreground).(GradientBrush.GradientStops)[1].(GradientStop.Offset)"));
+
+        // Stop 2: trailing edge of highlight
+        var anim2 = new DoubleAnimation(0.0, 1.0, duration)
+        {
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        };
+        Storyboard.SetTarget(anim2, TrackTitle);
+        Storyboard.SetTargetProperty(anim2,
+            new PropertyPath("(TextBlock.Foreground).(GradientBrush.GradientStops)[2].(GradientStop.Offset)"));
+
+        storyboard.Children.Add(anim0);
+        storyboard.Children.Add(anim1);
+        storyboard.Children.Add(anim2);
+
+        _titleShimmerStoryboard = storyboard;
+        storyboard.Begin(this, true);
+    }
+
+    /// <summary>
+    /// Stops the shimmer effect and restores the normal title foreground.
+    /// </summary>
+    private void StopTitleShimmer()
+    {
+        if (!_isShimmerActive) return;
+        _isShimmerActive = false;
+
+        _titleShimmerStoryboard?.Stop(this);
+        _titleShimmerStoryboard = null;
+
+        // Restore the normal gradient brush from resources
+        if (TryFindResource("TrackTitleGradient") is Brush normalBrush)
+        {
+            TrackTitle.Foreground = normalBrush;
+        }
+        else
+        {
+            TrackTitle.Foreground = Brushes.White;
+        }
     }
 
     #endregion

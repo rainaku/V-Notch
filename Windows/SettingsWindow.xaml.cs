@@ -4,6 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
+using VNotch.Controls;
 using VNotch.Models;
 using VNotch.Services;
 
@@ -144,17 +145,23 @@ public event EventHandler? AnimatedClosing;
 
         // Appearance labels & hints
         WidthLabel.Text = Loc.Get("settings.width");
-        WidthHint.Text = Loc.Get("settings.width.hint");
+        WidthSlider.Label = Loc.Get("settings.width");
+        WidthSlider.Description = Loc.Get("settings.width.hint");
         HeightLabel.Text = Loc.Get("settings.height");
-        HeightHint.Text = Loc.Get("settings.height.hint");
+        HeightSlider.Label = Loc.Get("settings.height");
+        HeightSlider.Description = Loc.Get("settings.height.hint");
         RadiusLabel.Text = Loc.Get("settings.cornerRadius");
-        RadiusHint.Text = Loc.Get("settings.cornerRadius.hint");
+        RadiusSlider.Label = Loc.Get("settings.cornerRadius");
+        RadiusSlider.Description = Loc.Get("settings.cornerRadius.hint");
         OpacityLabel.Text = Loc.Get("settings.opacity");
-        OpacityHint.Text = Loc.Get("settings.opacity.hint");
+        OpacitySlider.Label = Loc.Get("settings.opacity");
+        OpacitySlider.Description = Loc.Get("settings.opacity.hint");
         BlurLabel.Text = Loc.Get("settings.blurBrightness");
-        BlurHint.Text = Loc.Get("settings.blurBrightness.hint");
+        BlurBrightnessSlider.Label = Loc.Get("settings.blurBrightness");
+        BlurBrightnessSlider.Description = Loc.Get("settings.blurBrightness.hint");
         DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay");
-        DarkOverlayHint.Text = Loc.Get("settings.lyricsDarkOverlay.hint");
+        BlurDarkOverlaySlider.Label = Loc.Get("settings.lyricsDarkOverlay");
+        BlurDarkOverlaySlider.Description = Loc.Get("settings.lyricsDarkOverlay.hint");
         EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics");
         EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint");
 
@@ -162,7 +169,8 @@ public event EventHandler? AnimatedClosing;
         HoverExpandCheck.Content = Loc.Get("settings.hoverExpand");
         HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint");
         ExpandDelayLabel.Text = Loc.Get("settings.expandDelay");
-        ExpandDelayHint.Text = Loc.Get("settings.expandDelay.hint");
+        HoverDelaySlider.Label = Loc.Get("settings.expandDelay");
+        HoverDelaySlider.Description = Loc.Get("settings.expandDelay.hint");
         DisableMouseLeaveAutoCloseCheck.Content = Loc.Get("settings.disableAutoClose");
         DisableMouseLeaveAutoCloseHint.Text = Loc.Get("settings.disableAutoClose.hint");
 
@@ -411,24 +419,17 @@ public event EventHandler? AnimatedClosing;
             (SystemHeader, () => SystemHeader.Text = Loc.Get("settings.system")),
 
             // Appearance
-            (WidthLabel, () => WidthLabel.Text = Loc.Get("settings.width")),
-            (WidthHint, () => WidthHint.Text = Loc.Get("settings.width.hint")),
-            (HeightLabel, () => HeightLabel.Text = Loc.Get("settings.height")),
-            (HeightHint, () => HeightHint.Text = Loc.Get("settings.height.hint")),
-            (RadiusLabel, () => RadiusLabel.Text = Loc.Get("settings.cornerRadius")),
-            (RadiusHint, () => RadiusHint.Text = Loc.Get("settings.cornerRadius.hint")),
-            (OpacityLabel, () => OpacityLabel.Text = Loc.Get("settings.opacity")),
-            (OpacityHint, () => OpacityHint.Text = Loc.Get("settings.opacity.hint")),
-            (BlurLabel, () => BlurLabel.Text = Loc.Get("settings.blurBrightness")),
-            (BlurHint, () => BlurHint.Text = Loc.Get("settings.blurBrightness.hint")),
-            (DarkOverlayLabel, () => DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay")),
-            (DarkOverlayHint, () => DarkOverlayHint.Text = Loc.Get("settings.lyricsDarkOverlay.hint")),
+            (WidthLabel, () => { WidthLabel.Text = Loc.Get("settings.width"); WidthSlider.Label = Loc.Get("settings.width"); WidthSlider.Description = Loc.Get("settings.width.hint"); }),
+            (HeightLabel, () => { HeightLabel.Text = Loc.Get("settings.height"); HeightSlider.Label = Loc.Get("settings.height"); HeightSlider.Description = Loc.Get("settings.height.hint"); }),
+            (RadiusLabel, () => { RadiusLabel.Text = Loc.Get("settings.cornerRadius"); RadiusSlider.Label = Loc.Get("settings.cornerRadius"); RadiusSlider.Description = Loc.Get("settings.cornerRadius.hint"); }),
+            (OpacityLabel, () => { OpacityLabel.Text = Loc.Get("settings.opacity"); OpacitySlider.Label = Loc.Get("settings.opacity"); OpacitySlider.Description = Loc.Get("settings.opacity.hint"); }),
+            (BlurLabel, () => { BlurLabel.Text = Loc.Get("settings.blurBrightness"); BlurBrightnessSlider.Label = Loc.Get("settings.blurBrightness"); BlurBrightnessSlider.Description = Loc.Get("settings.blurBrightness.hint"); }),
+            (DarkOverlayLabel, () => { DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay"); BlurDarkOverlaySlider.Label = Loc.Get("settings.lyricsDarkOverlay"); BlurDarkOverlaySlider.Description = Loc.Get("settings.lyricsDarkOverlay.hint"); }),
             (EnableSpotifyLyricsHint, () => EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint")),
 
             // Behavior
             (HoverExpandHint, () => HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint")),
-            (ExpandDelayLabel, () => ExpandDelayLabel.Text = Loc.Get("settings.expandDelay")),
-            (ExpandDelayHint, () => ExpandDelayHint.Text = Loc.Get("settings.expandDelay.hint")),
+            (ExpandDelayLabel, () => { ExpandDelayLabel.Text = Loc.Get("settings.expandDelay"); HoverDelaySlider.Label = Loc.Get("settings.expandDelay"); HoverDelaySlider.Description = Loc.Get("settings.expandDelay.hint"); }),
             (DisableMouseLeaveAutoCloseHint, () => DisableMouseLeaveAutoCloseHint.Text = Loc.Get("settings.disableAutoClose.hint")),
 
             // Updates
