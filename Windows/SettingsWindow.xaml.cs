@@ -1195,27 +1195,51 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     {
         if (_availableUpdate == null) return;
 
-        var result = MessageBox.Show(
-            $"Do you want to download and install version {_availableUpdate.Version}?\n\n" +
-            $"Release Notes:\n{_availableUpdate.ReleaseNotes.Substring(0, Math.Min(200, _availableUpdate.ReleaseNotes.Length))}...\n\n" +
-            "The application will close and the installer will run.",
-            "Update Available",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+        UpdateStatusText.Text = Loc.Get("update.preparing");
+        DownloadUpdateButton.IsEnabled = false;
+        CheckUpdateButton.IsEnabled = false;
 
-        if (result == MessageBoxResult.Yes)
+        var updateProgressWindow = new UpdateDownloadWindow();
+        updateProgressWindow.SetIndeterminate(Loc.Get("update.preparing"));
+        updateProgressWindow.Show();
+
+        var downloadProgress = new Progress<double>(p =>
         {
-            UpdateStatusText.Text = "Downloading update...";
-            DownloadUpdateButton.IsEnabled = false;
+            if (p < 0)
+            {
+                updateProgressWindow.SetIndeterminate(Loc.Get("update.downloading"));
+                UpdateStatusText.Text = Loc.Get("update.downloading");
+                return;
+            }
 
-            var success = await _updateService.DownloadAndInstallUpdateAsync(_availableUpdate);
+            updateProgressWindow.SetStatus(Loc.Get("update.downloadingPercent", (int)p));
+            updateProgressWindow.SetProgress(p);
+            UpdateStatusText.Text = Loc.Get("update.downloadingPercent", (int)p);
+        });
+
+        try
+        {
+            var success = await _updateService.DownloadAndInstallUpdateAsync(_availableUpdate, downloadProgress);
 
             if (!success)
             {
-                UpdateStatusText.Text = "Failed to download update";
+                updateProgressWindow.Close();
+                UpdateStatusText.Text = Loc.Get("settings.updateAvailable", _availableUpdate.Version);
                 DownloadUpdateButton.IsEnabled = true;
-                MessageBox.Show("Failed to download or install the update. Please try again later.", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                CheckUpdateButton.IsEnabled = true;
+                MessageBox.Show(
+                    Loc.Get("error.updateFailed"),
+                    Loc.Get("error.updateFailedTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
+        }
+        catch (Exception ex)
+        {
+            updateProgressWindow.Close();
+            UpdateStatusText.Text = $"Error: {ex.Message}";
+            DownloadUpdateButton.IsEnabled = true;
+            CheckUpdateButton.IsEnabled = true;
         }
     }
 

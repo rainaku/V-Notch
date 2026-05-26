@@ -691,7 +691,7 @@ public partial class MainWindow
         if (_isShimmerActive) return;
         _isShimmerActive = true;
 
-        // Create a shimmer gradient brush: dark gray → white highlight → dark gray
+        // Create a shimmer gradient brush: base color → white highlight → base color
         var shimmerBrush = new LinearGradientBrush
         {
             StartPoint = new Point(0, 0.5),
@@ -699,10 +699,10 @@ public partial class MainWindow
             MappingMode = BrushMappingMode.RelativeToBoundingBox
         };
 
-        // Base color is a muted gray, highlight is white
-        var stop0 = new GradientStop(Color.FromArgb(180, 255, 255, 255), 0.0);
-        var stop1 = new GradientStop(Color.FromArgb(255, 255, 255, 255), 0.0);
-        var stop2 = new GradientStop(Color.FromArgb(180, 255, 255, 255), 0.0);
+        // All stops start off-screen to the left so the loop is seamless
+        var stop0 = new GradientStop(Color.FromArgb(180, 255, 255, 255), -0.5);
+        var stop1 = new GradientStop(Color.FromArgb(255, 255, 255, 255), -0.3);
+        var stop2 = new GradientStop(Color.FromArgb(180, 255, 255, 255), -0.1);
 
         shimmerBrush.GradientStops.Add(stop0);
         shimmerBrush.GradientStops.Add(stop1);
@@ -712,34 +712,42 @@ public partial class MainWindow
         TrackTitle.Foreground = shimmerBrush;
 
         // Animate the gradient stops to sweep from left to right
-        var duration = TimeSpan.FromMilliseconds(2200);
+        // The highlight band (0.2 wide) sweeps fully off-screen on both ends
+        // so start and end frames are visually identical → seamless loop
+        var duration = TimeSpan.FromMilliseconds(2500);
         var storyboard = new Storyboard
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
 
         // Stop 0: leading edge of highlight
-        var anim0 = new DoubleAnimation(-0.4, 0.6, duration)
+        var anim0 = new DoubleAnimation
         {
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            From = -0.5,
+            To = 1.1,
+            Duration = duration
         };
         Storyboard.SetTarget(anim0, TrackTitle);
         Storyboard.SetTargetProperty(anim0,
             new PropertyPath("(TextBlock.Foreground).(GradientBrush.GradientStops)[0].(GradientStop.Offset)"));
 
         // Stop 1: center of highlight (bright peak)
-        var anim1 = new DoubleAnimation(-0.2, 0.8, duration)
+        var anim1 = new DoubleAnimation
         {
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            From = -0.3,
+            To = 1.3,
+            Duration = duration
         };
         Storyboard.SetTarget(anim1, TrackTitle);
         Storyboard.SetTargetProperty(anim1,
             new PropertyPath("(TextBlock.Foreground).(GradientBrush.GradientStops)[1].(GradientStop.Offset)"));
 
         // Stop 2: trailing edge of highlight
-        var anim2 = new DoubleAnimation(0.0, 1.0, duration)
+        var anim2 = new DoubleAnimation
         {
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            From = -0.1,
+            To = 1.5,
+            Duration = duration
         };
         Storyboard.SetTarget(anim2, TrackTitle);
         Storyboard.SetTargetProperty(anim2,

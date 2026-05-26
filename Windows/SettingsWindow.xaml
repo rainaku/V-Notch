@@ -851,8 +851,8 @@
                 </Grid>
             </Border>
 
-            <ScrollViewer x:Name="SettingsScrollViewer"
-                          Grid.Row="1"
+            <Grid Grid.Row="1">
+                <ScrollViewer x:Name="SettingsScrollViewer"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="20,18,14,14"
@@ -1071,7 +1071,7 @@
                                     <Button x:Name="CheckUpdateButton"
                                             Grid.Column="1"
                                             Content="Check"
-                                            Width="92"
+                                            MinWidth="92"
                                             Height="40"
                                             Click="CheckUpdate_Click"/>
                                 </Grid>
@@ -1081,7 +1081,8 @@
                                     Content="Download &amp; Install Update"
                                     Visibility="Collapsed"
                                     Click="DownloadUpdate_Click"
-                                    Style="{StaticResource PrimaryButton}"/>
+                                    Style="{StaticResource PrimaryButton}"
+                                    Margin="0,4,0,0"/>
 
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,12,0,0">
                                 <Grid>
@@ -1382,11 +1383,32 @@
                 </Grid>
             </ScrollViewer>
 
+                <!-- Top fade marquee -->
+                <Border IsHitTestVisible="False" VerticalAlignment="Top" Height="32">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#FF000000" Offset="0"/>
+                            <GradientStop Color="#00000000" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+
+                <!-- Bottom fade marquee -->
+                <Border IsHitTestVisible="False" VerticalAlignment="Bottom" Height="32">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#00000000" Offset="0"/>
+                            <GradientStop Color="#FF000000" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+            </Grid>
+
             <Border x:Name="FooterBar"
                     Grid.Row="2"
-                    Background="#D1050505"
-                    BorderBrush="#10FFFFFF"
-                    BorderThickness="0,1,0,0"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="0"
                     CornerRadius="0,0,24,24"
                     Padding="18"
                     Opacity="0">
