@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -11,6 +12,17 @@ using Windows.Storage.FileProperties;
 namespace VNotch.Services;
 internal static class FileIconProvider
 {
+    // ─── Icon Cache ───
+    // Key: full file path (case-insensitive). Frozen ImageSource values are thread-safe.
+    private static readonly ConcurrentDictionary<string, ImageSource?> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxCacheSize = 200;
+
+    /// <summary>Evicts a single path from the cache (e.g. after rename/delete).</summary>
+    public static void Invalidate(string filePath) => _iconCache.TryRemove(filePath, out _);
+
+    /// <summary>Clears the entire icon cache.</summary>
+    public static void ClearCache() => _iconCache.Clear();
+
     #region Native interop
 
     [DllImport("gdi32.dll")]
@@ -44,33 +56,43 @@ internal static class FileIconProvider
     #endregion
 public static ImageSource? GetFileIcon(string filePath)
     {
+        // Fast path: return cached icon without any I/O
+        if (_iconCache.TryGetValue(filePath, out var cached))
+            return cached;
+
         try
         {
             if (!File.Exists(filePath)) return null;
+
+            // Prevent unbounded growth
+            if (_iconCache.Count >= MaxCacheSize)
+                _iconCache.Clear();
 
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
             bool isImage = ext is ".jpg" or ".jpeg" or ".png" or ".bmp" or ".gif";
             bool isVideo = ext is ".mp4" or ".mkv" or ".avi" or ".mov" or ".wmv" or ".flv" or ".webm";
 
+            ImageSource? result = null;
+
             if (isImage || isVideo)
             {
                 if (isVideo)
                 {
-                    var videoThumb = TryGetVideoThumbnail(filePath);
-                    if (videoThumb != null) return videoThumb;
+                    result = TryGetVideoThumbnail(filePath);
                 }
 
-                var shellThumb = TryGetShellThumbnail(filePath, 128);
-                if (shellThumb != null) return shellThumb;
+                result ??= TryGetShellThumbnail(filePath, 128);
 
-                if (isImage)
+                if (result == null && isImage)
                 {
-                    var directImage = TryGetDirectImage(filePath);
-                    if (directImage != null) return directImage;
+                    result = TryGetDirectImage(filePath);
                 }
             }
 
-            return TryGetAssociatedIcon(filePath);
+            result ??= TryGetAssociatedIcon(filePath);
+
+            _iconCache[filePath] = result;
+            return result;
         }
         catch
         {

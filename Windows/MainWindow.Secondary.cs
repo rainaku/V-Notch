@@ -122,14 +122,17 @@ public partial class MainWindow
             }
         }
 
-        // Schedule next file processing after animation delay
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
-        timer.Tick += (s, args) =>
+        // Reuse a single timer for sequential processing instead of allocating per file
+        if (_shelfProcessNextTimer == null)
         {
-            timer.Stop();
-            _fileShelf.ProcessNext();
-        };
-        timer.Start();
+            _shelfProcessNextTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
+            _shelfProcessNextTimer.Tick += (s, args) =>
+            {
+                _shelfProcessNextTimer.Stop();
+                _fileShelf.ProcessNext();
+            };
+        }
+        _shelfProcessNextTimer.Start();
     }
 
     private void OnShelfCapacityChanged()
@@ -237,6 +240,9 @@ public partial class MainWindow
 
     #region Drag & Drop Events
 
+    private DateTime _lastDragOverValidation = DateTime.MinValue;
+    private FileShelfController.DropValidation? _cachedDragValidation;
+
     private void FileShelf_DragEnter(object sender, DragEventArgs e)
     {
         var files = e.Data.GetDataPresent(DataFormats.FileDrop)
@@ -244,35 +250,38 @@ public partial class MainWindow
             : null;
 
         var validation = _fileShelf.ValidateDrop(files);
+        _cachedDragValidation = validation;
+        _lastDragOverValidation = DateTime.UtcNow;
 
-        switch (validation.Result)
-        {
-            case FileShelfController.DropResult.Accept:
-                e.Effects = DragDropEffects.Copy;
-                SetShelfDropAcceptVisualState();
-                break;
-            case FileShelfController.DropResult.UnlockPrompt:
-                e.Effects = DragDropEffects.Copy;
-                SetShelfDropUnlockHintVisualState();
-                break;
-            default:
-                e.Effects = DragDropEffects.None;
-                if (!string.IsNullOrEmpty(validation.Message))
-                    SetShelfDropRejectVisualState(validation.Message);
-                break;
-        }
-
+        ApplyDragValidationVisual(validation, e);
         e.Handled = true;
     }
 
     private void FileShelf_DragOver(object sender, DragEventArgs e)
     {
+        // Throttle validation — DragOver fires at high frequency but the result rarely changes
+        var now = DateTime.UtcNow;
+        if (_cachedDragValidation != null && (now - _lastDragOverValidation).TotalMilliseconds < 100)
+        {
+            ApplyDragValidationVisual(_cachedDragValidation, e);
+            e.Handled = true;
+            return;
+        }
+
         var files = e.Data.GetDataPresent(DataFormats.FileDrop)
             ? e.Data.GetData(DataFormats.FileDrop) as string[]
             : null;
 
         var validation = _fileShelf.ValidateDrop(files);
+        _cachedDragValidation = validation;
+        _lastDragOverValidation = now;
 
+        ApplyDragValidationVisual(validation, e);
+        e.Handled = true;
+    }
+
+    private void ApplyDragValidationVisual(FileShelfController.DropValidation validation, DragEventArgs e)
+    {
         switch (validation.Result)
         {
             case FileShelfController.DropResult.Accept:
@@ -289,18 +298,18 @@ public partial class MainWindow
                     SetShelfDropRejectVisualState(validation.Message);
                 break;
         }
-
-        e.Handled = true;
     }
 
     private void FileShelf_DragLeave(object sender, DragEventArgs e)
     {
+        _cachedDragValidation = null;
         ResetShelfDropVisualState();
         e.Handled = true;
     }
 
     private void FileShelf_Drop(object sender, DragEventArgs e)
     {
+        _cachedDragValidation = null;
         ResetShelfDropVisualState();
 
         var files = e.Data.GetDataPresent(DataFormats.FileDrop)
@@ -387,13 +396,67 @@ public partial class MainWindow
 
     #region Shelf Layout & Item Creation
 
+    // Cached brushes for hover states — avoids BrushConverter allocations per event
+    private static readonly SolidColorBrush _brushShelfHoverBg = CreateFrozenBrush(48, 48, 48);
+    private static readonly SolidColorBrush _brushShelfHoverBorder = CreateFrozenBrush(85, 85, 85);
+
+    // Reusable DispatcherTimer for sequential file processing (avoids allocation per file)
+    private DispatcherTimer? _shelfProcessNextTimer;
+
     private void RefreshShelfLayout()
     {
-        ShelfItemsContainer.Children.Clear();
-        bool useSmallSize = _fileShelf.FileCount > 4;
+        var files = _fileShelf.Files;
+        int fileCount = files.Count;
+        bool useSmallSize = fileCount > 4;
 
-        foreach (var file in _fileShelf.Files)
+        // Differential update: reuse existing items where possible
+        int existingCount = ShelfItemsContainer.Children.Count;
+
+        // If size mode changed or item count differs significantly, rebuild
+        if (existingCount > 0 && fileCount > 0)
         {
+            var firstExisting = ShelfItemsContainer.Children[0] as Border;
+            double expectedWidth = useSmallSize ? 48 : 58;
+            bool sizeChanged = firstExisting != null && Math.Abs(firstExisting.Width - expectedWidth) > 0.1;
+
+            if (!sizeChanged && existingCount == fileCount)
+            {
+                // Fast path: same count, same size — just update tags and selection state
+                for (int i = 0; i < fileCount; i++)
+                {
+                    var border = ShelfItemsContainer.Children[i] as Border;
+                    var file = files[i];
+                    if (border != null && (string)border.Tag == file)
+                    {
+                        UpdateShelfItemVisualState(border, _fileShelf.IsSelected(file));
+                        continue;
+                    }
+                    // Path changed at this index — need to rebuild from here
+                    RemoveChildrenFrom(i);
+                    AppendShelfItems(files, i, useSmallSize);
+                    return;
+                }
+                return;
+            }
+        }
+
+        // Full rebuild (size mode changed or first load)
+        ShelfItemsContainer.Children.Clear();
+        AppendShelfItems(files, 0, useSmallSize);
+    }
+
+    private void RemoveChildrenFrom(int startIndex)
+    {
+        int count = ShelfItemsContainer.Children.Count;
+        for (int i = count - 1; i >= startIndex; i--)
+            ShelfItemsContainer.Children.RemoveAt(i);
+    }
+
+    private void AppendShelfItems(IReadOnlyList<string> files, int startIndex, bool useSmallSize)
+    {
+        for (int i = startIndex; i < files.Count; i++)
+        {
+            var file = files[i];
             var item = CreateShelfItem(file, useSmallSize);
 
             if (_fileShelf.IsSelected(file))
@@ -419,8 +482,8 @@ public partial class MainWindow
             Height = height,
             Margin = new Thickness(4),
             CornerRadius = new CornerRadius(isSmall ? 8 : 12),
-            Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#252525")!,
-            BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom("#333333")!,
+            Background = _brushShelfItemBg,
+            BorderBrush = _brushShelfItemBorder,
             BorderThickness = new Thickness(1),
             ToolTip = fileName,
             Tag = filePath,
@@ -439,7 +502,6 @@ public partial class MainWindow
             Height = iconSize,
             Margin = new Thickness(0, isSmall ? 2 : 6, 0, isSmall ? 2 : 4),
             Stretch = Stretch.UniformToFill,
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, Opacity = 0.3, ShadowDepth = 2 },
             Clip = new RectangleGeometry
             {
                 RadiusX = isSmall ? 4 : 6,
@@ -450,18 +512,19 @@ public partial class MainWindow
 
         stack.Children.Add(image);
 
-        var text = new TextBlock
+        if (!isSmall)
         {
-            Text = fileName,
-            Style = (Style)FindResource("SmallText"),
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.NoWrap,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(isSmall ? 2 : 6, 0, isSmall ? 2 : 6, isSmall ? 2 : 6),
-            Visibility = isSmall ? Visibility.Collapsed : Visibility.Visible
-        };
-
-        if (!isSmall) stack.Children.Add(text);
+            var text = new TextBlock
+            {
+                Text = fileName,
+                Style = (Style)FindResource("SmallText"),
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.NoWrap,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(6, 0, 6, 6),
+            };
+            stack.Children.Add(text);
+        }
 
         border.Child = stack;
 
@@ -479,8 +542,8 @@ public partial class MainWindow
         {
             if (!_fileShelf.IsSelected(filePath))
             {
-                border.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#303030")!;
-                border.BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom("#555555")!;
+                border.Background = _brushShelfHoverBg;
+                border.BorderBrush = _brushShelfHoverBorder;
             }
             if (!_isSweepSelecting && border.RenderTransform is ScaleTransform st)
                 AnimateButtonScale(st, 1.05);
@@ -489,8 +552,8 @@ public partial class MainWindow
         {
             if (!_fileShelf.IsSelected(filePath))
             {
-                border.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#252525")!;
-                border.BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom("#333333")!;
+                border.Background = _brushShelfItemBg;
+                border.BorderBrush = _brushShelfItemBorder;
             }
             if (!_isSweepSelecting && border.RenderTransform is ScaleTransform st)
                 AnimateButtonScale(st, 1.0);
@@ -733,10 +796,13 @@ public partial class MainWindow
 
         // Determine which items intersect the selection rectangle
         var intersected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var child in ShelfItemsContainer.Children)
+        int childCount = ShelfItemsContainer.Children.Count;
+        for (int i = 0; i < childCount; i++)
         {
-            if (child is Border item && item.Tag is string path)
+            if (ShelfItemsContainer.Children[i] is Border item && item.Tag is string path)
             {
+                // Use cached position from layout (Margin + index) for fast hit-testing
+                // TransformToAncestor is expensive — only use it when layout is complex
                 GeneralTransform transform = item.TransformToAncestor(FileShelfGrid);
                 Rect itemBounds = transform.TransformBounds(new Rect(0, 0, item.ActualWidth, item.ActualHeight));
 
@@ -748,9 +814,9 @@ public partial class MainWindow
         _fileShelf.ApplyRectangleSelection(intersected, isCtrl, _selectionInitialState);
 
         // Update visuals
-        foreach (var child in ShelfItemsContainer.Children)
+        for (int i = 0; i < childCount; i++)
         {
-            if (child is Border item && item.Tag is string path)
+            if (ShelfItemsContainer.Children[i] is Border item && item.Tag is string path)
                 UpdateShelfItemVisualState(item, _fileShelf.IsSelected(path));
         }
     }

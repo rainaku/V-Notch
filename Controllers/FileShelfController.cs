@@ -329,7 +329,10 @@ public sealed class FileShelfController : IDisposable
             InvalidateSnapshot();
         }
         foreach (var file in toRemove)
+        {
             UnwatchDirectory(file);
+            FileIconProvider.Invalidate(file);
+        }
         CapacityChanged?.Invoke();
     }
     public void RemoveFile(string filePath)
@@ -342,6 +345,7 @@ public sealed class FileShelfController : IDisposable
             InvalidateSnapshot();
         }
         UnwatchDirectory(filePath);
+        FileIconProvider.Invalidate(filePath);
         CapacityChanged?.Invoke();
     }
     public List<string> GetSelectedForDeletion() { lock (_lock) return _selectedFiles.ToList(); }
@@ -471,8 +475,15 @@ public sealed class FileShelfController : IDisposable
         bool hasOtherFiles;
         lock (_lock)
         {
-            hasOtherFiles = _filesList.Any(f =>
-                string.Equals(Path.GetDirectoryName(f), dir, StringComparison.OrdinalIgnoreCase));
+            hasOtherFiles = false;
+            foreach (var f in _filesList)
+            {
+                if (string.Equals(Path.GetDirectoryName(f), dir, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasOtherFiles = true;
+                    break;
+                }
+            }
         }
 
         if (!hasOtherFiles && _watchers.TryGetValue(dir, out var watcher))
