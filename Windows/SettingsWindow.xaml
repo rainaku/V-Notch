@@ -1204,6 +1204,15 @@
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
+                                    <CheckBox x:Name="HelloGreetingCheck" x:Uid="helloGreeting" Content="Hello greeting on startup"/>
+                                    <TextBlock x:Name="HelloGreetingHint" Text="Show handwriting 'hello' animation when the app starts."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingRowBorder}">
+                                <StackPanel>
                                     <CheckBox x:Name="HideOnExclusiveFullscreenCheck" x:Uid="hideExclusiveFs" Content="Hide on exclusive fullscreen"/>
                                     <TextBlock x:Name="HideOnExclusiveFullscreenHint" Text="Hide the notch when a true fullscreen app is detected."
                                                Style="{StaticResource SettingHintText}"

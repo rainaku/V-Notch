@@ -99,6 +99,7 @@ public event EventHandler? AnimatedClosing;
         MonitorCombo.SelectedIndex = Math.Min(_settings.MonitorIndex, monitors.Length - 1);
 
         AutoStartCheck.IsChecked = StartupManager.IsAutoStartEnabled();
+        HelloGreetingCheck.IsChecked = _settings.EnableHelloGreeting;
         HideOnExclusiveFullscreenCheck.IsChecked = _settings.HideOnExclusiveFullscreen;
         HideOnWindowedFullscreenCheck.IsChecked = _settings.HideOnWindowedFullscreen;
         MusicNotifyCheck.IsChecked = _settings.ShowMusicNotifications;
@@ -1063,6 +1064,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
         _settings.MonitorIndex = MonitorCombo.SelectedIndex;
         _settings.AutoStart = AutoStartCheck.IsChecked ?? false;
+        _settings.EnableHelloGreeting = HelloGreetingCheck.IsChecked ?? true;
         _settings.HideOnExclusiveFullscreen = HideOnExclusiveFullscreenCheck.IsChecked ?? true;
         _settings.HideOnWindowedFullscreen = HideOnWindowedFullscreenCheck.IsChecked ?? true;
         _settings.ShowMusicNotifications = MusicNotifyCheck.IsChecked ?? true;

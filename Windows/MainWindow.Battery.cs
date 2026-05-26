@@ -12,7 +12,7 @@ namespace VNotch;
 public partial class MainWindow
 {
     private Storyboard? _chargingPulseStoryboard;
-    private bool _wasCharging = false;
+    private bool _wasCharging = true; // Start as true to suppress notification on first battery update at app launch
     private bool _isChargingNotificationVisible = false;
     private DispatcherTimer? _chargingNotificationDismissTimer;
 

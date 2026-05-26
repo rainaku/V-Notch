@@ -20,24 +20,24 @@ public sealed class SmartThumbnailCropService : IDisposable
     private const int ModelInputSize = 640;
 
     // ─── Object Detection Rules ───
-    private const float ConfidenceThreshold = 0.50f;       // ≥ 0.5 to filter noise/false positives
-    private const float PersonConfidenceThreshold = 0.15f; // Lower for person class (priority)
-    private const float NmsThreshold = 0.45f;              // IoU ≤ 0.45 to merge overlapping bboxes
-    private const float MinAreaRatio = 0.05f;              // ≥ 5% of frame area for non-person objects
-    private const float MinPersonAreaRatio = 0.01f;        // Lower threshold for persons
+    private const float ConfidenceThreshold = 0.35f;       // ≥ 0.35 to catch more objects (tuned down from 0.5)
+    private const float PersonConfidenceThreshold = 0.10f; // Lower for person class (priority)
+    private const float NmsThreshold = 0.50f;              // IoU ≤ 0.50 to merge overlapping bboxes (relaxed)
+    private const float MinAreaRatio = 0.02f;              // ≥ 2% of frame area for non-person objects (tuned down)
+    private const float MinPersonAreaRatio = 0.005f;       // Lower threshold for persons
 
     // ─── Person/Face Detection Weights ───
-    private const float FaceWeight = 2.0f;                 // Face bbox importance multiplier
-    private const float BodyWeight = 1.4f;                 // Body bbox fallback weight
+    private const float FaceWeight = 2.5f;                 // Face bbox importance multiplier (boosted)
+    private const float BodyWeight = 1.8f;                 // Body bbox fallback weight (boosted)
     private const float HeadRoomPadding = 0.15f;           // +15% padding above head
     private const int MinFaceSize = 20;                    // Min 20x20px to filter false positives
 
-    // ─── Text Detection Weights ───
-    private const float TextWeight = 1.6f;                 // Text region importance multiplier
+    // ─── Text Detection Weights (deprioritized — person/object always wins) ───
+    private const float TextWeight = 0.6f;                 // Text region importance (LOW — never override person)
     private const float TextSafeZoneRatio = 0.80f;         // Crop must contain text if within 80%
 
     // ─── Portrait Detection ───
-    private const float PortraitThreshold = 0.60f;         // Person > 60% frame = portrait mode
+    private const float PortraitThreshold = 0.50f;         // Person > 50% frame = portrait mode (lowered to catch more)
 
     private bool _disposed;
     private bool _modelExists;
@@ -58,10 +58,10 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     private static float GetClassPriority(int classId)
     {
-        if (_personClasses.Contains(classId)) return 3.0f;
-        if (_productClasses.Contains(classId)) return 2.0f;
-        if (_animalClasses.Contains(classId)) return 1.5f;
-        return 1.0f;
+        if (_personClasses.Contains(classId)) return 5.0f;  // Person ALWAYS highest priority
+        if (_animalClasses.Contains(classId)) return 2.5f;  // Animals second
+        if (_productClasses.Contains(classId)) return 2.0f; // Products third
+        return 1.0f;                                         // Everything else (text, background)
     }
 
     public bool TryInitialize()
@@ -262,14 +262,16 @@ public sealed class SmartThumbnailCropService : IDisposable
     private List<Detection> ParseYolov8Output(Tensor<float> output, int imgWidth, int imgHeight, float scale, float padX, float padY)
     {
         // YOLOv8 output shape: [1, 84, 8400]
-        var detections = new List<Detection>(16);
+        var detections = new List<Detection>(32);
         var dims = output.Dimensions;
         int numPredictions = dims[2];
+        int numClasses = dims[1] - 4; // 80 classes for COCO
         float imgArea = imgWidth * imgHeight;
 
         for (int i = 0; i < numPredictions; i++)
         {
-            float maxScore = PersonConfidenceThreshold;
+            // Find the class with highest confidence
+            float maxScore = 0f;
             int maxClassId = -1;
 
             for (int c = 4; c < dims[1]; c++)
@@ -284,9 +286,10 @@ public sealed class SmartThumbnailCropService : IDisposable
 
             if (maxClassId < 0) continue;
 
-            // Rule: Non-person classes must meet ≥ 0.5 confidence threshold
-            if (!_personClasses.Contains(maxClassId) && maxScore < ConfidenceThreshold)
-                continue;
+            // Apply class-specific confidence thresholds
+            bool isPerson = _personClasses.Contains(maxClassId);
+            float threshold = isPerson ? PersonConfidenceThreshold : ConfidenceThreshold;
+            if (maxScore < threshold) continue;
 
             float cx = output[0, 0, i];
             float cy = output[0, 1, i];
@@ -307,8 +310,8 @@ public sealed class SmartThumbnailCropService : IDisposable
             float bboxArea = (x2 - x1) * (y2 - y1);
             float areaRatio = bboxArea / imgArea;
 
-            // Rule: Min area ≥ 5% for non-person, ≥ 1% for person
-            if (_personClasses.Contains(maxClassId))
+            // Rule: Min area filter (class-specific)
+            if (isPerson)
             {
                 if (areaRatio < MinPersonAreaRatio) continue;
             }
@@ -317,6 +320,7 @@ public sealed class SmartThumbnailCropService : IDisposable
                 if (areaRatio < MinAreaRatio) continue;
             }
 
+            // Skip tiny detections (likely noise)
             if (x2 - x1 < 5 || y2 - y1 < 5) continue;
 
             detections.Add(new Detection
@@ -326,6 +330,9 @@ public sealed class SmartThumbnailCropService : IDisposable
                 ClassId = maxClassId
             });
         }
+
+        VNotch.Services.RuntimeLog.Log("SMART-CROP",
+            $"ParseYolov8: raw={detections.Count} predictions scanned={numPredictions} classes={numClasses}");
 
         return detections.Count > 1 ? ApplyNms(detections) : detections;
     }
@@ -512,10 +519,20 @@ public sealed class SmartThumbnailCropService : IDisposable
         VNotch.Services.RuntimeLog.Log("SMART-CROP",
             $"img={imgWidth}x{imgHeight} detections total={detections.Count} persons={persons.Count} objects={objects.Count}");
 
-        // ─── Person always wins — focus on people, ignore text ───
+        // ─── PERSON/GROUP ALWAYS WINS — even low-confidence person beats text/objects ───
+        // This is the #1 priority: if ANY person is detected, focus on them
         if (persons.Count >= 1)
         {
-            var largestPerson = persons.OrderByDescending(p => p.Area).First();
+            // Multiple persons = group photo → center on the group
+            if (persons.Count >= 2)
+            {
+                VNotch.Services.RuntimeLog.Log("SMART-CROP",
+                    $"GROUP detected: {persons.Count} persons → centering on group");
+                return GetPersonCropRect(persons, imgWidth, imgHeight, cropSize);
+            }
+
+            // Single person
+            var largestPerson = persons[0];
             float personAreaRatio = largestPerson.Area / imgArea;
 
             VNotch.Services.RuntimeLog.Log("SMART-CROP",
@@ -527,7 +544,8 @@ public sealed class SmartThumbnailCropService : IDisposable
             return GetPersonCropRect(persons, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── No persons: focus on objects (not text) ───
+        // ─── No persons: focus on objects — ALWAYS center symmetrically ───
+        // Text regions are intentionally IGNORED here — only YOLO objects matter
         if (objects.Count > 0)
         {
             var bestObj = objects
@@ -540,17 +558,21 @@ public sealed class SmartThumbnailCropService : IDisposable
                 .First()
                 .Detection;
 
+            // Compute exact center of the detected object
             float objCenterX = (bestObj.X1 + bestObj.X2) / 2f;
             float objCenterY = (bestObj.Y1 + bestObj.Y2) / 2f;
+            float objWidth = bestObj.X2 - bestObj.X1;
+            float objHeight = bestObj.Y2 - bestObj.Y1;
 
             VNotch.Services.RuntimeLog.Log("SMART-CROP",
-                $"object path: classId={bestObj.ClassId} center=({objCenterX:F0},{objCenterY:F0})");
+                $"object path: classId={bestObj.ClassId} center=({objCenterX:F0},{objCenterY:F0}) size=({objWidth:F0}x{objHeight:F0})");
 
-            return BuildCropRect(objCenterX, objCenterY, imgWidth, imgHeight, cropSize);
+            // Build a symmetric crop centered exactly on the object
+            return BuildSymmetricCropRect(bestObj, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── No persons AND no objects: center-weighted saliency ───
-        VNotch.Services.RuntimeLog.Log("SMART-CROP", "no person/object -> saliency fallback");
+        // ─── No persons AND no objects: saliency fallback (text is NOT prioritized) ───
+        VNotch.Services.RuntimeLog.Log("SMART-CROP", "no person/object -> saliency fallback (text ignored)");
         var saliencyRect = GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize);
         if (saliencyRect.HasValue)
         {
@@ -565,8 +587,9 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     private Int32Rect GetPortraitCropRect(Detection person, int imgWidth, int imgHeight, int cropSize)
     {
+        // For portrait mode: center exactly on the person horizontally (symmetric left/right)
+        float personCenterX = (person.X1 + person.X2) / 2f;
         float personHeight = person.Y2 - person.Y1;
-        float personWidth = person.X2 - person.X1;
 
         // Estimate face region: upper 30% of person bbox
         float faceY1 = person.Y1;
@@ -577,10 +600,8 @@ public sealed class SmartThumbnailCropService : IDisposable
         float headRoom = faceHeight * HeadRoomPadding;
         float targetCenterY = faceY1 - headRoom + (faceY2 - faceY1 + headRoom) / 2f;
 
-        // Center X on person
-        float targetCenterX = (person.X1 + person.X2) / 2f;
-
-        return BuildCropRect(targetCenterX, targetCenterY, imgWidth, imgHeight, cropSize);
+        // Center X exactly on person center — symmetric left/right
+        return BuildCropRect(personCenterX, targetCenterY, imgWidth, imgHeight, cropSize);
     }
 
     private Int32Rect GetPersonCropRect(List<Detection> persons, int imgWidth, int imgHeight, int cropSize)
@@ -593,7 +614,6 @@ public sealed class SmartThumbnailCropService : IDisposable
 
             // Check if face-sized (min 20×20px rule)
             bool hasFace = personWidth >= MinFaceSize && personHeight >= MinFaceSize;
-            float weight = hasFace ? FaceWeight : BodyWeight;
 
             // Face bias: upper 35% of person bbox
             float faceBiasY = p.Y1 + personHeight * 0.35f;
@@ -602,6 +622,7 @@ public sealed class SmartThumbnailCropService : IDisposable
             float headRoom = personHeight * 0.30f * HeadRoomPadding;
             float targetY = faceBiasY - headRoom;
 
+            // Center X exactly on person center — symmetric left/right
             float targetX = (p.X1 + p.X2) / 2f;
 
             return BuildCropRect(targetX, targetY, imgWidth, imgHeight, cropSize);
@@ -620,11 +641,12 @@ public sealed class SmartThumbnailCropService : IDisposable
                 if (p.Y2 > maxY) maxY = p.Y2;
             }
 
-            // Center on union bbox, bias toward top (faces)
+            // Center exactly on union bbox center — symmetric left/right
             float unionCenterX = (minX + maxX) / 2f;
+            float unionCenterY = (minY + maxY) / 2f;
             float unionHeight = maxY - minY;
 
-            // Head-room +15% above the top-most person
+            // Head-room +15% above the top-most person, bias toward face area
             float headRoom = unionHeight * HeadRoomPadding;
             float targetY = minY - headRoom + unionHeight * 0.35f;
 
@@ -710,6 +732,88 @@ public sealed class SmartThumbnailCropService : IDisposable
         cropY = Math.Max(0, Math.Min(cropY, imgHeight - cropSize));
 
         return new Int32Rect(cropX, cropY, cropSize, cropSize);
+    }
+
+    /// <summary>
+    /// Builds a crop rect that guarantees the detected object is perfectly centered
+    /// with equal padding on left/right (and top/bottom). The crop is always symmetric
+    /// around the object's center point.
+    /// </summary>
+    private static Int32Rect BuildSymmetricCropRect(Detection obj, int imgWidth, int imgHeight, int cropSize)
+    {
+        float objCenterX = (obj.X1 + obj.X2) / 2f;
+        float objCenterY = (obj.Y1 + obj.Y2) / 2f;
+        float objWidth = obj.X2 - obj.X1;
+        float objHeight = obj.Y2 - obj.Y1;
+
+        // Ensure the crop is large enough to contain the object with symmetric padding
+        // The object should be centered, with equal space on both sides
+        float halfCrop = cropSize / 2f;
+
+        // Ideal position: object center = crop center
+        float idealCropX = objCenterX - halfCrop;
+        float idealCropY = objCenterY - halfCrop;
+
+        // Clamp to image bounds while trying to maintain symmetry
+        float cropX = idealCropX;
+        float cropY = idealCropY;
+
+        // If the ideal crop goes out of bounds, shift it but log the asymmetry
+        if (cropX < 0)
+        {
+            cropX = 0;
+        }
+        else if (cropX + cropSize > imgWidth)
+        {
+            cropX = imgWidth - cropSize;
+        }
+
+        if (cropY < 0)
+        {
+            cropY = 0;
+        }
+        else if (cropY + cropSize > imgHeight)
+        {
+            cropY = imgHeight - cropSize;
+        }
+
+        // Verify symmetry: compute actual padding on each side
+        float leftPad = objCenterX - cropX;
+        float rightPad = (cropX + cropSize) - objCenterX;
+
+        // If asymmetry is > 5% of crop size, try to correct by re-centering
+        float asymmetry = MathF.Abs(leftPad - rightPad);
+        if (asymmetry > cropSize * 0.05f)
+        {
+            // Re-center: force object center to be at crop center
+            float correctedX = objCenterX - halfCrop;
+            correctedX = Math.Max(0, Math.Min(correctedX, imgWidth - cropSize));
+            cropX = correctedX;
+        }
+
+        // Same for vertical
+        float topPad = objCenterY - cropY;
+        float bottomPad = (cropY + cropSize) - objCenterY;
+        float vAsymmetry = MathF.Abs(topPad - bottomPad);
+        if (vAsymmetry > cropSize * 0.05f)
+        {
+            float correctedY = objCenterY - halfCrop;
+            correctedY = Math.Max(0, Math.Min(correctedY, imgHeight - cropSize));
+            cropY = correctedY;
+        }
+
+        int finalX = (int)cropX;
+        int finalY = (int)cropY;
+
+        // Final safety clamp
+        finalX = Math.Max(0, Math.Min(finalX, imgWidth - cropSize));
+        finalY = Math.Max(0, Math.Min(finalY, imgHeight - cropSize));
+
+        VNotch.Services.RuntimeLog.Log("SMART-CROP",
+            $"symmetric crop: objCenter=({objCenterX:F0},{objCenterY:F0}) cropOrigin=({finalX},{finalY}) " +
+            $"leftPad={objCenterX - finalX:F0} rightPad={finalX + cropSize - objCenterX:F0}");
+
+        return new Int32Rect(finalX, finalY, cropSize, cropSize);
     }
 
     private Int32Rect? GetSaliencyCropRect(BitmapImage source, int imgWidth, int imgHeight, int targetSize)
@@ -807,9 +911,10 @@ public sealed class SmartThumbnailCropService : IDisposable
                     // Penalize very dark/bright regions (black bars, white bg)
                     double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
 
-                    // Penalize very high contrast (text regions have sharp edges) Prefer moderate contrast (subjects) over extreme contrast (text)
-                    double contrastFactor = avgContrast < 40 ? avgContrast / 40.0 : 1.0 - (avgContrast - 40) / 200.0;
-                    contrastFactor = Math.Clamp(contrastFactor, 0.2, 1.0);
+                    // Penalize very high contrast (text regions have sharp edges)
+                    // STRONGLY penalize text-like patterns — person/object always preferred
+                    double contrastFactor = avgContrast < 40 ? avgContrast / 40.0 : 1.0 - (avgContrast - 40) / 120.0;
+                    contrastFactor = Math.Clamp(contrastFactor, 0.1, 1.0);
 
                     // Center bias for saliency — strong bias to keep main subject centered and avoid pulling crop toward off-center decorative elements (text, logos)
                     float cx = (gx + 0.5f) / gridSize;

@@ -49,6 +49,8 @@ public class NotchSettings
 
     public bool EnableGestureControls { get; set; } = true;
 
+    public bool EnableHelloGreeting { get; set; } = true;
+
     public bool EnableSpotifyLyrics { get; set; } = true;
 
     public bool IsShelfUploadLimitUnlocked { get; set; } = true;

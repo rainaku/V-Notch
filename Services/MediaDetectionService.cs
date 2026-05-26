@@ -701,6 +701,21 @@ public class MediaDetectionService : IMediaDetectionService
                     }
                 }
 
+                // On new track for YouTube/Browser: suppress stale wide SMTC thumbnails (from old tab)
+                if (isNewTrackForThumbnail &&
+                    (info.MediaSource == "YouTube" || (info.MediaSource == "Browser" && IsLikelyYouTube(info))) &&
+                    info.Thumbnail != null)
+                {
+                    double thumbAspect = (double)info.Thumbnail.PixelWidth / info.Thumbnail.PixelHeight;
+                    if (thumbAspect > 1.3)
+                    {
+                        RuntimeLog.Log("MEDIA-THUMB-STALE",
+                            $"Suppressing stale wide SMTC thumb on new track publish: " +
+                            $"track='{info.CurrentTrack}' thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight} aspect={thumbAspect:F2}");
+                        info.Thumbnail = null;
+                    }
+                }
+
                 var dispatcher = System.Windows.Application.Current?.Dispatcher;
                 if (dispatcher != null)
                 {
@@ -1841,12 +1856,10 @@ public class MediaDetectionService : IMediaDetectionService
 
                                 _lastTrackSignature = "";
                                 _lastThumbTrackIdentity = "";
-                                // Only clear thumbnail cache if this is a different session starting playback — not the current active session resuming.
-                                if (!ReferenceEquals(s, _activeDisplaySession))
-                                {
-                                    _cachedThumbnail = null;
-                                    _cachedThumbnailSource = "";
-                                }
+                                // Always clear thumbnail cache when a session transitions to playing
+                                // (even if it's the same session object — browser tabs can change)
+                                _cachedThumbnail = null;
+                                _cachedThumbnailSource = "";
                             }
 
                             _sessionState.SetPlayingState(sessionInstanceKey, isActive);
@@ -2363,7 +2376,11 @@ public class MediaDetectionService : IMediaDetectionService
                 _cachedThumbnail = null;
                 _cachedThumbnailSource = "";
                 _timelineSimulator.RecoveredThumbnail = null;
+                _thumbCts?.Cancel();
+                _thumbCts = null;
                 Interlocked.Increment(ref _thumbnailFetchGeneration);
+                RuntimeLog.Log("MEDIA-THUMB-INVALIDATE",
+                    $"Track changed: old='{_lastThumbTrackIdentity}' new='{currentTrackOnlyIdentityForThumb}' — cleared all thumbnail state");
             }
 
             if (info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource))
@@ -2616,12 +2633,26 @@ public class MediaDetectionService : IMediaDetectionService
                                                                             trackChangedForThisPass &&
                                                                             !hasVerifiedSoundCloudThumb &&
                                                                             !likelySoundCloudArtwork;
-                                // Never suppress SMTC thumbnail on track change — always show it immediately so the user sees the thumbnail update
-                                bool skipSmtcThumbForFreshYouTubeTrack = false;
+
+                                // For YouTube/Browser: on track change, reject SMTC thumbnail if it's a wide video frame
+                                // (likely stale from the previous tab/video — Windows SMTC thumbnail lags behind metadata)
+                                double smtcAspect = (double)newBitmap.PixelWidth / newBitmap.PixelHeight;
+                                bool isWideVideoFrame = smtcAspect > 1.3;
+                                // Also reject wide video frames within 4 seconds of a track change (SMTC thumbnail can lag multiple cycles)
+                                bool recentTrackChange = (DateTime.Now - _lastMetadataChangeTime).TotalSeconds < 4.0;
+                                bool skipSmtcThumbForFreshYouTubeTrack = isYouTubeLikeSource &&
+                                                                         isWideVideoFrame &&
+                                                                         (trackChangedForThisPass || (recentTrackChange && _cachedThumbnail == null));
+
                                 if (skipSmtcThumbForFreshSoundCloudTrack || skipSmtcThumbForFreshYouTubeTrack)
                                 {
-                                    
-                                    info.Thumbnail = _cachedThumbnail;
+                                    RuntimeLog.Log("MEDIA-THUMB-STALE",
+                                        $"Rejecting stale SMTC thumbnail on track change: " +
+                                        $"track='{info.CurrentTrack}' source='{info.MediaSource}' " +
+                                        $"thumb={newBitmap.PixelWidth}x{newBitmap.PixelHeight} aspect={smtcAspect:F2} " +
+                                        $"isWide={isWideVideoFrame} skipYT={skipSmtcThumbForFreshYouTubeTrack} skipSC={skipSmtcThumbForFreshSoundCloudTrack}");
+                                    // Don't cache the stale thumbnail — leave info.Thumbnail as null so YouTube fetch provides the correct one
+                                    info.Thumbnail = null;
                                 }
                                 else
                                 {

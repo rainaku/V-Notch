@@ -327,9 +327,15 @@ public partial class MainWindow
 
     private void PlayAppearAnimation()
     {
-        // Mark greeting active immediately so deferred init won't start media/modules
-        _isGreetingActive = true;
-        _isAnimating = true;
+        // Only show greeting if enabled in settings
+        bool showGreeting = _settings.EnableHelloGreeting;
+
+        if (showGreeting)
+        {
+            // Mark greeting active immediately so deferred init won't start media/modules
+            _isGreetingActive = true;
+            _isAnimating = true;
+        }
 
         NotchBorder.Opacity = 0;
 
@@ -341,11 +347,14 @@ public partial class MainWindow
             EasingFunction = _easeQuadOut
         };
 
-        opacityAnim.Completed += (s, e) =>
+        if (showGreeting)
         {
-            // Start greeting animation after notch appears
-            PlayGreetingAnimation();
-        };
+            opacityAnim.Completed += (s, e) =>
+            {
+                // Start greeting animation after notch appears
+                PlayGreetingAnimation();
+            };
+        }
 
         NotchBorder.BeginAnimation(OpacityProperty, opacityAnim);
     }
