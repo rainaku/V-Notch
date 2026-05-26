@@ -1280,7 +1280,7 @@
                                                                    Margin="0,1,0,0" />
                                                         
                                                         <TextBlock x:Name="TrackArtist" 
-                                                                    Text="Open Spotify or YouTube"
+                                                                    Text="Artist name"
                                                                      Style="{StaticResource SubtitleText}"
                                                                     Foreground="#BFFFFFFF"
                                                                     FontWeight="Bold" />

@@ -249,7 +249,7 @@ public sealed class MediaDisplayController
     {
         if (!hasRealTrack)
         {
-            return new DisplayTextResult("No media playing", "Open Spotify or YouTube");
+            return new DisplayTextResult("No media playing", "Artist name");
         }
 
         string titleText = info.CurrentTrack;

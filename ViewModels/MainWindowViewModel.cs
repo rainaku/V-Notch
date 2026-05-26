@@ -31,7 +31,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private string _trackTitle = "No media playing";
 
     [ObservableProperty]
-    private string _trackArtist = "Open Spotify or YouTube";
+    private string _trackArtist = "Artist name";
 
     [ObservableProperty]
     private string _mediaSourceName = "Now Playing";
@@ -220,7 +220,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             else
             {
                 TrackTitle = "No media playing";
-                TrackArtist = "Open Spotify or YouTube";
+                TrackArtist = "Artist name";
                 MediaSourceName = "Now Playing";
             }
 
