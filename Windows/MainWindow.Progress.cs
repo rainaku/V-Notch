@@ -628,21 +628,48 @@ public partial class MainWindow
                 bool isLikelyTrackSkip = _progressDisplayRatio > 0.92 &&
                                          rawTargetRatio < 0.05;
 
+                // Guard against false zero reports from SMTC/browser sources.
+                // If we're well into a track (>5%) and suddenly get position=0,
+                // it's almost always a transient glitch — not a real seek.
+                bool isFalseZeroReport = rawTargetRatio < 0.001 &&
+                                         _progressDisplayRatio > 0.05 &&
+                                         playing;
+
+                // Guard against stale position reports from SMTC.
+                // A backward jump > 30 seconds while playing is almost never a real user seek —
+                // it's typically a stale/cached position being reported momentarily.
+                // Real user seeks backward are usually < 30s. If it's genuinely a large
+                // backward seek, the next frame will confirm it and the spring will catch up.
+                bool isSuspiciousBackward = backwardJump && playing &&
+                                            rawDiffSeconds > 30.0 &&
+                                            _progressDisplayRatio > 0.10;
+
                 // Log every potential seek detection attempt for diagnostics.
                 if (rawDiffSeconds >= 0.6)
                 {
                     RuntimeLog.Log("PROGRESS-SEEK",
                         $"check from={_progressDisplayRatio:F4} to={rawTargetRatio:F4} " +
                         $"diffSec={rawDiffSeconds:F2} state={frame.State} playing={playing} " +
-                        $"forward={forwardJump} backward={backwardJump} likelySkip={isLikelyTrackSkip}");
+                        $"forward={forwardJump} backward={backwardJump} likelySkip={isLikelyTrackSkip} " +
+                        $"falseZero={isFalseZeroReport} suspiciousBack={isSuspiciousBackward}");
                 }
 
-                if (playing && (forwardJump || backwardJump) && !isLikelyTrackSkip)
+                if (playing && (forwardJump || backwardJump) && !isLikelyTrackSkip && !isFalseZeroReport && !isSuspiciousBackward)
                 {
                     AnimateExternalSeekTo(rawTargetRatio, frame);
                     // Suppress re-detection while the animation runs to prevent
                     // multiple triggers from SMTC latency jitter.
                     _suppressExternalSeekDetectionUntil = DateTime.Now.AddMilliseconds(800);
+                    _lastRenderTime = now;
+                    _lastRenderedDuration = frame.Duration;
+                    return;
+                }
+
+                // If we detected a false zero or suspicious backward jump, skip this
+                // entire frame to prevent the SOURCE_SMOOTH_SECONDS path from snapping
+                // the progress bar to the bogus position.
+                if (isFalseZeroReport || isSuspiciousBackward)
+                {
                     _lastRenderTime = now;
                     _lastRenderedDuration = frame.Duration;
                     return;

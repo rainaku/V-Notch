@@ -464,8 +464,46 @@ public partial class MainWindow
         NavIconsPanel.Opacity = 0;
         NavIconsPanel.Visibility = Visibility.Collapsed;
 
+        // If collapsing from secondary view, animate it out with a slide-down + fade
+        bool wasSecondary = _isSecondaryView;
+        if (wasSecondary)
+        {
+            SecondaryContent.BeginAnimation(OpacityProperty, null);
+            var secondaryGroup = new TransformGroup();
+            var secondaryScale = new ScaleTransform(1, 1);
+            var secondaryTranslate = new TranslateTransform(0, 0);
+            secondaryGroup.Children.Add(secondaryScale);
+            secondaryGroup.Children.Add(secondaryTranslate);
+            SecondaryContent.RenderTransform = secondaryGroup;
+            SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
+
+            var secFadeOut = MakeAnim(1, 0, _dur200, _easeQuadIn);
+            var secSlideDown = MakeAnim(0, 16, _dur250, _easeQuadIn);
+            var secScaleDown = MakeAnim(1, 0.93, _dur250, _easeQuadIn);
+            Timeline.SetDesiredFrameRate(secSlideDown, 144);
+            Timeline.SetDesiredFrameRate(secScaleDown, 144);
+
+            secFadeOut.Completed += (s, e) =>
+            {
+                SecondaryContent.BeginAnimation(OpacityProperty, null);
+                SecondaryContent.Opacity = 0;
+                SecondaryContent.Visibility = Visibility.Collapsed;
+                SecondaryContent.RenderTransform = null;
+            };
+
+            SecondaryContent.BeginAnimation(OpacityProperty, secFadeOut);
+            secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, secSlideDown);
+            secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, secScaleDown);
+            secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, secScaleDown);
+
+            _isSecondaryView = false;
+        }
+        else
+        {
+            SecondaryContent.BeginAnimation(OpacityProperty, null);
+        }
+
         ExpandedContent.BeginAnimation(OpacityProperty, null);
-        SecondaryContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
         ResetCalendarScroll();
         ResetCalendarHoverFocusVisualState();
@@ -508,12 +546,13 @@ public partial class MainWindow
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
 
-            SecondaryContent.BeginAnimation(OpacityProperty, null);
-            SecondaryContent.Opacity = 0;
-            SecondaryContent.Visibility = Visibility.Collapsed;
-            SecondaryContent.RenderTransform = null;
-
-            _isSecondaryView = false;
+            if (!wasSecondary)
+            {
+                SecondaryContent.BeginAnimation(OpacityProperty, null);
+                SecondaryContent.Opacity = 0;
+                SecondaryContent.Visibility = Visibility.Collapsed;
+                SecondaryContent.RenderTransform = null;
+            }
         };
 
         var fadeOutBlurAnim = MakeAnim(0, TimeSpan.FromMilliseconds(150), _easeQuadOut);

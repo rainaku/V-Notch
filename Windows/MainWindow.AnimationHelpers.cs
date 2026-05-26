@@ -479,10 +479,10 @@ public partial class MainWindow
         double timeScale = isHovered ? 1.22 : 1.0;
         double timeTranslateY = isHovered ? 3.0 : 0.0;
         
-        var duration = TimeSpan.FromMilliseconds(isHovered ? 400 : 350);
+        var duration = TimeSpan.FromMilliseconds(isHovered ? 350 : 250);
         var easing = (IEasingFunction)(isHovered
             ? new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut }
-            : new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut });
+            : new CubicEase { EasingMode = EasingMode.EaseOut });
         int fps = 144;
 
         // Progress bar — animate height directly (preserves corner radius proportions)
@@ -547,21 +547,6 @@ public partial class MainWindow
         MediaControls.Effect = _mediaControlsHoverBlur;
         _mediaControlsHoverBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
         MediaControls.BeginAnimation(OpacityProperty, dimAnim);
-
-        // Glow effect — increase shadow blur and opacity on hover
-        double glowBlur = isHovered ? 14 : 6;
-        double glowOpacity = isHovered ? 0.8 : 0.45;
-        var glowBlurAnim = new DoubleAnimation { To = glowBlur, Duration = duration, EasingFunction = easing };
-        var glowOpacityAnim = new DoubleAnimation { To = glowOpacity, Duration = duration, EasingFunction = easing };
-        Timeline.SetDesiredFrameRate(glowBlurAnim, fps);
-        Timeline.SetDesiredFrameRate(glowOpacityAnim, fps);
-        ProgressBarShadow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, glowBlurAnim);
-        ProgressBarShadow.BeginAnimation(DropShadowEffect.OpacityProperty, glowOpacityAnim);
-
-        // Change shadow color to match progress bar color for colored glow
-        var glowColor = isHovered ? _progressBarVibrantColor : Colors.Black;
-        var glowColorAnim = new ColorAnimation { To = glowColor, Duration = duration, EasingFunction = easing };
-        ProgressBarShadow.BeginAnimation(DropShadowEffect.ColorProperty, glowColorAnim);
     }
 
     #endregion
@@ -590,6 +575,7 @@ public partial class MainWindow
         {
             BatterySection.Visibility = Visibility.Visible;
             NavIconsPanel.Visibility = Visibility.Visible;
+            UpdateNavIconsActiveState();
             if (_isSecondaryView)
                 NavIconsBackground.Visibility = Visibility.Visible;
             SettingsButton.Visibility = Visibility.Visible;
