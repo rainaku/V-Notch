@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using System;
+using System.IO;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -182,6 +184,8 @@ public event EventHandler? AnimatedClosing;
         ReportBugHint.Text = Loc.Get("settings.reportBug.hint");
         RequestFeatureLabel.Text = Loc.Get("settings.requestFeature");
         RequestFeatureHint.Text = Loc.Get("settings.requestFeature.hint");
+        ClearCacheLabel.Text = Loc.Get("settings.clearCache");
+        ClearCacheHint.Text = Loc.Get("settings.clearCache.hint");
 
         // Display
         MonitorLabel.Text = Loc.Get("settings.activeMonitor");
@@ -439,6 +443,8 @@ public event EventHandler? AnimatedClosing;
             (ReportBugHint, () => ReportBugHint.Text = Loc.Get("settings.reportBug.hint")),
             (RequestFeatureLabel, () => RequestFeatureLabel.Text = Loc.Get("settings.requestFeature")),
             (RequestFeatureHint, () => RequestFeatureHint.Text = Loc.Get("settings.requestFeature.hint")),
+            (ClearCacheLabel, () => ClearCacheLabel.Text = Loc.Get("settings.clearCache")),
+            (ClearCacheHint, () => ClearCacheHint.Text = Loc.Get("settings.clearCache.hint")),
 
             // Display
             (MonitorLabel, () => MonitorLabel.Text = Loc.Get("settings.activeMonitor")),
@@ -859,6 +865,48 @@ private void RevertLivePreviewIfNeeded()
             FileName = "https://github.com/rainaku/V-Notch/issues/new?labels=enhancement&template=feature_request.md",
             UseShellExecute = true
         });
+    }
+
+    private void ClearCache_Click(object sender, RoutedEventArgs e)
+    {
+        int deletedCount = 0;
+        var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "V-Notch");
+        var baseDir = AppContext.BaseDirectory;
+
+        // Files to delete (cache/logs, NOT settings.json)
+        var filesToDelete = new[]
+        {
+            Path.Combine(appData, "source_cache.json"),
+            Path.Combine(baseDir, "vnotch-debug.log"),
+            Path.Combine(baseDir, "vnotch-debug.log.old"),
+        };
+
+        foreach (var file in filesToDelete)
+        {
+            try
+            {
+                if (File.Exists(file))
+                {
+                    File.Delete(file);
+                    deletedCount++;
+                }
+            }
+            catch { /* skip locked files */ }
+        }
+
+        // Also delete any .corrupt backup files in appData
+        try
+        {
+            foreach (var corrupt in Directory.GetFiles(appData, "settings.corrupt-*.json"))
+            {
+                try { File.Delete(corrupt); deletedCount++; } catch { }
+            }
+        }
+        catch { }
+
+        ClearCacheHint.Text = deletedCount > 0
+            ? Loc.Get("settings.clearCache.done", deletedCount)
+            : Loc.Get("settings.clearCache.clean");
     }
 
     private void Apply_Click(object sender, RoutedEventArgs e)

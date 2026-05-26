@@ -1284,6 +1284,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void SettingsButton_MouseEnter(object sender, MouseEventArgs e)
     {
+        // Enable bitmap caching to prevent sub-pixel jitter during scale/rotate
+        SettingsButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
         AnimateSettingsHover(true);
     }
 
