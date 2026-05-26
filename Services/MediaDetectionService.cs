@@ -2311,23 +2311,29 @@ public class MediaDetectionService : IMediaDetectionService
 
                     if (info.CurrentArtist.Contains(" - ", StringComparison.Ordinal))
                     {
-                        // SMTC artist contains " - " which Spotify never uses for artist
-                        // names (they use ", "). This means metadata is malformed.
-                        // Try to extract the real artist from window title using first " - ".
-                        int firstSep = spotifyGroundTruth.IndexOf(" - ", StringComparison.Ordinal);
-                        if (firstSep > 0)
-                        {
-                            string wtArtistFirst = spotifyGroundTruth.Substring(0, firstSep).Trim();
-                            string wtTrackFirst = spotifyGroundTruth.Substring(firstSep + 3).Trim();
+                        // SMTC artist contains " - " — this CAN be a legitimate artist name
+                        // (e.g. "Jack - J97"). Only treat as malformed if the window title
+                        // does NOT start with the SMTC artist followed by " - ".
+                        string artistPrefix = info.CurrentArtist + " - ";
+                        bool artistMatchesWindowTitle = spotifyGroundTruth.StartsWith(artistPrefix, StringComparison.OrdinalIgnoreCase);
 
-                            // Validate: the extracted artist should NOT contain " - "
-                            // (if it does, we can't reliably parse)
-                            if (!wtArtistFirst.Contains(" - ", StringComparison.Ordinal) &&
-                                !string.IsNullOrEmpty(wtTrackFirst))
+                        if (!artistMatchesWindowTitle)
+                        {
+                            // Artist doesn't match window title prefix — likely malformed.
+                            // Try to extract the real artist from window title using first " - ".
+                            int firstSep = spotifyGroundTruth.IndexOf(" - ", StringComparison.Ordinal);
+                            if (firstSep > 0)
                             {
-                                correctedArtist = wtArtistFirst;
-                                correctedTrack = wtTrackFirst;
-                                needsCorrection = true;
+                                string wtArtistFirst = spotifyGroundTruth.Substring(0, firstSep).Trim();
+                                string wtTrackFirst = spotifyGroundTruth.Substring(firstSep + 3).Trim();
+
+                                if (!wtArtistFirst.Contains(" - ", StringComparison.Ordinal) &&
+                                    !string.IsNullOrEmpty(wtTrackFirst))
+                                {
+                                    correctedArtist = wtArtistFirst;
+                                    correctedTrack = wtTrackFirst;
+                                    needsCorrection = true;
+                                }
                             }
                         }
                     }

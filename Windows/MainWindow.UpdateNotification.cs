@@ -296,6 +296,10 @@ public partial class MainWindow
 
     private void AnimateUpdateNotificationHover(bool isEnter)
     {
+        // Enable bitmap caching to prevent sub-pixel jitter during scale
+        if (isEnter)
+            UpdateNotificationButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
+
         const int fps = 144;
         var scaleAnim = new DoubleAnimation
         {
@@ -305,6 +309,15 @@ public partial class MainWindow
                 ? new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.20 }
                 : _easeQuadOut
         };
+
+        if (!isEnter)
+        {
+            scaleAnim.Completed += (_, _) =>
+            {
+                if (!UpdateNotificationButton.IsMouseOver)
+                    UpdateNotificationButton.CacheMode = null;
+            };
+        }
 
         Timeline.SetDesiredFrameRate(scaleAnim, fps);
         UpdateNotificationScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim, HandoffBehavior.SnapshotAndReplace);

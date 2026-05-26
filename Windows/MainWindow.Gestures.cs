@@ -44,19 +44,36 @@ public partial class MainWindow
     /// </summary>
     private bool TryBeginGesture(MouseButtonEventArgs e)
     {
-        if (!_settings.EnableGestureControls) return false;
-        if (_isAnimating) return false;
+        if (!_settings.EnableGestureControls)
+        {
+            RuntimeLog.Log("GESTURE", "blocked: EnableGestureControls=false");
+            return false;
+        }
+        if (_isAnimating)
+        {
+            RuntimeLog.Log("GESTURE", "blocked: _isAnimating=true");
+            return false;
+        }
 
         // Only handle gestures when collapsed (compact mode) with media playing
-        if (_isExpanded || _isMusicExpanded) return false;
-        if (_currentMediaInfo == null || !_currentMediaInfo.IsAnyMediaPlaying) return false;
+        if (_isExpanded || _isMusicExpanded)
+        {
+            RuntimeLog.Log("GESTURE", $"blocked: expanded={_isExpanded} musicExpanded={_isMusicExpanded}");
+            return false;
+        }
+        if (_currentMediaInfo == null || !_currentMediaInfo.IsAnyMediaPlaying)
+        {
+            RuntimeLog.Log("GESTURE", $"blocked: mediaInfo={(_currentMediaInfo != null)} isPlaying={_currentMediaInfo?.IsAnyMediaPlaying}");
+            return false;
+        }
 
         var pos = e.GetPosition(NotchBorder);
         _gestureController.BeginTracking(pos);
         _isGestureActive = true;
 
-        // Capture mouse so we get move/up events even if cursor leaves the notch
-        NotchBorder.CaptureMouse();
+        // Capture mouse on NotchWrapper (where move/up handlers are bound)
+        // so we get events even if cursor leaves the notch area
+        NotchWrapper.CaptureMouse();
 
         return true;
     }
@@ -79,7 +96,7 @@ public partial class MainWindow
     {
         if (!_isGestureActive) return;
 
-        NotchBorder.ReleaseMouseCapture();
+        NotchWrapper.ReleaseMouseCapture();
         _isGestureActive = false;
 
         var pos = e.GetPosition(NotchBorder);

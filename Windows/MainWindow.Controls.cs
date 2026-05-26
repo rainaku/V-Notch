@@ -231,6 +231,16 @@ public partial class MainWindow
 
     private void CompactThumbnailBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        // If gesture controls are enabled and media is playing in collapsed mode,
+        // let the gesture system handle this (swipe to skip track).
+        // The gesture system will call ExpandNotch via ToggleNotchFromClick if it was just a tap.
+        if (_settings.EnableGestureControls && !_isExpanded && !_isMusicExpanded &&
+            _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && !_isAnimating)
+        {
+            // Don't handle here — let event bubble up to NotchWrapper for gesture tracking
+            return;
+        }
+
         e.Handled = true;
         // Click on compact thumbnail (hover state) → expand the notch
         if (!_isExpanded && !_isAnimating)
@@ -257,6 +267,9 @@ public partial class MainWindow
     {
         if (sender is Border button && button.RenderTransform is ScaleTransform transform)
         {
+            // Enable bitmap caching during scale animation to prevent sub-pixel jitter
+            button.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
+
             var animX = new DoubleAnimation(transform.ScaleX, 1.18, _dur150) { EasingFunction = _easeQuadOut };
             var animY = new DoubleAnimation(transform.ScaleY, 1.18, _dur150) { EasingFunction = _easeQuadOut };
             Timeline.SetDesiredFrameRate(animX, 120);
@@ -274,6 +287,14 @@ public partial class MainWindow
             var animY = new DoubleAnimation(transform.ScaleY, 1.0, _dur200) { EasingFunction = _easeQuadOut };
             Timeline.SetDesiredFrameRate(animX, 120);
             Timeline.SetDesiredFrameRate(animY, 120);
+
+            // Clear bitmap cache after animation completes to save memory
+            animX.Completed += (_, _) =>
+            {
+                if (!button.IsMouseOver)
+                    button.CacheMode = null;
+            };
+
             transform.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
             transform.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
         }
