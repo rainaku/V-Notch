@@ -544,10 +544,34 @@ public sealed class SmartThumbnailCropService : IDisposable
             return GetPersonCropRect(persons, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── No persons: focus on objects — ALWAYS center symmetrically ───
-        // Text regions are intentionally IGNORED here — only YOLO objects matter
+        // ─── No persons: check for text regions first ───
+        // Priority: Person > Text > Object
+        // If text is detected, it takes priority over objects
+        var textRegions = DetectTextRegions(source, imgWidth, imgHeight);
+        bool hasText = textRegions.Count >= 2; // Need at least 2 text cells to be meaningful
+
+        if (hasText && objects.Count > 0)
+        {
+            // Both text and objects present (no person) → text wins
+            VNotch.Services.RuntimeLog.Log("SMART-CROP",
+                $"text+object: textRegions={textRegions.Count} objects={objects.Count} → prioritizing text");
+            var textCrop = GetTextFirstCropRect(textRegions, imgWidth, imgHeight, cropSize);
+            // Try to expand crop to include nearby text
+            return ExpandCropForText(textCrop, textRegions, imgWidth, imgHeight, cropSize);
+        }
+
+        if (hasText && objects.Count == 0)
+        {
+            // Only text, no objects → focus on text
+            VNotch.Services.RuntimeLog.Log("SMART-CROP",
+                $"text-only: textRegions={textRegions.Count} → text crop");
+            var textCrop = GetTextFirstCropRect(textRegions, imgWidth, imgHeight, cropSize);
+            return ExpandCropForText(textCrop, textRegions, imgWidth, imgHeight, cropSize);
+        }
+
         if (objects.Count > 0)
         {
+            // Only objects, no text → focus on best object
             var bestObj = objects
                 .Select(d => new
                 {
@@ -571,8 +595,8 @@ public sealed class SmartThumbnailCropService : IDisposable
             return BuildSymmetricCropRect(bestObj, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── No persons AND no objects: saliency fallback (text is NOT prioritized) ───
-        VNotch.Services.RuntimeLog.Log("SMART-CROP", "no person/object -> saliency fallback (text ignored)");
+        // ─── No persons, no objects, no text: saliency fallback ───
+        VNotch.Services.RuntimeLog.Log("SMART-CROP", "no person/object/text -> saliency fallback");
         var saliencyRect = GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize);
         if (saliencyRect.HasValue)
         {
@@ -587,18 +611,20 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     private Int32Rect GetPortraitCropRect(Detection person, int imgWidth, int imgHeight, int cropSize)
     {
-        // For portrait mode: center exactly on the person horizontally (symmetric left/right)
+        // For portrait mode: center the FACE in the crop (not the body)
         float personCenterX = (person.X1 + person.X2) / 2f;
         float personHeight = person.Y2 - person.Y1;
 
-        // Estimate face region: upper 30% of person bbox
-        float faceY1 = person.Y1;
-        float faceY2 = person.Y1 + personHeight * 0.30f;
-        float faceHeight = faceY2 - faceY1;
+        // Estimate face center: typically at ~15-20% from top of person bbox
+        // (head occupies roughly top 15-25% of a standing person)
+        float faceCenterY = person.Y1 + personHeight * 0.18f;
 
-        // Rule: Head-room padding +15% above
-        float headRoom = faceHeight * HeadRoomPadding;
-        float targetCenterY = faceY1 - headRoom + (faceY2 - faceY1 + headRoom) / 2f;
+        // Small head-room above face so it's not cut off
+        float headRoom = personHeight * 0.05f;
+        float targetCenterY = faceCenterY + headRoom;
+
+        VNotch.Services.RuntimeLog.Log("SMART-CROP",
+            $"portrait: personTop={person.Y1:F0} faceCenterY={faceCenterY:F0} targetY={targetCenterY:F0}");
 
         // Center X exactly on person center — symmetric left/right
         return BuildCropRect(personCenterX, targetCenterY, imgWidth, imgHeight, cropSize);
@@ -612,45 +638,44 @@ public sealed class SmartThumbnailCropService : IDisposable
             float personHeight = p.Y2 - p.Y1;
             float personWidth = p.X2 - p.X1;
 
-            // Check if face-sized (min 20×20px rule)
-            bool hasFace = personWidth >= MinFaceSize && personHeight >= MinFaceSize;
+            // Center on FACE, not body. Face is at ~18% from top of person bbox.
+            float faceCenterY = p.Y1 + personHeight * 0.18f;
 
-            // Face bias: upper 35% of person bbox
-            float faceBiasY = p.Y1 + personHeight * 0.35f;
-
-            // Rule: Head-room padding +15% above
-            float headRoom = personHeight * 0.30f * HeadRoomPadding;
-            float targetY = faceBiasY - headRoom;
+            // Small offset down so face sits slightly above center of crop (natural framing)
+            float targetY = faceCenterY + personHeight * 0.03f;
 
             // Center X exactly on person center — symmetric left/right
             float targetX = (p.X1 + p.X2) / 2f;
+
+            VNotch.Services.RuntimeLog.Log("SMART-CROP",
+                $"single person: bbox=({p.X1:F0},{p.Y1:F0})-({p.X2:F0},{p.Y2:F0}) faceCenterY={faceCenterY:F0} targetY={targetY:F0}");
 
             return BuildCropRect(targetX, targetY, imgWidth, imgHeight, cropSize);
         }
         else
         {
-            // Multiple persons: union bbox (don't miss anyone)
-            float minX = float.MaxValue, maxX = float.MinValue;
-            float minY = float.MaxValue, maxY = float.MinValue;
+            // Multiple persons (group): find the average face center across all persons
+            float sumFaceCenterX = 0;
+            float sumFaceCenterY = 0;
 
             foreach (var p in persons)
             {
-                if (p.X1 < minX) minX = p.X1;
-                if (p.X2 > maxX) maxX = p.X2;
-                if (p.Y1 < minY) minY = p.Y1;
-                if (p.Y2 > maxY) maxY = p.Y2;
+                float personHeight = p.Y2 - p.Y1;
+                // Face center for each person: ~18% from their top
+                float faceCX = (p.X1 + p.X2) / 2f;
+                float faceCY = p.Y1 + personHeight * 0.18f;
+                sumFaceCenterX += faceCX;
+                sumFaceCenterY += faceCY;
             }
 
-            // Center exactly on union bbox center — symmetric left/right
-            float unionCenterX = (minX + maxX) / 2f;
-            float unionCenterY = (minY + maxY) / 2f;
-            float unionHeight = maxY - minY;
+            // Average face center of the group
+            float avgFaceCenterX = sumFaceCenterX / persons.Count;
+            float avgFaceCenterY = sumFaceCenterY / persons.Count;
 
-            // Head-room +15% above the top-most person, bias toward face area
-            float headRoom = unionHeight * HeadRoomPadding;
-            float targetY = minY - headRoom + unionHeight * 0.35f;
+            VNotch.Services.RuntimeLog.Log("SMART-CROP",
+                $"group ({persons.Count} persons): avgFaceCenter=({avgFaceCenterX:F0},{avgFaceCenterY:F0})");
 
-            return BuildCropRect(unionCenterX, targetY, imgWidth, imgHeight, cropSize);
+            return BuildCropRect(avgFaceCenterX, avgFaceCenterY, imgWidth, imgHeight, cropSize);
         }
     }
 

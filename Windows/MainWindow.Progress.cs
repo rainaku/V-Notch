@@ -214,6 +214,26 @@ public partial class MainWindow
             bool isTrackChanged = newSignature != _lastProgressSignature;
             bool isSessionSwitch = !string.IsNullOrEmpty(info.SourceAppId) && info.SourceAppId != _lastSessionId;
             bool isFirstEverTrack = string.IsNullOrEmpty(_lastProgressSignature);
+
+            // Detect "artist-only" metadata stabilization: same app + same track title,
+            // only the artist field changed (e.g., "YouTube" → real artist from oEmbed).
+            // In this case, do NOT reset progress — just update the signature silently.
+            if (isTrackChanged && !isFirstEverTrack && !isSessionSwitch && info.IsPlaying && info.Position > TimeSpan.Zero)
+            {
+                // Extract the track prefix (SourceAppId|Track|) from both old and new signatures.
+                // If only the artist portion differs, it's metadata stabilization.
+                string trackPrefix = $"{info.SourceAppId}|{info.CurrentTrack}|";
+                if (_lastProgressSignature.StartsWith(trackPrefix, StringComparison.Ordinal))
+                {
+                    string oldArtist = _lastProgressSignature.Substring(trackPrefix.Length);
+                    // Artist-only change while playing — metadata stabilization, not a real track change.
+                    // Update signature without resetting progress.
+                    _lastProgressSignature = newSignature;
+                    isTrackChanged = false;
+                    RuntimeLog.Log("PROGRESS-TRACK", 
+                        $"Artist-only stabilization, skipping reset: '{oldArtist}' → '{info.CurrentArtist}' pos={info.Position.TotalSeconds:F1}s");
+                }
+            }
             
             if (isTrackChanged)
             {
@@ -272,11 +292,28 @@ public partial class MainWindow
                 }
                 else if (isFirstEverTrack)
                 {
-                    // First track after app launch — no meaningful prior state to rewind from.
-                    // Snap to 0 to avoid a spurious rewind animation caused by metadata
-                    // stabilization firing multiple track-change events on boot.
-                    _progressDisplayRatio = 0;
-                    ProgressBarScale.ScaleX = 0;
+                    // First track after app launch — if media is already playing at a non-zero
+                    // position, initialize directly to that position instead of snapping to 0.
+                    // This prevents the "jump to 0:00" bug on first boot when media is mid-playback.
+                    if (info.IsPlaying && info.Position > TimeSpan.Zero && info.Duration.TotalSeconds > 0)
+                    {
+                        double initialRatio = Math.Clamp(info.Position.TotalSeconds / info.Duration.TotalSeconds, 0, 1);
+                        _progressDisplayRatio = initialRatio;
+                        _progressTargetRatio = initialRatio;
+                        _progressSpringTargetRatio = initialRatio;
+                        _lastRenderedRatio = initialRatio;
+                        ProgressBarScale.ScaleX = initialRatio;
+                        CurrentTimeText.Text = FormatTime(info.Position);
+                        RemainingTimeText.Text = FormatTime(info.Duration);
+                        RuntimeLog.Log("PROGRESS-BOOT", 
+                            $"First track init at pos={info.Position.TotalSeconds:F1}s ratio={initialRatio:F4}");
+                    }
+                    else
+                    {
+                        // Not playing or position is 0 — snap to 0 as before.
+                        _progressDisplayRatio = 0;
+                        ProgressBarScale.ScaleX = 0;
+                    }
                 }
                 else if (fromRatio > 0.97)
                 {
