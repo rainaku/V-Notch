@@ -30,6 +30,8 @@ task.md
 *.iss
 *.md
 !README.md
+!PRIVACY_POLICY.md
+!PRIVACY_POLICY_VI.md
 fix_xaml.py
 /artifacts
 r.ps1
