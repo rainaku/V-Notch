@@ -610,6 +610,8 @@ public partial class MainWindow
 
             if (_isMusicCompactMode)
             {
+                // A prior exit pop-out may have left the thumbnail collapsed/invisible.
+                ResetCompactThumbnailRestingState();
                 if (info?.Thumbnail != null && !_isClipboardPeekActive)
                 {
                     // When re-entering compact mode for the same track (e.g. pause→play),
@@ -631,7 +633,12 @@ public partial class MainWindow
             }
             else
             {
-                FadeSwitch(MusicCompactContent, CollapsedContent);
+                // Media turned off — play a pop-out collapse on the compact thumbnail
+                // before switching back to the idle collapsed content.
+                PlayCompactThumbnailExitAnimation(() =>
+                {
+                    FadeSwitch(MusicCompactContent, CollapsedContent);
+                });
             }
         }
         else
@@ -690,6 +697,71 @@ public partial class MainWindow
             CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
             CompactThumbnailBorder.Opacity = 1.0;
         };
+    }
+
+    /// <summary>
+    /// Plays a "pop-out" collapse on the compact thumbnail when media stops/turns off,
+    /// mirroring <see cref="PlayThumbnailRevealAnimation"/>. Scale 1→0 with an anticipation
+    /// dip + opacity fade so the pill shrinks away smoothly before switching back to the
+    /// idle collapsed content. Calls <paramref name="onCompleted"/> when finished.
+    /// </summary>
+    private void PlayCompactThumbnailExitAnimation(Action? onCompleted = null)
+    {
+        // Scale from the thumbnail center so it collapses inward symmetrically,
+        // rather than from the top-left origin used for the hover-expand morph.
+        var originalOrigin = CompactThumbnailBorder.RenderTransformOrigin;
+        CompactThumbnailBorder.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailScale.ScaleX = 1.0;
+        CompactThumbnailScale.ScaleY = 1.0;
+        CompactThumbnailBorder.Opacity = 1.0;
+
+        var dur = new Duration(TimeSpan.FromMilliseconds(260));
+
+        // Scale 1 → 0 with a slight anticipation (BackEase) for an organic shrink
+        var backIn = new BackEase { EasingMode = EasingMode.EaseIn, Amplitude = 0.3 };
+        var scaleAnimX = MakeAnim(1.0, 0.0, dur, backIn);
+        var scaleAnimY = MakeAnim(1.0, 0.0, dur, backIn);
+        Timeline.SetDesiredFrameRate(scaleAnimX, 120);
+        Timeline.SetDesiredFrameRate(scaleAnimY, 120);
+
+        // Opacity 1 → 0, a touch faster so it's gone by the time scale finishes
+        var opacityAnim = MakeAnim(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
+        Timeline.SetDesiredFrameRate(opacityAnim, 60);
+
+        scaleAnimX.Completed += (s, e) =>
+        {
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+            // Leave the thumbnail collapsed (scale 0 / opacity 0) so it doesn't pop
+            // back to full size while the content fades out. The resting state is
+            // restored by ResetCompactThumbnailRestingState() when the pill is next shown.
+            CompactThumbnailBorder.RenderTransformOrigin = originalOrigin;
+            onCompleted?.Invoke();
+        };
+
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimX);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimY);
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, opacityAnim);
+    }
+
+    /// <summary>
+    /// Restores the compact thumbnail to its resting visual state (full scale, opaque).
+    /// Called when re-entering compact mode so a prior exit pop-out (which leaves the
+    /// thumbnail collapsed) doesn't keep it invisible.
+    /// </summary>
+    private void ResetCompactThumbnailRestingState()
+    {
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailScale.ScaleX = 1.0;
+        CompactThumbnailScale.ScaleY = 1.0;
+        CompactThumbnailBorder.Opacity = 1.0;
     }
 
     #endregion
