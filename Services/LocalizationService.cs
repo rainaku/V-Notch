@@ -207,6 +207,8 @@ public static class Loc
 
             // ─── Battery ───
             ["battery.charging"] = "Charging",
+            ["battery.fullyCharged"] = "Fully charged",
+            ["battery.onBattery"] = "On battery",
 
             // ─── Privacy Indicators ───
             ["privacy.mic.inUse"] = "Microphone in use",
@@ -383,6 +385,8 @@ public static class Loc
 
             // ─── Battery ───
             ["battery.charging"] = "Đang sạc",
+            ["battery.fullyCharged"] = "Đã sạc đầy",
+            ["battery.onBattery"] = "Dùng pin",
 
             // ─── Privacy Indicators ───
             ["privacy.mic.inUse"] = "Đang dùng micro",
