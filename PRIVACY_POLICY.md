@@ -1,121 +1,216 @@
 # Privacy Policy — V-Notch
 
-**Effective Date:** May 15, 2026  
-**Application Version:** 1.6.3  
+**Effective Date:** May 29, 2026
+**Application Version:** 1.7.4
 **Developer:** rainaku
+**Contact:** [github.com/rainaku/V-Notch/issues](https://github.com/rainaku/V-Notch/issues)
 
 ---
 
 ## 1. Introduction
 
-V-Notch is an open-source desktop application for Windows that provides a macOS-style notch interface. This Privacy Policy describes what data the application accesses, how it is used, and how it is stored.
+V-Notch is a free, open-source desktop application for Windows that recreates a macOS-style notch / Dynamic Island experience. It displays now-playing media, battery and Bluetooth status, a file shelf, a camera preview, system volume, and other ambient information.
 
-V-Notch is designed with a privacy-first approach. The application does not collect, transmit, or store personal data on any external server.
+This Privacy Policy explains, in detail, exactly what data the application accesses, why it accesses it, where that data goes, and how long it is kept. It reflects the actual behavior of the application source code, which is publicly available for inspection at [github.com/rainaku/V-Notch](https://github.com/rainaku/V-Notch).
 
----
+**Core principle:** V-Notch is local-first. It contains no analytics, no telemetry, no advertising, and no user accounts. It does not operate any server of its own. The only outbound network requests it makes are to public third-party services for two purposes: checking for application updates, and fetching album artwork / lyrics for the media you are already playing. All of these are described in Section 4.
 
-## 2. Data Accessed by the Application
-
-### 2.1 Media Session Information
-
-The application accesses the Windows Media Session API to retrieve metadata about currently playing media (e.g., Spotify, YouTube, SoundCloud, or browser-based players). This includes track title, artist name, album artwork, playback position, and playback state.
-
-This data is used solely for real-time display on the notch interface and is not persisted or transmitted.
-
-### 2.2 Camera
-
-The application may access the system camera when the user explicitly activates the camera preview feature. Video frames are processed locally for display purposes only. No recording, capture, or transmission of camera data occurs.
-
-### 2.3 File System
-
-When the user drags files into the File Shelf feature, the application accesses file paths and basic metadata for display and management purposes. File content is not read, modified, or transmitted.
-
-### 2.4 System Audio
-
-The application accesses the Windows Core Audio API to read and adjust system volume levels.
-
-### 2.5 Window Titles
-
-The application scans active window titles to identify media sources (e.g., detecting YouTube or SoundCloud playback). This information is used locally and is not stored or transmitted.
+This policy uses the following terms:
+- **"Local"** — data that stays on your computer and is never sent anywhere.
+- **"Transient"** — data held in memory only while needed for display, then discarded; never written to disk.
+- **"Opt-in"** — a feature that does nothing until you explicitly enable or trigger it.
 
 ---
 
-## 3. Network Connections
+## 2. Summary at a Glance
 
-V-Notch does not include any analytics, telemetry, or user tracking systems. The application makes the following network requests:
+| Capability | What it accesses | Leaves your device? | Stored? |
+|---|---|---|---|
+| Now-playing media | Track title, artist, artwork, position, play state (Windows SMTC) | No (except artwork/lyrics lookup — see §4) | No (transient) |
+| Album artwork lookup | Track title + artist sent as a search query | Yes — YouTube/Google, SoundCloud, Piped/Invidious | No (image cached in memory) |
+| Synced lyrics | Track title + artist + duration sent as a query | Yes — lrclib.net | No (transient) |
+| Update check | Standard HTTP headers only | Yes — GitHub API | Version info cached in memory |
+| Camera preview | Live camera frames | No | No (never recorded) |
+| File Shelf | File paths + basic file metadata | No | Paths persisted locally (see §5) |
+| System volume | Read/adjust audio endpoint level | No | No |
+| Media source detection | Visible window titles; active browser URL | No | No (transient) |
+| Bluetooth status | Connected device name, type, state | No | No (transient) |
+| Clipboard indicator | Clipboard *change* event (not content) | No | No |
+| Privacy indicators | Whether mic/camera/screen-capture is in use | No | No (transient) |
+| Gestures | Mouse movement/clicks over the notch | No | No |
+| Smart artwork crop | On-device image analysis (ONNX) | No | No |
 
-### 3.1 Update Checks
+---
 
-The application queries the GitHub Releases API to determine whether a newer version is available.
+## 3. Data Accessed on Your Device
+
+### 3.1 Now-Playing Media (Windows Media Session)
+
+V-Notch uses the Windows System Media Transport Controls (SMTC) API to read metadata about media currently playing on your system — for example from Spotify, the YouTube/SoundCloud web players, Apple Music, or any browser tab. The metadata includes track title, artist, album name, embedded album artwork, playback position, duration, and play/pause state.
+
+This data is read continuously while media is playing, used to render the notch in real time, and held only in memory. It is never written to disk. The track title and artist may be sent to third-party services to look up artwork and lyrics — see Section 4.
+
+### 3.2 Media Source Detection (Window Titles & Browser URLs)
+
+To identify *where* media is playing (e.g. distinguishing a YouTube tab from a SoundCloud tab) and to fetch the correct artwork, V-Notch performs two kinds of local inspection:
+
+- **Window title scanning** — It enumerates the titles of visible top-level windows and looks for known media keywords (such as "spotify", "youtube", "soundcloud", "apple music"). Only titles matching those keywords are retained, briefly, in memory.
+- **Browser URL reading** — For supported browsers (Chrome, Edge, Firefox, Brave, Opera, Vivaldi), it uses the Windows UI Automation accessibility API to read the address bar and, if needed, open tabs, in order to find a media URL (a `youtube.com/watch`, `youtu.be`, or `soundcloud.com` link). Only URLs that look like media links are used.
+
+This inspection happens entirely on your device. The titles and URLs are used transiently to drive media detection and artwork lookup, are cached only briefly in memory, and are never stored to disk or transmitted as-is. (A derived value — the track title/artist — may be sent for artwork lookup as described in Section 4.)
+
+### 3.3 Camera (Opt-In)
+
+V-Notch can show a live camera preview, but only when you explicitly open that feature. While active, camera frames are processed locally for on-screen display. **No frame is ever recorded, saved, photographed, or transmitted.** When you close the preview, the camera is released. When V-Notch's own camera preview is active, it suppresses its own "camera in use" privacy dot to avoid a redundant indicator.
+
+### 3.4 File Shelf (Opt-In)
+
+When you drag files onto the File Shelf, V-Notch records each file's path and basic file-system metadata (name, size, type) so it can display and manage the shelf. It uses a `FileSystemWatcher` on those locations to keep the shelf in sync if a file is moved or deleted. **The contents of your files are not opened, read, modified, or transmitted.** The list of file paths is saved locally so the shelf persists between sessions (see Section 5).
+
+### 3.5 System Audio Volume
+
+V-Notch uses the Windows Core Audio API (via NAudio) to read the current system volume and to adjust it when you use the notch's volume control. No audio is recorded or captured; only the numeric volume level of the default audio endpoint is read and set.
+
+### 3.6 Bluetooth Device Status
+
+V-Notch watches for Bluetooth connect/disconnect events using the Windows device enumeration API in order to show a connection notification (for example, when your headphones connect). It reads the device's display name, a category guess (headphones, speaker, keyboard, etc.), and its connection state. This information is used transiently for the on-screen notification and is not stored or transmitted.
+
+### 3.7 Clipboard Change Indicator
+
+V-Notch registers a Windows clipboard *format listener* so it can show a brief "Copied" confirmation animation when the clipboard changes. It reacts to the *event* that the clipboard was updated; this feature is used to trigger a visual flash and does not upload or persist clipboard data.
+
+### 3.8 Privacy Indicators (Mic / Camera / Screen Capture)
+
+Mirroring iOS/macOS behavior, V-Notch can display a small colored dot when your microphone, camera, or screen recording is in use by *any* application. This is a status reflection only — it indicates that a sensor is active, processes that status transiently in memory, and stores or transmits nothing.
+
+### 3.9 Gestures & Mouse Input
+
+To support swipe and double-tap gestures on the notch (next/previous track, open shelf, play/pause), V-Notch monitors mouse movement and clicks in the region of the notch. This input is interpreted locally to recognize gestures and is never logged or transmitted.
+
+### 3.10 On-Device Smart Thumbnail Cropping (ONNX)
+
+If enabled, V-Notch uses a bundled YOLOv8n object-detection model running locally through ONNX Runtime to intelligently crop wide artwork (centering on a face or subject). **All image analysis runs entirely on your device. No image, model input, or detection result is sent anywhere.** This feature requires no network connection.
+
+---
+
+## 4. Network Connections
+
+V-Notch has no backend server and performs no analytics or telemetry. It makes outbound requests **only** to the following public third-party services, and **only** for the purposes described. No account identifiers, device identifiers, or tracking tokens are attached to these requests.
+
+### 4.1 Application Update Checks — GitHub
 
 - **Endpoint:** `https://api.github.com/repos/rainaku/V-Notch/releases/latest`
-- **Data transmitted:** Standard HTTP headers (User-Agent: "V-Notch-Updater")
-- **Data received:** Latest version number, download URL, release notes
-- **Frequency:** Minimum 45-second interval between checks; responses are cached
-- **User action required:** Downloads and installations are initiated only by explicit user action
+- **Why:** To detect whether a newer release of V-Notch is available.
+- **Data sent:** Standard HTTP headers only, including `User-Agent: V-Notch-Updater` and a conditional `If-None-Match` (ETag) header for caching. No personal data is sent.
+- **Data received:** Latest version tag, release notes, and the installer download URL.
+- **Frequency:** Throttled to at most once per 45 seconds; responses are cached in memory and revalidated with ETags.
+- **Your control:** Downloading and installing an update happens **only** when you explicitly choose to. If you start an update, the installer (`V-Notch-Setup.exe`) is downloaded from its GitHub release asset URL to your temporary folder and run.
 
-### 3.2 Album Artwork Retrieval
+### 4.2 Album Artwork Lookup
 
-To display album artwork for currently playing media, the application may query:
+When SMTC does not provide embedded artwork (common for browser-based playback), V-Notch tries to find a matching cover image. The track title and artist are used as search terms. Depending on the source, it may contact:
 
-- **YouTube:** Search requests to retrieve video thumbnails from `i.ytimg.com`
-- **SoundCloud:** API requests to retrieve track artwork URLs
+**YouTube / Google:**
+- `https://www.youtube.com/results?...` — scraping the public search page for a matching video.
+- `https://www.youtube.com/oembed?...` — validating a video and retrieving its title/thumbnail.
+- `https://i.ytimg.com/...` — fetching the thumbnail image.
+- `https://www.googleapis.com/youtube/v3/search` — the official YouTube Data API, used **only if** you have supplied your own API key. No key ships with the app.
 
-Data transmitted consists of track title and artist name used as search parameters. No user-identifiable information is included in these requests.
+**Piped / Invidious (privacy-friendly YouTube front-ends, used as fallbacks):**
+- Public instances such as `pipedapi.kavin.rocks`, `pipedapi.adminforge.de`, `vid.puffyan.us`, `invidious.fdn.fr`, and similar. These are third-party community-run services contacted only if the primary lookup fails.
+
+**SoundCloud:**
+- The SoundCloud oEmbed endpoint, to retrieve the artwork URL for a SoundCloud track.
+
+**Data sent:** the track title and artist (as a search query) and standard browser-like HTTP headers. **No user-identifiable information is included.** Retrieved images are held in memory for display and are not written to disk.
+
+### 4.3 Synced Lyrics — LRCLIB
+
+- **Endpoint:** `https://lrclib.net/api/get?...`
+- **Why:** To fetch time-synced lyrics for the current track, when the lyrics feature is used.
+- **Data sent:** Track title, artist name, and track duration as query parameters, plus a `User-Agent` identifying V-Notch. No personal data is sent.
+- **Data received:** Synced lyric lines, used transiently for display.
+
+### 4.4 Third Parties
+
+The services above (GitHub, Google/YouTube, the Piped/Invidious instances, SoundCloud, and LRCLIB) are independent third parties with their own privacy policies. When V-Notch contacts them, your IP address is necessarily visible to that service, as with any normal web request. V-Notch does not control and is not responsible for how those services handle requests. If you prefer to avoid these lookups, you can disable artwork/lyrics features and update checks, or block the app's network access.
 
 ---
 
-## 4. Local Data Storage
+## 5. Local Data Storage
 
-All persistent data is stored exclusively on the user's device at `%APPDATA%\V-Notch\`.
+All persistent data created by V-Notch lives only on your device.
 
-### 4.1 Settings File (settings.json)
+### 5.1 Settings (`%APPDATA%\V-Notch\settings.json`)
 
-Contains user preferences including notch dimensions, position, visual style, animation preferences, notification settings, language preference, and startup behavior.
+Stores your preferences: notch size and position, visual style and animation options, notification toggles, language, startup behavior, the File Shelf contents (file paths), and feature flags. This file contains no passwords, credentials, or tracking identifiers.
 
-### 4.2 Debug Log (vnotch-debug.log)
+### 5.2 Diagnostic Log (`vnotch-debug.log`)
 
-Contains application events and error information for diagnostic purposes. This file does not contain personal information and is never transmitted externally.
+Located in the application's program folder, this log records application events and errors to help diagnose problems. It is automatically rotated when it reaches about 5 MB. It is intended to contain only technical diagnostic information (and, for media debugging, may include track titles/URLs that the app is processing). **This log is never transmitted anywhere** — it stays on your machine, and you may delete it at any time.
+
+### 5.3 Optional ONNX Model
+
+If present, the smart-crop model file (`yolov8n.onnx`) is stored locally alongside the app and is used purely for on-device image analysis.
+
+You can remove all stored data at any time by deleting the `%APPDATA%\V-Notch\` folder and the application directory.
 
 ---
 
-## 5. Data Not Collected
+## 6. Data V-Notch Does NOT Collect
 
-The application does not collect or process personal information, track user behavior, transmit analytics or telemetry data, send automated crash reports, record audio or video, access location services, share data with third parties, or create user profiles or accounts.
+V-Notch does **not**:
+- collect, sell, or share personal information with third parties for marketing;
+- run analytics, telemetry, behavioral tracking, or fingerprinting;
+- send automated crash reports or usage statistics;
+- record audio, video, or screen content;
+- read, upload, or back up the contents of your files;
+- access location/GPS data;
+- create user accounts, profiles, or advertising identifiers;
+- store clipboard contents.
 
 ---
 
-## 6. Permissions
+## 7. Permissions Reference
 
-| Permission | Purpose | Required |
+| Permission / API | Purpose | Required? |
 |---|---|---|
-| Media Session | Display currently playing media | Yes |
-| Camera | Camera preview in notch | No (opt-in) |
-| Internet | Update checks and artwork retrieval | No (optional) |
-| File System | File Shelf drag-and-drop | No (opt-in) |
-| Audio Endpoint | Volume control | Yes |
+| Media Session (SMTC) | Show now-playing media | Yes (core feature) |
+| Audio Endpoint (Core Audio) | Read/control system volume | Yes (core feature) |
+| Internet | Update checks, artwork & lyrics lookup | Optional |
+| Camera | Camera preview in the notch | Opt-in |
+| File System | File Shelf drag-and-drop | Opt-in |
+| UI Automation | Detect active media URL in browsers | Used for media detection |
+| Bluetooth (device enumeration) | Connect/disconnect notifications | Optional |
+| Clipboard listener | "Copied" confirmation animation | Optional |
 
 ---
 
-## 7. Security
+## 8. Security
 
-The application runs under standard user privileges and does not require administrator access for normal operation. The source code is publicly available for review at [github.com/rainaku/V-Notch](https://github.com/rainaku/V-Notch).
-
----
-
-## 8. Children's Privacy
-
-V-Notch does not collect data from any user, including children. The application is suitable for all ages.
+V-Notch runs with standard user privileges and does not require administrator rights for normal operation. Administrator elevation is requested only when installing an update (to run the installer). Because the application is fully open source, anyone may audit exactly what it does at [github.com/rainaku/V-Notch](https://github.com/rainaku/V-Notch).
 
 ---
 
-## 9. Changes to This Policy
+## 9. Children's Privacy
 
-This Privacy Policy may be updated when new features are introduced. Changes will be documented in the application changelog and reflected in updated versions of this document.
+V-Notch does not collect personal data from anyone, including children, and does not direct any content toward children specifically. It is suitable for all ages.
 
 ---
 
-## 10. Contact
+## 10. International Use
 
-For questions regarding this Privacy Policy, please open an issue at:  
+V-Notch processes data locally on your device. The only data that crosses a network is the limited request data described in Section 4, sent to the third-party services listed there, which may operate in various countries. No personal data is transferred or stored by the developer.
+
+---
+
+## 11. Changes to This Policy
+
+This Privacy Policy may be updated as features change. Material changes will be reflected in this document, in the application changelog, and through an updated effective date and version number above. Continued use of the application after an update constitutes acceptance of the revised policy.
+
+---
+
+## 12. Contact
+
+Questions, concerns, or data-related requests can be raised by opening an issue at:
 [https://github.com/rainaku/V-Notch/issues](https://github.com/rainaku/V-Notch/issues)
