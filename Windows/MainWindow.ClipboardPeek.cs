@@ -88,6 +88,9 @@ public partial class MainWindow
     }
     private void ShowClipboardCopiedState()
     {
+        // Volume indicator takes priority — don't show "Copied" if volume bar is active
+        if (_isVolumeIndicatorActive) return;
+
         _isClipboardPeekActive = true;
 
         // Hide privacy dot during clipboard notification
@@ -96,15 +99,26 @@ public partial class MainWindow
         // Update text with localization
         ClipboardCopiedText.Text = Loc.Get("clipboard.copied");
 
-        // ─── Fade out + scale down MusicViz ───
+        // ─── Immediately hide all other notch elements to prevent overlap ───
+        // Cancel any ongoing thumbnail switch animations that could restore visibility
+        CancelThumbnailSwitchAnimations();
+
+        // Force-hide thumbnail immediately (cancel any running animations first)
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailBorder.Opacity = 0;
+        CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+
+        // Force-hide MusicViz immediately
         MusicViz.BeginAnimation(OpacityProperty, null);
-        var vizFadeOut = MakeAnim(0.0, _dur100, _easeQuadOut);
-        vizFadeOut.Completed += (s, e) =>
-        {
-            if (_isClipboardPeekActive)
-                MusicViz.Visibility = Visibility.Collapsed;
-        };
-        MusicViz.BeginAnimation(OpacityProperty, vizFadeOut);
+        MusicViz.Opacity = 0;
+        MusicViz.Visibility = Visibility.Collapsed;
+
+        // Hide compact hover info if visible
+        CompactHoverInfo.BeginAnimation(OpacityProperty, null);
+        CompactHoverInfo.Opacity = 0;
+        CompactHoverInfo.Visibility = Visibility.Collapsed;
 
         // ─── Show checkmark icon with scale-in spring ───
         ClipboardCheckIcon.Visibility = Visibility.Visible;
@@ -136,10 +150,6 @@ public partial class MainWindow
 
         ClipboardCopiedText.BeginAnimation(OpacityProperty, textFadeIn);
         ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, textSlideIn);
-
-        // ─── Hide thumbnail ───
-        CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
-        CompactThumbnailBorder.Visibility = Visibility.Collapsed;
 
         // ─── Schedule revert ───
         _clipboardRevertTimer?.Stop();
@@ -199,6 +209,10 @@ public partial class MainWindow
 
         // ─── Restore thumbnail (reverse of hide) ───
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailScale.ScaleX = 1.0;
+        CompactThumbnailScale.ScaleY = 1.0;
         CompactThumbnailBorder.Opacity = 1.0;
         CompactThumbnailBorder.Visibility = Visibility.Visible;
 

@@ -566,15 +566,23 @@ public partial class MainWindow
                     if (_mediaDisplayController.ShouldAnimateCompactThumbnail(info))
                     {
                         _lastAnimatedTrackSignature = _mediaDisplayController.LastAnimatedTrackSignature;
-                        AnimateThumbnailSwitchOnly(info.Thumbnail);
-                        PlayTrackChangeBounce();
+                        // Don't animate thumbnail while clipboard notification is showing
+                        if (!_isClipboardPeekActive)
+                        {
+                            AnimateThumbnailSwitchOnly(info.Thumbnail);
+                            PlayTrackChangeBounce();
+                        }
                     }
                 }
                 
                 if (info != null)
                 {
-                    MusicViz.IsPlaying = info.IsPlaying;
-                    MusicViz.TrackId = info.GetSignature();
+                    // Don't restore MusicViz while clipboard notification is showing
+                    if (!_isClipboardPeekActive)
+                    {
+                        MusicViz.IsPlaying = info.IsPlaying;
+                        MusicViz.TrackId = info.GetSignature();
+                    }
                 }
             }
             return;
@@ -602,7 +610,7 @@ public partial class MainWindow
 
             if (_isMusicCompactMode)
             {
-                if (info?.Thumbnail != null)
+                if (info?.Thumbnail != null && !_isClipboardPeekActive)
                 {
                     // When re-entering compact mode for the same track (e.g. pause→play),
                     // don't touch the source at all. The track hasn't changed — the
@@ -615,7 +623,11 @@ public partial class MainWindow
                         _thumbnailShownForCurrentTrack = true;
                     }
                 }
-                FadeSwitch(CollapsedContent, MusicCompactContent);
+                // Don't switch to MusicCompactContent while clipboard notification is active
+                if (!_isClipboardPeekActive)
+                {
+                    FadeSwitch(CollapsedContent, MusicCompactContent);
+                }
             }
             else
             {

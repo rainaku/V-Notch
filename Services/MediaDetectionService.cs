@@ -3324,6 +3324,8 @@ public class MediaDetectionService : IMediaDetectionService
         _bgCts?.Cancel();
         _changeChannel.Writer.TryComplete();
 
+        UnsubscribeFromSession();
+
         if (_sessionManager != null)
         {
             _sessionManager.CurrentSessionChanged -= OnSessionChanged;

@@ -1086,10 +1086,18 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             return;
         }
 
-        // Don't open notch while volume indicator is active (dragging)
-        if (_isVolumeIndicatorActive || _isDraggingVolumeIndicator)        {
+        // Don't open notch while actively dragging the volume slider
+        if (_isDraggingVolumeIndicator)
+        {
             e.Handled = true;
             return;
+        }
+
+        // If the volume indicator is merely showing (not being dragged), dismiss it
+        // and continue so the click still expands the notch.
+        if (_isVolumeIndicatorActive)
+        {
+            DismissVolumeIndicatorImmediate();
         }
 
         // Try gesture tracking when collapsed with media playing

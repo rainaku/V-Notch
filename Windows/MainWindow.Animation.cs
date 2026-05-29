@@ -214,6 +214,7 @@ public partial class MainWindow
         MediaBackground2.Opacity = 0;
 
         SecondaryContent.Visibility = Visibility.Collapsed;
+        TimerContent.Visibility = Visibility.Collapsed;
 
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
@@ -407,7 +408,7 @@ public partial class MainWindow
 
             // Always restore opacity — it may have been set to 0 during expand animation even if _isMusicCompactMode changed during the animation
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-            if (CompactThumbnailBorder != null)
+            if (CompactThumbnailBorder != null && !_isClipboardPeekActive)
             {
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
                 CompactThumbnailBorder.Opacity = 1;
@@ -502,6 +503,8 @@ public partial class MainWindow
                 SecondaryContent.Opacity = 0;
                 SecondaryContent.Visibility = Visibility.Collapsed;
                 SecondaryContent.RenderTransform = null;
+                TimerContent.Visibility = Visibility.Collapsed;
+                TimerContent.Opacity = 0;
             };
 
             SecondaryContent.BeginAnimation(OpacityProperty, secFadeOut);
@@ -510,10 +513,12 @@ public partial class MainWindow
             secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, secScaleDown);
 
             _isSecondaryView = false;
+            _isTimerView = false;
         }
         else
         {
             SecondaryContent.BeginAnimation(OpacityProperty, null);
+            _isTimerView = false;
         }
 
         ExpandedContent.BeginAnimation(OpacityProperty, null);
@@ -565,6 +570,8 @@ public partial class MainWindow
                 SecondaryContent.Opacity = 0;
                 SecondaryContent.Visibility = Visibility.Collapsed;
                 SecondaryContent.RenderTransform = null;
+                TimerContent.Visibility = Visibility.Collapsed;
+                TimerContent.Opacity = 0;
             }
         };
 
@@ -739,7 +746,7 @@ public partial class MainWindow
             }
 
             // Always restore opacity — may have been set to 0 during collapse animation
-            if (CompactThumbnailBorder != null)
+            if (CompactThumbnailBorder != null && !_isClipboardPeekActive)
             {
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
                 CompactThumbnailBorder.Opacity = 1;
@@ -748,7 +755,7 @@ public partial class MainWindow
 
             // Ensure MusicViz is properly positioned after collapse
             MusicViz.BeginAnimation(OpacityProperty, null);
-            if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true)
+            if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true && !_isClipboardPeekActive)
             {
                 MusicViz.Visibility = Visibility.Visible;
                 MusicViz.Opacity = 1;

@@ -352,6 +352,28 @@ public partial class MainWindow
         // CRITICAL: never run the compact-mode volume UI when the notch is expanded
         if (_isExpanded || _isAnimating) return;
 
+        // ─── Volume takes priority over clipboard "Copied" notification ───
+        if (_isClipboardPeekActive)
+        {
+            // Cancel the revert timer and immediately dismiss clipboard UI
+            _clipboardRevertTimer?.Stop();
+            _isClipboardPeekActive = false;
+
+            // Hide clipboard elements instantly (no animation needed, volume will take over)
+            ClipboardCheckIcon.BeginAnimation(OpacityProperty, null);
+            ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            ClipboardCheckIcon.Opacity = 0;
+            ClipboardCheckIcon.Visibility = Visibility.Collapsed;
+
+            ClipboardCopiedText.BeginAnimation(OpacityProperty, null);
+            ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+            ClipboardCopiedText.Opacity = 0;
+            ClipboardCopiedText.Visibility = Visibility.Collapsed;
+
+            RestorePrivacyDotVisibility();
+        }
+
         // ─── First time showing: hide compact content ───
         if (!_isVolumeIndicatorActive)
         {
@@ -466,11 +488,7 @@ public partial class MainWindow
         if (VolumeIndicatorContainer == null) return;
         _isVolumeIndicatorActive = false;
         _volumeSynced = false;
-
-        // Restore privacy dot
-        RestorePrivacyDotVisibility();
-
-        // If the notch is expanded (user opened it while volume indicator was visible), don't drive the compact-mode shrink animation — that would collapse the expanded view's width mid-flight
+        RestorePrivacyDotVisibility(); (user opened it while volume indicator was visible), don't drive the compact-mode shrink animation — that would collapse the expanded view's width mid-flight
         if (_isExpanded || _isAnimating)
         {
             VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
@@ -501,19 +519,25 @@ public partial class MainWindow
         };
         VolumeIndicatorContainer.BeginAnimation(OpacityProperty, fadeOut);
 
-        // Restore thumbnail
-        CompactThumbnailBorder.Visibility = Visibility.Visible;
-        CompactThumbnailBorder.Opacity = 0;
-        CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
-        var thumbIn = MakeAnim(0.0, 1.0, _dur250, _easeQuadOut);
-        CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbIn);
+        // Restore thumbnail (only if clipboard notification is not active)
+        if (!_isClipboardPeekActive)
+        {
+            CompactThumbnailBorder.Visibility = Visibility.Visible;
+            CompactThumbnailBorder.Opacity = 0;
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+            var thumbIn = MakeAnim(0.0, 1.0, _dur250, _easeQuadOut);
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbIn);
+        }
 
-        // Restore MusicViz
-        MusicViz.Visibility = Visibility.Visible;
-        MusicViz.Opacity = 0;
-        MusicViz.BeginAnimation(OpacityProperty, null);
-        var vizIn = MakeAnim(0.0, 1.0, _dur100, _easeQuadOut);
-        MusicViz.BeginAnimation(OpacityProperty, vizIn);
+        // Restore MusicViz (only if clipboard notification is not active)
+        if (!_isClipboardPeekActive)
+        {
+            MusicViz.Visibility = Visibility.Visible;
+            MusicViz.Opacity = 0;
+            MusicViz.BeginAnimation(OpacityProperty, null);
+            var vizIn = MakeAnim(0.0, 1.0, _dur100, _easeQuadOut);
+            MusicViz.BeginAnimation(OpacityProperty, vizIn);
+        }
     }
 
     #region Volume Indicator Drag

@@ -31,14 +31,22 @@ public partial class MainWindow
 
         if (e.Delta < 0)
         {
-            if (!_isSecondaryView)
+            if (!_isSecondaryView && !_isTimerView)
             {
                 SwitchToSecondaryView();
+            }
+            else if (_isSecondaryView && !_isTimerView)
+            {
+                SwitchFromSecondaryToTimerView();
             }
         }
         else if (e.Delta > 0)
         {
-            if (_isSecondaryView)
+            if (_isTimerView)
+            {
+                SwitchFromTimerToSecondaryView();
+            }
+            else if (_isSecondaryView)
             {
                 // If camera is active, stop it first and wait for section to collapse
                 // before switching views so the user sees the camera fold animation.
@@ -80,7 +88,11 @@ public partial class MainWindow
     private void HomeIconButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (_isSecondaryView && !_isAnimating)
+        if (_isTimerView && !_isAnimating)
+        {
+            SwitchFromTimerToPrimaryView();
+        }
+        else if (_isSecondaryView && !_isAnimating)
         {
             SwitchToPrimaryView();
         }
@@ -89,7 +101,12 @@ public partial class MainWindow
     private void FileShelfIconButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (!_isSecondaryView && !_isAnimating)
+        if (_isTimerView && !_isAnimating)
+        {
+            // Switch from timer to file shelf
+            SwitchFromTimerToSecondaryView();
+        }
+        else if (!_isSecondaryView && !_isAnimating)
         {
             SwitchToSecondaryView();
         }
@@ -322,15 +339,23 @@ public partial class MainWindow
 
     private void UpdateNavIconsActiveState()
     {
-        if (_isSecondaryView)
+        if (_isTimerView)
+        {
+            HomeIconButton.Opacity = 0.4;
+            FileShelfIconButton.Opacity = 0.4;
+            TimerIconButton.Opacity = 1.0;
+        }
+        else if (_isSecondaryView)
         {
             HomeIconButton.Opacity = 0.4;
             FileShelfIconButton.Opacity = 1.0;
+            TimerIconButton.Opacity = 0.4;
         }
         else
         {
             HomeIconButton.Opacity = 1.0;
             FileShelfIconButton.Opacity = 0.4;
+            TimerIconButton.Opacity = 0.4;
         }
     }
 

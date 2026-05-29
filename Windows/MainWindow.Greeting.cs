@@ -34,6 +34,8 @@ public partial class MainWindow
         ExpandedContent.Visibility = Visibility.Collapsed;
         SecondaryContent.Opacity = 0;
         SecondaryContent.Visibility = Visibility.Collapsed;
+        TimerContent.Opacity = 0;
+        TimerContent.Visibility = Visibility.Collapsed;
         PrivacyIndicatorPanel.Opacity = 0;
         PrivacyIndicatorPanel.Visibility = Visibility.Collapsed;
         BluetoothNotification.Opacity = 0;
