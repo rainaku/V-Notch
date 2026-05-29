@@ -469,6 +469,9 @@ public partial class MainWindow : Window
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
         _updateCheckTimer?.Stop();
+        _hoverCollapseTimer?.Stop();
+        _hoverThumbnailDelayTimer?.Stop();
+        _compactThumbnailHoverLeaveTimer?.Stop();
         _moduleHost?.Dispose();
         _cameraController?.Dispose();
         _timerManager?.Dispose();

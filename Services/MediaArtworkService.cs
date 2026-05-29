@@ -15,11 +15,12 @@ public interface IMediaArtworkService
     void ConfigureSmartCrop(bool enabled);
 }
 
-public sealed class MediaArtworkService : IMediaArtworkService
+public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
 {
     private static readonly HttpClient _httpClient = new();
     private readonly SmartThumbnailCropService _smartCrop;
     private bool _smartCropAvailable;
+    private bool _disposed;
 
     public MediaArtworkService()
     {
@@ -438,5 +439,12 @@ public sealed class MediaArtworkService : IMediaArtworkService
             if (ms != null)
                 BitmapBufferPool.ReturnStream(ms);
         }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _smartCrop.Dispose();
     }
 }

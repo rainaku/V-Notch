@@ -488,7 +488,11 @@ public partial class MainWindow
         if (VolumeIndicatorContainer == null) return;
         _isVolumeIndicatorActive = false;
         _volumeSynced = false;
-        RestorePrivacyDotVisibility(); (user opened it while volume indicator was visible), don't drive the compact-mode shrink animation — that would collapse the expanded view's width mid-flight
+
+        // Restore privacy dot
+        RestorePrivacyDotVisibility();
+
+        // If the notch is expanded (user opened it while volume indicator was visible), don't drive the compact-mode shrink animation — that would collapse the expanded view's width mid-flight
         if (_isExpanded || _isAnimating)
         {
             VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
@@ -538,6 +542,27 @@ public partial class MainWindow
             var vizIn = MakeAnim(0.0, 1.0, _dur100, _easeQuadOut);
             MusicViz.BeginAnimation(OpacityProperty, vizIn);
         }
+    }
+
+    // Instantly clears the volume indicator state without the compact shrink animation.
+    // Used when the user clicks to expand the notch while the volume bar is showing —
+    // the expand animation will take over the notch sizing.
+    private void DismissVolumeIndicatorImmediate()
+    {
+        _volumeIndicatorHideTimer?.Stop();
+        _isVolumeIndicatorActive = false;
+        _volumeSynced = false;
+        _isDraggingVolumeIndicator = false;
+
+        if (VolumeIndicatorContainer != null)
+        {
+            VolumeIndicatorContainer.ReleaseMouseCapture();
+            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
+            VolumeIndicatorContainer.Opacity = 0;
+            VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
+        }
+
+        RestorePrivacyDotVisibility();
     }
 
     #region Volume Indicator Drag
