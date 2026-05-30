@@ -767,7 +767,9 @@ public partial class MainWindow
             // (thumbOut) holds opacity at 0 and, if it wasn't cleared on dismiss,
             // a local-value assignment loses to the still-active animation — leaving
             // the thumbnail invisible after returning to the compact pill.
-            if (CompactThumbnailBorder != null && !_isClipboardPeekActive)
+            // Guard: skip if volume indicator is actively animating the thumbnail back in
+            // (HideVolumeIndicator already drives the fade-in; snapping here causes a flash).
+            if (CompactThumbnailBorder != null && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
             {
                 CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
@@ -777,7 +779,7 @@ public partial class MainWindow
 
             // Ensure MusicViz is properly positioned after collapse
             MusicViz.BeginAnimation(OpacityProperty, null);
-            if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true && !_isClipboardPeekActive)
+            if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
             {
                 MusicViz.Visibility = Visibility.Visible;
                 MusicViz.Opacity = 1;

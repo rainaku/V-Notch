@@ -430,11 +430,11 @@
 
                         <Grid x:Name="NotchContent" Margin="0" SizeChanged="NotchContent_SizeChanged" RenderOptions.ClearTypeHint="Enabled">
 
-                    <!-- Navigation Icons Background (only visible in secondary section) -->
+                    <!-- Navigation Icons Background - removed, using drop shadows on icons instead -->
                     <Border x:Name="NavIconsBackground"
                             HorizontalAlignment="Left" VerticalAlignment="Top"
                             Margin="8,-2,0,0" Panel.ZIndex="199"
-                            Background="Black"
+                            Background="Transparent"
                             CornerRadius="12,12,10,10"
                             Width="64" Height="34"
                             Opacity="0"
@@ -460,6 +460,9 @@
                                 Margin="0,0,8,0"
                                 Opacity="1.0"
                                 MouseLeftButtonDown="HomeIconButton_Click">
+                            <Border.Effect>
+                                <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
+                            </Border.Effect>
                             <Viewbox Width="15" Height="15" Stretch="Uniform"
                                      HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Path Data="M8 0L0 6V8H1V15H4V10H7V15H15V8H16V6L14 4.5V1H11V2.25L8 0ZM9 10H12V13H9V10Z" 
@@ -473,6 +476,9 @@
                                 Opacity="0.4"
                                 Margin="0,0,8,0"
                                 MouseLeftButtonDown="FileShelfIconButton_Click">
+                            <Border.Effect>
+                                <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
+                            </Border.Effect>
                             <Viewbox Width="15" Height="15" Stretch="Uniform"
                                      HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Path Data="M34.133,145.067H460.8c4.71,0,8.533-3.814,8.533-8.533c0-23.526-19.14-42.667-42.667-42.667h-132.54L254.02,45.73c-1.621-1.937-4.019-3.063-6.554-3.063H59.733C40.909,42.667,25.6,57.975,25.6,76.8v59.733C25.6,141.252,29.423,145.067,34.133,145.067z M477.867,162.133H34.133C15.309,162.133,0,177.442,0,196.267V435.2c0,18.825,15.309,34.133,34.133,34.133h443.733c18.825,0,34.133-15.309,34.133-34.133V196.267C512,177.442,496.691,162.133,477.867,162.133z M162.133,264.533h-102.4c-4.71,0-8.533-3.814-8.533-8.533s3.823-8.533,8.533-8.533h102.4c4.71,0,8.533,3.814,8.533,8.533S166.844,264.533,162.133,264.533z M162.133,230.4h-102.4c-4.71,0-8.533-3.814-8.533-8.533s3.823-8.533,8.533-8.533h102.4c4.71,0,8.533,3.814,8.533,8.533S166.844,230.4,162.133,230.4z" 
@@ -485,6 +491,9 @@
                                 Cursor="Hand"
                                 Opacity="0.4"
                                 MouseLeftButtonDown="TimerIconButton_Click">
+                            <Border.Effect>
+                                <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
+                            </Border.Effect>
                             <Viewbox Width="15" Height="15" Stretch="Uniform"
                                      HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Path Data="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12ZM15.8321 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.8321L11.8451 13.0986C11.3171 12.7466 11 12.1541 11 11.5196V11.5V7C11 6.44772 11.4477 6 12 6C12.5523 6 13 6.44772 13 7V11.4648L15.5547 13.1679C16.0142 13.4743 16.1384 14.0952 15.8321 14.5547Z" 

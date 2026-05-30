@@ -95,20 +95,115 @@ public partial class MainWindow
         return 12.0;
     }
 
+    /// <summary>
+    /// Builds a clip geometry for CameraSection that has a cutout in the top-left
+    /// corner to avoid overlapping the NavIconsPanel. The shape:
+    /// 
+    ///        cutoutW
+    ///   ┌──────────┐
+    ///   │  (nav)   ╰──────────────────╮  ← top-right radius
+    ///   │                              │
+    ///   │                              │
+    ///   ╰──────────────────────────────╯  ← bottom corners radius
+    /// 
+    /// When expanded to shelf, uses simple rounded rect (nav icons are hidden).
+    /// </summary>
     private void ApplyCameraCornerRadius(bool expandedToShelf)
     {
         double radius = ComputeCameraCornerRadius(expandedToShelf);
-        CameraSection.CornerRadius = new CornerRadius(radius);
 
-        if (CameraSection.ActualWidth > 0 && CameraSection.ActualHeight > 0)
+        double w = CameraSection.ActualWidth;
+        double h = CameraSection.ActualHeight;
+        if (w <= 0 || h <= 0) return;
+
+        // Always apply the cutout clip (even when camera is expanded/active)
+        CameraSection.CornerRadius = new CornerRadius(0); // We handle clipping via geometry
+
+        // ─── Cutout dimensions ───
+        // NavIconsPanel: Margin="14,3,0,0", 3 icons × 22px + 2 gaps × 8px = 82px wide, ~22px tall
+        // SecondaryContent: Margin="12,10,12,12"
+        // Nav bottom in NotchContent = 3 + 22 + 5 = 30px
+        // CameraSection top in NotchContent = 10px
+        // → cutout height in local coords = 30 - 10 = 20px
+        // Nav right in NotchContent = 14 + 82 = 96px
+        // CameraSection left in NotchContent = 12px
+        // → cutout width in local coords = 96 - 12 + 6(breathing room) = 90px
+        double cutH = 22.0;
+        double cr = 8.0; // small radius for the inner concave corners of the cutout step
+        // Calculate cutW dynamically based on actual NavIconsPanel position
+        // Both NavIconsPanel and CameraSection share NotchContent as parent,
+        // so calculate relative positions via margins.
+        double cutW;
+        if (NavIconsPanel != null && NavIconsPanel.Visibility == Visibility.Visible
+            && NavIconsPanel.ActualWidth > 0)
         {
-            CameraSection.Clip = new RectangleGeometry
-            {
-                RadiusX = radius,
-                RadiusY = radius,
-                Rect = new Rect(0, 0, CameraSection.ActualWidth, CameraSection.ActualHeight)
-            };
+            // NavIconsPanel right edge in NotchContent coords:
+            double navRight = NavIconsPanel.Margin.Left + NavIconsPanel.ActualWidth + cutH;
+            // CameraSection left edge in NotchContent coords:
+            // SecondaryContent.Margin.Left (12) + CameraSection.Margin.Left (0)
+            double camLeft = 12.0 + CameraSection.Margin.Left;
+            cutW = Math.Max(0, Math.Min(navRight - camLeft, w - radius - cr));
         }
+        else
+        {
+            cutW = Math.Min(90.0, w - radius - cr);
+        }
+
+        // Shape: an "L-step" cutout at top-left. The camera section has a notch
+        // carved out for the nav icons. The top-left portion is flat at cutH,
+        // then steps up to y=0 at x=cutW with small rounded inner corners.
+        //
+        //   (0,0)                          (cutW,0)─────────────(w-r,0)╮
+        //     │                               │                        │
+        //   (0,cutH)──────(cutW-cr,cutH)╮     │                        │
+        //                                ╰──(cutW,cutH+cr)             │
+        //                                  ... but we want step shape:
+        //
+        //   icons area (not drawn)
+        //   (0,cutH)───(cutW-cr,cutH)╮                                 
+        //                             ╰(cutW, cutH-cr)                 
+        //                              │                               
+        //                        (cutW, 0)────────────(w-r, 0)╮ top-right
+        //                                                      │
+        //   (0, cutH)                                          │
+        //   │                                                  │
+        //   ╰──────────────────────────────────────────────────╯ bottom
+
+        var fig = new PathFigure { StartPoint = new Point(0, cutH), IsClosed = true, IsFilled = true };
+
+        // Bottom of cutout: go right along cutH to the step corner
+        fig.Segments.Add(new LineSegment(new Point(cutW - cr, cutH), true));
+        // Inner rounded corner: curve up from cutH to the vertical edge of the step
+        fig.Segments.Add(new ArcSegment(
+            new Point(cutW, cutH - cr),
+            new Size(cr, cr), 0, false, SweepDirection.Counterclockwise, true));
+        // Vertical edge of step: go up to the top edge
+        fig.Segments.Add(new LineSegment(new Point(cutW, 0), true));
+        // Top edge to top-right corner
+        fig.Segments.Add(new LineSegment(new Point(w - radius, 0), true));
+        // Top-right rounded corner
+        fig.Segments.Add(new ArcSegment(
+            new Point(w, radius),
+            new Size(radius, radius), 0, false, SweepDirection.Clockwise, true));
+        // Right edge down to bottom-right corner
+        fig.Segments.Add(new LineSegment(new Point(w, h - radius), true));
+        // Bottom-right rounded corner
+        fig.Segments.Add(new ArcSegment(
+            new Point(w - radius, h),
+            new Size(radius, radius), 0, false, SweepDirection.Clockwise, true));
+        // Bottom edge to bottom-left corner
+        fig.Segments.Add(new LineSegment(new Point(radius, h), true));
+        // Bottom-left rounded corner
+        fig.Segments.Add(new ArcSegment(
+            new Point(0, h - radius),
+            new Size(radius, radius), 0, false, SweepDirection.Clockwise, true));
+        // Left edge back up to start (0, cutH) — closed automatically
+
+        var pathGeo = new PathGeometry();
+        pathGeo.Figures.Add(fig);
+        pathGeo.Freeze();
+
+        CameraSection.Clip = pathGeo;
     }
 
     private void AnimateCameraSectionToShelf(bool expand)
