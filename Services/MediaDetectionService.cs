@@ -2055,6 +2055,34 @@ public class MediaDetectionService : IMediaDetectionService
                                     {
                                         score += (int)Math.Max(0, 200 - (timelineAge * 8));
                                     }
+
+                                    // ─── Position-advancement tie-breaker ───
+                                    // When multiple browser tabs share the same SourceAppUserModelId,
+                                    // a backgrounded tab can report a stale "Playing" status. The only
+                                    // reliable signal for which session is truly audible is whether its
+                                    // playback position actually moves forward between scans. Strongly
+                                    // favor sessions observed advancing, and penalize "Playing" sessions
+                                    // whose position is frozen.
+                                    if (isActive)
+                                    {
+                                        var advance = _sessionState.RecordTimelinePosition(
+                                            sessionInstanceKey, timeline.Position, nowUtc);
+
+                                        if (advance == MediaSessionState.TimelineAdvanceResult.Advanced ||
+                                            _sessionState.IsRecentlyAdvancing(sessionInstanceKey, nowUtc, TimeSpan.FromSeconds(6)))
+                                        {
+                                            // Decisively favor the session whose position is actually
+                                            // moving. The magnitude must clearly exceed the combined
+                                            // recency (+2600) and OS-current (+1000) bonuses so a
+                                            // stale-but-focused background tab can never outscore the
+                                            // session that is genuinely producing output.
+                                            score += 3000;
+                                        }
+                                        else if (advance == MediaSessionState.TimelineAdvanceResult.Stalled)
+                                        {
+                                            score -= 3000;
+                                        }
+                                    }
                                 }
                             }
                             catch (Exception ex)
