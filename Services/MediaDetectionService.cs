@@ -43,6 +43,8 @@ public class MediaDetectionService : IMediaDetectionService
 
     private string _pendingSessionAppId = "";
     private DateTime _pendingSessionStartTime = DateTime.MinValue;
+    private string _pendingNewTrackKey = "";
+    private DateTime _pendingNewTrackSince = DateTime.MinValue;
 
     private CancellationTokenSource? _thumbCts;
     private string _lastStableTrackSignature = "";
@@ -663,6 +665,41 @@ public class MediaDetectionService : IMediaDetectionService
                 if (shouldHoldEmptyTrack && !string.IsNullOrEmpty(_lastPublishedSignature) && !forceRefresh)
                 {
                     return;
+                }
+
+                // Suppress publishing a new track that is not playing yet. During a
+                // browser-based track change (e.g. Spotify Web Player) Windows SMTC
+                // briefly reports metadata from other tabs (e.g. a paused YouTube video)
+                // before settling on the correct new track. Publishing those intermediate
+                // paused-track updates causes a visible flash. Hold until the new track
+                // is actually playing, or until it has been stable for a short window.
+                bool isNewTrack = !string.IsNullOrEmpty(info.CurrentTrack) &&
+                                  !string.Equals(
+                                      BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist),
+                                      _lastPublishedTrackIdentity,
+                                      StringComparison.Ordinal);
+
+                if (isNewTrack && !info.IsPlaying && !forceRefresh)
+                {
+                    // Track changed but it's not playing — could be a transient SMTC
+                    // metadata cycle. Record when we first saw this candidate.
+                    string candidateKey = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
+                    if (candidateKey != _pendingNewTrackKey)
+                    {
+                        _pendingNewTrackKey = candidateKey;
+                        _pendingNewTrackSince = DateTime.UtcNow;
+                    }
+
+                    // Allow publish only after the candidate has been stable for 600ms
+                    // without becoming playing — this handles genuine pause-on-new-track.
+                    if ((DateTime.UtcNow - _pendingNewTrackSince).TotalMilliseconds < 600)
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    _pendingNewTrackKey = "";
                 }
 
                 _lastPublishedSignature = currentSignature;
@@ -2069,6 +2106,32 @@ public class MediaDetectionService : IMediaDetectionService
 
                 if (bestSession != null && _activeDisplaySession != null && !ReferenceEquals(bestSession, _activeDisplaySession))
                 {
+                    // Guard against transient track-change flicker: when the chosen session
+                    // is NOT actively playing and the current display session is still present
+                    // in the live session list, stay put. During a track change on browser
+                    // media (e.g. Spotify Web Player) the playing session momentarily reports
+                    // "not playing", which makes a *different* paused tab (e.g. a paused
+                    // YouTube video sharing the same browser SourceAppId) score highest and
+                    // briefly hijack the display. Holding the current session until something
+                    // is genuinely playing avoids that flash.
+                    bool bestIsPlaying = false;
+                    try
+                    {
+                        bestIsPlaying = IsSessionPlayingStatus(bestSession.GetPlaybackInfo().PlaybackStatus);
+                    }
+                    catch (Exception ex)
+                    {
+                        RuntimeLog.Log("MEDIA-DETECT-BEST-PLAYSTATE", ex.ToString());
+                    }
+
+                    if (!bestIsPlaying && IsSessionStillPresent(_activeDisplaySession))
+                    {
+                        bestSession = _activeDisplaySession;
+                    }
+                }
+
+                if (bestSession != null && _activeDisplaySession != null && !ReferenceEquals(bestSession, _activeDisplaySession))
+                {
                     string bestId = bestSession.SourceAppUserModelId ?? "";
                     string bestSessionKey = BuildSessionInstanceKey(bestSession);
                     if (bestId != _pendingSessionAppId)
@@ -2620,10 +2683,15 @@ public class MediaDetectionService : IMediaDetectionService
             // session, so it lands here as "Browser". If no other platform claimed the
             // session and a Spotify Web Player tab is open, treat it as Spotify so
             // features like synced lyrics work for web-based playback.
+            // Guard: don't promote if the track looks like YouTube content — the YouTube
+            // video may be playing/paused in another tab of the same browser session and
+            // Windows SMTC can briefly report its metadata during Spotify track changes.
             if ((info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource)) &&
                 !string.IsNullOrEmpty(sessionSourceApp) &&
                 IsBrowserSourceApp(sessionSourceApp) &&
                 !string.IsNullOrEmpty(info.CurrentTrack) &&
+                !IsLikelyYouTube(info) &&
+                !IsKnownNonSpotifyTrack(info) &&
                 _windowTitleScanner.IsSpotifyWebPlayerOpen())
             {
                 info.MediaSource = "Spotify";
@@ -3232,6 +3300,42 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 // Window enumeration is best-effort; treat failure as "no hint".
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true if the source cache or session override already identifies this
+    /// track as belonging to a non-Spotify platform (YouTube, SoundCloud, etc.).
+    /// Used to prevent the Spotify Web Player promotion from mislabelling a YouTube
+    /// video that briefly surfaces in the browser's SMTC session during a track change.
+    /// </summary>
+    private bool IsKnownNonSpotifyTrack(MediaInfo info)
+    {
+        if (string.IsNullOrEmpty(info.CurrentTrack)) return false;
+
+        string trackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
+        string trackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
+
+        // Check source cache — populated from previous confirmed lookups
+        if (_sourceCache.TryGet(trackIdentity, out var cachedSource) ||
+            _sourceCache.TryGet(trackOnlyIdentity, out cachedSource))
+        {
+            if (!string.IsNullOrEmpty(cachedSource) &&
+                !string.Equals(cachedSource, "Spotify", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(cachedSource, "Browser", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        // Check session override — set when a browser session was previously confirmed as YouTube/SoundCloud
+        if (TryGetSessionSourceOverride(info, out var sessionOverride) &&
+            !string.IsNullOrEmpty(sessionOverride) &&
+            !string.Equals(sessionOverride, "Spotify", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
         }
 
         return false;

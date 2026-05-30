@@ -115,10 +115,19 @@ public partial class MainWindow
         TimeSpan position;
         if (_currentMediaInfo.IsPlaying && _currentMediaInfo.Duration.TotalSeconds > 0)
         {
-            var elapsed = DateTimeOffset.UtcNow - _currentMediaInfo.LastUpdated.ToUniversalTime();
-            if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
-            if (elapsed > TimeSpan.FromSeconds(10)) elapsed = TimeSpan.FromSeconds(10);
-            position = _currentMediaInfo.Position + elapsed;
+            // Use ProgressEngine for accurate position without a hard elapsed-time cap
+            var frame = _progressEngine.GetUiFrame();
+            if (frame.Duration.TotalSeconds > 0 && frame.State == ProgressState.Playing)
+            {
+                position = frame.Position;
+            }
+            else
+            {
+                var elapsed = DateTimeOffset.UtcNow - _currentMediaInfo.LastUpdated.ToUniversalTime();
+                if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+                if (elapsed > TimeSpan.FromMinutes(10)) elapsed = TimeSpan.FromMinutes(10);
+                position = _currentMediaInfo.Position + elapsed;
+            }
         }
         else
         {
@@ -182,15 +191,26 @@ public partial class MainWindow
         if (!_isLyricsActive || _currentLyrics == null || _currentLyrics.Count == 0)
             return;
 
-        // Use raw media position for lyrics sync (more accurate than progress engine which has anti-jitter guards)
+        // Use ProgressEngine for lyrics sync when playing — it correctly predicts position
+        // without a hard elapsed-time cap, preventing lyrics from freezing mid-song when
+        // SMTC doesn't push timeline updates for extended periods (common with Spotify).
         TimeSpan position;
         if (_currentMediaInfo != null && _currentMediaInfo.IsPlaying && _currentMediaInfo.Duration.TotalSeconds > 0)
         {
-            // Calculate position from last SMTC snapshot + elapsed time
-            var elapsed = DateTimeOffset.UtcNow - _currentMediaInfo.LastUpdated.ToUniversalTime();
-            if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
-            if (elapsed > TimeSpan.FromSeconds(10)) elapsed = TimeSpan.FromSeconds(10);
-            position = _currentMediaInfo.Position + elapsed;
+            var frame = _progressEngine.GetUiFrame();
+            if (frame.Duration.TotalSeconds > 0 && frame.State == ProgressState.Playing)
+            {
+                // ProgressEngine predicts position continuously without a time cap
+                position = frame.Position;
+            }
+            else
+            {
+                // Fallback: manual elapsed calculation with a generous cap
+                var elapsed = DateTimeOffset.UtcNow - _currentMediaInfo.LastUpdated.ToUniversalTime();
+                if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+                if (elapsed > TimeSpan.FromMinutes(10)) elapsed = TimeSpan.FromMinutes(10);
+                position = _currentMediaInfo.Position + elapsed;
+            }
             if (position > _currentMediaInfo.Duration) position = _currentMediaInfo.Duration;
         }
         else if (_currentMediaInfo != null)
