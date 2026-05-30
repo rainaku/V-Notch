@@ -34,6 +34,13 @@ public partial class MainWindow
     }
     private DateTime _lastViewSwitchUtc = DateTime.MinValue;
     private static readonly TimeSpan ViewSwitchCooldown = TimeSpan.FromMilliseconds(600);
+    /// <summary>
+    /// When true, all view-switch scroll events are suppressed until the scroll
+    /// "session" ends (no wheel event for _scrollSessionTimeout ms).
+    /// This prevents smooth-scroll apps from firing multiple view switches per gesture.
+    /// </summary>
+    private bool _isScrollSessionLocked = false;
+    private System.Windows.Threading.DispatcherTimer? _scrollSessionResetTimer;
 
     private static readonly SolidColorBrush _brushShelfItemBg = CreateFrozenBrush(37, 37, 37);
     private static readonly SolidColorBrush _brushShelfItemBorder = CreateFrozenBrush(51, 51, 51);

@@ -138,7 +138,7 @@ public partial class MainWindow
             && NavIconsPanel.ActualWidth > 0)
         {
             // NavIconsPanel right edge in NotchContent coords:
-            double navRight = NavIconsPanel.Margin.Left + NavIconsPanel.ActualWidth + cutH;
+            double navRight = NavIconsPanel.Margin.Left + NavIconsPanel.ActualWidth + 10;
             // CameraSection left edge in NotchContent coords:
             // SecondaryContent.Margin.Left (12) + CameraSection.Margin.Left (0)
             double camLeft = 12.0 + CameraSection.Margin.Left;

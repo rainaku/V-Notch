@@ -774,6 +774,80 @@ public partial class MainWindow : Window
                 _cachedThumbnailExpandTarget = target;
             }
 
+            // ─── Pre-warm render pipeline ───
+            // Enable BitmapCache on elements that frequently animate scale/opacity
+            // to prevent first-frame GPU texture allocation stutter.
+            CompactThumbnailBorder.CacheMode ??= new System.Windows.Media.BitmapCache(2.0);
+            AnimationThumbnailBorder.CacheMode ??= new System.Windows.Media.BitmapCache(2.0);
+            SettingsButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
+
+            // Pre-warm blur effects by setting radius to 0 (allocates shader resources without visual impact)
+            if (ThumbnailOutBlur != null) { ThumbnailOutBlur.Radius = 0; }
+            if (ThumbnailNextBlur != null) { ThumbnailNextBlur.Radius = 0; }
+            if (CompactThumbnailOutBlur != null) { CompactThumbnailOutBlur.Radius = 0; }
+            if (CompactThumbnailNextBlur != null) { CompactThumbnailNextBlur.Radius = 0; }
+            if (CollapsedContentBlur != null) { CollapsedContentBlur.Radius = 0; }
+
+            // Pre-create and freeze thumbnail expand/collapse animations so first expand doesn't JIT-compile them
+            var thumbDur = new Duration(TimeSpan.FromMilliseconds(500));
+            var thumbEase = _easeExpOut6;
+            var thumbDelay = TimeSpan.FromMilliseconds(30);
+            int thumbFps = 144;
+
+            if (_cachedThumbWidthExpand == null)
+            {
+                _cachedThumbWidthExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
+                _cachedThumbHeightExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
+                Timeline.SetDesiredFrameRate(_cachedThumbWidthExpand, thumbFps);
+                Timeline.SetDesiredFrameRate(_cachedThumbHeightExpand, thumbFps);
+
+                _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 102, 102), thumbDur)
+                {
+                    EasingFunction = thumbEase,
+                    BeginTime = thumbDelay
+                };
+                Timeline.SetDesiredFrameRate(_cachedThumbRectExpand, thumbFps);
+
+                _cachedThumbWidthExpand.Freeze();
+                _cachedThumbHeightExpand.Freeze();
+                _cachedThumbRectExpand.Freeze();
+            }
+
+            var collapseDur = new Duration(TimeSpan.FromMilliseconds(420));
+            var collapseEase = _easeExpOut6;
+            var collapseDelay = TimeSpan.FromMilliseconds(20);
+
+            if (_cachedThumbWidthCollapse == null)
+            {
+                _cachedThumbWidthCollapse = MakeAnim(102, 22, collapseDur, collapseEase, collapseDelay);
+                _cachedThumbHeightCollapse = MakeAnim(102, 22, collapseDur, collapseEase, collapseDelay);
+                Timeline.SetDesiredFrameRate(_cachedThumbWidthCollapse, thumbFps);
+                Timeline.SetDesiredFrameRate(_cachedThumbHeightCollapse, thumbFps);
+
+                _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 102, 102), new Rect(0, 0, 22, 22), collapseDur)
+                {
+                    EasingFunction = collapseEase,
+                    BeginTime = collapseDelay
+                };
+                Timeline.SetDesiredFrameRate(_cachedThumbRectCollapse, thumbFps);
+
+                _cachedThumbWidthCollapse.Freeze();
+                _cachedThumbHeightCollapse.Freeze();
+                _cachedThumbRectCollapse.Freeze();
+            }
+
+            // Pre-warm the thumbnail switch layers (Next/Out) so first crossfade doesn't allocate
+            ThumbnailImageNext.Opacity = 0;
+            CompactThumbnailNext.Opacity = 0;
+            ThumbnailNextScale.ScaleX = 1.0;
+            ThumbnailNextScale.ScaleY = 1.0;
+            CompactThumbnailNextScale.ScaleX = 1.0;
+            CompactThumbnailNextScale.ScaleY = 1.0;
+            ThumbnailOutScale.ScaleX = 1.0;
+            ThumbnailOutScale.ScaleY = 1.0;
+            CompactThumbnailOutScale.ScaleX = 1.0;
+            CompactThumbnailOutScale.ScaleY = 1.0;
+
             // Restore original visibility/opacity and dimensions
             foreach (var (el, originalVis, originalOpacity) in elementsToWarm)
             {

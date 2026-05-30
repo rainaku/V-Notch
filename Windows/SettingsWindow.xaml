@@ -950,43 +950,6 @@
                                             IsSnapToTickEnabled="True"
                                             ValueChanged="BlurBrightnessSlider_ValueChanged"/>
 
-                                    <CheckBox x:Name="EnableSpotifyLyricsCheck"
-                                              x:Uid="enableSpotifyLyrics"
-                                              Content="Show Spotify lyrics"
-                                              Margin="0,14,0,0"
-                                              Checked="EnableSpotifyLyricsCheck_Changed"
-                                              Unchecked="EnableSpotifyLyricsCheck_Changed"/>
-                                    <TextBlock x:Name="EnableSpotifyLyricsHint"
-                                               Text="Display synced lyrics inside the expanded notch when listening on Spotify."
-                                               Style="{StaticResource SettingHintText}"
-                                               Margin="0,3,0,0"/>
-
-                                    <CheckBox x:Name="EnableYouTubeSubtitlesCheck"
-                                              x:Uid="enableYouTubeSubtitles"
-                                              Content="Show YouTube subtitles"
-                                              Margin="0,14,0,0"
-                                              Checked="EnableYouTubeSubtitlesCheck_Changed"
-                                              Unchecked="EnableYouTubeSubtitlesCheck_Changed"/>
-                                    <TextBlock x:Name="EnableYouTubeSubtitlesHint"
-                                               Text="Display synced closed captions inside the expanded notch when watching on YouTube."
-                                               Style="{StaticResource SettingHintText}"
-                                               Margin="0,3,0,0"/>
-
-                                    <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}" Visibility="Collapsed" Margin="0,12,0,0"/>
-                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
-                                        <Run x:Name="BlurDarkOverlayValue" Text="30"/><Run Text=" %"/>
-                                    </TextBlock>
-                                    <TextBlock x:Name="DarkOverlayHint" Visibility="Collapsed"/>
-                                    <controls:ElasticSlider x:Name="BlurDarkOverlaySlider"
-                                            Label="Dark Overlay" Unit="%"
-                                            Description="Add a dark layer over the lyrics background image to improve text readability."
-                                            Minimum="0"
-                                            Maximum="80"
-                                            Value="30"
-                                            TickFrequency="5"
-                                            IsSnapToTickEnabled="True"
-                                            ValueChanged="BlurDarkOverlaySlider_ValueChanged"
-                                            Margin="0,12,0,0"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1284,6 +1247,47 @@
                         </Border.RenderTransform>
                         <StackPanel>
                             <TextBlock x:Name="AdvancedHeader" Text="ADVANCED" Style="{StaticResource SectionHeader}"/>
+
+                            <Border Style="{StaticResource SettingRowBorder}">
+                                <StackPanel>
+                                    <CheckBox x:Name="EnableSpotifyLyricsCheck"
+                                              x:Uid="enableSpotifyLyrics"
+                                              Content="Show Spotify lyrics"
+                                              Checked="EnableSpotifyLyricsCheck_Changed"
+                                              Unchecked="EnableSpotifyLyricsCheck_Changed"/>
+                                    <TextBlock x:Name="EnableSpotifyLyricsHint"
+                                               Text="Display synced lyrics inside the expanded notch when listening on Spotify."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,3,0,0"/>
+
+                                    <CheckBox x:Name="EnableYouTubeSubtitlesCheck"
+                                              x:Uid="enableYouTubeSubtitles"
+                                              Content="Show YouTube subtitles"
+                                              Margin="0,14,0,0"
+                                              Checked="EnableYouTubeSubtitlesCheck_Changed"
+                                              Unchecked="EnableYouTubeSubtitlesCheck_Changed"/>
+                                    <TextBlock x:Name="EnableYouTubeSubtitlesHint"
+                                               Text="Display synced closed captions inside the expanded notch when watching on YouTube."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,3,0,0"/>
+
+                                    <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}" Visibility="Collapsed" Margin="0,12,0,0"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                        <Run x:Name="BlurDarkOverlayValue" Text="30"/><Run Text=" %"/>
+                                    </TextBlock>
+                                    <TextBlock x:Name="DarkOverlayHint" Visibility="Collapsed"/>
+                                    <controls:ElasticSlider x:Name="BlurDarkOverlaySlider"
+                                            Label="Dark Overlay" Unit="%"
+                                            Description="Add a dark layer over the lyrics background image to improve text readability."
+                                            Minimum="0"
+                                            Maximum="80"
+                                            Value="30"
+                                            TickFrequency="5"
+                                            IsSnapToTickEnabled="True"
+                                            ValueChanged="BlurDarkOverlaySlider_ValueChanged"
+                                            Margin="0,12,0,0"/>
+                                </StackPanel>
+                            </Border>
 
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>

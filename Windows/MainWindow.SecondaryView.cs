@@ -37,6 +37,13 @@ public partial class MainWindow
 
         e.Handled = true;
 
+        // ─── Smooth-scroll guard ───
+        // After a view switch, lock out further switches until the scroll session
+        // ends (no wheel event for 400ms). This prevents smooth-scroll utilities
+        // from firing multiple view switches per single scroll gesture.
+        ResetScrollSessionTimer();
+        if (_isScrollSessionLocked) return;
+
         // Cooldown prevents rapid double-fire (touchpad inertia, multiple queued events)
         if ((DateTime.UtcNow - _lastViewSwitchUtc) < ViewSwitchCooldown) return;
 
@@ -85,6 +92,28 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Resets (or starts) the scroll session timer. Each wheel event restarts the timer.
+    /// When no wheel event arrives for 400ms, the session lock is released.
+    /// </summary>
+    private void ResetScrollSessionTimer()
+    {
+        if (_scrollSessionResetTimer == null)
+        {
+            _scrollSessionResetTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(400)
+            };
+            _scrollSessionResetTimer.Tick += (s, e) =>
+            {
+                _scrollSessionResetTimer.Stop();
+                _isScrollSessionLocked = false;
+            };
+        }
+        _scrollSessionResetTimer.Stop();
+        _scrollSessionResetTimer.Start();
+    }
+
     private void SecondaryContent_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true; 
@@ -129,6 +158,7 @@ public partial class MainWindow
         _isSecondaryView = true;
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
+        _isScrollSessionLocked = true;
 
         UpdateShelfCapacityIndicator();
 
@@ -248,6 +278,7 @@ public partial class MainWindow
         _isSecondaryView = false;
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
+        _isScrollSessionLocked = true;
 
         // Stop camera if still active (e.g. called from nav button without scroll)
         if (_isCameraActive)

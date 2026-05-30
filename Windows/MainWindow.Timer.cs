@@ -54,6 +54,7 @@ public partial class MainWindow
         _isTimerView = true;
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
+        _isScrollSessionLocked = true;
 
         UpdateTimerNavIconsState();
         NavIconsPanel.Visibility = Visibility.Visible;
@@ -158,6 +159,7 @@ public partial class MainWindow
         _isSecondaryView = false;
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
+        _isScrollSessionLocked = true;
 
         UpdateTimerNavIconsState();
         NotchBorder.IsHitTestVisible = false;
@@ -247,6 +249,7 @@ public partial class MainWindow
         _isTimerView = false;
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
+        _isScrollSessionLocked = true;
 
         UpdateNavIconsActiveState();
         NavIconsBackground.BeginAnimation(OpacityProperty, null);
@@ -346,6 +349,7 @@ public partial class MainWindow
         _isSecondaryView = true;
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
+        _isScrollSessionLocked = true;
 
         UpdateNavIconsActiveState();
         NotchBorder.IsHitTestVisible = false;
