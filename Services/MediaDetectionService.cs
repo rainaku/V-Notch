@@ -146,6 +146,7 @@ public class MediaDetectionService : IMediaDetectionService
         {
             _sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
             _sessionManager.CurrentSessionChanged += OnSessionChanged;
+            _sessionManager.SessionsChanged += OnSessionsChanged;
 
             await SubscribeToCurrentSession();
         }
@@ -248,6 +249,15 @@ public class MediaDetectionService : IMediaDetectionService
     private void OnSessionChanged(GlobalSystemMediaTransportControlsSessionManager sender, CurrentSessionChangedEventArgs args)
     {
         Log("Session Changed", "System-wide session focus shifted");
+        _changeChannel.Writer.TryWrite(ChangeType.SessionChanged);
+    }
+
+    private void OnSessionsChanged(GlobalSystemMediaTransportControlsSessionManager sender, SessionsChangedEventArgs args)
+    {
+        // Fires when a session is added or removed — e.g. an app that was playing media gets closed.
+        // This is the only signal we get when a *non-current* app closes, so force a full rescan to
+        // switch the notch onto whatever session is still playing.
+        Log("Sessions Changed", "Session list changed (app opened/closed)");
         _changeChannel.Writer.TryWrite(ChangeType.SessionChanged);
     }
 
@@ -1594,6 +1604,38 @@ public class MediaDetectionService : IMediaDetectionService
         return status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
     }
 
+    /// <summary>
+    /// Returns true if the given session projection is still present in the live SMTC session list.
+    /// When an app is closed its session is removed from the list, but the cached projection object
+    /// keeps returning its last known (stale) playback status/metadata. We rely on the WinRT session
+    /// projections being reference-stable across GetSessions() calls (the scoring scan already does
+    /// the same via ReferenceEquals).
+    /// </summary>
+    private bool IsSessionStillPresent(GlobalSystemMediaTransportControlsSession session)
+    {
+        try
+        {
+            var sessions = _sessionManager?.GetSessions();
+            if (sessions == null) return false;
+
+            foreach (var s in sessions)
+            {
+                if (ReferenceEquals(s, session))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MEDIA-SESSION-PRESENT", ex.ToString());
+            // On error, assume present to avoid thrashing the fast path.
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsBrowserSourceApp(string sourceAppId)
     {
         return PlatformDetector.IsBrowserApp(sourceAppId);
@@ -1743,6 +1785,18 @@ public class MediaDetectionService : IMediaDetectionService
             GlobalSystemMediaTransportControlsSession? session = null;
             string? spotifyGroundTruth = null;
             string osCurrentId = _sessionManager.GetCurrentSession()?.SourceAppUserModelId ?? "";
+
+            // The active display session can become stale when its backing app is closed:
+            // the WinRT projection keeps returning the last cached "Playing" status and title,
+            // and closing a non-current app raises no event we listen to (only CurrentSessionChanged).
+            // On heartbeat ticks (forceRefresh == false) the fast path below would then re-lock onto
+            // the dead session forever and never switch to the app that's still playing.
+            // Guard against that by confirming the active session is still in the live session list.
+            if (_activeDisplaySession != null && !forceRefresh && !IsSessionStillPresent(_activeDisplaySession))
+            {
+                RuntimeLog.Log("MEDIA-SESSION", "Active display session no longer listed (app closed) — forcing rescan.");
+                _activeDisplaySession = null;
+            }
 
             if (_activeDisplaySession != null && !forceRefresh)
             {
@@ -2561,6 +2615,22 @@ public class MediaDetectionService : IMediaDetectionService
                 }
             }
 
+            // ─── Spotify Web Player promotion ───
+            // Spotify played through open.spotify.com is owned by the browser's SMTC
+            // session, so it lands here as "Browser". If no other platform claimed the
+            // session and a Spotify Web Player tab is open, treat it as Spotify so
+            // features like synced lyrics work for web-based playback.
+            if ((info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource)) &&
+                !string.IsNullOrEmpty(sessionSourceApp) &&
+                IsBrowserSourceApp(sessionSourceApp) &&
+                !string.IsNullOrEmpty(info.CurrentTrack) &&
+                _windowTitleScanner.IsSpotifyWebPlayerOpen())
+            {
+                info.MediaSource = "Spotify";
+                info.IsSpotifyPlaying = true;
+                info.IsSpotifyRunning = true;
+            }
+
             if (!string.IsNullOrEmpty(sessionSourceApp) &&
                 IsBrowserSourceApp(sessionSourceApp) &&
                 !string.IsNullOrEmpty(info.MediaSource) &&
@@ -3349,6 +3419,7 @@ public class MediaDetectionService : IMediaDetectionService
         if (_sessionManager != null)
         {
             _sessionManager.CurrentSessionChanged -= OnSessionChanged;
+            _sessionManager.SessionsChanged -= OnSessionsChanged;
         }
     }
 

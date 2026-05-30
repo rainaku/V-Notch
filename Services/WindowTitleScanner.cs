@@ -10,6 +10,14 @@ public interface IWindowTitleScanner
     string? TryGetBrowserUrl();
     string? TryGetMediaUrlFromAnyBrowser();
 
+    /// <summary>
+    /// Returns true if any browser window currently has the Spotify Web Player
+    /// (open.spotify.com) open in the active tab or any background tab. Used to
+    /// classify a browser-owned SMTC session as Spotify so features like synced
+    /// lyrics work for Spotify played via the web player.
+    /// </summary>
+    bool IsSpotifyWebPlayerOpen();
+
     void InvalidateUrlCaches();
 }
 
@@ -110,6 +118,9 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
     private string? _cachedAnyBrowserMediaUrl;
     private DateTime _lastAnyBrowserMediaUrlTime = DateTime.MinValue;
 
+    private bool _cachedSpotifyWebPlayerOpen;
+    private DateTime _lastSpotifyWebPlayerTime = DateTime.MinValue;
+
     public string? TryGetBrowserUrl()
     {
         lock (_cacheLock)
@@ -146,6 +157,25 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             _lastBrowserUrlTime = DateTime.MinValue;
             _cachedAnyBrowserMediaUrl = null;
             _lastAnyBrowserMediaUrlTime = DateTime.MinValue;
+            _cachedSpotifyWebPlayerOpen = false;
+            _lastSpotifyWebPlayerTime = DateTime.MinValue;
+        }
+    }
+
+    public bool IsSpotifyWebPlayerOpen()
+    {
+        lock (_cacheLock)
+        {
+            // Cache positive hits a little longer than misses so we don't pay the
+            // UI-Automation tab scan on every media poll. The web player tab tends
+            // to stay open for the whole listening session.
+            int ttlMs = _cachedSpotifyWebPlayerOpen ? 3000 : 1000;
+            if ((DateTime.Now - _lastSpotifyWebPlayerTime).TotalMilliseconds < ttlMs)
+                return _cachedSpotifyWebPlayerOpen;
+
+            _cachedSpotifyWebPlayerOpen = DetectSpotifyWebPlayer();
+            _lastSpotifyWebPlayerTime = DateTime.Now;
+            return _cachedSpotifyWebPlayerOpen;
         }
     }
 
@@ -349,6 +379,149 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                url.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase) ||
                url.Contains("music.youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
                url.Contains("soundcloud.com/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private const string SpotifyWebPlayerHost = "open.spotify.com";
+
+    // Enumerates every visible browser window and checks the address bar plus all
+    // tabs for an open.spotify.com URL. Used to recognize Spotify Web Player so it
+    // can be treated like the Spotify desktop app (e.g. for synced lyrics).
+    private bool DetectSpotifyWebPlayer()
+    {
+        bool found = false;
+
+        try
+        {
+            EnumWindows((hWnd, _) =>
+            {
+                if (!IsWindowVisible(hWnd)) return true;
+
+                int length = GetWindowTextLength(hWnd);
+                if (length == 0) return true;
+
+                GetWindowThreadProcessId(hWnd, out uint pid);
+                if (pid == 0) return true;
+
+                string? processName = null;
+                try
+                {
+                    var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                    processName = proc.ProcessName.ToLowerInvariant();
+                }
+                catch { return true; }
+
+                bool isBrowser = false;
+                foreach (var name in _browserProcessNames)
+                {
+                    if (processName.Contains(name))
+                    {
+                        isBrowser = true;
+                        break;
+                    }
+                }
+                if (!isBrowser) return true;
+
+                if (WindowHasSpotifyWebPlayer(hWnd, processName))
+                {
+                    found = true;
+                    return false; // Stop enumeration — confirmed.
+                }
+
+                return true;
+            }, IntPtr.Zero);
+        }
+        catch { /* best effort */ }
+
+        return found;
+    }
+
+    private static bool WindowHasSpotifyWebPlayer(IntPtr hwnd, string processName)
+    {
+        try
+        {
+            var element = AutomationElement.FromHandle(hwnd);
+            if (element == null) return false;
+
+            // 1) Active tab address bar.
+            if (processName.Contains("firefox"))
+            {
+                var urlBar = element.FindFirst(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.AutomationIdProperty, "urlbar-input"));
+                if (urlBar != null &&
+                    urlBar.TryGetCurrentPattern(ValuePattern.Pattern, out object? fp))
+                {
+                    string val = ((ValuePattern)fp).Current.Value ?? "";
+                    if (val.Contains(SpotifyWebPlayerHost, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+            }
+            else
+            {
+                var editCondition = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit);
+                var edits = element.FindAll(TreeScope.Descendants, editCondition);
+                foreach (AutomationElement edit in edits)
+                {
+                    try
+                    {
+                        if (edit.TryGetCurrentPattern(ValuePattern.Pattern, out object? pattern))
+                        {
+                            string val = ((ValuePattern)pattern).Current.Value ?? "";
+                            if (val.Contains(SpotifyWebPlayerHost, StringComparison.OrdinalIgnoreCase))
+                                return true;
+                        }
+                    }
+                    catch { continue; }
+                }
+            }
+
+            // 2) Background tabs — the address bar only reflects the active tab,
+            //    so walk the tab strip (Chromium exposes the URL via HelpText).
+            var tabCondition = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem);
+            var tabs = element.FindAll(TreeScope.Descendants, tabCondition);
+            if (tabs != null)
+            {
+                foreach (AutomationElement tab in tabs)
+                {
+                    if (TabReferencesSpotifyWebPlayer(tab))
+                        return true;
+                }
+            }
+        }
+        catch { }
+
+        return false;
+    }
+
+    private static bool TabReferencesSpotifyWebPlayer(AutomationElement tab)
+    {
+        try
+        {
+            string help = tab.Current.HelpText ?? string.Empty;
+            if (help.Contains(SpotifyWebPlayerHost, StringComparison.OrdinalIgnoreCase)) return true;
+
+            string name = tab.Current.Name ?? string.Empty;
+            if (name.Contains(SpotifyWebPlayerHost, StringComparison.OrdinalIgnoreCase)) return true;
+
+            var subtree = tab.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.IsControlElementProperty, true));
+            foreach (AutomationElement child in subtree)
+            {
+                string childHelp = child.Current.HelpText ?? string.Empty;
+                if (childHelp.Contains(SpotifyWebPlayerHost, StringComparison.OrdinalIgnoreCase)) return true;
+
+                string childName = child.Current.Name ?? string.Empty;
+                if (childName.Contains(SpotifyWebPlayerHost, StringComparison.OrdinalIgnoreCase)) return true;
+
+                if (child.TryGetCurrentPattern(ValuePattern.Pattern, out object? p))
+                {
+                    string v = ((ValuePattern)p).Current.Value ?? string.Empty;
+                    if (v.Contains(SpotifyWebPlayerHost, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+            }
+        }
+        catch { }
+
+        return false;
     }
 
     private string? ExtractBrowserUrlCore()

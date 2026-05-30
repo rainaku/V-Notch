@@ -16,6 +16,17 @@ public partial class MainWindow
         {
             if (_settings.EnableHoverExpand) return;
 
+            // While a gesture/click-to-expand is being tracked (mouse held down on
+            // the notch with media playing), the expand is deferred to mouse-up.
+            // Swallow scroll-inertia wheel events during this window so they can't
+            // re-show the volume bar that the click just dismissed (causes flicker
+            // right before the notch expands).
+            if (_isGestureActive)
+            {
+                e.Handled = true;
+                return;
+            }
+
             e.Handled = true;
             AdjustVolumeByScroll(e.Delta);
             return;
