@@ -107,17 +107,27 @@ public partial class MainWindow
         // Cancel any ongoing thumbnail switch animations that could restore visibility
         CancelThumbnailSwitchAnimations();
 
-        // Force-hide thumbnail immediately (cancel any running animations first)
+        // Fade-out thumbnail smoothly
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        CompactThumbnailBorder.Opacity = 0;
-        CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+        var thumbFadeOut = MakeAnim(1.0, 0.0, _dur150, _easeQuadOut);
+        thumbFadeOut.Completed += (s, e) =>
+        {
+            if (_isClipboardPeekActive)
+                CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+        };
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbFadeOut);
 
-        // Force-hide MusicViz immediately
+        // Fade-out MusicViz smoothly
         MusicViz.BeginAnimation(OpacityProperty, null);
-        MusicViz.Opacity = 0;
-        MusicViz.Visibility = Visibility.Collapsed;
+        var vizFadeOut = MakeAnim(1.0, 0.0, _dur150, _easeQuadOut);
+        vizFadeOut.Completed += (s, e) =>
+        {
+            if (_isClipboardPeekActive)
+                MusicViz.Visibility = Visibility.Collapsed;
+        };
+        MusicViz.BeginAnimation(OpacityProperty, vizFadeOut);
 
         // Hide compact hover info if visible
         CompactHoverInfo.BeginAnimation(OpacityProperty, null);
@@ -214,14 +224,16 @@ public partial class MainWindow
         ClipboardCopiedText.BeginAnimation(OpacityProperty, textFadeOut);
         ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, textSlideOut);
 
-        // ─── Restore thumbnail (reverse of hide) ───
+        // ─── Restore thumbnail with fade-in (reverse of fade-out) ───
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         CompactThumbnailScale.ScaleX = 1.0;
         CompactThumbnailScale.ScaleY = 1.0;
-        CompactThumbnailBorder.Opacity = 1.0;
         CompactThumbnailBorder.Visibility = Visibility.Visible;
+        CompactThumbnailBorder.Opacity = 0;
+        var thumbFadeIn = MakeAnim(0.0, 1.0, _dur200, _easeQuadOut);
+        CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbFadeIn);
 
         // ─── MusicViz: fade in (reverse of fade out) ───
         MusicViz.Visibility = Visibility.Visible;
