@@ -25,6 +25,7 @@ public partial class MainWindow
     private Color _currentVibrantColor = Colors.White;
     private int _mediaBackgroundAnimationVersion = 0;
     private int _mediaBackgroundRecoveryVersion = 0;
+    private DateTime _lastMediaBackgroundFadeStartUtc = DateTime.MinValue;
 
     private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
@@ -143,7 +144,6 @@ public partial class MainWindow
 
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
-
         EnsureUnfrozen(IndeterminateProgress.Background, c => IndeterminateProgress.Background = new SolidColorBrush(c ?? Colors.White));
         EnsureUnfrozen(CurrentTimeText.Foreground, c => CurrentTimeText.Foreground = new SolidColorBrush(c ?? Color.FromRgb(136, 136, 136)));
         EnsureUnfrozen(RemainingTimeText.Foreground, c => RemainingTimeText.Foreground = new SolidColorBrush(c ?? Color.FromRgb(136, 136, 136)));
@@ -409,6 +409,7 @@ public partial class MainWindow
         MediaBackground.Visibility = Visibility.Visible;
         MediaBackground2.Visibility = Visibility.Visible;
 
+        _lastMediaBackgroundFadeStartUtc = DateTime.UtcNow;
         UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
         ScheduleMediaBackgroundRecovery();
     }
@@ -448,13 +449,21 @@ public partial class MainWindow
             return;
         }
 
-        bool needsRecovery =
-            MediaBackground.Visibility != Visibility.Visible ||
-            MediaBackground2.Visibility != Visibility.Visible ||
-            MediaBackground.Opacity < 0.05 ||
-            MediaBackground2.Opacity < 0.05;
+        // The opacity fade-in started by ShowMediaBackground runs for ~500 ms. While
+        // it's still in flight the animated Opacity is legitimately near 0, so don't
+        // treat that as a failed paint — re-triggering here would cancel the running
+        // fade and start a second one, making the glow appear to flash in twice.
+        bool fadeInProgress = (DateTime.UtcNow - _lastMediaBackgroundFadeStartUtc).TotalMilliseconds < 600;
 
-        if (!needsRecovery)
+        // A collapsed layer is a definite paint failure — always recover.
+        bool visibilityFailed =
+            MediaBackground.Visibility != Visibility.Visible ||
+            MediaBackground2.Visibility != Visibility.Visible;
+
+        bool opacityFailed = !fadeInProgress &&
+            (MediaBackground.Opacity < 0.05 || MediaBackground2.Opacity < 0.05);
+
+        if (!visibilityFailed && !opacityFailed)
         {
             return;
         }
@@ -464,6 +473,7 @@ public partial class MainWindow
         MediaBackground.Visibility = Visibility.Visible;
         MediaBackground2.Visibility = Visibility.Visible;
 
+        _lastMediaBackgroundFadeStartUtc = DateTime.UtcNow;
         UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
     }
 
