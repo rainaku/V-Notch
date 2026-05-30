@@ -72,32 +72,32 @@ namespace VNotch.Controls
         private const double BarSpacingRatio = 0.05;
         private const double CornerRadiusRatio = 0.5;
 
-        private const double AlphaAttack = 0.88;
-        private const double AlphaRelease = 0.92;
+        private const double AlphaAttack = 0.85;
+        private const double AlphaRelease = 0.88;
         private const double AlphaPauseRelease = 0.98;
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
         private const double NoAudioPulseAmplitude = 0.05;
         private const double NoAudioPulseBase = 0.05;
-        private const double LegacyRhythmMinMix = 0.18;
-        private const double LegacyRhythmMaxMix = 0.38;
-        private const double AudioPresenceThreshold = 0.012;
-        private const double DownwardDropBoost = 0.08;
-        private const double MinReleaseAlpha = 0.84;
+        private const double LegacyRhythmMinMix = 0.10;
+        private const double LegacyRhythmMaxMix = 0.25;
+        private const double AudioPresenceThreshold = 0.003;
+        private const double DownwardDropBoost = 0.10;
+        private const double MinReleaseAlpha = 0.82;
         private const double MotionContrast = 2.25;
         private const double LeftMiniBarSensitivity = 0.58;
         private const double RightBiasStrength = 1.00;
         private const double RightBiasDeadzone = 0.05;
         // Filter sub-pixel jitter: changes smaller than this are ignored.
         // Raised to ~0.5% of bar height to suppress visible micro-flicker on short bars.
-        private const double MinHeightChangeThreshold = 0.006;
+        private const double MinHeightChangeThreshold = 0.009;
         // Extra smoothing for short bars to make small movements slower & smoother.
         // Bars below SmallBarHeightThreshold get up to SmallBarAlphaBoost added to their smoothing alpha.
-        private const double SmallBarHeightThreshold = 0.35;
-        private const double SmallBarAlphaBoost = 0.06;
+        private const double SmallBarHeightThreshold = 0.40;
+        private const double SmallBarAlphaBoost = 0.08;
         // Minimum target delta required to actually move a short bar (per-frame, in height ratio).
         // Suppresses tiny audio-driven wobble when the band level barely changes.
-        private const double SmallBarTargetDeadzone = 0.012;
+        private const double SmallBarTargetDeadzone = 0.016;
 
         // Reference frame interval the alpha constants were tuned for (old DispatcherTimer effective rate)
         private const double ReferenceFrameMs = 16.0;
@@ -427,8 +427,8 @@ namespace VNotch.Controls
 
         private void PrepareDrawHeights()
         {
-            // Frame-rate independent smoothing (0.58 was tuned for ~16ms frames)
-            double smoothingFactor = Math.Pow(0.58, _lastDtMs / ReferenceFrameMs);
+            // Frame-rate independent smoothing (0.70 for smooth visual output)
+            double smoothingFactor = Math.Pow(0.70, _lastDtMs / ReferenceFrameMs);
             for (int i = 0; i < BarCount; i++)
             {
                 // Short bars get a heavier smoothing factor so tiny movements are slower
@@ -438,9 +438,8 @@ namespace VNotch.Controls
                 if (refHeight < SmallBarHeightThreshold)
                 {
                     double smallness = 1.0 - (refHeight / SmallBarHeightThreshold);
-                    // Up to ~0.20 extra smoothing weight on the previous value for the smallest bars.
-                    double extra = Math.Pow(0.80, _lastDtMs / ReferenceFrameMs) - smoothingFactor;
-                    targetSmoothing = Math.Min(0.97, smoothingFactor + (extra * smallness));
+                    double extra = Math.Pow(0.86, _lastDtMs / ReferenceFrameMs) - smoothingFactor;
+                    targetSmoothing = Math.Min(0.98, smoothingFactor + (extra * smallness));
                 }
 
                 _smoothedHeights[i] = (_smoothedHeights[i] * targetSmoothing) + (_currentHeights[i] * (1 - targetSmoothing));
@@ -564,14 +563,14 @@ namespace VNotch.Controls
         private static readonly object _lockObj = new object();
         private const int FftLength = 512;
         private const int FftM = 9;
-        private const double MinDb = -72.0;
+        private const double MinDb = -90.0;
         private const double MaxDb = 0.0;
         private const double CompressionPower = 0.38;
-        private const double SpectralPreGain = 32.0;
+        private const double SpectralPreGain = 48.0;
         private const double RmsWindowSeconds = 0.020;
         private const int FreshAudioTimeoutMs = 800;
-        private const double AgcFloor = 0.045;
-        private const double AgcRelease = 0.978;
+        private const double AgcFloor = 0.008;
+        private const double AgcRelease = 0.992;
         private const double KickTransientThreshold = 0.025;
         private const double SnareTransientThreshold = 0.022;
         private const double KickTransientGain = 7.0;
@@ -792,6 +791,18 @@ namespace VNotch.Controls
                 Math.Max(Math.Max(kick, snare), rms));
             _agcPeak = Math.Max(peak, _agcPeak * AgcRelease);
             double agcScale = 1.0 / Math.Max(AgcFloor, _agcPeak);
+
+            // Extra boost for very quiet signals: when AGC peak is low, apply additional
+            // gain so the visualizer responds equally regardless of system volume.
+            // This ensures soft music at low volume looks the same as loud music at high volume.
+            double quietBoost = 1.0;
+            if (_agcPeak < 0.08)
+            {
+                // Progressively stronger boost as signal gets quieter
+                double quietness = 1.0 - (_agcPeak / 0.08);
+                quietBoost = 1.0 + (quietness * 2.5);
+            }
+            agcScale *= quietBoost;
 
             subBass = Math.Clamp(subBass * agcScale, 0.0, 1.0);
             bass = Math.Clamp(bass * agcScale, 0.0, 1.0);
