@@ -93,6 +93,8 @@ public event EventHandler? AnimatedClosing;
         EnableSpotifyLyricsCheck.IsChecked = _settings.EnableSpotifyLyrics;
         UpdateLyricsDependentControls(_settings.EnableSpotifyLyrics);
 
+        DynamicIslandModeCheck.IsChecked = _settings.EnableDynamicIslandMode;
+
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
         HoverDelaySlider.IsEnabled = _settings.EnableHoverExpand;
@@ -168,6 +170,9 @@ public event EventHandler? AnimatedClosing;
         BlurDarkOverlaySlider.Description = Loc.Get("settings.lyricsDarkOverlay.hint");
         EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics");
         EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint");
+
+        DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode");
+        DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint");
 
         // Behavior labels & hints
         HoverExpandCheck.Content = Loc.Get("settings.hoverExpand");
@@ -273,6 +278,12 @@ public event EventHandler? AnimatedClosing;
         if (_isLoadingSettings) return;
         bool enabled = EnableSpotifyLyricsCheck.IsChecked ?? true;
         UpdateLyricsDependentControls(enabled);
+        PushLivePreview();
+    }
+
+    private void DynamicIslandModeCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
         PushLivePreview();
     }
 
@@ -441,6 +452,7 @@ public event EventHandler? AnimatedClosing;
             (BlurLabel, () => { BlurLabel.Text = Loc.Get("settings.blurBrightness"); BlurBrightnessSlider.Label = Loc.Get("settings.blurBrightness"); BlurBrightnessSlider.Description = Loc.Get("settings.blurBrightness.hint"); }),
             (DarkOverlayLabel, () => { DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay"); BlurDarkOverlaySlider.Label = Loc.Get("settings.lyricsDarkOverlay"); BlurDarkOverlaySlider.Description = Loc.Get("settings.lyricsDarkOverlay.hint"); }),
             (EnableSpotifyLyricsHint, () => EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint")),
+            (DynamicIslandModeHint, () => DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint")),
 
             // Behavior
             (HoverExpandHint, () => HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint")),
@@ -511,6 +523,8 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(DisableMouseLeaveAutoCloseCheck, () => DisableMouseLeaveAutoCloseCheck.Content = Loc.Get("settings.disableAutoClose"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(EnableSpotifyLyricsCheck, () => EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(DynamicIslandModeCheck, () => DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
 
         foreach (var (element, update) in textUpdates)
@@ -812,6 +826,8 @@ private void PushLivePreview()
         BlurBrightnessSlider.Value = defaults.MediaBlurBrightnessBoost * 100;
         BlurDarkOverlaySlider.Value = defaults.MediaBlurDarkOverlay * 100;
         EnableSpotifyLyricsCheck.IsChecked = defaults.EnableSpotifyLyrics;
+
+        DynamicIslandModeCheck.IsChecked = defaults.EnableDynamicIslandMode;
 
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
         HoverDelaySlider.Value = defaults.HoverExpandDelay;
@@ -1122,6 +1138,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.MediaBlurBrightnessBoost = BlurBrightnessSlider.Value / 100.0;
         _settings.MediaBlurDarkOverlay = BlurDarkOverlaySlider.Value / 100.0;
         _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
+
+        _settings.EnableDynamicIslandMode = DynamicIslandModeCheck.IsChecked ?? false;
 
         _settings.EnableHoverExpand = HoverExpandCheck.IsChecked ?? true;
         _settings.HoverExpandDelay = (int)HoverDelaySlider.Value;

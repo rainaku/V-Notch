@@ -305,6 +305,9 @@ public partial class MainWindow
             }
 
             _isFadingTrack = false;
+            // The next blur update should snap (no dissolve) so we don't double-fade
+            // on top of the just-completed black fade.
+            _suppressNextBlurDissolve = true;
             UpdateMediaBackground(info, forceRefresh: true);
         };
 
@@ -464,22 +467,169 @@ public partial class MainWindow
         UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
     }
 
-    private async Task UpdateBlurredBackgroundAsync(BitmapSource thumbnail)
+    private int _blurCrossfadeVersion = 0;
+    private BitmapImage? _lastBlurThumbnailRef;
+    private bool _suppressNextBlurDissolve = false;
+    private DispatcherTimer? _blurDissolveDebounce;
+    private BitmapSource? _pendingBlurResult;
+
+    private async Task UpdateBlurredBackgroundAsync(BitmapImage thumbnail)
     {
         try
         {
-            var blurredImage = await FastBlurService.GetBlurredImageAsync(thumbnail);
-            if (blurredImage != null)
+            // Dedup: same BitmapImage reference as last accepted call → skip entirely.
+            // Different references with same visual content can still re-blur (rare, harmless).
+            if (ReferenceEquals(thumbnail, _lastBlurThumbnailRef))
             {
-                // Simply set the blurred image source (no crossfade on main blur)
-                MediaBackgroundImage.Source = blurredImage;
-                MediaBackgroundImage2.Source = blurredImage;
+                return;
             }
+            _lastBlurThumbnailRef = thumbnail;
+
+            BitmapSource? blurredImage;
+
+            if (_settings.EnableSubjectBlur)
+            {
+                // Subject detection is best-effort and runs on the same cached ONNX session
+                // as smart-crop, so this adds at most ~10–30 ms only when smart-crop is on.
+                SubjectBounds? subject = null;
+                try
+                {
+                    subject = await Task.Run(() => _mediaService.ArtworkService.GetDominantSubjectBounds(thumbnail));
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Log("MEDIA-BG-SUBJECT", ex.ToString());
+                }
+
+                blurredImage = await SubjectAwareBlurService.GetSubjectBlurredAsync(thumbnail, subject);
+            }
+            else
+            {
+                blurredImage = await FastBlurService.GetBlurredImageAsync(thumbnail);
+            }
+
+            if (blurredImage == null) return;
+
+            // Two paths:
+            //   1) Snap path — first paint, or right after FadeToBlackThenUpdate.
+            //      No dissolve so we don't double-fade on top of the black fade.
+            //   2) Dissolve path — debounced ~160 ms so a burst of artwork updates
+            //      (SMTC raw → enriched → palette refresh) collapses into ONE fade.
+            if (_suppressNextBlurDissolve || MediaBackgroundImage.Source == null)
+            {
+                _suppressNextBlurDissolve = false;
+                _pendingBlurResult = null;
+                _blurDissolveDebounce?.Stop();
+                ApplyBlurredBackgroundImmediate(blurredImage);
+                return;
+            }
+
+            ScheduleBlurredBackgroundDissolve(blurredImage);
         }
         catch (Exception ex)
         {
             RuntimeLog.Log("MEDIA-BG-BLUR", ex.ToString());
         }
+    }
+
+    private void ApplyBlurredBackgroundImmediate(BitmapSource blurred)
+    {
+        // Cancel any in-flight crossfade and reset both sets of layers to a clean state.
+        ++_blurCrossfadeVersion;
+        MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
+
+        MediaBackgroundImage.Source = blurred;
+        MediaBackgroundImage2.Source = blurred;
+        MediaBackgroundImage.Opacity = 1.0;
+        MediaBackgroundImage2.Opacity = 1.0;
+        MediaBackgroundImageBack.Source = null;
+        MediaBackgroundImageBack2.Source = null;
+        MediaBackgroundImageBack.Opacity = 0.0;
+        MediaBackgroundImageBack2.Opacity = 0.0;
+    }
+
+    private void ScheduleBlurredBackgroundDissolve(BitmapSource blurred)
+    {
+        // Always keep the latest result; the timer below picks the freshest one when it fires.
+        _pendingBlurResult = blurred;
+
+        if (_blurDissolveDebounce == null)
+        {
+            _blurDissolveDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(160) };
+            _blurDissolveDebounce.Tick += (_, _) =>
+            {
+                _blurDissolveDebounce!.Stop();
+                var pending = _pendingBlurResult;
+                _pendingBlurResult = null;
+                if (pending != null)
+                {
+                    CrossfadeBlurredBackground(pending);
+                }
+            };
+        }
+
+        _blurDissolveDebounce.Stop();
+        _blurDissolveDebounce.Start();
+    }
+
+    /// <summary>
+    /// Dissolves the new blurred bitmap over the current one across both background layers
+    /// instead of snapping <c>Source</c>. Cancels mid-flight crossfades so rapid track
+    /// changes don't stack animations.
+    /// </summary>
+    private void CrossfadeBlurredBackground(BitmapSource blurred)
+    {
+        int version = ++_blurCrossfadeVersion;
+
+        // Cancel any in-flight animations so swaps remain coherent.
+        MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
+
+        // Stage the new bitmap on the back layer for both halves.
+        MediaBackgroundImageBack.Source = blurred;
+        MediaBackgroundImageBack2.Source = blurred;
+        MediaBackgroundImageBack.Opacity = 0.0;
+        MediaBackgroundImageBack2.Opacity = 0.0;
+
+        var dur = TimeSpan.FromMilliseconds(620);
+        var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+
+        var fadeIn  = new DoubleAnimation { To = 1.0, Duration = dur, EasingFunction = ease };
+        var fadeOut = new DoubleAnimation { To = 0.0, Duration = dur, EasingFunction = ease };
+
+        Timeline.SetDesiredFrameRate(fadeIn, 90);
+        Timeline.SetDesiredFrameRate(fadeOut, 90);
+
+        // When the dissolve completes, promote back → front so the next call
+        // starts from a clean state. Guarded against version races.
+        fadeIn.Completed += (_, _) =>
+        {
+            if (version != _blurCrossfadeVersion) return;
+
+            MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
+            MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
+            MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
+            MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
+
+            MediaBackgroundImage.Source = blurred;
+            MediaBackgroundImage2.Source = blurred;
+            MediaBackgroundImage.Opacity = 1.0;
+            MediaBackgroundImage2.Opacity = 1.0;
+            MediaBackgroundImageBack.Source = null;
+            MediaBackgroundImageBack2.Source = null;
+            MediaBackgroundImageBack.Opacity = 0.0;
+            MediaBackgroundImageBack2.Opacity = 0.0;
+        };
+
+        MediaBackgroundImageBack.BeginAnimation(OpacityProperty, fadeIn);
+        MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, fadeIn);
+        MediaBackgroundImage.BeginAnimation(OpacityProperty, fadeOut);
+        MediaBackgroundImage2.BeginAnimation(OpacityProperty, fadeOut);
     }
 
     #endregion

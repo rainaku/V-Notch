@@ -2800,6 +2800,26 @@ public class MediaDetectionService : IMediaDetectionService
                                 maxCompensationWindow = TimeSpan.FromMinutes(2);
                             }
                         }
+                        else if (isInitialOrBigChange)
+                        {
+                            // Native source observed for the first time — e.g. the app was
+                            // launched (or rebuilt via ./r) while a track was ALREADY playing.
+                            // Native players (Spotify, etc.) push SMTC timeline updates only
+                            // sporadically, so LastUpdatedTime can be tens of seconds — even
+                            // minutes — old. With the default 15s window the latency check
+                            // fails, compensation is skipped, and the bar freezes at a stale
+                            // position until the player happens to push a fresh timeline.
+                            // Allow extrapolation across the whole track (same as browser's
+                            // initial path) so we land on the real current position. This only
+                            // runs while IsPlaying, and the result is still clamped to 95% of
+                            // duration below, so a steadily-advancing track is corrected safely.
+                            var durationWindow = duration > TimeSpan.Zero
+                                ? duration + TimeSpan.FromSeconds(5)
+                                : TimeSpan.FromMinutes(10);
+                            maxCompensationWindow = durationWindow < TimeSpan.FromHours(4)
+                                ? durationWindow
+                                : TimeSpan.FromHours(4);
+                        }
 
                         bool validTimelineTimestamp =
                             rawTimelineUpdatedUtc > DateTimeOffset.MinValue &&

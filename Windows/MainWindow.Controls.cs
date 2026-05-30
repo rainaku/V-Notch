@@ -309,6 +309,7 @@ public partial class MainWindow
     private DispatcherTimer? _volumeIndicatorHideTimer;
     private bool _isVolumeIndicatorActive = false;
     private bool _volumeSynced = false;
+    private int _volumeIndicatorToken = 0;
     private void AdjustVolumeByScroll(int delta)
     {
         // Sync current volume from system only once per scroll session
@@ -347,31 +348,20 @@ public partial class MainWindow
     {
         if (VolumeIndicatorContainer == null || VolumeIndicatorFill == null) return;
         if (!_isMusicCompactMode) return;
-        if (_isBluetoothNotificationVisible) return;
-        if (_isChargingNotificationVisible) return;
         // CRITICAL: never run the compact-mode volume UI when the notch is expanded
         if (_isExpanded || _isAnimating) return;
 
-        // ─── Volume takes priority over clipboard "Copied" notification ───
-        if (_isClipboardPeekActive)
+        // ─── Arbiter: try to acquire the volume slot ───
+        // - If charging / bluetooth / greeting is showing → reject (those have higher priority).
+        // - If clipboard is showing → preempt and continue.
+        // - If volume is already showing → returns Won (refresh case).
+        if (!_isVolumeIndicatorActive)
         {
-            // Cancel the revert timer and immediately dismiss clipboard UI
-            _clipboardRevertTimer?.Stop();
-            _isClipboardPeekActive = false;
-
-            // Hide clipboard elements instantly (no animation needed, volume will take over)
-            ClipboardCheckIcon.BeginAnimation(OpacityProperty, null);
-            ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            ClipboardCheckIcon.Opacity = 0;
-            ClipboardCheckIcon.Visibility = Visibility.Collapsed;
-
-            ClipboardCopiedText.BeginAnimation(OpacityProperty, null);
-            ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, null);
-            ClipboardCopiedText.Opacity = 0;
-            ClipboardCopiedText.Visibility = Visibility.Collapsed;
-
-            RestorePrivacyDotVisibility();
+            if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Volume, out int token))
+            {
+                return;
+            }
+            _volumeIndicatorToken = token;
         }
 
         // ─── First time showing: hide compact content ───
@@ -389,11 +379,9 @@ public partial class MainWindow
                 _compactThumbnailHoverLeaveTimer.Stop();
 
                 // Animate notch size from hover → collapsed+20 (volume expanded size)
-                NotchBorder.BeginAnimation(WidthProperty, null);
                 NotchBorder.BeginAnimation(HeightProperty, null);
-                var widthAnim = MakeAnim(_collapsedWidth + 20, _dur400, _easeExpOut6, 144);
+                AnimateCompactWidth(_collapsedWidth + 20, _dur400, _easeExpOut6, _volumeIndicatorToken);
                 var heightAnim = MakeAnim(_collapsedHeight, _dur400, _easeExpOut6, 144);
-                NotchBorder.BeginAnimation(WidthProperty, widthAnim);
                 NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
                 // Animate thumbnail scale back to 1
@@ -413,19 +401,7 @@ public partial class MainWindow
             else
             {
                 // Normal case: expand notch slightly for volume bar
-                NotchBorder.BeginAnimation(WidthProperty, null);
-                var expandAnim = MakeAnim(_collapsedWidth, _collapsedWidth + 20, _dur350, _easeExpOut6);
-                expandAnim.FillBehavior = FillBehavior.Stop;
-                Timeline.SetDesiredFrameRate(expandAnim, 144);
-                expandAnim.Completed += (s, e) =>
-                {
-                    if (_isVolumeIndicatorActive)
-                    {
-                        NotchBorder.BeginAnimation(WidthProperty, null);
-                        NotchBorder.Width = _collapsedWidth + 20;
-                    }
-                };
-                NotchBorder.BeginAnimation(WidthProperty, expandAnim);
+                AnimateCompactWidth(_collapsedWidth + 20, _dur350, _easeExpOut6, _volumeIndicatorToken);
             }
 
             // Set initial fill width immediately (no animation from 0)
@@ -486,8 +462,12 @@ public partial class MainWindow
     private void HideVolumeIndicator()
     {
         if (VolumeIndicatorContainer == null) return;
+        int token = _volumeIndicatorToken;
+
         _isVolumeIndicatorActive = false;
         _volumeSynced = false;
+        _compactPillArbiter.Release(token);
+        _volumeIndicatorToken = 0;
 
         // Restore privacy dot
         RestorePrivacyDotVisibility();
@@ -501,17 +481,8 @@ public partial class MainWindow
             return;
         }
 
-        // Notch shrink back to collapsed width
-        NotchBorder.BeginAnimation(WidthProperty, null);
-        var shrinkAnim = MakeAnim(_collapsedWidth + 20, _collapsedWidth, _dur350, _easeExpOut6);
-        shrinkAnim.FillBehavior = FillBehavior.Stop;
-        Timeline.SetDesiredFrameRate(shrinkAnim, 144);
-        shrinkAnim.Completed += (s, e) =>
-        {
-            NotchBorder.BeginAnimation(WidthProperty, null);
-            NotchBorder.Width = _collapsedWidth;
-        };
-        NotchBorder.BeginAnimation(WidthProperty, shrinkAnim);
+        // Notch shrink back to collapsed width via the arbitered width helper.
+        AnimateCompactWidth(_collapsedWidth, _dur350, _easeExpOut6, 0);
 
         // Fade out indicator
         VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
@@ -550,9 +521,13 @@ public partial class MainWindow
     private void DismissVolumeIndicatorImmediate()
     {
         _volumeIndicatorHideTimer?.Stop();
+        int token = _volumeIndicatorToken;
+
         _isVolumeIndicatorActive = false;
         _volumeSynced = false;
         _isDraggingVolumeIndicator = false;
+        _compactPillArbiter.Release(token);
+        _volumeIndicatorToken = 0;
 
         if (VolumeIndicatorContainer != null)
         {

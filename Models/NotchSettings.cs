@@ -38,6 +38,13 @@ public class NotchSettings
     public bool EnableGlowOnHover { get; set; } = true;
     public string NotchStyle { get; set; } = "default"; 
 
+    /// <summary>
+    /// When true, the notch detaches from the top edge of the screen and renders
+    /// as a free-floating rounded rectangle (Dynamic Island style) with all four
+    /// corners rounded and a small gap from the top of the display.
+    /// </summary>
+    public bool EnableDynamicIslandMode { get; set; } = false;
+
     public bool HideOnExclusiveFullscreen { get; set; } = true;
     public bool HideOnWindowedFullscreen { get; set; } = true;
 
@@ -46,6 +53,14 @@ public class NotchSettings
     public int NotificationDuration { get; set; } = 5000; 
 
     public bool EnableSmartCrop { get; set; } = true;
+
+    /// <summary>
+    /// Use the on-device YOLOv8n model to detect the dominant subject in artwork
+    /// and produce a "spotlight" background blur (Apple Music style) instead of a
+    /// uniform blur. Falls back to uniform blur when no subject is found or the
+    /// model isn't available.
+    /// </summary>
+    public bool EnableSubjectBlur { get; set; } = true;
 
     public bool EnableGestureControls { get; set; } = true;
 

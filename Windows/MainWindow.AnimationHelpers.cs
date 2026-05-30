@@ -400,14 +400,28 @@ public partial class MainWindow
         if (d is MainWindow window)
         {
             double radius = (double)e.NewValue;
-            var cr = new CornerRadius(0, 0, radius, radius);
+            var cr = window.MakeNotchCornerRadius(radius);
             window.NotchBorder.CornerRadius = cr;
             window.InnerClipBorder.CornerRadius = cr;
+            window.NotchBackground.CornerRadius = cr;
             window.MediaBackground.CornerRadius = cr;
             window.MediaBackground2.CornerRadius = cr;
             window.NotchBorderShadow.CornerRadius = cr;
             window.UpdateNotchClip();
         }
+    }
+
+    /// <summary>
+    /// Build the notch corner-radius shape based on the active layout mode.
+    /// In default mode only the bottom corners are rounded (the notch hugs the
+    /// top of the screen). In Dynamic Island mode all four corners are rounded
+    /// because the notch floats free of the screen edge.
+    /// </summary>
+    private CornerRadius MakeNotchCornerRadius(double radius)
+    {
+        return _settings.EnableDynamicIslandMode
+            ? new CornerRadius(radius, radius, radius, radius)
+            : new CornerRadius(0, 0, radius, radius);
     }
 
     private static void OnCurrentThumbnailAnimationRadiusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

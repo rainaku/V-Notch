@@ -109,6 +109,9 @@ public partial class MainWindow
             BluetoothDisconnectNotification.Visibility = Visibility.Collapsed;
             _isBluetoothNotificationVisible = false;
         }
+        // Surrender any compact-pill slot so a stale Completed handler from
+        // a transient overlay can't fight the expand animation.
+        _compactPillArbiter.ForceClear();
 
         // Stop hover state tracking but DON'T reset thumbnail scale —
         // let it fade out naturally with the collapsed content
@@ -705,6 +708,8 @@ public partial class MainWindow
                 BluetoothDisconnectNotification.Visibility = Visibility.Collapsed;
                 _isBluetoothNotificationVisible = false;
             }
+            // Drop any compact-pill slot — the expanded view will repaint freshly.
+            _compactPillArbiter.ForceClear();
 
             // Safety: ensure nav icons are always hidden in collapsed state
             NavIconsPanel.BeginAnimation(OpacityProperty, null);

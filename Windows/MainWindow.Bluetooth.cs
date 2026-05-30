@@ -16,6 +16,7 @@ public partial class MainWindow
 
     private bool _isBluetoothNotificationVisible = false;
     private bool _currentBluetoothConnected = true;
+    private int _bluetoothNotificationToken = 0;
 
     private void InitializeBluetoothNotificationController()
     {
@@ -78,6 +79,14 @@ public partial class MainWindow
 
     private void AnimateBluetoothNotificationIn(bool connected)
     {
+        // Acquire the bluetooth slot. Preempts clipboard / volume; rejected by
+        // charging / greeting (those have higher priority).
+        if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Bluetooth, out int token))
+        {
+            return;
+        }
+
+        _bluetoothNotificationToken = token;
         _isBluetoothNotificationVisible = true;
 
         // Hide privacy dot while bluetooth notification is visible
@@ -111,15 +120,8 @@ public partial class MainWindow
             MusicCompactContent.Visibility = Visibility.Collapsed;
         }
 
-        // Also hide volume indicator if active
-        if (_isVolumeIndicatorActive)
-        {
-            _volumeIndicatorHideTimer?.Stop();
-            _isVolumeIndicatorActive = false;
-            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
-            VolumeIndicatorContainer.Opacity = 0;
-            VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
-        }
+        // (Volume / clipboard preemption is handled by the arbiter in
+        //  TryAcquireCompactSlot above — no manual cancel needed here.)
 
         // Animate bluetooth notification in
         var fadeIn = MakeAnim(0d, 1d, _dur350, _easeExpOut7, TimeSpan.FromMilliseconds(100));
@@ -140,13 +142,20 @@ public partial class MainWindow
     {
         var activeGrid = ActiveBluetoothGrid;
         var activeTranslate = ActiveBluetoothTranslate;
+        int token = _bluetoothNotificationToken;
 
         var fadeOut = MakeAnim(1d, 0d, _dur250, _easePowerIn2, null);
         fadeOut.Completed += (s, e) =>
         {
+            // If a higher-priority overlay has taken over, abandon restore.
+            if (token != _bluetoothNotificationToken) return;
+            if (IsCompactSlotStale(token)) return;
+
             activeGrid.Visibility = Visibility.Collapsed;
             _isBluetoothNotificationVisible = false;
             _bluetoothController.MarkDismissed();
+            _compactPillArbiter.Release(token);
+            _bluetoothNotificationToken = 0;
 
             // Restore privacy dot
             RestorePrivacyDotVisibility();
@@ -171,6 +180,29 @@ public partial class MainWindow
         var slideDown = MakeAnim(0d, -4d, _dur250, _easePowerIn2, null);
         activeTranslate.BeginAnimation(
             TranslateTransform.YProperty, slideDown, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    /// <summary>
+    /// Synchronous cancel used when a higher-priority overlay (charging glance,
+    /// greeting) preempts the bluetooth toast. No animation — clean handoff.
+    /// </summary>
+    private void CancelBluetoothNotificationImmediate()
+    {
+        if (!_isBluetoothNotificationVisible) return;
+
+        _isBluetoothNotificationVisible = false;
+        _bluetoothNotificationToken = 0;
+        _bluetoothController.MarkDismissed();
+
+        BluetoothNotification.BeginAnimation(OpacityProperty, null);
+        BluetoothNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        BluetoothNotification.Opacity = 0;
+        BluetoothNotification.Visibility = Visibility.Collapsed;
+
+        BluetoothDisconnectNotification.BeginAnimation(OpacityProperty, null);
+        BluetoothDisconnectNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        BluetoothDisconnectNotification.Opacity = 0;
+        BluetoothDisconnectNotification.Visibility = Visibility.Collapsed;
     }
 
     private void PlayBluetoothBounce()

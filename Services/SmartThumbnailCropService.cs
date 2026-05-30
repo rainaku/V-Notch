@@ -89,6 +89,108 @@ public sealed class SmartThumbnailCropService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Detects the dominant subject in the artwork (priority: person → animal → product → other)
+    /// and returns its bounding box in normalized 0..1 coordinates of the source image.
+    /// Reuses the cached ONNX session so no extra model load happens.
+    /// Returns null when the model isn't loaded, the image is too small, or no subject is found.
+    /// </summary>
+    public SubjectBounds? GetDominantSubjectBounds(BitmapImage source)
+    {
+        if (_disposed) return null;
+        if (!_modelExists && !TryInitialize()) return null;
+        if (!_modelExists) return null;
+        if (source == null) return null;
+
+        int imgWidth = source.PixelWidth;
+        int imgHeight = source.PixelHeight;
+        if (imgWidth < 64 || imgHeight < 64) return null;
+
+        lock (_lock)
+        {
+            float[]? tensorBuffer = null;
+            try
+            {
+                if (_cachedSession == null)
+                {
+                    var options = new SessionOptions();
+                    options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+                    options.ExecutionMode = ExecutionMode.ORT_SEQUENTIAL;
+                    options.InterOpNumThreads = 1;
+                    options.IntraOpNumThreads = 4;
+                    options.EnableMemoryPattern = true;
+                    options.EnableCpuMemArena = true;
+                    _cachedSession = new InferenceSession(GetModelPath(), options);
+                }
+
+                int requiredLength = 1 * 3 * ModelInputSize * ModelInputSize;
+                tensorBuffer = ArrayPool<float>.Shared.Rent(requiredLength);
+
+                var (scale, _, padX, padY) = PreprocessImageFast(source, tensorBuffer);
+
+                var tensor = new DenseTensor<float>(
+                    new Memory<float>(tensorBuffer, 0, requiredLength),
+                    new[] { 1, 3, ModelInputSize, ModelInputSize });
+                var inputName = _cachedSession.InputNames[0];
+                var inputs = new List<NamedOnnxValue>(1)
+                {
+                    NamedOnnxValue.CreateFromTensor(inputName, tensor)
+                };
+
+                using var results = _cachedSession.Run(inputs);
+                var output = results.First().AsTensor<float>();
+
+                var detections = ParseYolov8Output(output, imgWidth, imgHeight, scale, padX, padY);
+                if (detections.Count == 0) return null;
+
+                // Pick best by class priority × confidence × area share × center weight.
+                Detection? best = null;
+                float bestScore = float.MinValue;
+                float imgArea = imgWidth * imgHeight;
+
+                foreach (var d in detections)
+                {
+                    float area = (d.X2 - d.X1) * (d.Y2 - d.Y1);
+                    if (area <= 0) continue;
+                    float areaShare = area / imgArea;
+                    float score = d.Confidence * GetClassPriority(d.ClassId) * MathF.Sqrt(areaShare) * GetCenterWeight(d, imgWidth, imgHeight);
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        best = d;
+                    }
+                }
+
+                if (best is not Detection b) return null;
+
+                float cx = (b.X1 + b.X2) / 2f / imgWidth;
+                float cy = (b.Y1 + b.Y2) / 2f / imgHeight;
+                float w = (b.X2 - b.X1) / imgWidth;
+                float h = (b.Y2 - b.Y1) / imgHeight;
+
+                // Persons: bias subject center upward toward the face for nicer "spotlight".
+                if (_personClasses.Contains(b.ClassId))
+                {
+                    cy = (b.Y1 + (b.Y2 - b.Y1) * 0.30f) / imgHeight;
+                }
+
+                return new SubjectBounds(cx, cy, w, h, b.Confidence, b.ClassId);
+            }
+            catch (Exception ex)
+            {
+                VNotch.Services.RuntimeLog.Error("SUBJECT-BOUNDS", $"Inference failed: {ex.GetType().Name}: {ex.Message}");
+                _cachedSession?.Dispose();
+                _cachedSession = null;
+                return null;
+            }
+            finally
+            {
+                if (tensorBuffer != null)
+                    ArrayPool<float>.Shared.Return(tensorBuffer);
+            }
+        }
+    }
+
     public Int32Rect? GetSmartCropRect(BitmapImage source, int targetSquareSize)
     {
         if (_disposed) return null;
@@ -1022,3 +1124,16 @@ public sealed class SmartThumbnailCropService : IDisposable
         public float Area => (X2 - X1) * (Y2 - Y1);
     }
 }
+
+/// <summary>
+/// Bounding box of the dominant subject in normalized 0..1 coordinates,
+/// where (CenterX, CenterY) is the subject focal point and (Width, Height)
+/// is its extent within the source image.
+/// </summary>
+public readonly record struct SubjectBounds(
+    float CenterX,
+    float CenterY,
+    float Width,
+    float Height,
+    float Confidence,
+    int ClassId);

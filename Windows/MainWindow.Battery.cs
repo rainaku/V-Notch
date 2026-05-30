@@ -13,7 +13,9 @@ public partial class MainWindow
 {
     private Storyboard? _chargingPulseStoryboard;
     private bool _wasCharging = true; // Start as true to suppress notification on first battery update at app launch
+    private bool? _wasPluggedIn = null; // Track plug/unplug transitions; null until first sample
     private bool _isChargingNotificationVisible = false;
+    private int _chargingGlanceToken = 0;
     private DispatcherTimer? _chargingNotificationDismissTimer;
 
     private void HandleBatteryUpdate(BatteryInfo battery)
@@ -69,24 +71,82 @@ public partial class MainWindow
         // Show compact charging notification when charger is plugged in
         if (battery.IsCharging && !_wasCharging)
         {
-            ShowChargingNotification(battery.Percentage);
+            ShowChargingGlance(battery, ChargingGlanceKind.PluggedIn);
+        }
+        else if (_wasPluggedIn == true && !battery.IsPluggedIn)
+        {
+            // Unplug transition
+            ShowChargingGlance(battery, ChargingGlanceKind.Unplugged);
         }
         _wasCharging = battery.IsCharging;
+        _wasPluggedIn = battery.IsPluggedIn;
     }
 
-    private void ShowChargingNotification(int percentage)
+    private enum ChargingGlanceKind
     {
-        // Don't show if expanded, animating, greeting active, or another notification is visible
-        if (_isExpanded || _isAnimating || _isGreetingActive || _isBluetoothNotificationVisible || _isChargingNotificationVisible)
+        PluggedIn,
+        Unplugged
+    }
+
+    private void ShowChargingGlance(BatteryInfo battery, ChargingGlanceKind kind)
+    {
+        // Don't show if expanded, animating, or greeting is taking over
+        if (_isExpanded || _isAnimating || _isGreetingActive)
             return;
 
+        // Acquire the charging slot through the arbiter. This will preempt any
+        // lower-priority overlay (clipboard / volume / bluetooth) that is showing.
+        if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Charging, out int token))
+            return;
+
+        _chargingGlanceToken = token;
         _isChargingNotificationVisible = true;
 
-        ChargingPercentText.Text = $"{percentage}%";
-        ChargingStatusText.Text = Loc.Get("battery.charging");
+        ChargingPercentText.Text = $"{battery.Percentage}%";
+
+        // Status label + accent color depend on direction & state
+        Color accent;
+        string statusKey;
+        if (kind == ChargingGlanceKind.PluggedIn)
+        {
+            if (battery.IsFullyCharged)
+            {
+                statusKey = "battery.fullyCharged";
+                accent = Color.FromRgb(0x30, 0xD1, 0x58); // green
+            }
+            else
+            {
+                statusKey = "battery.charging";
+                accent = Color.FromRgb(0x30, 0xD1, 0x58); // green
+            }
+        }
+        else
+        {
+            statusKey = "battery.onBattery";
+            accent = Color.FromRgb(0xFF, 0x95, 0x00); // amber, mirrors mac unplug feedback
+        }
+        ChargingStatusText.Text = Loc.Get(statusKey);
+        ChargingPercentText.Foreground = new SolidColorBrush(accent);
+        ChargingBatteryFill.Background = new SolidColorBrush(accent);
+
+        // Watt readout — only when a live rate is available and meaningful (>= 0.1 W)
+        if (battery.HasPowerRate && Math.Abs(battery.PowerWatts) >= 0.1)
+        {
+            double watts = Math.Abs(battery.PowerWatts);
+            string formatted = watts >= 10
+                ? $"{watts:0} W"
+                : $"{watts:0.0} W";
+            ChargingWattText.Text = formatted;
+            ChargingWattText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ChargingWattText.Visibility = Visibility.Collapsed;
+            ChargingWattText.Text = string.Empty;
+        }
 
         // Set battery fill width based on percentage (max 17px)
-        double fillWidth = Math.Max(2, percentage / 100.0 * 17.0);
+        double fillWidth = Math.Max(2, battery.Percentage / 100.0 * 17.0);
         ChargingBatteryFill.Width = fillWidth;
 
         // Hide current content
@@ -99,15 +159,8 @@ public partial class MainWindow
         MusicCompactContent.Opacity = 0;
         MusicCompactContent.Visibility = Visibility.Collapsed;
 
-        // Also hide volume indicator if active
-        if (_isVolumeIndicatorActive)
-        {
-            _volumeIndicatorHideTimer?.Stop();
-            _isVolumeIndicatorActive = false;
-            VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
-            VolumeIndicatorContainer.Opacity = 0;
-            VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
-        }
+        // (Volume / clipboard / bluetooth pre-emption is handled by the arbiter
+        //  in TryAcquireCompactSlot above — no need to repeat here.)
 
         // Show charging notification
         ChargingNotification.Visibility = Visibility.Visible;
@@ -146,24 +199,22 @@ public partial class MainWindow
     {
         if (!_isChargingNotificationVisible) return;
 
-        // Shrink notch back to collapsed width
-        var widthShrink = new DoubleAnimation(_collapsedWidth, new Duration(TimeSpan.FromMilliseconds(400)))
-        {
-            EasingFunction = _easeExpOut6
-        };
-        Timeline.SetDesiredFrameRate(widthShrink, 144);
-        widthShrink.Completed += (s, e) =>
-        {
-            NotchBorder.BeginAnimation(WidthProperty, null);
-            NotchBorder.Width = _collapsedWidth;
-        };
-        NotchBorder.BeginAnimation(WidthProperty, widthShrink);
+        int token = _chargingGlanceToken;
+
+        // Shrink notch back to collapsed width using the arbitered width helper.
+        AnimateCompactWidth(_collapsedWidth, TimeSpan.FromMilliseconds(400), _easeExpOut6, token);
 
         var fadeOut = MakeAnim(1d, 0d, _dur250, _easePowerIn2, null);
         fadeOut.Completed += (s, e) =>
         {
+            // Bail if a higher-priority overlay has taken over since we started.
+            if (token != _chargingGlanceToken) return;
+            if (IsCompactSlotStale(token)) return;
+
             ChargingNotification.Visibility = Visibility.Collapsed;
             _isChargingNotificationVisible = false;
+            _compactPillArbiter.Release(token);
+            _chargingGlanceToken = 0;
 
             // Restore previous content
             if (_isMusicCompactMode && _currentMediaInfo != null)
@@ -188,20 +239,35 @@ public partial class MainWindow
         ChargingNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, slideDown);
     }
 
+    /// <summary>
+    /// Synchronous cancel used when a higher-priority overlay (e.g. greeting)
+    /// preempts the charging glance. Restores the pill instantly without animating.
+    /// </summary>
+    private void CancelChargingGlanceImmediate()
+    {
+        if (!_isChargingNotificationVisible) return;
+
+        _chargingNotificationDismissTimer?.Stop();
+        _isChargingNotificationVisible = false;
+        _chargingGlanceToken = 0;
+
+        ChargingNotification.BeginAnimation(OpacityProperty, null);
+        ChargingNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        ChargingNotification.Opacity = 0;
+        ChargingNotification.Visibility = Visibility.Collapsed;
+    }
+
     private void PlayChargingBounce()
     {
         if (_isExpanded || _isAnimating) return;
 
         const int fps = 144;
 
-        // Expand width slightly to accommodate the charging notification content
-        double targetWidth = _collapsedWidth + 28;
-        var widthExpand = new DoubleAnimation(targetWidth, new Duration(TimeSpan.FromMilliseconds(500)))
-        {
-            EasingFunction = _easeSoftSpring
-        };
-        Timeline.SetDesiredFrameRate(widthExpand, fps);
-        NotchBorder.BeginAnimation(WidthProperty, widthExpand);
+        // Expand width slightly to accommodate the charging notification content.
+        // Reserve extra room when the watt readout is visible so the layout doesn't clip.
+        double extra = ChargingWattText.Visibility == Visibility.Visible ? 56 : 28;
+        double targetWidth = _collapsedWidth + extra;
+        AnimateCompactWidth(targetWidth, TimeSpan.FromMilliseconds(500), _easeSoftSpring, _chargingGlanceToken);
 
         // Subtle bounce scale
         var durPeak = TimeSpan.FromMilliseconds(140);

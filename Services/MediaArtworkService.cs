@@ -13,10 +13,28 @@ public interface IMediaArtworkService
     BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false);
     Task<BitmapImage?> ConvertToWpfBitmapAsync(IRandomAccessStreamWithContentType stream, CancellationToken ct = default);
     void ConfigureSmartCrop(bool enabled);
+
+    /// <summary>
+    /// Detects the dominant subject in <paramref name="source"/> (if the on-device YOLOv8n
+    /// model is loaded). Returns null when unavailable; callers should fall back gracefully.
+    /// </summary>
+    SubjectBounds? GetDominantSubjectBounds(BitmapImage source);
 }
 
 public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
 {
+    /// <summary>
+    /// Fixed pixel width used to decode every album artwork bitmap. Choosing a
+    /// single value makes the in-memory pixel buffer identical for every provider
+    /// (Spotify 600 px, SoundCloud 500 px, YouTube 480 px) and every screen DPI,
+    /// so the downstream crop / blur / display steps always operate on the same
+    /// canvas size and the result is bit-for-bit consistent.
+    ///
+    /// 256 covers the largest consumer (expanded thumbnail 102 logical px ×
+    /// 200% DPI ≈ 204 device px) with headroom for hover scale and crop.
+    /// </summary>
+    private const int ArtworkDecodeWidth = 256;
+
     private static readonly HttpClient _httpClient = new();
     private readonly SmartThumbnailCropService _smartCrop;
     private bool _smartCropAvailable;
@@ -43,6 +61,13 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
             // Just check if model file exists — no model loading here
             InitializeSmartCrop();
         }
+    }
+
+    public SubjectBounds? GetDominantSubjectBounds(BitmapImage source)
+    {
+        if (!_smartCropAvailable && !_smartCrop.TryInitialize())
+            return null;
+        return _smartCrop.GetDominantSubjectBounds(source);
     }
 
     static MediaArtworkService()
@@ -77,6 +102,12 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                         bitmap.BeginInit();
                         bitmap.StreamSource = ms;
                         bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        // Decode at a fixed pixel width so the buffer size is identical
+                        // regardless of source resolution (Spotify 600px vs YouTube 480px
+                        // vs SoundCloud 500px). 256 covers the largest consumer (expanded
+                        // thumbnail = 102 logical px × 200 % DPI = 204 device px) with
+                        // a small headroom for crop / hover scale.
+                        bitmap.DecodePixelWidth = ArtworkDecodeWidth;
                         bitmap.EndInit();
                         bitmap.Freeze();
                     }
@@ -279,6 +310,10 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                 bitmap.BeginInit();
                 bitmap.StreamSource = memoryStream;
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                // Normalize SMTC artwork to a fixed pixel buffer so subsequent
+                // crop / display steps produce identical output across providers
+                // and across DPI scales.
+                bitmap.DecodePixelWidth = ArtworkDecodeWidth;
                 bitmap.EndInit();
                 bitmap.Freeze();
             });

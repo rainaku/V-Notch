@@ -301,7 +301,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Path Grid.Column="0" 
+                <Path x:Name="LeftShadowEar" Grid.Column="0" 
                       Data="M 0,0 L 10,0 L 10,10 Q 10,0 0,0 Z" 
                       Fill="Black" 
                       Width="11" Height="10" 
@@ -315,7 +315,7 @@
                         Width="{Binding Width, ElementName=NotchBorder}"
                         Height="{Binding Height, ElementName=NotchBorder}"/>
 
-                <Path Grid.Column="2" 
+                <Path x:Name="RightShadowEar" Grid.Column="2" 
                       Data="M 0,10 L 0,0 L 11,0 Q 1,0 1,10 Z" 
                       Fill="Black" 
                       Width="11" Height="10" 
@@ -916,6 +916,21 @@
                                            SnapsToDevicePixels="True"
                                            VerticalAlignment="Center"
                                            Margin="0,0,5,0"/>
+                                <!-- Watt readout (visible only when a live rate is available) -->
+                                <TextBlock x:Name="ChargingWattText"
+                                           Text=""
+                                           Foreground="#A0FFFFFF"
+                                           FontSize="10.5"
+                                           FontWeight="Medium"
+                                           FontFamily="{StaticResource MainSystemFont}"
+                                           TextOptions.TextFormattingMode="Ideal"
+                                           TextOptions.TextRenderingMode="ClearType"
+                                           TextOptions.TextHintingMode="Fixed"
+                                           UseLayoutRounding="True"
+                                           SnapsToDevicePixels="True"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed"
+                                           Margin="0,0,6,0"/>
                                 <!-- Mini battery icon -->
                                 <Grid Width="22" Height="12" VerticalAlignment="Center"
                                       RenderTransformOrigin="0.5,0.5">
@@ -966,8 +981,8 @@
                                 Width="22" Height="22" 
                                 CornerRadius="6" 
                                 Background="#1A1A1A"
-                                BorderBrush="#333333"
-                                BorderThickness="0.5"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
                                 ClipToBounds="True"
                                 Cursor="Hand"
                                 RenderTransformOrigin="0,0"
@@ -1303,6 +1318,7 @@
                                 </RadialGradientBrush>
                             </Border.OpacityMask>
                             <Grid>
+                                <Image x:Name="MediaBackgroundImageBack" Stretch="UniformToFill" Opacity="0"/>
                                 <Image x:Name="MediaBackgroundImage" Stretch="UniformToFill" Opacity="1.0"/>
                                 <Rectangle x:Name="BrightnessDimOverlay" Fill="Black" Opacity="0" IsHitTestVisible="False"/>
                             </Grid>
@@ -1325,6 +1341,7 @@
                                 </RadialGradientBrush>
                             </Border.OpacityMask>
                             <Grid>
+                                <Image x:Name="MediaBackgroundImageBack2" Stretch="UniformToFill" Opacity="0"/>
                                 <Image x:Name="MediaBackgroundImage2" Stretch="UniformToFill" Opacity="1.0"/>
                                 <Rectangle x:Name="BrightnessDimOverlay2" Fill="Black" Opacity="0" IsHitTestVisible="False"/>
                             </Grid>
@@ -1390,6 +1407,15 @@
                                             <ScaleTransform x:Name="ThumbnailScale" ScaleX="1" ScaleY="1"/>
                                         </Border.RenderTransform>
                                         <Grid Width="102" Height="102" ClipToBounds="True">
+                                            <!-- Single clip at the Grid level: clips both Image layers to a rounded
+                                                 rectangle in one shot. This is the actual rounding mechanism — the
+                                                 parent Border's CornerRadius only paints the stroke, it does NOT clip
+                                                 visual children to a rounded shape. Using one Grid.Clip instead of
+                                                 two per-Image clips also avoids fractional-DPI hairlines along the
+                                                 seam between the layers. -->
+                                            <Grid.Clip>
+                                                <RectangleGeometry RadiusX="14" RadiusY="14" Rect="0,0,102,102"/>
+                                            </Grid.Clip>
 
                                             <Image x:Name="ThumbnailImage" 
                                                    Width="102" Height="102"
@@ -1398,9 +1424,6 @@
                                                    VerticalAlignment="Center"
                                                    RenderTransformOrigin="0.5,0.5"
                                                    Visibility="Collapsed">
-                                                <Image.Clip>
-                                                    <RectangleGeometry RadiusX="14" RadiusY="14" Rect="0,0,102,102"/>
-                                                </Image.Clip>
                                                 <Image.RenderTransform>
                                                     <ScaleTransform x:Name="ThumbnailOutScale" ScaleX="1" ScaleY="1"/>
                                                 </Image.RenderTransform>
@@ -1417,9 +1440,6 @@
                                                    RenderTransformOrigin="0.5,0.5"
                                                    Opacity="0"
                                                    IsHitTestVisible="False">
-                                                <Image.Clip>
-                                                    <RectangleGeometry RadiusX="14" RadiusY="14" Rect="0,0,102,102"/>
-                                                </Image.Clip>
                                                 <Image.RenderTransform>
                                                     <ScaleTransform x:Name="ThumbnailNextScale" ScaleX="1" ScaleY="1"/>
                                                 </Image.RenderTransform>

@@ -100,6 +100,14 @@ public partial class MainWindow : Window
     private const double CompactThumbnailHoverExitMargin = 22.0;
     private DateTime _lastMediaActionTime = DateTime.MinValue;
 
+    /// <summary>
+    /// Arbitrates which transient overlay (volume, charging, bluetooth, clipboard,
+    /// greeting) currently owns the compact pill. Each show path takes a slot;
+    /// each Completed handler guards on the slot's token before mutating state.
+    /// See <see cref="VNotch.Controllers.CompactPillArbiter"/>.
+    /// </summary>
+    private readonly VNotch.Controllers.CompactPillArbiter _compactPillArbiter = new();
+
     private readonly DispatcherTimer _progressTimer;
 
     private static readonly SolidColorBrush _brushCharging = CreateFrozenBrush(48, 209, 88);
@@ -916,6 +924,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         _cornerRadiusCollapsed = _settings.CornerRadius;
         _cachedThumbnailExpandTarget = null;
 
+        ApplyDynamicIslandLayout();
+
         // Only update visual dimensions when collapsed to avoid a 1-frame glitch
         if (!_isExpanded && !_isAnimating)
         {
@@ -933,9 +943,10 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                 NotchBorder.Width = _settings.Width;
                 NotchBorder.Height = _settings.Height;
 
-                var cr = new CornerRadius(0, 0, _settings.CornerRadius, _settings.CornerRadius);
+                var cr = MakeNotchCornerRadius(_settings.CornerRadius);
                 NotchBorder.CornerRadius = cr;
                 InnerClipBorder.CornerRadius = cr;
+                NotchBackground.CornerRadius = cr;
                 NotchBorderShadow.CornerRadius = cr;
                 MediaBackground.CornerRadius = cr;
                 MediaBackground2.CornerRadius = cr;
@@ -988,9 +999,10 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
             else
             {
-                var cr = new CornerRadius(0, 0, _settings.CornerRadius, _settings.CornerRadius);
+                var cr = MakeNotchCornerRadius(_settings.CornerRadius);
                 NotchBorder.CornerRadius = cr;
                 InnerClipBorder.CornerRadius = cr;
+                NotchBackground.CornerRadius = cr;
                 NotchBorderShadow.CornerRadius = cr;
                 MediaBackground.CornerRadius = cr;
                 MediaBackground2.CornerRadius = cr;
@@ -1075,6 +1087,41 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
         ShelfUnlockDismissText.Text = Loc.Get("shelf.unlockDismiss");
         ShelfUnlockSettingsHint.Text = Loc.Get("shelf.unlockSettingsHint");
+    }
+
+    /// <summary>
+    /// Top gap (in WPF DIPs) between the screen edge and the notch when
+    /// Dynamic Island Mode is active.
+    /// </summary>
+    private const double DynamicIslandTopMargin = 8.0;
+
+    /// <summary>
+    /// Applies the layout pieces that depend on the Dynamic Island toggle:
+    /// pushes the notch container down by a fixed margin and hides the curved
+    /// "ear" paths that would otherwise stitch the notch to the top edge.
+    /// </summary>
+    private void ApplyDynamicIslandLayout()
+    {
+        bool islandMode = _settings.EnableDynamicIslandMode;
+
+        if (NotchContainer != null)
+        {
+            var current = NotchContainer.Margin;
+            double targetTop = islandMode ? DynamicIslandTopMargin : 0;
+            if (Math.Abs(current.Top - targetTop) > 0.01)
+            {
+                NotchContainer.Margin = new Thickness(current.Left, targetTop, current.Right, current.Bottom);
+            }
+        }
+
+        // Ears are only meaningful when the notch is glued to the top of the
+        // screen; in island mode they create stray black triangles next to the
+        // floating pill.
+        var earVisibility = islandMode ? Visibility.Collapsed : Visibility.Visible;
+        if (LeftEar != null) LeftEar.Visibility = earVisibility;
+        if (RightEar != null) RightEar.Visibility = earVisibility;
+        if (LeftShadowEar != null) LeftShadowEar.Visibility = earVisibility;
+        if (RightShadowEar != null) RightShadowEar.Visibility = earVisibility;
     }
 
     #endregion
@@ -1481,25 +1528,49 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         if (w <= 0 || h <= 0) return;
 
-        double r = NotchBorder.CornerRadius.BottomRight;
+        double rBottom = NotchBorder.CornerRadius.BottomRight;
+        double rTop = NotchBorder.CornerRadius.TopLeft;
 
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
         {
-            ctx.BeginFigure(new Point(0, 0), true, true);
-            ctx.LineTo(new Point(w, 0), true, false);
-            ctx.LineTo(new Point(w, h - r), true, false);
-            if (r > 0)
-                ctx.ArcTo(new Point(w - r, h), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
+            // Top-left corner
+            if (rTop > 0)
+            {
+                ctx.BeginFigure(new Point(rTop, 0), true, true);
+                ctx.LineTo(new Point(w - rTop, 0), true, false);
+                ctx.ArcTo(new Point(w, rTop), new Size(rTop, rTop), 0, false, SweepDirection.Clockwise, true, false);
+            }
+            else
+            {
+                ctx.BeginFigure(new Point(0, 0), true, true);
+                ctx.LineTo(new Point(w, 0), true, false);
+            }
+
+            // Right edge → bottom-right corner
+            ctx.LineTo(new Point(w, h - rBottom), true, false);
+            if (rBottom > 0)
+                ctx.ArcTo(new Point(w - rBottom, h), new Size(rBottom, rBottom), 0, false, SweepDirection.Clockwise, true, false);
             else
                 ctx.LineTo(new Point(w, h), true, false);
 
-            ctx.LineTo(new Point(r, h), true, false);
-
-            if (r > 0)
-                ctx.ArcTo(new Point(0, h - r), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
+            // Bottom edge → bottom-left corner
+            ctx.LineTo(new Point(rBottom, h), true, false);
+            if (rBottom > 0)
+                ctx.ArcTo(new Point(0, h - rBottom), new Size(rBottom, rBottom), 0, false, SweepDirection.Clockwise, true, false);
             else
                 ctx.LineTo(new Point(0, h), true, false);
+
+            // Left edge → close back into top-left
+            if (rTop > 0)
+            {
+                ctx.LineTo(new Point(0, rTop), true, false);
+                ctx.ArcTo(new Point(rTop, 0), new Size(rTop, rTop), 0, false, SweepDirection.Clockwise, true, false);
+            }
+            else
+            {
+                ctx.LineTo(new Point(0, 0), true, false);
+            }
         }
 
         NotchContent.Clip = geometry;

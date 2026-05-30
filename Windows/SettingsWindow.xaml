@@ -900,6 +900,17 @@
                                             TickFrequency="2"
                                             IsSnapToTickEnabled="True"
                                             ValueChanged="RadiusSlider_ValueChanged"/>
+
+                                    <CheckBox x:Name="DynamicIslandModeCheck"
+                                              x:Uid="dynamicIslandMode"
+                                              Content="Dynamic Island mode"
+                                              Margin="0,14,0,0"
+                                              Checked="DynamicIslandModeCheck_Changed"
+                                              Unchecked="DynamicIslandModeCheck_Changed"/>
+                                    <TextBlock x:Name="DynamicIslandModeHint"
+                                               Text="Detach the notch from the top edge so it floats as a fully rounded pill."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,3,0,0"/>
                                 </StackPanel>
                             </Border>
 

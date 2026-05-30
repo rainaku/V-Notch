@@ -17,6 +17,7 @@ public partial class MainWindow
     private DateTime _lastClipboardFlashUtc = DateTime.MinValue;
     private static readonly TimeSpan ClipboardFlashCooldown = TimeSpan.FromMilliseconds(400);
     private bool _isClipboardPeekActive = false;
+    private int _clipboardPeekToken = 0;
     private DispatcherTimer? _clipboardRevertTimer;
 
     private void RegisterClipboardListener()
@@ -88,9 +89,12 @@ public partial class MainWindow
     }
     private void ShowClipboardCopiedState()
     {
-        // Volume indicator takes priority — don't show "Copied" if volume bar is active
-        if (_isVolumeIndicatorActive) return;
+        // Acquire the clipboard slot. Clipboard is the lowest-priority overlay,
+        // so this returns false if anything else is showing.
+        if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Clipboard, out int token))
+            return;
 
+        _clipboardPeekToken = token;
         _isClipboardPeekActive = true;
 
         // Hide privacy dot during clipboard notification
@@ -166,7 +170,10 @@ public partial class MainWindow
     }
     private void RevertClipboardCopiedState()
     {
+        int token = _clipboardPeekToken;
         _isClipboardPeekActive = false;
+        _compactPillArbiter.Release(token);
+        _clipboardPeekToken = 0;
 
         // Restore privacy dot
         RestorePrivacyDotVisibility();
@@ -222,6 +229,32 @@ public partial class MainWindow
         MusicViz.BeginAnimation(OpacityProperty, null);
         var vizFadeIn = MakeAnim(0.0, 1.0, _dur100, _easeQuadOut);
         MusicViz.BeginAnimation(OpacityProperty, vizFadeIn);
+    }
+
+    /// <summary>
+    /// Synchronous cancel used by the arbiter when a higher-priority overlay
+    /// (volume / bluetooth / charging / greeting) takes over. No animation.
+    /// </summary>
+    private void CancelClipboardPeekImmediate()
+    {
+        if (!_isClipboardPeekActive) return;
+
+        _clipboardRevertTimer?.Stop();
+        _isClipboardPeekActive = false;
+        _clipboardPeekToken = 0;
+
+        ClipboardCheckIcon.BeginAnimation(OpacityProperty, null);
+        ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        ClipboardCheckIcon.Opacity = 0;
+        ClipboardCheckIcon.Visibility = Visibility.Collapsed;
+
+        ClipboardCopiedText.BeginAnimation(OpacityProperty, null);
+        ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+        ClipboardCopiedText.Opacity = 0;
+        ClipboardCopiedText.Visibility = Visibility.Collapsed;
+
+        // Caller (the arbiter) is taking over the privacy dot; nothing to restore here.
     }
 
     #endregion

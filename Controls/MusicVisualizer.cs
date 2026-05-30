@@ -88,7 +88,16 @@ namespace VNotch.Controls
         private const double LeftMiniBarSensitivity = 0.58;
         private const double RightBiasStrength = 1.00;
         private const double RightBiasDeadzone = 0.05;
-        private const double MinHeightChangeThreshold = 0.002;
+        // Filter sub-pixel jitter: changes smaller than this are ignored.
+        // Raised to ~0.5% of bar height to suppress visible micro-flicker on short bars.
+        private const double MinHeightChangeThreshold = 0.006;
+        // Extra smoothing for short bars to make small movements slower & smoother.
+        // Bars below SmallBarHeightThreshold get up to SmallBarAlphaBoost added to their smoothing alpha.
+        private const double SmallBarHeightThreshold = 0.35;
+        private const double SmallBarAlphaBoost = 0.06;
+        // Minimum target delta required to actually move a short bar (per-frame, in height ratio).
+        // Suppresses tiny audio-driven wobble when the band level barely changes.
+        private const double SmallBarTargetDeadzone = 0.012;
 
         // Reference frame interval the alpha constants were tuned for (old DispatcherTimer effective rate)
         private const double ReferenceFrameMs = 16.0;
@@ -297,6 +306,22 @@ namespace VNotch.Controls
                     }
                 }
 
+                // Slow down small bars: when both current and target sit in the lower band,
+                // boost the smoothing alpha so movement is gentler and less jittery.
+                double smallBarRef = Math.Max(_currentHeights[i], targetH);
+                if (smallBarRef < SmallBarHeightThreshold && _state != VisualizerState.Paused)
+                {
+                    double smallness = 1.0 - (smallBarRef / SmallBarHeightThreshold);
+                    baseAlpha = Math.Min(0.985, baseAlpha + (smallness * SmallBarAlphaBoost));
+
+                    // Deadzone: ignore micro target wobble for short bars so they don't
+                    // continuously twitch. Snap target to current when delta is tiny.
+                    if (Math.Abs(targetH - _currentHeights[i]) < SmallBarTargetDeadzone * (1.0 + smallness))
+                    {
+                        targetH = _currentHeights[i];
+                    }
+                }
+
                 // Frame-rate independent smoothing: adjust alpha for actual dt vs reference 16ms
                 double dtMs = dt * 1000.0;
                 double alpha = Math.Pow(baseAlpha, dtMs / ReferenceFrameMs);
@@ -406,7 +431,19 @@ namespace VNotch.Controls
             double smoothingFactor = Math.Pow(0.58, _lastDtMs / ReferenceFrameMs);
             for (int i = 0; i < BarCount; i++)
             {
-                _smoothedHeights[i] = (_smoothedHeights[i] * smoothingFactor) + (_currentHeights[i] * (1 - smoothingFactor));
+                // Short bars get a heavier smoothing factor so tiny movements are slower
+                // and any residual jitter is visually flattened.
+                double targetSmoothing = smoothingFactor;
+                double refHeight = Math.Max(_smoothedHeights[i], _currentHeights[i]);
+                if (refHeight < SmallBarHeightThreshold)
+                {
+                    double smallness = 1.0 - (refHeight / SmallBarHeightThreshold);
+                    // Up to ~0.20 extra smoothing weight on the previous value for the smallest bars.
+                    double extra = Math.Pow(0.80, _lastDtMs / ReferenceFrameMs) - smoothingFactor;
+                    targetSmoothing = Math.Min(0.97, smoothingFactor + (extra * smallness));
+                }
+
+                _smoothedHeights[i] = (_smoothedHeights[i] * targetSmoothing) + (_currentHeights[i] * (1 - targetSmoothing));
             }
 
             Array.Copy(_smoothedHeights, _sortedHeights, BarCount);
