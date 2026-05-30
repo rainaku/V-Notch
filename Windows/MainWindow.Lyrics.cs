@@ -123,7 +123,10 @@ public partial class MainWindow
                 LyricTextB.Opacity = 0;
                 LyricTextA.Text = "";
                 LyricTextB.Text = "";
-                ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
+                // For YouTube, CurrentTrack is the full video title — too long and
+                // not meaningful as a "song name" placeholder. Show the channel name
+                // (artist) instead, which is short and identifies the source.
+                ShowLyricsPlaceholder(info.CurrentArtist, "");
             });
         }
 
@@ -132,18 +135,21 @@ public partial class MainWindow
         // Verify we're still on the same video after async
         if (trackKey != _lyricsTrackKey) return;
 
-        ApplySyncedLines(subtitles, info);
+        ApplySyncedLines(subtitles, info, isYouTube: true);
     }
 
     /// <summary>
     /// Shared post-fetch handling for both Spotify lyrics and YouTube subtitles:
     /// shows the widget, seeds the current line, or hides if nothing was found.
     /// </summary>
-    private void ApplySyncedLines(List<LyricLine>? lines, MediaInfo info)
+    private void ApplySyncedLines(List<LyricLine>? lines, MediaInfo info, bool isYouTube = false)
     {
         if (lines == null || lines.Count == 0)
         {
-            // No synced text — hide the widget and restore calendar
+            // No synced text — hide the widget and restore calendar.
+            // Also clear the track key so a subsequent MediaChanged event
+            // (e.g. when the video id resolves later) can trigger a retry.
+            _lyricsTrackKey = "";
             if (_isLyricsActive)
                 HideLyricsWidget();
             return;
@@ -170,7 +176,11 @@ public partial class MainWindow
             }
             else if (LyricsPlaceholderPanel.Visibility != Visibility.Visible || LyricsPlaceholderPanel.Opacity < 0.01)
             {
-                ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
+                // For YouTube, show the channel name as the placeholder title —
+                // the video title is too long and not a meaningful "song name".
+                string placeholderTitle = isYouTube ? info.CurrentArtist : info.CurrentTrack;
+                string placeholderArtist = isYouTube ? "" : info.CurrentArtist;
+                ShowLyricsPlaceholder(placeholderTitle, placeholderArtist);
             }
         });
     }
@@ -308,10 +318,19 @@ public partial class MainWindow
         {
             // Seeked back before first lyric — show placeholder again
             _currentLyricIndex = -1;
-            string trackKey = _lyricsTrackKey;
-            string[] parts = trackKey.Split('|', 2);
-            if (parts.Length == 2)
-                ShowLyricsPlaceholder(parts[0], parts[1]);
+            if (_syncedTextSource == SyncedTextSource.YouTubeSubtitles && _currentMediaInfo != null)
+            {
+                // For YouTube, show the channel name — not the full video title
+                ShowLyricsPlaceholder(_currentMediaInfo.CurrentArtist, "");
+            }
+            else
+            {
+                // For Spotify, _lyricsTrackKey is "track|artist"
+                string trackKey = _lyricsTrackKey;
+                string[] parts = trackKey.Split('|', 2);
+                if (parts.Length == 2)
+                    ShowLyricsPlaceholder(parts[0], parts[1]);
+            }
         }
     }
 
