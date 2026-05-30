@@ -13,10 +13,18 @@ namespace VNotch;
 public partial class MainWindow
 {
     private readonly LyricsService _lyricsService = new();
+    private readonly YouTubeSubtitleService _youtubeSubtitleService = new();
     private List<LyricLine>? _currentLyrics;
     private int _currentLyricIndex = -1;
     private string _lyricsTrackKey = "";
     private bool _isLyricsActive = false;
+
+    /// <summary>
+    /// Identifies what kind of synced text is currently driving the lyrics widget,
+    /// so the right user setting gates show/hide behavior and re-fetches.
+    /// </summary>
+    private enum SyncedTextSource { None, SpotifyLyrics, YouTubeSubtitles }
+    private SyncedTextSource _syncedTextSource = SyncedTextSource.None;
 
     private async void FetchLyricsForTrack(MediaInfo info)
     {
@@ -32,6 +40,7 @@ public partial class MainWindow
         // Don't re-fetch for the same track
         if (trackKey == _lyricsTrackKey) return;
         _lyricsTrackKey = trackKey;
+        _syncedTextSource = SyncedTextSource.SpotifyLyrics;
 
         // Only support Spotify
         if (info.MediaSource != "Spotify")
@@ -70,38 +79,97 @@ public partial class MainWindow
         // Verify we're still on the same track after async
         if (trackKey != _lyricsTrackKey) return;
 
-        if (lyrics == null || lyrics.Count == 0)
+        ApplySyncedLines(lyrics, info);
+    }
+
+    /// <summary>
+    /// Fetches YouTube closed captions for the current video and displays them in
+    /// the same synced-lyrics widget used for Spotify. Captions already carry
+    /// per-line timestamps, so they sync to playback position exactly like lyrics.
+    /// </summary>
+    private async void FetchSubtitlesForTrack(MediaInfo info)
+    {
+        // Honor user setting — YouTube subtitles can be disabled
+        if (!_settings.EnableYouTubeSubtitles)
         {
-            // No lyrics — NOW hide lyrics widget and show calendar
+            HideLyricsWidget();
+            return;
+        }
+
+        // Need a resolved video id to fetch captions. The id is filled in by
+        // MediaDetectionService asynchronously, so this method may be called
+        // again (with the same track) once the id becomes available.
+        if (string.IsNullOrEmpty(info.YouTubeVideoId))
+            return;
+
+        // Key on the video id so we don't refetch while it stays the same,
+        // but still react when the underlying video changes.
+        string trackKey = $"yt:{info.YouTubeVideoId}";
+        if (trackKey == _lyricsTrackKey) return;
+        _lyricsTrackKey = trackKey;
+        _syncedTextSource = SyncedTextSource.YouTubeSubtitles;
+
+        // Clear old data immediately
+        _currentLyrics = null;
+        _currentLyricIndex = -1;
+
+        if (_isLyricsActive)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                LyricTextA.BeginAnimation(OpacityProperty, null);
+                LyricTextB.BeginAnimation(OpacityProperty, null);
+                LyricTextA.Opacity = 0;
+                LyricTextB.Opacity = 0;
+                LyricTextA.Text = "";
+                LyricTextB.Text = "";
+                ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
+            });
+        }
+
+        var subtitles = await _youtubeSubtitleService.FetchSubtitlesAsync(info.YouTubeVideoId);
+
+        // Verify we're still on the same video after async
+        if (trackKey != _lyricsTrackKey) return;
+
+        ApplySyncedLines(subtitles, info);
+    }
+
+    /// <summary>
+    /// Shared post-fetch handling for both Spotify lyrics and YouTube subtitles:
+    /// shows the widget, seeds the current line, or hides if nothing was found.
+    /// </summary>
+    private void ApplySyncedLines(List<LyricLine>? lines, MediaInfo info)
+    {
+        if (lines == null || lines.Count == 0)
+        {
+            // No synced text — hide the widget and restore calendar
             if (_isLyricsActive)
                 HideLyricsWidget();
             return;
         }
 
-        _currentLyrics = lyrics;
+        _currentLyrics = lines;
         _currentLyricIndex = -1;
 
         if (!_isLyricsActive)
         {
-            // First time showing lyrics for this session
+            // First time showing for this session
             ShowLyricsWidget();
         }
 
-        // Check if position is already past the first lyric (e.g. app boot mid-song)
+        // Check if position is already past the first line (e.g. app boot mid-song)
         Dispatcher.Invoke(() =>
         {
             int idx = FindCurrentLyricIndex();
             if (idx >= 0)
             {
-                // Already in lyrics territory — show current lyric, not placeholder
                 _currentLyricIndex = idx;
                 HideLyricsPlaceholder();
                 AnimateLyricLine(_currentLyrics[idx].Text);
             }
             else if (LyricsPlaceholderPanel.Visibility != Visibility.Visible || LyricsPlaceholderPanel.Opacity < 0.01)
             {
-                // Before first lyric — show placeholder only if not already showing
-                // (avoids double-triggering the animation when placeholder was shown at fetch start)
                 ShowLyricsPlaceholder(info.CurrentTrack, info.CurrentArtist);
             }
         });
@@ -457,7 +525,9 @@ public partial class MainWindow
     private void ClearLyrics()
     {
         _lyricsTrackKey = "";
+        _syncedTextSource = SyncedTextSource.None;
         _lyricsService.Reset();
+        _youtubeSubtitleService.Reset();
         HideLyricsWidget();
     }
 }

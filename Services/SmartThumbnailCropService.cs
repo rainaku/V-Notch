@@ -39,6 +39,21 @@ public sealed class SmartThumbnailCropService : IDisposable
     // ─── Portrait Detection ───
     private const float PortraitThreshold = 0.50f;         // Person > 50% frame = portrait mode (lowered to catch more)
 
+    // ─── Composition Rules (R1–R6) ───
+    private const float SubjectMarginRatio = 0.15f;        // R1: breathing room on each side of subject (15%)
+    private const float MinCropRatio = 0.45f;              // R1: crop never smaller than 45% of min(w,h) → avoid over-zoom on tiny detections
+    private const float FaceVerticalFraction = 0.38f;      // R2: face sits at 38% from top of crop (upper-third framing)
+    private const float PortraitFaceFraction = 0.42f;      // R2: face fraction for tight portrait crops
+    private const float ObjectVerticalFraction = 0.50f;    // R3: objects centred vertically by default
+    private const float StabilizeCenterThreshold = 0.03f;  // R6: ignore focal shifts < 3% of min(w,h)
+    private const float StabilizeSizeThreshold = 0.04f;    // R6: ignore crop-size changes < 4% of min(w,h)
+
+    // R6: last emitted crop, used to suppress micro-jitter between recomputes of the same artwork.
+    private Int32Rect _lastCropRect;
+    private int _lastCropImgWidth;
+    private int _lastCropImgHeight;
+    private bool _hasLastCrop;
+
     private bool _disposed;
     private bool _modelExists;
     private bool _modelExistsChecked;
@@ -192,6 +207,17 @@ public sealed class SmartThumbnailCropService : IDisposable
     }
 
     public Int32Rect? GetSmartCropRect(BitmapImage source, int targetSquareSize)
+    {
+        var rect = ComputeSmartCropRectCore(source, targetSquareSize);
+        if (rect.HasValue && source != null)
+        {
+            // R6: suppress micro-jitter between recomputes of the same artwork.
+            return Stabilize(rect.Value, source.PixelWidth, source.PixelHeight);
+        }
+        return rect;
+    }
+
+    private Int32Rect? ComputeSmartCropRectCore(BitmapImage source, int targetSquareSize)
     {
         if (_disposed) return null;
         if (!_modelExists && !TryInitialize())

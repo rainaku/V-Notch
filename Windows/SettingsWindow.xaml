@@ -961,6 +961,17 @@
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,3,0,0"/>
 
+                                    <CheckBox x:Name="EnableYouTubeSubtitlesCheck"
+                                              x:Uid="enableYouTubeSubtitles"
+                                              Content="Show YouTube subtitles"
+                                              Margin="0,14,0,0"
+                                              Checked="EnableYouTubeSubtitlesCheck_Changed"
+                                              Unchecked="EnableYouTubeSubtitlesCheck_Changed"/>
+                                    <TextBlock x:Name="EnableYouTubeSubtitlesHint"
+                                               Text="Display synced closed captions inside the expanded notch when watching on YouTube."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,3,0,0"/>
+
                                     <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}" Visibility="Collapsed" Margin="0,12,0,0"/>
                                     <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
                                         <Run x:Name="BlurDarkOverlayValue" Text="30"/><Run Text=" %"/>

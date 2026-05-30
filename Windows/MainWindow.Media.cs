@@ -61,6 +61,14 @@ public partial class MainWindow
                 {
                     FetchLyricsForTrack(info);
                 }
+                else if (result.HasRealTrack && renderedSource == "YouTube")
+                {
+                    // YouTube: show synced closed captions in the lyrics widget.
+                    // The video id may not be resolved yet on this first event —
+                    // FetchSubtitlesForTrack no-ops until it is, and a later
+                    // MediaChanged with the resolved id will trigger the fetch.
+                    FetchSubtitlesForTrack(info);
+                }
                 else
                 {
                     ClearLyrics();
@@ -71,6 +79,14 @@ public partial class MainWindow
                 TrackTitle.Text = result.DisplayText.Title;
                 TrackArtist.Text = result.DisplayText.Artist;
                 CompactTitleMarquee.Text = result.DisplayText.Title;
+
+                // Same track, but the YouTube video id may have just been resolved
+                // asynchronously by MediaDetectionService — try fetching captions now.
+                if (result.HasRealTrack && renderedSource == "YouTube"
+                    && !string.IsNullOrEmpty(info.YouTubeVideoId))
+                {
+                    FetchSubtitlesForTrack(info);
+                }
             }
 
             // ─── Shimmer effect for idle state ───

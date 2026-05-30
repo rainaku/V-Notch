@@ -68,6 +68,8 @@ public class NotchSettings
 
     public bool EnableSpotifyLyrics { get; set; } = true;
 
+    public bool EnableYouTubeSubtitles { get; set; } = true;
+
     public bool IsShelfUploadLimitUnlocked { get; set; } = true;
 
     public bool EnableYouTubeApi { get; set; } = false;

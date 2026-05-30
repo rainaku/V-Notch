@@ -1050,7 +1050,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         // or kick off a fetch when re-enabled while a Spotify track is playing.
         if (!_settings.EnableSpotifyLyrics)
         {
-            if (_isLyricsActive)
+            if (_isLyricsActive && _syncedTextSource == SyncedTextSource.SpotifyLyrics)
             {
                 _lyricsTrackKey = "";
                 HideLyricsWidget();
@@ -1063,6 +1063,24 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         {
             _lyricsTrackKey = "";
             FetchLyricsForTrack(_currentMediaInfo);
+        }
+
+        // React to YouTube subtitles toggle: same pattern as Spotify lyrics.
+        if (!_settings.EnableYouTubeSubtitles)
+        {
+            if (_isLyricsActive && _syncedTextSource == SyncedTextSource.YouTubeSubtitles)
+            {
+                _lyricsTrackKey = "";
+                HideLyricsWidget();
+            }
+        }
+        else if (_currentMediaInfo != null
+                 && _currentMediaInfo.MediaSource == "YouTube"
+                 && !string.IsNullOrEmpty(_currentMediaInfo.YouTubeVideoId)
+                 && !_isLyricsActive)
+        {
+            _lyricsTrackKey = "";
+            FetchSubtitlesForTrack(_currentMediaInfo);
         }
 
         if (_currentMediaInfo != null && !_isExpanded)
