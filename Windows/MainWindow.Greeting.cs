@@ -111,16 +111,16 @@ public partial class MainWindow
         // Each path has a duration and delay matching the original animation
         var paths = new (Path path, double durationMs, double delayMs)[]
         {
-            (ViPath1,  200,    0),      // x1
-            (ViPath2,  450,  250),      // x2
-            (ViPath3,  350,  650),      // i
-            (ViPath4,  200,  950),      // n1
-            (ViPath5,  600, 1100),      // n2
-            (ViPath6,  750, 1650),      // c, h1
-            (ViPath7,  650, 2350),      // h2
-            (ViPath8,  550, 2950),      // a1
-            (ViPath9, 1000, 3450),      // a2, o
-            (ViPath10, 500, 4500),      // dấu huyền (accent)
+            (ViPath1,  110,    0),      // x1        — nhanh nhất
+            (ViPath2,  230,  130),      // x2
+            (ViPath3,  210,  340),      // i
+            (ViPath4,  150,  520),      // n1
+            (ViPath5,  400,  640),      // n2
+            (ViPath6,  520, 1010),      // c, h1
+            (ViPath7,  500, 1490),      // h2
+            (ViPath8,  560, 1950),      // a1
+            (ViPath9,  900, 2460),      // a2, o     — chậm dần
+            (ViPath10, 480, 3420),      // dấu huyền — chậm nhất
         };
 
         foreach (var (path, durationMs, delayMs) in paths)
@@ -160,11 +160,10 @@ public partial class MainWindow
             path.BeginAnimation(Shape.StrokeDashOffsetProperty, anim);
         }
 
-        // The last animation starts at 4500ms and lasts 500ms = completes at 5000ms
-        // Set a timer to dismiss after the full animation completes + hold time
-        var totalDurationMs = 4500 + 500 + 1500; // last delay + last duration + hold time
+        // The last animation starts at 3420ms and lasts 480ms = completes at 3900ms
+        var totalDurationMs = 3420 + 480 + 1500; // last delay + last duration + hold time
 
-        // Animate the dot on "i" — appears when the "i" stroke starts (delay 650ms)
+        // Animate the dot on "i" — appears when the "i" stroke starts (delay 340ms)
         ViDotI.Visibility = Visibility.Visible;
         ViDotI.Opacity = 0;
         var dotFadeIn = new DoubleAnimation
@@ -172,7 +171,7 @@ public partial class MainWindow
             From = 0,
             To = 1,
             Duration = TimeSpan.FromMilliseconds(250),
-            BeginTime = TimeSpan.FromMilliseconds(650),
+            BeginTime = TimeSpan.FromMilliseconds(340),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
         ViDotI.BeginAnimation(OpacityProperty, dotFadeIn);
