@@ -88,6 +88,14 @@ public partial class MainWindow
             _progressDisplayRatio = 0;
         }
 
+        // Immediately dismiss the volume indicator if it's showing. Without this,
+        // expand paths other than the notch click (hover-expand, gestures, drag-drop)
+        // leave the volume bar overlaying the expanded view (Panel.ZIndex=90).
+        if (_isVolumeIndicatorActive)
+        {
+            DismissVolumeIndicatorImmediate();
+        }
+
         // Immediately dismiss any active notification overlays to prevent them
         // lingering over the expanded content or persisting through collapse
         if (_isChargingNotificationVisible)
@@ -413,6 +421,10 @@ public partial class MainWindow
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
             if (CompactThumbnailBorder != null && !_isClipboardPeekActive)
             {
+                // Clear any leftover opacity animation first: a volume-bar fade-out
+                // (thumbOut) holds opacity at 0 and a local-value assignment would
+                // otherwise lose to the still-active animation, leaving it invisible.
+                CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
                 CompactThumbnailBorder.Opacity = 1;
                 // Reset thumbnail scale after expand completes (was left at hover scale during transition)
@@ -750,9 +762,14 @@ public partial class MainWindow
                 CompactHoverInfo.Visibility = Visibility.Collapsed;
             }
 
-            // Always restore opacity — may have been set to 0 during collapse animation
+            // Always restore opacity — may have been set to 0 during collapse animation.
+            // Clear any leftover opacity animation first: a volume-bar fade-out
+            // (thumbOut) holds opacity at 0 and, if it wasn't cleared on dismiss,
+            // a local-value assignment loses to the still-active animation — leaving
+            // the thumbnail invisible after returning to the compact pill.
             if (CompactThumbnailBorder != null && !_isClipboardPeekActive)
             {
+                CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
                 CompactThumbnailBorder.Opacity = 1;
             }

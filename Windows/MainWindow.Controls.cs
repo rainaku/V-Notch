@@ -537,6 +537,19 @@ public partial class MainWindow
             VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
         }
 
+        // Clear the held fade-out animations from ShowVolumeIndicator. These hold
+        // opacity at 0 (FillBehavior.HoldEnd); if left active, the expand/collapse
+        // completion handlers' local Opacity = 1 assignment loses to the animation
+        // and the thumbnail stays invisible after returning to the compact pill.
+        if (CompactThumbnailBorder != null)
+        {
+            CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+        }
+        if (MusicViz != null)
+        {
+            MusicViz.BeginAnimation(OpacityProperty, null);
+        }
+
         RestorePrivacyDotVisibility();
     }
 
