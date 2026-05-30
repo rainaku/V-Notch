@@ -672,6 +672,10 @@ public partial class MainWindow
         AnimateForegroundColor(TrackArtist, artistColorAnim);
         AnimateForegroundColor(TrackArtistNext, artistColorAnim);
 
+        // Lyrics
+        AnimateForegroundColor(LyricTextA, artistColorAnim);
+        AnimateForegroundColor(LyricTextB, artistColorAnim);
+
         // Media control icons (prev/play/pause/next)
         AnimatePathFillAndStroke(PrevArrow0, colorAnim);
         AnimatePathFillAndStroke(PrevArrow1, colorAnim);
@@ -763,6 +767,10 @@ public partial class MainWindow
         // Reset artist
         AnimateForegroundColor(TrackArtist, artistWhiteAnim);
         AnimateForegroundColor(TrackArtistNext, artistWhiteAnim);
+
+        // Reset lyrics
+        AnimateForegroundColor(LyricTextA, artistWhiteAnim);
+        AnimateForegroundColor(LyricTextB, artistWhiteAnim);
 
         // Reset media controls
         AnimatePathFillAndStroke(PrevArrow0, whiteAnim);

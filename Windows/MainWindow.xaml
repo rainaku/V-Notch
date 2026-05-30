@@ -2152,7 +2152,6 @@
                                                Style="{StaticResource SubtitleText}"
                                                FontSize="12.5"
                                                FontWeight="Bold"
-                                               Foreground="#EEFFFFFF"
                                                TextWrapping="Wrap"
                                                TextTrimming="CharacterEllipsis"
                                                MaxHeight="110"
@@ -2161,6 +2160,9 @@
                                                VerticalAlignment="Center"
                                                HorizontalAlignment="Stretch"
                                                Opacity="0">
+                                        <TextBlock.Foreground>
+                                            <SolidColorBrush Color="#BFFFFFFF"/>
+                                        </TextBlock.Foreground>
                                         <TextBlock.RenderTransform>
                                             <TranslateTransform x:Name="LyricTranslateA" Y="0"/>
                                         </TextBlock.RenderTransform>
@@ -2171,7 +2173,6 @@
                                                Style="{StaticResource SubtitleText}"
                                                FontSize="12.5"
                                                FontWeight="Bold"
-                                               Foreground="#EEFFFFFF"
                                                TextWrapping="Wrap"
                                                TextTrimming="CharacterEllipsis"
                                                MaxHeight="110"
@@ -2180,6 +2181,9 @@
                                                VerticalAlignment="Center"
                                                HorizontalAlignment="Stretch"
                                                Opacity="0">
+                                        <TextBlock.Foreground>
+                                            <SolidColorBrush Color="#BFFFFFFF"/>
+                                        </TextBlock.Foreground>
                                         <TextBlock.RenderTransform>
                                             <TranslateTransform x:Name="LyricTranslateB" Y="0"/>
                                         </TextBlock.RenderTransform>
