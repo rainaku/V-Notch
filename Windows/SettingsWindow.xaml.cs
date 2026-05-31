@@ -346,9 +346,9 @@ public event EventHandler? AnimatedClosing;
 
     private static string GetSubtitleModeName(string key, bool isVi) => key switch
     {
-        "native" => isVi ? "🌐  Ngôn ngữ gốc video" : "🌐  Video's native language",
-        "english" => isVi ? "🇬🇧  Tiếng Anh" : "🇬🇧  English",
-        "auto" => isVi ? "⚡  Tự động (bất kỳ)" : "⚡  Auto (any available)",
+        "native" => isVi ? "Ngôn ngữ gốc video" : "Video's native language",
+        "english" => isVi ? "Tiếng Anh" : "English",
+        "auto" => isVi ? "Tự động (bất kỳ)" : "Auto (any available)",
         _ => key
     };
 

@@ -210,7 +210,7 @@ public sealed class SmartThumbnailCropService : IDisposable
                 // Persons: bias subject center upward toward the face for nicer "spotlight".
                 if (_personClasses.Contains(b.ClassId))
                 {
-                    cy = (b.Y1 + (b.Y2 - b.Y1) * 0.30f) / imgHeight;
+                    cy = (b.Y1 + (b.Y2 - b.Y1) * 0.12f) / imgHeight;
                 }
 
                 return new SubjectBounds(cx, cy, w, h, b.Confidence, b.ClassId);
@@ -763,32 +763,27 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     private Int32Rect GetPortraitCropRect(Detection person, int imgWidth, int imgHeight, int targetSize)
     {
-        // Tight portrait: subject fills the frame. Frame the head + shoulders.
-        float personCenterX = (person.X1 + person.X2) / 2f;
         float personWidth = person.X2 - person.X1;
         float personHeight = person.Y2 - person.Y1;
 
-        // Face focal point: ~18% down from the top of the person bbox.
-        float faceCenterY = person.Y1 + personHeight * 0.18f;
+        // Estimate face center X: head is narrower than body and centered on the
+        // upper portion of the bbox. Blend body center with image center (faces in
+        // thumbnails tend to be near image center more than body center).
+        float bodyCenterX = (person.X1 + person.X2) / 2f;
+        float imgCenterX = imgWidth / 2f;
+        float faceCenterX = bodyCenterX * 0.7f + imgCenterX * 0.3f;
 
-        // R8: Use golden ratio for vertical placement in portrait mode
-        float verticalFraction = GetGoldenVerticalFraction(isPerson: true, isPortrait: true);
+        // Face center Y: ~12% down from the top of the person bbox (eye-level).
+        float faceCenterY = person.Y1 + personHeight * 0.12f;
 
         float subjectExtent = Math.Max(personWidth, personHeight * 0.6f);
         int cropSize = ComputeAdaptiveCropSize(subjectExtent, subjectExtent, imgWidth, imgHeight, targetSize);
 
-        // R2: place the face on the golden line of the crop for natural portrait framing.
-        var crop = BuildComposedCropRect(personCenterX, faceCenterY, verticalFraction, imgWidth, imgHeight, cropSize);
-
-        // R1 containment: never clip the top of the head (leave a small head-room above bbox top).
-        float headTop = person.Y1 - personHeight * 0.05f;
-        crop = EnsureTopNotClipped(crop, headTop, imgWidth, imgHeight);
-
-        // R7–R12: Apply full composition pipeline for harmonious framing
-        crop = ApplyCompositionRules(crop, personCenterX, faceCenterY, imgWidth, imgHeight, isPerson: true, person);
+        // Center crop on estimated face position.
+        var crop = BuildComposedCropRect(faceCenterX, faceCenterY, 0.5f, imgWidth, imgHeight, cropSize);
 
         VNotch.Services.RuntimeLog.Log("SMART-CROP",
-            $"portrait: personTop={person.Y1:F0} faceCenterY={faceCenterY:F0} cropSize={cropSize} rect=({crop.X},{crop.Y},{crop.Width})");
+            $"portrait: bodyCX={bodyCenterX:F0} faceCX={faceCenterX:F0} faceCY={faceCenterY:F0} cropSize={cropSize} rect=({crop.X},{crop.Y},{crop.Width})");
 
         return crop;
     }
@@ -801,28 +796,22 @@ public sealed class SmartThumbnailCropService : IDisposable
             float personHeight = p.Y2 - p.Y1;
             float personWidth = p.X2 - p.X1;
 
-            // R2: focal point on the face (~18% from top of person bbox), centred horizontally.
-            float faceCenterY = p.Y1 + personHeight * 0.18f;
-            float targetX = (p.X1 + p.X2) / 2f;
+            // Estimate face center: blend body center X with image center X.
+            float bodyCenterX = (p.X1 + p.X2) / 2f;
+            float imgCenterX = imgWidth / 2f;
+            float faceCenterX = bodyCenterX * 0.7f + imgCenterX * 0.3f;
 
-            // R8: Use golden ratio for vertical placement
-            float verticalFraction = GetGoldenVerticalFraction(isPerson: true, isPortrait: false);
+            // Face center Y: ~12% from top of person bbox (eye-level).
+            float faceCenterY = p.Y1 + personHeight * 0.12f;
 
-            // R1: adaptive size containing the person with breathing room.
+            // Adaptive size containing the person with breathing room.
             int cropSize = ComputeAdaptiveCropSize(personWidth, personHeight, imgWidth, imgHeight, targetSize);
 
-            // R2/R8: face on golden line.
-            var crop = BuildComposedCropRect(targetX, faceCenterY, verticalFraction, imgWidth, imgHeight, cropSize);
-
-            // R1 containment: protect the head from being clipped.
-            float headTop = p.Y1 - personHeight * 0.05f;
-            crop = EnsureTopNotClipped(crop, headTop, imgWidth, imgHeight);
-
-            // R7–R12: Apply full composition pipeline
-            crop = ApplyCompositionRules(crop, targetX, faceCenterY, imgWidth, imgHeight, isPerson: true, p);
+            // Center crop on estimated face position.
+            var crop = BuildComposedCropRect(faceCenterX, faceCenterY, 0.5f, imgWidth, imgHeight, cropSize);
 
             VNotch.Services.RuntimeLog.Log("SMART-CROP",
-                $"single person: bbox=({p.X1:F0},{p.Y1:F0})-({p.X2:F0},{p.Y2:F0}) faceCenterY={faceCenterY:F0} cropSize={cropSize} rect=({crop.X},{crop.Y},{crop.Width})");
+                $"single person: bbox=({p.X1:F0},{p.Y1:F0})-({p.X2:F0},{p.Y2:F0}) faceCX={faceCenterX:F0} faceCY={faceCenterY:F0} cropSize={cropSize} rect=({crop.X},{crop.Y},{crop.Width})");
 
             return crop;
         }
@@ -839,7 +828,7 @@ public sealed class SmartThumbnailCropService : IDisposable
                 if (p.X2 > maxX) maxX = p.X2;
                 if (p.Y2 > maxY) maxY = p.Y2;
 
-                float faceY = p.Y1 + (p.Y2 - p.Y1) * 0.18f;
+                float faceY = p.Y1 + (p.Y2 - p.Y1) * 0.12f;
                 if (faceY < topFaceY) topFaceY = faceY;
             }
 
@@ -847,16 +836,15 @@ public sealed class SmartThumbnailCropService : IDisposable
             float groupH = maxY - minY;
             float groupCenterX = (minX + maxX) / 2f;
 
-            // Focal Y: bias toward the faces (upper part of the group) rather than the geometric centre.
+            // Focal Y: center between topmost face and group center.
             float groupCenterY = (minY + maxY) / 2f;
             float focalY = (topFaceY + groupCenterY) / 2f;
 
-            // R1: adaptive size that contains the whole group.
+            // Adaptive size that contains the whole group.
             int cropSize = ComputeAdaptiveCropSize(groupW, groupH, imgWidth, imgHeight, targetSize);
 
-            // R8: golden vertical fraction for group
-            float verticalFraction = GetGoldenVerticalFraction(isPerson: true, isPortrait: false);
-            var crop = BuildComposedCropRect(groupCenterX, focalY, verticalFraction, imgWidth, imgHeight, cropSize);
+            // Center crop on focal point.
+            var crop = BuildComposedCropRect(groupCenterX, focalY, 0.5f, imgWidth, imgHeight, cropSize);
 
             // R1 containment: keep the topmost head in frame.
             crop = EnsureTopNotClipped(crop, minY - groupH * 0.03f, imgWidth, imgHeight);
@@ -964,23 +952,31 @@ public sealed class SmartThumbnailCropService : IDisposable
     {
         cropSize = Math.Min(cropSize, Math.Min(imgWidth, imgHeight));
 
-        // Horizontal: focal centred.
+        // Simple: center the crop on the focal point (face center).
         float cropX = focalX - cropSize / 2f;
+        float cropY = focalY - cropSize / 2f;
 
-        // Vertical: focal sits at `verticalFraction` down the crop (upper-third for faces).
-        float cropY = focalY - cropSize * verticalFraction;
-
+        // Clamp to image bounds.
         cropX = Math.Clamp(cropX, 0, imgWidth - cropSize);
         cropY = Math.Clamp(cropY, 0, imgHeight - cropSize);
 
         return new Int32Rect((int)MathF.Round(cropX), (int)MathF.Round(cropY), cropSize, cropSize);
     }
 
+    /// <summary>
+    /// R1 (containment guarantee) — Ensures the subject's head/top is not clipped.
+    /// If the head would be above the crop's top edge, shift the crop up.
+    /// Additionally enforces a minimum headroom (HeadroomRatio) above the subject top.
+    /// </summary>
     private static Int32Rect EnsureTopNotClipped(Int32Rect crop, float subjectTop, int imgWidth, int imgHeight)
     {
-        if (subjectTop < crop.Y)
+        // Minimum headroom: at least HeadroomRatio of crop height above the subject top.
+        float minHeadroom = crop.Height * HeadroomRatio;
+        float desiredCropTop = subjectTop - minHeadroom;
+
+        if (desiredCropTop < crop.Y)
         {
-            int newY = Math.Max(0, (int)subjectTop);
+            int newY = Math.Max(0, (int)desiredCropTop);
             newY = Math.Min(newY, imgHeight - crop.Height);
             return new Int32Rect(crop.X, newY, crop.Width, crop.Height);
         }

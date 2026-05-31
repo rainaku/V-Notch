@@ -1260,12 +1260,13 @@
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,3,0,0"/>
 
-                                    <CheckBox x:Name="EnableYouTubeSubtitlesCheck"
-                                              x:Uid="enableYouTubeSubtitles"
-                                              Content="Show YouTube subtitles"
-                                              Margin="0,14,0,0"
-                                              Checked="EnableYouTubeSubtitlesCheck_Changed"
-                                              Unchecked="EnableYouTubeSubtitlesCheck_Changed"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0" VerticalAlignment="Center">
+                                        <CheckBox x:Name="EnableYouTubeSubtitlesCheck"
+                                                  x:Uid="enableYouTubeSubtitles"
+                                                  Content="Show YouTube subtitles"
+                                                  Checked="EnableYouTubeSubtitlesCheck_Changed"
+                                                  Unchecked="EnableYouTubeSubtitlesCheck_Changed"/>
+                                    </StackPanel>
                                     <TextBlock x:Name="EnableYouTubeSubtitlesHint"
                                                Text="Display synced closed captions inside the expanded notch when watching on YouTube."
                                                Style="{StaticResource SettingHintText}"
@@ -1292,7 +1293,13 @@
                             <!-- Subtitle Language Priority -->
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
-                                    <TextBlock x:Name="SubtitlePriorityLabel" Text="Subtitle Language" Style="{StaticResource SettingTitleText}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="SubtitlePriorityLabel" Text="Subtitle Language" Style="{StaticResource SettingTitleText}"/>
+                                        <Border Background="#C8C8C8" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="Beta" FontSize="9" FontWeight="Bold"
+                                                       Foreground="#1A1A1A" FontFamily="{StaticResource SFProDisplay}"/>
+                                        </Border>
+                                    </StackPanel>
                                     <TextBlock x:Name="SubtitlePriorityHint"
                                                Text="Drag to reorder priority. Subtitles are selected using the first available match."
                                                Style="{StaticResource SettingHintText}"
@@ -1318,7 +1325,8 @@
                                                                    VerticalAlignment="Center"/>
                                                         <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
                                                                    FontSize="13" Foreground="#E0E0E0"
-                                                                   FontFamily="{StaticResource SettingsFont}"
+                                                                   FontFamily="{StaticResource SFProDisplay}"
+                                                                   FontWeight="Bold"
                                                                    VerticalAlignment="Center"/>
                                                     </Grid>
                                                 </Border>
