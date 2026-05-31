@@ -101,6 +101,7 @@ public event EventHandler? AnimatedClosing;
         EnableSpotifyLyricsCheck.IsChecked = _settings.EnableSpotifyLyrics;
         UpdateLyricsDependentControls(_settings.EnableSpotifyLyrics);
         EnableYouTubeSubtitlesCheck.IsChecked = _settings.EnableYouTubeSubtitles;
+        UpdateYouTubeSubtitlesDependentControls(_settings.EnableYouTubeSubtitles);
 
         LoadSubtitlePriority();
 
@@ -181,7 +182,7 @@ public event EventHandler? AnimatedClosing;
         BlurDarkOverlaySlider.Description = Loc.Get("settings.lyricsDarkOverlay.hint");
         EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics");
         EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint");
-        EnableYouTubeSubtitlesCheck.Content = Loc.Get("settings.enableYouTubeSubtitles");
+        EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles");
         EnableYouTubeSubtitlesHint.Text = Loc.Get("settings.enableYouTubeSubtitles.hint");
 
         SubtitlePriorityLabel.Text = Loc.Get("settings.subtitlePriority");
@@ -301,6 +302,7 @@ public event EventHandler? AnimatedClosing;
     private void EnableYouTubeSubtitlesCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_isLoadingSettings) return;
+        UpdateYouTubeSubtitlesDependentControls(EnableYouTubeSubtitlesCheck.IsChecked ?? true);
         PushLivePreview();
     }
 
@@ -522,6 +524,16 @@ public event EventHandler? AnimatedClosing;
             BlurDarkOverlaySlider.Opacity = targetOpacity;
             BlurDarkOverlaySlider.IsEnabled = lyricsEnabled;
         }
+    }
+
+    private void UpdateYouTubeSubtitlesDependentControls(bool subtitlesEnabled)
+    {
+        // Dim & block the Subtitle Language section when YouTube subtitles are off,
+        // since the language priority only applies to YouTube captions.
+        if (SubtitlePriorityRow == null) return;
+
+        SubtitlePriorityRow.Opacity = subtitlesEnabled ? 1.0 : 0.45;
+        SubtitlePriorityRow.IsEnabled = subtitlesEnabled;
     }
 
     private void HoverDelaySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -747,7 +759,7 @@ public event EventHandler? AnimatedClosing;
         staggerMs += staggerStep;
         AnimateContentChange(EnableSpotifyLyricsCheck, () => EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
-        AnimateContentChange(EnableYouTubeSubtitlesCheck, () => EnableYouTubeSubtitlesCheck.Content = Loc.Get("settings.enableYouTubeSubtitles"), staggerMs, easeOut, fps, slideDist);
+        AnimateContentChange(EnableYouTubeSubtitlesCheck, () => EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(DynamicIslandModeCheck, () => DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
@@ -1052,6 +1064,8 @@ private void PushLivePreview()
         BlurDarkOverlaySlider.Value = defaults.MediaBlurDarkOverlay * 100;
         EnableSpotifyLyricsCheck.IsChecked = defaults.EnableSpotifyLyrics;
         EnableYouTubeSubtitlesCheck.IsChecked = defaults.EnableYouTubeSubtitles;
+        UpdateLyricsDependentControls(defaults.EnableSpotifyLyrics);
+        UpdateYouTubeSubtitlesDependentControls(defaults.EnableYouTubeSubtitles);
 
         _settings.SubtitlePriority = defaults.SubtitlePriority;
         LoadSubtitlePriority();

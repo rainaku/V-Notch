@@ -1276,13 +1276,19 @@
                                             ValueChanged="BlurDarkOverlaySlider_ValueChanged"
                                             Margin="0,12,0,0"/>
 
-                                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0" VerticalAlignment="Center">
-                                        <CheckBox x:Name="EnableYouTubeSubtitlesCheck"
-                                                  x:Uid="enableYouTubeSubtitles"
-                                                  Content="Show YouTube subtitles"
-                                                  Checked="EnableYouTubeSubtitlesCheck_Changed"
-                                                  Unchecked="EnableYouTubeSubtitlesCheck_Changed"/>
-                                    </StackPanel>
+                                    <CheckBox x:Name="EnableYouTubeSubtitlesCheck"
+                                              x:Uid="enableYouTubeSubtitles"
+                                              Checked="EnableYouTubeSubtitlesCheck_Changed"
+                                              Unchecked="EnableYouTubeSubtitlesCheck_Changed"
+                                              Margin="0,14,0,0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock x:Name="EnableYouTubeSubtitlesLabel" Text="Show YouTube subtitles" VerticalAlignment="Center"/>
+                                            <Border Background="#C8C8C8" CornerRadius="4" Padding="8,3" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="ALPHA" FontSize="11" FontWeight="Bold"
+                                                           Foreground="#1A1A1A" FontFamily="{StaticResource SFProDisplay}"/>
+                                            </Border>
+                                        </StackPanel>
+                                    </CheckBox>
                                     <TextBlock x:Name="EnableYouTubeSubtitlesHint"
                                                Text="Display synced closed captions inside the expanded notch when watching on YouTube."
                                                Style="{StaticResource SettingHintText}"
@@ -1291,14 +1297,10 @@
                             </Border>
 
                             <!-- Subtitle Language Priority -->
-                            <Border Style="{StaticResource SettingRowBorder}">
+                            <Border x:Name="SubtitlePriorityRow" Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock x:Name="SubtitlePriorityLabel" Text="Subtitle Language" Style="{StaticResource SettingTitleText}"/>
-                                        <Border Background="#C8C8C8" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
-                                            <TextBlock Text="Beta" FontSize="9" FontWeight="Bold"
-                                                       Foreground="#1A1A1A" FontFamily="{StaticResource SFProDisplay}"/>
-                                        </Border>
                                     </StackPanel>
                                     <TextBlock x:Name="SubtitlePriorityHint"
                                                Text="Drag to reorder priority. Subtitles are selected using the first available match."

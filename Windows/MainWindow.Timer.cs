@@ -17,8 +17,8 @@ public partial class MainWindow
     private bool _isTimerView = false;
 
     // ─── Countdown State ───
-    private TimeSpan _countdownDuration = TimeSpan.FromMinutes(5);
-    private TimeSpan _countdownRemaining = TimeSpan.FromMinutes(5);
+    private TimeSpan _countdownDuration = TimeSpan.FromMinutes(25);
+    private TimeSpan _countdownRemaining = TimeSpan.FromMinutes(25);
     private bool _isCountdownRunning = false;
     private DispatcherTimer? _countdownTimer;
 
@@ -444,6 +444,102 @@ public partial class MainWindow
 
     #endregion
 
+    #region Timer View Microinteractions
+
+    private void TimerControlButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is Border button)
+        {
+            AnimateTimerButtonScale(button, 1.045);
+        }
+    }
+
+    private void TimerControlButton_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (sender is Border button)
+        {
+            AnimateTimerButtonScale(button, 1.0);
+        }
+    }
+
+    private void AnimateTimerButtonScale(Border button, double targetScale)
+    {
+        var scale = button.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
+        button.RenderTransform = scale;
+        button.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var animX = MakeAnim(scale.ScaleX, targetScale, _dur150, _easeQuadOut);
+        var animY = MakeAnim(scale.ScaleY, targetScale, _dur150, _easeQuadOut);
+        Timeline.SetDesiredFrameRate(animX, 144);
+        Timeline.SetDesiredFrameRate(animY, 144);
+
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
+    }
+
+    private void PlayTimerButtonPress(Border button)
+    {
+        PlayButtonPressAnimation(button);
+    }
+
+    private void AnimateCountdownDisplayPulse(double targetScale = 1.025)
+    {
+        var scale = CountdownDisplayPanel.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
+        CountdownDisplayPanel.RenderTransform = scale;
+        CountdownDisplayPanel.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+
+        var upX = MakeAnim(1.0, targetScale, _dur80, _easeQuadOut, null);
+        var upY = MakeAnim(1.0, targetScale, _dur80, _easeQuadOut, null);
+        var settleX = new DoubleAnimation(targetScale, 1.0, _dur250) { EasingFunction = _easeSoftSpring };
+        var settleY = new DoubleAnimation(targetScale, 1.0, _dur250) { EasingFunction = _easeSoftSpring };
+        Timeline.SetDesiredFrameRate(settleX, 144);
+        Timeline.SetDesiredFrameRate(settleY, 144);
+
+        upX.Completed += (_, _) => scale.BeginAnimation(ScaleTransform.ScaleXProperty, settleX);
+        upY.Completed += (_, _) => scale.BeginAnimation(ScaleTransform.ScaleYProperty, settleY);
+
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, upX);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, upY);
+
+        var textFlash = MakeAnim(0.72, 1.0, _dur200, _easeQuadOut, null);
+        CountdownDisplay.BeginAnimation(OpacityProperty, textFlash);
+    }
+
+    private void AnimateAlarmDisplayPulse()
+    {
+        var scale = AlarmDisplayMode.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
+        AlarmDisplayMode.RenderTransform = scale;
+        AlarmDisplayMode.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var upX = MakeAnim(1.0, 1.04, _dur80, _easeQuadOut, null);
+        var upY = MakeAnim(1.0, 1.04, _dur80, _easeQuadOut, null);
+        var settleX = new DoubleAnimation(1.04, 1.0, _dur250) { EasingFunction = _easeSoftSpring };
+        var settleY = new DoubleAnimation(1.04, 1.0, _dur250) { EasingFunction = _easeSoftSpring };
+
+        upX.Completed += (_, _) => scale.BeginAnimation(ScaleTransform.ScaleXProperty, settleX);
+        upY.Completed += (_, _) => scale.BeginAnimation(ScaleTransform.ScaleYProperty, settleY);
+
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, upX);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, upY);
+    }
+
+    private (ScaleTransform Scale, TranslateTransform Translate) PrepareAlarmPickerTransform(double scaleValue, double y)
+    {
+        var scale = new ScaleTransform(scaleValue, scaleValue);
+        var translate = new TranslateTransform(0, y);
+        var group = new TransformGroup();
+        group.Children.Add(scale);
+        group.Children.Add(translate);
+        AlarmPickerMode.RenderTransform = group;
+        AlarmPickerMode.RenderTransformOrigin = new Point(0.5, 1.0);
+        return (scale, translate);
+    }
+
+    #endregion
+
     #region Countdown Logic
 
     private void InitializeCountdownTimer()
@@ -465,7 +561,7 @@ public partial class MainWindow
             _isCountdownRunning = false;
             _countdownTimer?.Stop();
             CountdownStartText.Text = "▶";
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x95, 0x00));
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x00));
 
             // Flash the display to indicate completion
             FlashCountdownComplete();
@@ -490,6 +586,7 @@ public partial class MainWindow
     private void CountdownMinus_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        PlayTimerButtonPress(CountdownMinusBtn);
         if (_isCountdownRunning) return;
 
         if (_countdownDuration.TotalMinutes > 1)
@@ -497,12 +594,14 @@ public partial class MainWindow
             _countdownDuration = _countdownDuration.Subtract(TimeSpan.FromMinutes(1));
             _countdownRemaining = _countdownDuration;
             UpdateTimerDisplay();
+            AnimateCountdownDisplayPulse(1.02);
         }
     }
 
     private void CountdownPlus_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        PlayTimerButtonPress(CountdownPlusBtn);
         if (_isCountdownRunning) return;
 
         if (_countdownDuration.TotalMinutes < 99)
@@ -510,12 +609,14 @@ public partial class MainWindow
             _countdownDuration = _countdownDuration.Add(TimeSpan.FromMinutes(1));
             _countdownRemaining = _countdownDuration;
             UpdateTimerDisplay();
+            AnimateCountdownDisplayPulse(1.02);
         }
     }
 
     private void CountdownStart_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        PlayTimerButtonPress(CountdownStartBtn);
 
         if (_countdownTimer == null)
             InitializeCountdownTimer();
@@ -526,7 +627,8 @@ public partial class MainWindow
             _isCountdownRunning = false;
             _countdownTimer?.Stop();
             CountdownStartText.Text = "▶";
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x95, 0x00));
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x00));
+            AnimateCountdownDisplayPulse(1.018);
         }
         else
         {
@@ -539,21 +641,24 @@ public partial class MainWindow
             _isCountdownRunning = true;
             _countdownTimer?.Start();
             CountdownStartText.Text = "⏸";
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x00));
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x4D, 0x00));
+            AnimateCountdownDisplayPulse(1.035);
         }
     }
 
     private void CountdownReset_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        PlayTimerButtonPress(CountdownResetBtn);
         _isCountdownRunning = false;
         _countdownTimer?.Stop();
         _countdownRemaining = _countdownDuration;
         CountdownStartText.Text = "▶";
-        CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x95, 0x00));
+        CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x00));
         CountdownDisplay.BeginAnimation(OpacityProperty, null);
         CountdownDisplay.Opacity = 1;
         UpdateTimerDisplay();
+        AnimateCountdownDisplayPulse(1.025);
     }
 
     private void UpdateTimerDisplay()
@@ -746,6 +851,7 @@ public partial class MainWindow
     private void AlarmPickerBtn_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        PlayTimerButtonPress(AlarmPickerBtn);
         if (_isAlarmSet) return; // Can't change time while alarm is active
 
         if (!_isAlarmPickerOpen)
@@ -765,6 +871,7 @@ public partial class MainWindow
 
         AlarmPickerBtnText.Text = "Done";
         AlarmPickerBtn.Background = new SolidColorBrush(Color.FromRgb(0x50, 0x50, 0x50));
+        var (pickerScale, pickerTranslate) = PrepareAlarmPickerTransform(0.96, 8);
 
         // Animate display mode out, picker mode in
         var fadeOut = new DoubleAnimation(1, 0, new Duration(TimeSpan.FromMilliseconds(150)))
@@ -787,7 +894,13 @@ public partial class MainWindow
             {
                 EasingFunction = _easeExpOut6
             };
+            var scaleInX = MakeAnim(0.96, 1.0, _dur250, _easeSoftSpring, null);
+            var scaleInY = MakeAnim(0.96, 1.0, _dur250, _easeSoftSpring, null);
+            var slideIn = MakeAnim(8.0, 0.0, _dur250, _easeExpOut6, null);
             AlarmPickerMode.BeginAnimation(OpacityProperty, fadeIn);
+            pickerScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleInX);
+            pickerScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleInY);
+            pickerTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
         };
         AlarmDisplayMode.BeginAnimation(OpacityProperty, fadeOut);
     }
@@ -799,8 +912,9 @@ public partial class MainWindow
         // Read final values from wheels
         UpdateAlarmFromWheels();
 
-        AlarmPickerBtnText.Text = "⏰ Set";
-        AlarmPickerBtn.Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+        AlarmPickerBtnText.Text = "Set";
+        AlarmPickerBtn.Background = new SolidColorBrush(Color.FromRgb(0x0B, 0x0B, 0x0B));
+        var (pickerScale, pickerTranslate) = PrepareAlarmPickerTransform(1.0, 0);
 
         // Animate picker mode out, display mode in
         var fadeOut = new DoubleAnimation(1, 0, new Duration(TimeSpan.FromMilliseconds(150)))
@@ -819,11 +933,15 @@ public partial class MainWindow
             AlarmDisplayMode.BeginAnimation(OpacityProperty, fadeIn);
         };
         AlarmPickerMode.BeginAnimation(OpacityProperty, fadeOut);
+        pickerScale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(1.0, 0.97, _dur150, _easeQuadIn, null));
+        pickerScale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(1.0, 0.97, _dur150, _easeQuadIn, null));
+        pickerTranslate.BeginAnimation(TranslateTransform.YProperty, MakeAnim(0.0, 8.0, _dur150, _easeQuadIn, null));
     }
 
     private void AlarmSet_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        PlayTimerButtonPress(AlarmSetBtn);
 
         if (_alarmCheckTimer == null)
             InitializeAlarmCheckTimer();
@@ -855,6 +973,7 @@ public partial class MainWindow
         }
 
         UpdateAlarmDisplay();
+        AnimateAlarmDisplayPulse();
     }
 
     private void UpdateAlarmDisplay()

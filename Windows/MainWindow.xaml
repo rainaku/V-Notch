@@ -2452,131 +2452,296 @@
                         </Border>
                     </Grid>
 
-                    <!-- Timer View (Countdown + Alarm) -->
+                    <!-- Timer View (Pomodoro surface + compact controls) -->
                     <Grid x:Name="TimerContent"
                           Opacity="0"
                           Visibility="Collapsed"
-                          Margin="12,28,12,12"
+                          Margin="14,24,14,10"
                           MouseLeftButtonDown="SecondaryContent_Click"
                           RenderOptions.ClearTypeHint="Enabled">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
 
-                        <!-- Countdown Timer Section -->
-                        <Border Grid.Column="0"
-                                Background="#1A1A1A"
-                                CornerRadius="16"
-                                Margin="0,0,4,0"
-                                Padding="12,10">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,0,0,12">
+                            <TextBlock Text="Pomodoro Timer"
+                                       x:Name="TimerTitleText"
+                                       FontSize="19"
+                                       FontWeight="ExtraBold"
+                                       Foreground="White"
+                                       TextAlignment="Center"
+                                       FontFamily="{StaticResource MainSystemFont}"/>
+                        </StackPanel>
 
-                                <!-- Countdown Header -->
-                                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-                                    <Path Data="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12ZM15.8321 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.8321L11.8451 13.0986C11.3171 12.7466 11 12.1541 11 11.5196V11.5V7C11 6.44772 11.4477 6 12 6C12.5523 6 13 6.44772 13 7V11.4648L15.5547 13.1679C16.0142 13.4743 16.1384 14.0952 15.8321 14.5547Z"
-                                          Fill="#FF9500" Width="12" Height="12" Stretch="Uniform" Margin="0,0,5,0"/>
-                                    <TextBlock x:Name="CountdownHeaderText" Text="Countdown" 
-                                               FontSize="11" FontWeight="SemiBold" Foreground="#FF9500"
-                                               FontFamily="{StaticResource MainSystemFont}"/>
-                                </StackPanel>
+                        <Grid Grid.Row="1" VerticalAlignment="Bottom">
+                            <Border Height="58"
+                                    CornerRadius="16"
+                                    Padding="12,0"
+                                    BorderBrush="#18FFFFFF"
+                                    BorderThickness="1"
+                                    SnapsToDevicePixels="True">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#F0141414" Offset="0"/>
+                                        <GradientStop Color="#EE090909" Offset="0.52"/>
+                                        <GradientStop Color="#F2151515" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="18" ShadowDepth="4" Opacity="0.45" RenderingBias="Performance"/>
+                                </Border.Effect>
 
-                                <!-- Countdown Display -->
-                                <TextBlock x:Name="CountdownDisplay" Grid.Row="1"
-                                           Text="00:00"
-                                           FontSize="28" FontWeight="Bold" Foreground="White"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           FontFamily="{StaticResource MainSystemFont}"/>
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <!-- Countdown Controls -->
-                                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
-                                    <!-- Minus Button -->
-                                    <Border x:Name="CountdownMinusBtn" Width="24" Height="24"
-                                            Background="#333333" CornerRadius="12" Cursor="Hand"
-                                            Margin="0,0,6,0"
-                                            MouseLeftButtonDown="CountdownMinus_Click">
-                                        <TextBlock Text="−" Foreground="White" FontSize="14" FontWeight="Bold"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   Margin="0,-2,0,0"/>
-                                    </Border>
-                                    <!-- Start/Pause Button -->
-                                    <Border x:Name="CountdownStartBtn" Width="36" Height="24"
-                                            Background="#FF9500" CornerRadius="12" Cursor="Hand"
-                                            Margin="0,0,6,0"
-                                            MouseLeftButtonDown="CountdownStart_Click">
-                                        <TextBlock x:Name="CountdownStartText" Text="▶" Foreground="White" FontSize="10" FontWeight="Bold"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <!-- Plus Button -->
-                                    <Border x:Name="CountdownPlusBtn" Width="24" Height="24"
-                                            Background="#333333" CornerRadius="12" Cursor="Hand"
-                                            Margin="0,0,6,0"
-                                            MouseLeftButtonDown="CountdownPlus_Click">
-                                        <TextBlock Text="+" Foreground="White" FontSize="14" FontWeight="Bold"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   Margin="0,-2,0,0"/>
-                                    </Border>
-                                    <!-- Reset Button -->
-                                    <Border x:Name="CountdownResetBtn" Width="24" Height="24"
-                                            Background="#333333" CornerRadius="12" Cursor="Hand"
+                                    <Border x:Name="CountdownResetBtn"
+                                            Grid.Column="0"
+                                            Width="42"
+                                            Height="42"
+                                            Background="#0B0B0B"
+                                            BorderBrush="#28FFFFFF"
+                                            BorderThickness="1"
+                                            CornerRadius="21"
+                                            Cursor="Hand"
+                                            MouseEnter="TimerControlButton_MouseEnter"
+                                            MouseLeave="TimerControlButton_MouseLeave"
                                             MouseLeftButtonDown="CountdownReset_Click">
-                                        <TextBlock Text="↺" Foreground="White" FontSize="12" FontWeight="Bold"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   Margin="0,-1,0,0"/>
+                                        <Grid>
+                                            <Ellipse Stroke="#22FFFFFF" StrokeThickness="3" Margin="3"/>
+                                            <Border Width="10" Height="10" CornerRadius="2" Background="White"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
                                     </Border>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
 
-                        <!-- Alarm Section -->
-                        <Border Grid.Column="1"
-                                Background="#1A1A1A"
-                                CornerRadius="16"
-                                Margin="4,0,0,0"
-                                Padding="12,10"
-                                ClipToBounds="True">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                                    <Border x:Name="CountdownStartBtn"
+                                            Grid.Column="1"
+                                            Width="46"
+                                            Height="46"
+                                            Background="#FF6B00"
+                                            BorderBrush="#30000000"
+                                            BorderThickness="1"
+                                            CornerRadius="23"
+                                            Cursor="Hand"
+                                            Margin="8,0,0,0"
+                                            MouseEnter="TimerControlButton_MouseEnter"
+                                            MouseLeave="TimerControlButton_MouseLeave"
+                                            MouseLeftButtonDown="CountdownStart_Click">
+                                        <TextBlock x:Name="CountdownStartText"
+                                                   Text="▶"
+                                                   Foreground="White"
+                                                   FontSize="17"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Margin="2,0,0,0"/>
+                                    </Border>
 
-                                <!-- Alarm Header -->
-                                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,4">
-                                    <Path Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-1-4h2v2h-2zm0-10h2v8h-2z M5.29 3.29L3.87 4.71 2 2.84l1.42-1.42zM22 2.84l-1.87 1.87-1.42-1.42L20.58 1.42z"
-                                          Fill="#30D158" Width="12" Height="12" Stretch="Uniform" Margin="0,0,5,0"/>
-                                    <TextBlock x:Name="AlarmHeaderText" Text="Alarm" 
-                                               FontSize="11" FontWeight="SemiBold" Foreground="#30D158"
-                                               FontFamily="{StaticResource MainSystemFont}"/>
-                                </StackPanel>
+                                    <Border x:Name="CountdownDisplayPanel"
+                                            Grid.Column="2"
+                                            Height="46"
+                                            MinWidth="150"
+                                            Margin="12,0"
+                                            CornerRadius="10"
+                                            BorderBrush="#20FFFFFF"
+                                            BorderThickness="1"
+                                            ClipToBounds="True">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                <GradientStop Color="#381B0800" Offset="0"/>
+                                                <GradientStop Color="#D9050505" Offset="0.24"/>
+                                                <GradientStop Color="#E0050505" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="24"/>
+                                            </Grid.ColumnDefinitions>
 
-                                <!-- Alarm Display Mode (shows time + set button) -->
-                                <Grid x:Name="AlarmDisplayMode" Grid.Row="1">
-                                    <TextBlock x:Name="AlarmDisplay"
-                                               Text="--:--"
-                                               FontSize="28" FontWeight="Bold" Foreground="White"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               FontFamily="{StaticResource MainSystemFont}"/>
+                                            <Border Grid.Column="0" Background="#14FF6B00"/>
+                                            <Border Grid.Column="0" Width="2" HorizontalAlignment="Right" Background="#FF6B00"/>
+
+                                            <TextBlock x:Name="CountdownDisplay"
+                                                       Grid.Column="1"
+                                                       Text="00:00"
+                                                       FontSize="31"
+                                                       FontWeight="Medium"
+                                                       Foreground="White"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="{StaticResource MainSystemFont}"
+                                                       Typography.NumeralAlignment="Tabular"
+                                                       Typography.NumeralStyle="Lining"/>
+
+                                            <StackPanel Grid.Column="2"
+                                                        VerticalAlignment="Center"
+                                                        HorizontalAlignment="Center">
+                                                <Border x:Name="CountdownPlusBtn"
+                                                        Width="20"
+                                                        Height="17"
+                                                        Background="#22FFFFFF"
+                                                        CornerRadius="6"
+                                                        Cursor="Hand"
+                                                        Margin="0,0,0,2"
+                                                        MouseEnter="TimerControlButton_MouseEnter"
+                                                        MouseLeave="TimerControlButton_MouseLeave"
+                                                        MouseLeftButtonDown="CountdownPlus_Click">
+                                                    <TextBlock Text="+"
+                                                               Foreground="White"
+                                                               FontSize="11"
+                                                               FontWeight="Bold"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,-2,0,0"/>
+                                                </Border>
+                                                <Border x:Name="CountdownMinusBtn"
+                                                        Width="20"
+                                                        Height="17"
+                                                        Background="#16FFFFFF"
+                                                        CornerRadius="6"
+                                                        Cursor="Hand"
+                                                        MouseEnter="TimerControlButton_MouseEnter"
+                                                        MouseLeave="TimerControlButton_MouseLeave"
+                                                        MouseLeftButtonDown="CountdownMinus_Click">
+                                                    <TextBlock Text="−"
+                                                               Foreground="White"
+                                                               FontSize="12"
+                                                               FontWeight="Bold"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,-3,0,0"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border x:Name="AlarmPickerBtn"
+                                            Grid.Column="3"
+                                            Width="42"
+                                            Height="42"
+                                            Background="#0B0B0B"
+                                            BorderBrush="#22FFFFFF"
+                                            BorderThickness="1"
+                                            CornerRadius="21"
+                                            Cursor="Hand"
+                                            MouseEnter="TimerControlButton_MouseEnter"
+                                            MouseLeave="TimerControlButton_MouseLeave"
+                                            MouseLeftButtonDown="AlarmPickerBtn_Click">
+                                        <Grid>
+                                            <Ellipse Stroke="#1AFFFFFF" StrokeThickness="3" Margin="3"/>
+                                            <Viewbox Width="15" Height="15" VerticalAlignment="Top" Margin="0,8,0,0">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Fill="White" Data="M7 2h10v2H7V2zm2 3h6v2H9V5zm-2.5 4h11A2.5 2.5 0 0 1 20 11.5V13a5 5 0 0 1-10 0v-1.5A2.5 2.5 0 0 1 12.5 9zM18 11.5a.5.5 0 0 0-.5-.5h-11a.5.5 0 0 0-.5.5V13a3 3 0 0 0 6 0v-1h2v1a3 3 0 0 0 6 0v-1.5z"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                            <TextBlock x:Name="AlarmPickerBtnText"
+                                                       Text="Set"
+                                                       Foreground="#DFFFFFFF"
+                                                       FontSize="7.5"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Bottom"
+                                                       Margin="0,0,0,7"
+                                                       FontFamily="{StaticResource MainSystemFont}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Column="4"
+                                            Width="58"
+                                            Height="46"
+                                            CornerRadius="9"
+                                            Background="#1C242424"
+                                            BorderBrush="#18FFFFFF"
+                                            BorderThickness="1"
+                                            Margin="8,0,0,0"
+                                            ClipToBounds="True">
+                                        <Grid x:Name="AlarmDisplayMode">
+                                            <TextBlock Text="Alarm"
+                                                       Foreground="#80FFFFFF"
+                                                       FontSize="7.5"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Top"
+                                                       Margin="0,6,0,0"
+                                                       FontFamily="{StaticResource MainSystemFont}"/>
+                                            <TextBlock x:Name="AlarmDisplay"
+                                                       Text="--:--"
+                                                       FontSize="17"
+                                                       FontWeight="Bold"
+                                                       Foreground="White"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,8,0,0"
+                                                       FontFamily="{StaticResource MainSystemFont}"
+                                                       Typography.NumeralAlignment="Tabular"
+                                                       Typography.NumeralStyle="Lining"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border x:Name="AlarmSetBtn"
+                                            Grid.Column="5"
+                                            Width="40"
+                                            Height="42"
+                                            Background="#30D158"
+                                            CornerRadius="21"
+                                            Cursor="Hand"
+                                            Margin="8,0,0,0"
+                                            MouseEnter="TimerControlButton_MouseEnter"
+                                            MouseLeave="TimerControlButton_MouseLeave"
+                                            MouseLeftButtonDown="AlarmSet_Click">
+                                        <TextBlock x:Name="AlarmSetText"
+                                                   Text="OK"
+                                                   Foreground="White"
+                                                   FontSize="10"
+                                                   FontWeight="ExtraBold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontFamily="{StaticResource MainSystemFont}"/>
+                                    </Border>
                                 </Grid>
+                            </Border>
+                        </Grid>
 
-                                <!-- Alarm Wheel Picker Mode (hour : minute scrollers) -->
-                                <Grid x:Name="AlarmPickerMode" Grid.Row="1" Visibility="Collapsed" Opacity="0">
+                        <Grid x:Name="AlarmPickerMode"
+                              Grid.Row="1"
+                              Width="186"
+                              Height="68"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Bottom"
+                              Margin="0,0,48,62"
+                              Visibility="Collapsed"
+                              Opacity="0"
+                              Panel.ZIndex="40">
+                            <Border CornerRadius="12"
+                                    BorderBrush="#24FFFFFF"
+                                    BorderThickness="1"
+                                    Padding="8,6">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#F2121212" Offset="0"/>
+                                        <GradientStop Color="#F0080808" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Hour Wheel -->
-                                    <Border Grid.Column="0" CornerRadius="8" Background="#252525" Margin="2,2">
+                                    <Border Grid.Column="0" CornerRadius="8" Background="#20252525" Margin="0,0,5,0">
                                         <Grid>
-                                            <!-- Scroll area for hours -->
                                             <ScrollViewer x:Name="AlarmHourScroller"
                                                           VerticalScrollBarVisibility="Hidden"
                                                           HorizontalScrollBarVisibility="Disabled"
@@ -2584,22 +2749,27 @@
                                                           PreviewMouseWheel="AlarmHourScroller_PreviewMouseWheel">
                                                 <StackPanel x:Name="AlarmHourItems" HorizontalAlignment="Center"/>
                                             </ScrollViewer>
-                                            <!-- Selection highlight overlay -->
-                                            <Border Height="28" VerticalAlignment="Center"
-                                                    Background="#18FFFFFF" CornerRadius="6"
-                                                    IsHitTestVisible="False" Margin="4,0"/>
+                                            <Border Height="28"
+                                                    VerticalAlignment="Center"
+                                                    Background="#18FFFFFF"
+                                                    CornerRadius="6"
+                                                    IsHitTestVisible="False"
+                                                    Margin="4,0"/>
                                         </Grid>
                                     </Border>
 
-                                    <!-- Separator -->
-                                    <TextBlock Grid.Column="1" Text=":" FontSize="20" FontWeight="Bold"
-                                               Foreground="#666666" VerticalAlignment="Center"
-                                               HorizontalAlignment="Center" Margin="2,0"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text=":"
+                                               FontSize="20"
+                                               FontWeight="Bold"
+                                               Foreground="#88FFFFFF"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,0,5,0"
+                                               FontFamily="{StaticResource MainSystemFont}"/>
 
-                                    <!-- Minute Wheel -->
-                                    <Border Grid.Column="2" CornerRadius="8" Background="#252525" Margin="2,2">
+                                    <Border Grid.Column="2" CornerRadius="8" Background="#20252525">
                                         <Grid>
-                                            <!-- Scroll area for minutes -->
                                             <ScrollViewer x:Name="AlarmMinuteScroller"
                                                           VerticalScrollBarVisibility="Hidden"
                                                           HorizontalScrollBarVisibility="Disabled"
@@ -2607,34 +2777,17 @@
                                                           PreviewMouseWheel="AlarmMinuteScroller_PreviewMouseWheel">
                                                 <StackPanel x:Name="AlarmMinuteItems" HorizontalAlignment="Center"/>
                                             </ScrollViewer>
-                                            <!-- Selection highlight overlay -->
-                                            <Border Height="28" VerticalAlignment="Center"
-                                                    Background="#18FFFFFF" CornerRadius="6"
-                                                    IsHitTestVisible="False" Margin="4,0"/>
+                                            <Border Height="28"
+                                                    VerticalAlignment="Center"
+                                                    Background="#18FFFFFF"
+                                                    CornerRadius="6"
+                                                    IsHitTestVisible="False"
+                                                    Margin="4,0"/>
                                         </Grid>
                                     </Border>
                                 </Grid>
-
-                                <!-- Alarm Controls -->
-                                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
-                                    <!-- Set Time Button (opens picker) -->
-                                    <Border x:Name="AlarmPickerBtn" Width="50" Height="24"
-                                            Background="#333333" CornerRadius="12" Cursor="Hand"
-                                            Margin="0,0,6,0"
-                                            MouseLeftButtonDown="AlarmPickerBtn_Click">
-                                        <TextBlock x:Name="AlarmPickerBtnText" Text="⏰ Set" Foreground="White" FontSize="9.5" FontWeight="Bold"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <!-- Confirm / Cancel Alarm Button -->
-                                    <Border x:Name="AlarmSetBtn" Width="42" Height="24"
-                                            Background="#30D158" CornerRadius="12" Cursor="Hand"
-                                            MouseLeftButtonDown="AlarmSet_Click">
-                                        <TextBlock x:Name="AlarmSetText" Text="OK" Foreground="White" FontSize="10" FontWeight="Bold"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                            </Border>
+                        </Grid>
                     </Grid>
 
                     <Border x:Name="HoverGlow"
