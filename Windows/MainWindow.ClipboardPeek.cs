@@ -232,11 +232,7 @@ public partial class MainWindow
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbFadeIn);
 
         // ─── MusicViz: fade in (reverse of fade out) ───
-        MusicViz.Visibility = Visibility.Visible;
-        MusicViz.Opacity = 0;
-        MusicViz.BeginAnimation(OpacityProperty, null);
-        var vizFadeIn = MakeAnim(0.0, 1.0, _dur100, _easeQuadOut);
-        MusicViz.BeginAnimation(OpacityProperty, vizFadeIn);
+        ShowMusicVisualizer(duration: _dur100);
     }
 
     private void CancelClipboardPeekImmediate()

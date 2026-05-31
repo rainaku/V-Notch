@@ -497,11 +497,7 @@ public partial class MainWindow
         // Restore MusicViz (only if clipboard notification is not active)
         if (!_isClipboardPeekActive)
         {
-            MusicViz.Visibility = Visibility.Visible;
-            MusicViz.Opacity = 0;
-            MusicViz.BeginAnimation(OpacityProperty, null);
-            var vizIn = MakeAnim(0.0, 1.0, _dur100, _easeQuadOut);
-            MusicViz.BeginAnimation(OpacityProperty, vizIn);
+            ShowMusicVisualizer(duration: _dur100);
         }
     }
 

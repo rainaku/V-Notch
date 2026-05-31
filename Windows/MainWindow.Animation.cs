@@ -739,11 +739,9 @@ public partial class MainWindow
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
             // Ensure MusicViz is properly positioned after collapse
-            MusicViz.BeginAnimation(OpacityProperty, null);
             if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
             {
-                MusicViz.Visibility = Visibility.Visible;
-                MusicViz.Opacity = 1;
+                ShowMusicVisualizer(animate: false);
             }
 
             // Force layout update to fix any positioning drift from width animation
