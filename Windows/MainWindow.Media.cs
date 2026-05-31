@@ -415,6 +415,16 @@ public partial class MainWindow
             ThumbnailNextBlur.Radius = 0.0;
             CompactThumbnailOutBlur.Radius = 0.0;
             CompactThumbnailNextBlur.Radius = 0.0;
+
+            // Restore MusicViz after thumbnail switch completes — ensures the equalizer
+            // is visible even if a prior animation left it hidden during the morph.
+            if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true
+                && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
+            {
+                MusicViz.BeginAnimation(OpacityProperty, null);
+                MusicViz.Visibility = Visibility.Visible;
+                MusicViz.Opacity = 1;
+            }
         };
     }
 
@@ -598,6 +608,16 @@ public partial class MainWindow
                     {
                         MusicViz.IsPlaying = info.IsPlaying;
                         MusicViz.TrackId = info.GetSignature();
+
+                        // Ensure MusicViz is immediately visible when track changes.
+                        // Without this, MusicViz stays hidden if a prior animation
+                        // (volume bar, thumbnail exit) left it Collapsed/Opacity=0.
+                        if (info.IsPlaying && !_isVolumeIndicatorActive)
+                        {
+                            MusicViz.BeginAnimation(OpacityProperty, null);
+                            MusicViz.Visibility = Visibility.Visible;
+                            MusicViz.Opacity = 1;
+                        }
                     }
                 }
             }

@@ -72,8 +72,8 @@ namespace VNotch.Controls
         private const double BarSpacingRatio = 0.05;
         private const double CornerRadiusRatio = 0.5;
 
-        private const double AlphaAttack = 0.85;
-        private const double AlphaRelease = 0.88;
+        private const double AlphaAttack = 0.82;
+        private const double AlphaRelease = 0.86;
         private const double AlphaPauseRelease = 0.98;
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
@@ -82,22 +82,21 @@ namespace VNotch.Controls
         private const double LegacyRhythmMinMix = 0.10;
         private const double LegacyRhythmMaxMix = 0.25;
         private const double AudioPresenceThreshold = 0.003;
-        private const double DownwardDropBoost = 0.10;
-        private const double MinReleaseAlpha = 0.82;
-        private const double MotionContrast = 2.25;
-        private const double LeftMiniBarSensitivity = 0.58;
+        private const double DownwardDropBoost = 0.12;
+        private const double MinReleaseAlpha = 0.78;
+        private const double MotionContrast = 1.80;
+        private const double LeftMiniBarSensitivity = 0.78;
         private const double RightBiasStrength = 1.00;
         private const double RightBiasDeadzone = 0.05;
         // Filter sub-pixel jitter: changes smaller than this are ignored.
-        // Raised to ~0.5% of bar height to suppress visible micro-flicker on short bars.
-        private const double MinHeightChangeThreshold = 0.009;
+        private const double MinHeightChangeThreshold = 0.006;
         // Extra smoothing for short bars to make small movements slower & smoother.
         // Bars below SmallBarHeightThreshold get up to SmallBarAlphaBoost added to their smoothing alpha.
-        private const double SmallBarHeightThreshold = 0.40;
-        private const double SmallBarAlphaBoost = 0.08;
+        private const double SmallBarHeightThreshold = 0.30;
+        private const double SmallBarAlphaBoost = 0.04;
         // Minimum target delta required to actually move a short bar (per-frame, in height ratio).
         // Suppresses tiny audio-driven wobble when the band level barely changes.
-        private const double SmallBarTargetDeadzone = 0.016;
+        private const double SmallBarTargetDeadzone = 0.008;
 
         // Reference frame interval the alpha constants were tuned for (old DispatcherTimer effective rate)
         private const double ReferenceFrameMs = 16.0;
@@ -357,10 +356,9 @@ namespace VNotch.Controls
 
         private static double ApplyMiniBarSensitivity(int barIndex, double normalized)
         {
-            if (barIndex > 1) return normalized;
-
-            double clamped = Math.Clamp(normalized, 0.0, 1.0);
-            return Math.Clamp(clamped * LeftMiniBarSensitivity, 0.0, 1.0);
+            // With the improved AGC, bass bars no longer need artificial sensitivity reduction.
+            // All bars respond equally to normalized audio levels.
+            return Math.Clamp(normalized, 0.0, 1.0);
         }
 
         private double GetNoAudioPulseAt(int index, double t, string sid)
@@ -570,37 +568,37 @@ namespace VNotch.Controls
         private const double RmsWindowSeconds = 0.020;
         private const int FreshAudioTimeoutMs = 800;
         private const double AgcFloor = 0.008;
-        private const double AgcRelease = 0.992;
-        private const double KickTransientThreshold = 0.025;
-        private const double SnareTransientThreshold = 0.022;
-        private const double KickTransientGain = 7.0;
-        private const double SnareTransientGain = 8.0;
-        private const double KickAccentDecay = 0.965;
-        private const double SnareAccentDecay = 0.96;
-        private const double BeatTransientThreshold = 0.020;
-        private const double BeatTransientGain = 8.0;
-        private const double BeatAccentDecay = 0.965;
-        private const double BeatRmsDeltaThreshold = 0.006;
+        private const double AgcRelease = 0.985;
+        private const double KickTransientThreshold = 0.018;
+        private const double SnareTransientThreshold = 0.016;
+        private const double KickTransientGain = 9.0;
+        private const double SnareTransientGain = 10.0;
+        private const double KickAccentDecay = 0.955;
+        private const double SnareAccentDecay = 0.950;
+        private const double BeatTransientThreshold = 0.014;
+        private const double BeatTransientGain = 10.0;
+        private const double BeatAccentDecay = 0.955;
+        private const double BeatRmsDeltaThreshold = 0.004;
         private const double BassDominanceStart = 1.10;
         private const double BassDominanceSpan = 1.00;
         private const double MaxLowAttenuation = 0.34;
         private const double MaxKickAttenuation = 0.42;
-        private const double SpectralContrastStart = 0.06;
-        private const double SpectralContrastSpan = 0.40;
-        private const double SpectralContrastStrength = 1.25;
-        private const double SpectralDominantBoost = 0.24;
-        private const double SpectralSubtractiveCut = 0.20;
-        private const double DynamicRangeExpansionPower = 1.12;
-        private const double DynamicRangeExpansionBlend = 0.22;
-        private const double BarContrastStart = 0.10;
-        private const double BarContrastSpan = 0.45;
-        private const double BarContrastStrength = 0.65;
-        private const double BarContrastBoost = 0.16;
-        private const double BarContrastCut = 0.12;
-        private const double VisualMaxPeakTarget = 0.96;
-        private const double VisualMaxFloor = 0.12;
-        private const double VisualMaxBandFloor = 0.45;
-        private const double VisualMaxBandLift = 0.72;
+        private const double SpectralContrastStart = 0.03;
+        private const double SpectralContrastSpan = 0.30;
+        private const double SpectralContrastStrength = 1.60;
+        private const double SpectralDominantBoost = 0.30;
+        private const double SpectralSubtractiveCut = 0.28;
+        private const double DynamicRangeExpansionPower = 1.20;
+        private const double DynamicRangeExpansionBlend = 0.18;
+        private const double BarContrastStart = 0.06;
+        private const double BarContrastSpan = 0.35;
+        private const double BarContrastStrength = 0.85;
+        private const double BarContrastBoost = 0.22;
+        private const double BarContrastCut = 0.16;
+        private const double VisualMaxPeakTarget = 0.92;
+        private const double VisualMaxFloor = 0.10;
+        private const double VisualMaxBandFloor = 0.25;
+        private const double VisualMaxBandLift = 0.50;
 
         private static readonly float[] _fftInputBuffer = new float[FftLength];
         private static int _fftInputPos = 0;
@@ -776,14 +774,14 @@ namespace VNotch.Controls
 
             FastFourierTransform.FFT(true, FftM, _fftData);
 
-            double subBass = NormalizeAmplitude(ComputeBandEnergy(20, 60) * (SpectralPreGain * 1.6));
-            double bass = NormalizeAmplitude(ComputeBandEnergy(60, 250) * (SpectralPreGain * 1.5));
-            double lowMid = NormalizeAmplitude(ComputeBandEnergy(250, 500) * (SpectralPreGain * 1.6));
+            double subBass = NormalizeAmplitude(ComputeBandEnergy(20, 60) * (SpectralPreGain * 0.9));
+            double bass = NormalizeAmplitude(ComputeBandEnergy(60, 250) * (SpectralPreGain * 0.85));
+            double lowMid = NormalizeAmplitude(ComputeBandEnergy(250, 500) * (SpectralPreGain * 1.2));
             double mid = NormalizeAmplitude(ComputeBandEnergy(500, 2000) * (SpectralPreGain * 1.5));
-            double highMid = NormalizeAmplitude(ComputeBandEnergy(2000, 4000) * (SpectralPreGain * 3.0));
-            double high = NormalizeAmplitude(ComputeBandEnergy(4000, 8000) * (SpectralPreGain * 3.5));
-            double kick = NormalizeAmplitude(ComputeBandEnergy(45, 130) * (SpectralPreGain * 1.5));
-            double snare = NormalizeAmplitude(ComputeBandEnergy(1400, 5000) * (SpectralPreGain * 2.5));
+            double highMid = NormalizeAmplitude(ComputeBandEnergy(2000, 4000) * (SpectralPreGain * 3.2));
+            double high = NormalizeAmplitude(ComputeBandEnergy(4000, 8000) * (SpectralPreGain * 3.8));
+            double kick = NormalizeAmplitude(ComputeBandEnergy(45, 130) * (SpectralPreGain * 1.0));
+            double snare = NormalizeAmplitude(ComputeBandEnergy(1400, 5000) * (SpectralPreGain * 2.8));
             double rms = _latestRmsNormalized;
 
             double peak = Math.Max(
@@ -794,13 +792,11 @@ namespace VNotch.Controls
 
             // Extra boost for very quiet signals: when AGC peak is low, apply additional
             // gain so the visualizer responds equally regardless of system volume.
-            // This ensures soft music at low volume looks the same as loud music at high volume.
             double quietBoost = 1.0;
-            if (_agcPeak < 0.08)
+            if (_agcPeak < 0.05)
             {
-                // Progressively stronger boost as signal gets quieter
-                double quietness = 1.0 - (_agcPeak / 0.08);
-                quietBoost = 1.0 + (quietness * 2.5);
+                double quietness = 1.0 - (_agcPeak / 0.05);
+                quietBoost = 1.0 + (quietness * 1.2);
             }
             agcScale *= quietBoost;
 
@@ -813,6 +809,29 @@ namespace VNotch.Controls
             kick = Math.Clamp(kick * agcScale, 0.0, 1.0);
             snare = Math.Clamp(snare * agcScale, 0.0, 1.0);
             rms = Math.Clamp(rms * agcScale, 0.0, 1.0);
+
+            // ─── Loud-signal spread enhancement ───
+            // When all bands are saturated near 1.0 (common in rock/metal), AGC
+            // normalizes everything to a flat line → no bar movement. Counter this
+            // by measuring how "flat" the spectrum is and artificially spreading
+            // the values apart from their mean.
+            double postAgcMax = Math.Max(Math.Max(Math.Max(subBass, bass), Math.Max(lowMid, mid)), Math.Max(highMid, high));
+            double postAgcMin = Math.Min(Math.Min(Math.Min(subBass, bass), Math.Min(lowMid, mid)), Math.Min(highMid, high));
+            double postAgcSpread = postAgcMax - postAgcMin;
+            if (postAgcSpread < 0.15 && postAgcMax > 0.5)
+            {
+                // Spectrum is flat and loud — expand differences from mean
+                double flatness = 1.0 - (postAgcSpread / 0.15);
+                double loudness = Math.Clamp((postAgcMax - 0.5) / 0.5, 0.0, 1.0);
+                double spreadGain = flatness * loudness * 2.5;
+                double mean = (subBass + bass + lowMid + mid + highMid + high) / 6.0;
+                subBass = Math.Clamp(mean + (subBass - mean) * (1.0 + spreadGain), 0.0, 1.0);
+                bass = Math.Clamp(mean + (bass - mean) * (1.0 + spreadGain), 0.0, 1.0);
+                lowMid = Math.Clamp(mean + (lowMid - mean) * (1.0 + spreadGain), 0.0, 1.0);
+                mid = Math.Clamp(mean + (mid - mean) * (1.0 + spreadGain), 0.0, 1.0);
+                highMid = Math.Clamp(mean + (highMid - mean) * (1.0 + spreadGain), 0.0, 1.0);
+                high = Math.Clamp(mean + (high - mean) * (1.0 + spreadGain), 0.0, 1.0);
+            }
 
             double nonBass = (mid * 0.7) + (high * 0.6) + 1e-5;
             double bassDominance = (subBass + bass) / nonBass;
@@ -846,11 +865,11 @@ namespace VNotch.Controls
 
             ApplySpectralContrast(ref subBass, ref bass, ref lowMid, ref mid, ref highMid, ref high, ref kick, ref snare, ref rms);
 
-            _displayTargets[0] = (float)Math.Clamp((subBass * 0.75) + (kick * 0.35) + (_kickAccent * 0.25), 0.0, 1.0);
-            _displayTargets[1] = (float)Math.Clamp((bass * 0.85) + (subBass * 0.25) + (_kickAccent * 0.15), 0.0, 1.0);
-            _displayTargets[2] = (float)Math.Clamp((lowMid * 0.75) + (mid * 0.65) + (rms * 0.20) + (_beatAccent * 0.15), 0.0, 1.0);
-            _displayTargets[3] = (float)Math.Clamp((highMid * 1.40) + (snare * 0.70) + (_snareAccent * 0.60) + (mid * 0.35) + (high * 0.30), 0.0, 1.0);
-            _displayTargets[4] = (float)Math.Clamp((high * 1.50) + (snare * 0.75) + (_snareAccent * 0.65) + (highMid * 0.40) + (rms * 0.25), 0.0, 1.0);
+            _displayTargets[0] = (float)Math.Clamp((subBass * 0.28) + (kick * 0.18) + (_kickAccent * 0.15), 0.0, 1.0);
+            _displayTargets[1] = (float)Math.Clamp((bass * 0.35) + (subBass * 0.08) + (_kickAccent * 0.10), 0.0, 1.0);
+            _displayTargets[2] = (float)Math.Clamp((lowMid * 0.45) + (mid * 0.35) + (rms * 0.12) + (_beatAccent * 0.12), 0.0, 1.0);
+            _displayTargets[3] = (float)Math.Clamp((highMid * 1.00) + (snare * 0.50) + (_snareAccent * 0.45) + (mid * 0.20) + (high * 0.20), 0.0, 1.0);
+            _displayTargets[4] = (float)Math.Clamp((high * 1.10) + (snare * 0.55) + (_snareAccent * 0.50) + (highMid * 0.25) + (rms * 0.15), 0.0, 1.0);
 
             ApplyBarContrast(_displayTargets);
             NormalizeDisplayTargetsToMaxVisual(_displayTargets);
