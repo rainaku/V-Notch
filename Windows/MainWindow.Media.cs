@@ -22,6 +22,7 @@ public partial class MainWindow
     private DateTime _lastAnimationStartTime = DateTime.MinValue;
     private int _thumbnailSwitchGeneration = 0;
     private bool _thumbnailShownForCurrentTrack = false;
+    private bool _isThumbnailSwitchActive = false;
 
     private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
 
@@ -275,6 +276,7 @@ public partial class MainWindow
         CancelThumbnailSwitchAnimations();
 
         var generation = ++_thumbnailSwitchGeneration;
+        _isThumbnailSwitchActive = true;
 
        
         var outDur     = TimeSpan.FromMilliseconds(420);
@@ -293,6 +295,8 @@ public partial class MainWindow
         // Stage incoming image on the overlay layer, pre-blurred & invisible.
         ThumbnailImageNext.Source = newThumb;
         CompactThumbnailNext.Source = newThumb;
+        ThumbnailImageNext.Visibility = Visibility.Visible;
+        CompactThumbnailNext.Visibility = Visibility.Visible;
 
         ThumbnailNextScale.ScaleX = 1.05;
         ThumbnailNextScale.ScaleY = 1.05;
@@ -377,6 +381,7 @@ public partial class MainWindow
         inScale.Completed += (s, e) =>
         {
             if (_thumbnailSwitchGeneration != generation) return;
+            _isThumbnailSwitchActive = false;
 
             // Stop & clear all animations.
             ThumbnailImage.BeginAnimation(OpacityProperty, null);
@@ -407,6 +412,8 @@ public partial class MainWindow
             }
             ThumbnailImageNext.Source = null;
             CompactThumbnailNext.Source = null;
+            ThumbnailImageNext.Visibility = Visibility.Collapsed;
+            CompactThumbnailNext.Visibility = Visibility.Collapsed;
 
             // Reset all transient state.
             ThumbnailImage.Opacity = 1.0;
@@ -436,6 +443,8 @@ public partial class MainWindow
 
     private void CancelThumbnailSwitchAnimations(ImageSource? targetThumb = null)
     {
+        _isThumbnailSwitchActive = false;
+
         // Stop every active animation on both layers.
         ThumbnailImage.BeginAnimation(OpacityProperty, null);
         ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
@@ -485,6 +494,8 @@ public partial class MainWindow
         // Clear overlay so it doesn't bleed through on the next frame.
         ThumbnailImageNext.Source = null;
         CompactThumbnailNext.Source = null;
+        ThumbnailImageNext.Visibility = Visibility.Collapsed;
+        CompactThumbnailNext.Visibility = Visibility.Collapsed;
         ThumbnailImageNext.Opacity = 0.0;
         CompactThumbnailNext.Opacity = 0.0;
         ThumbnailImage.Opacity = 1.0;
@@ -493,6 +504,8 @@ public partial class MainWindow
 
     private void CancelThumbnailSwitchForExpand()
     {
+        _isThumbnailSwitchActive = false;
+
         // Stop animations on expanded layers (these will be used by expand).
         ThumbnailImage.BeginAnimation(OpacityProperty, null);
         ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
@@ -548,9 +561,27 @@ public partial class MainWindow
         // Clear overlay layers.
         ThumbnailImageNext.Source = null;
         CompactThumbnailNext.Source = null;
+        ThumbnailImageNext.Visibility = Visibility.Collapsed;
+        CompactThumbnailNext.Visibility = Visibility.Collapsed;
         ThumbnailImageNext.Opacity = 0.0;
         CompactThumbnailNext.Opacity = 0.0;
         ThumbnailImage.Opacity = 1.0;
+    }
+
+    private void ResetCompactThumbnailNextLayer()
+    {
+        CompactThumbnailNext.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailNext.BeginAnimation(Image.SourceProperty, null);
+        CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+
+        CompactThumbnailNext.Source = null;
+        CompactThumbnailNext.Visibility = Visibility.Collapsed;
+        CompactThumbnailNext.Opacity = 0.0;
+        CompactThumbnailNextScale.ScaleX = 1.0;
+        CompactThumbnailNextScale.ScaleY = 1.0;
+        CompactThumbnailNextBlur.Radius = 0.0;
     }
 
     #endregion
@@ -827,6 +858,11 @@ public partial class MainWindow
 
     private void ResetCompactThumbnailRestingState()
     {
+        if (!_isThumbnailSwitchActive)
+        {
+            ResetCompactThumbnailNextLayer();
+        }
+
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);

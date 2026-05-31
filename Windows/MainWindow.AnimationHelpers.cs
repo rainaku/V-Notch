@@ -37,6 +37,13 @@ public partial class MainWindow
         // Don't reset hover visuals while a gesture drag is active
         if (!isHovered && _isGestureActive) return;
 
+        ResetAnimationThumbnailOverlay();
+
+        if (!_isThumbnailSwitchActive)
+        {
+            ResetCompactThumbnailNextLayer();
+        }
+
         double thumbScale = isHovered ? 1.5 : 1.0;
         double notchWidth = isHovered ? _collapsedWidth + 32 : _collapsedWidth;
         double notchHeight = isHovered ? _collapsedHeight + 36 : _collapsedHeight;
@@ -446,6 +453,11 @@ public partial class MainWindow
 
         double radius = (double)e.NewValue;
         window.CompactThumbnailBorder.CornerRadius = new CornerRadius(radius);
+        if (window.CompactThumbnailClip != null)
+        {
+            window.CompactThumbnailClip.RadiusX = radius;
+            window.CompactThumbnailClip.RadiusY = radius;
+        }
     }
 
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)

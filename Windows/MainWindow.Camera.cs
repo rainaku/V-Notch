@@ -17,6 +17,7 @@ using Windows.Media.Capture.Frames;
 using Windows.Media.MediaProperties;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
+using static VNotch.Services.Win32Interop;
 
 namespace VNotch;
 public partial class MainWindow
@@ -36,6 +37,8 @@ public partial class MainWindow
     private const long FrameIntervalTicks = 333_333; // ~30fps cap (10_000_000 / 30)
     private byte[]? _cameraFrameBuffer;
     private int _cameraFrameBufferSize;
+    private WriteableBitmap? _cameraWriteableBitmap;
+    private bool _cameraFrameDispatchPending = false;
 
     // ─── Lifecycle serialization: prevent race conditions on rapid click ───
     private bool _cameraStarting = false;
@@ -92,7 +95,7 @@ public partial class MainWindow
 
     private double ComputeCameraCornerRadius(bool expandedToShelf)
     {
-        return 12.0;
+        return expandedToShelf ? 16.0 : 12.0;
     }
 
     private void ApplyCameraCornerRadius(bool expandedToShelf)
@@ -103,61 +106,10 @@ public partial class MainWindow
         double h = CameraSection.ActualHeight;
         if (w <= 0 || h <= 0) return;
 
-        // Always apply the cutout clip (even when camera is expanded/active)
-        CameraSection.CornerRadius = new CornerRadius(0); // We handle clipping via geometry
-
-        double cutH = 22.0;
-        double cr = 8.0; // small radius for the inner concave corners of the cutout step
-        double cutW;
-        if (NavIconsPanel != null && NavIconsPanel.Visibility == Visibility.Visible
-            && NavIconsPanel.ActualWidth > 0)
-        {
-            // NavIconsPanel right edge in NotchContent coords:
-            double navRight = NavIconsPanel.Margin.Left + NavIconsPanel.ActualWidth + 10;
-            double camLeft = 12.0 + CameraSection.Margin.Left;
-            cutW = Math.Max(0, Math.Min(navRight - camLeft, w - radius - cr));
-        }
-        else
-        {
-            cutW = Math.Min(90.0, w - radius - cr);
-        }
-
-
-        var fig = new PathFigure { StartPoint = new Point(0, cutH), IsClosed = true, IsFilled = true };
-
-        // Bottom of cutout: go right along cutH to the step corner
-        fig.Segments.Add(new LineSegment(new Point(cutW - cr, cutH), true));
-        // Inner rounded corner: curve up from cutH to the vertical edge of the step
-        fig.Segments.Add(new ArcSegment(
-            new Point(cutW, cutH - cr),
-            new Size(cr, cr), 0, false, SweepDirection.Counterclockwise, true));
-        // Vertical edge of step: go up to the top edge
-        fig.Segments.Add(new LineSegment(new Point(cutW, 0), true));
-        // Top edge to top-right corner
-        fig.Segments.Add(new LineSegment(new Point(w - radius, 0), true));
-        // Top-right rounded corner
-        fig.Segments.Add(new ArcSegment(
-            new Point(w, radius),
-            new Size(radius, radius), 0, false, SweepDirection.Clockwise, true));
-        // Right edge down to bottom-right corner
-        fig.Segments.Add(new LineSegment(new Point(w, h - radius), true));
-        // Bottom-right rounded corner
-        fig.Segments.Add(new ArcSegment(
-            new Point(w - radius, h),
-            new Size(radius, radius), 0, false, SweepDirection.Clockwise, true));
-        // Bottom edge to bottom-left corner
-        fig.Segments.Add(new LineSegment(new Point(radius, h), true));
-        // Bottom-left rounded corner
-        fig.Segments.Add(new ArcSegment(
-            new Point(0, h - radius),
-            new Size(radius, radius), 0, false, SweepDirection.Clockwise, true));
-        // Left edge back up to start (0, cutH) — closed automatically
-
-        var pathGeo = new PathGeometry();
-        pathGeo.Figures.Add(fig);
-        pathGeo.Freeze();
-
-        CameraSection.Clip = pathGeo;
+        // Apply corner radius and use a RectangleGeometry clip to ensure all corners are rounded
+        CameraSection.CornerRadius = new CornerRadius(radius);
+        var clipRect = new RectangleGeometry(new System.Windows.Rect(0, 0, w, h), radius, radius);
+        CameraSection.Clip = clipRect;
     }
 
     private void AnimateCameraSectionToShelf(bool expand)
@@ -170,6 +122,7 @@ public partial class MainWindow
         var easing = (IEasingFunction)_easeExpOut6;
 
         CameraSection.BeginAnimation(WidthProperty, null);
+        CameraSection.BeginAnimation(HeightProperty, null);
         CameraSection.BeginAnimation(MarginProperty, null);
         CameraSectionScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         CameraSectionScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -183,7 +136,13 @@ public partial class MainWindow
             {
                 compactWidth = _cameraSectionCompactWidth > 1 ? _cameraSectionCompactWidth : 120;
             }
+            double compactHeight = CameraSection.ActualHeight;
+            if (compactHeight <= 1)
+            {
+                compactHeight = _cameraSectionCompactHeight > 1 ? _cameraSectionCompactHeight : 100;
+            }
             _cameraSectionCompactWidth = compactWidth;
+            _cameraSectionCompactHeight = compactHeight;
             _cameraSectionCompactMargin = CameraSection.Margin;
 
             double targetWidth = SecondaryContent.ActualWidth;
@@ -199,10 +158,34 @@ public partial class MainWindow
             }
             targetWidth = Math.Max(compactWidth, targetWidth);
 
+            // Target height = target width to make it square
+            double targetHeight = targetWidth;
+
+            // Calculate new notch height to fit the square camera
+            // SecondaryContent margin: top=30, bottom=12 => 42 total vertical margin
+            double notchTargetHeight = targetHeight + 30 + 12 + 2; // camera height + margins + border
+            double currentNotchHeight = _expandedHeight; // NotchBorder is at expanded height when in secondary view
+
+            // Resize window to fit the new notch height
+            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            double newWindowHeightDip = notchTargetHeight + 80;
+            this.Height = newWindowHeightDip;
+            _windowHeight = (int)Math.Round(newWindowHeightDip * dpiScale);
+            if (_hwnd != IntPtr.Zero)
+                SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+
+            // Animate NotchBorder height
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = currentNotchHeight; // Set local value before starting new animation
+            var notchHeightAnim = MakeAnim(currentNotchHeight, notchTargetHeight, duration, easing, null);
+            NotchBorder.BeginAnimation(HeightProperty, notchHeightAnim, HandoffBehavior.SnapshotAndReplace);
+
             FileShelf.Visibility = Visibility.Visible;
             FileShelf.IsHitTestVisible = false;
 
             CameraSection.Width = compactWidth;
+            CameraSection.Height = compactHeight;
+            CameraSection.VerticalAlignment = VerticalAlignment.Top;
             CameraSection.HorizontalAlignment = HorizontalAlignment.Left;
             CameraSection.Margin = _cameraSectionCompactMargin;
             Grid.SetColumn(CameraSection, 0);
@@ -210,6 +193,7 @@ public partial class MainWindow
             Panel.SetZIndex(CameraSection, 10);
 
             var widthAnim = MakeAnim(compactWidth, targetWidth, duration, easing, null);
+            var heightAnim = MakeAnim(compactHeight, targetHeight, duration, easing, null);
             var marginAnim = new ThicknessAnimation(CameraSection.Margin, new Thickness(0, 0, 0, 0), duration)
             {
                 EasingFunction = easing
@@ -226,7 +210,7 @@ public partial class MainWindow
 
             var squashY = new DoubleAnimationUsingKeyFrames { Duration = duration };
             squashY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraSectionScale.ScaleY, KeyTime.FromPercent(0.0)));
-            squashY.KeyFrames.Add(new EasingDoubleKeyFrame(0.90, KeyTime.FromPercent(0.34), _easeSineInOut));
+            squashY.KeyFrames.Add(new EasingDoubleKeyFrame(0.96, KeyTime.FromPercent(0.34), _easeSineInOut));
             squashY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
             Timeline.SetDesiredFrameRate(squashY, 120);
 
@@ -235,7 +219,9 @@ public partial class MainWindow
                 if (token != _cameraSectionAnimToken) return;
                 _isCameraSectionExpanded = true;
                 CameraSection.BeginAnimation(WidthProperty, null);
+                CameraSection.BeginAnimation(HeightProperty, null);
                 CameraSection.Width = targetWidth;
+                CameraSection.Height = targetHeight;
                 CameraSection.BeginAnimation(MarginProperty, null);
                 CameraSection.Margin = new Thickness(0);
                 CameraSectionScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -246,9 +232,14 @@ public partial class MainWindow
                 FileShelf.BeginAnimation(OpacityProperty, null);
                 FileShelf.Opacity = 0;
                 FileShelf.Visibility = Visibility.Collapsed;
+
+                // Finalize NotchBorder height
+                NotchBorder.BeginAnimation(HeightProperty, null);
+                NotchBorder.Height = notchTargetHeight;
             };
 
             CameraSection.BeginAnimation(WidthProperty, widthAnim, HandoffBehavior.SnapshotAndReplace);
+            CameraSection.BeginAnimation(HeightProperty, heightAnim, HandoffBehavior.SnapshotAndReplace);
             CameraSection.BeginAnimation(MarginProperty, marginAnim, HandoffBehavior.SnapshotAndReplace);
             CameraSectionScale.BeginAnimation(ScaleTransform.ScaleXProperty, squashX, HandoffBehavior.SnapshotAndReplace);
             CameraSectionScale.BeginAnimation(ScaleTransform.ScaleYProperty, squashY, HandoffBehavior.SnapshotAndReplace);
@@ -265,15 +256,45 @@ public partial class MainWindow
         }
         double collapsedWidth = _cameraSectionCompactWidth > 1 ? _cameraSectionCompactWidth : currentWidth;
 
+        double currentHeight = CameraSection.ActualHeight;
+        if (currentHeight <= 1)
+        {
+            currentHeight = (double.IsNaN(CameraSection.Height) || CameraSection.Height <= 1)
+                ? (_cameraSectionCompactHeight > 1 ? _cameraSectionCompactHeight : 100)
+                : CameraSection.Height;
+        }
+        double collapsedHeight = _cameraSectionCompactHeight > 1 ? _cameraSectionCompactHeight : currentHeight;
+
         FileShelf.Visibility = Visibility.Visible;
         FileShelf.IsHitTestVisible = false;
         CameraSection.Width = currentWidth;
+        CameraSection.Height = currentHeight;
+        CameraSection.VerticalAlignment = VerticalAlignment.Top;
         CameraSection.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(CameraSection, 0);
         Grid.SetColumnSpan(CameraSection, 2);
         Panel.SetZIndex(CameraSection, 10);
 
+        // Animate NotchBorder height back to expanded height
+        double collapseNotchHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        var notchHeightCollapseAnim = MakeAnim(collapseNotchHeight, _expandedHeight, duration, easing, null);
+        notchHeightCollapseAnim.Completed += (s, e) =>
+        {
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = _expandedHeight;
+            // Resize window back
+            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            double windowHeightDip = _expandedHeight + 80;
+            this.Height = windowHeightDip;
+            _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
+            if (_hwnd != IntPtr.Zero)
+                SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        };
+        NotchBorder.BeginAnimation(HeightProperty, notchHeightCollapseAnim, HandoffBehavior.SnapshotAndReplace);
+
         var widthCollapseAnim = MakeAnim(currentWidth, collapsedWidth, duration, easing, null);
+        var heightCollapseAnim = MakeAnim(currentHeight, collapsedHeight, duration, easing, null);
         var marginCollapseAnim = new ThicknessAnimation(CameraSection.Margin, _cameraSectionCompactMargin, duration)
         {
             EasingFunction = easing
@@ -302,6 +323,7 @@ public partial class MainWindow
         };
 
         CameraSection.BeginAnimation(WidthProperty, widthCollapseAnim, HandoffBehavior.SnapshotAndReplace);
+        CameraSection.BeginAnimation(HeightProperty, heightCollapseAnim, HandoffBehavior.SnapshotAndReplace);
         CameraSection.BeginAnimation(MarginProperty, marginCollapseAnim, HandoffBehavior.SnapshotAndReplace);
         CameraSectionScale.BeginAnimation(ScaleTransform.ScaleXProperty, settleX, HandoffBehavior.SnapshotAndReplace);
         CameraSectionScale.BeginAnimation(ScaleTransform.ScaleYProperty, settleY, HandoffBehavior.SnapshotAndReplace);
@@ -314,10 +336,13 @@ public partial class MainWindow
         _isCameraSectionExpanded = false;
 
         CameraSection.BeginAnimation(WidthProperty, null);
+        CameraSection.BeginAnimation(HeightProperty, null);
         CameraSection.BeginAnimation(MarginProperty, null);
         CameraSection.Width = double.NaN;
+        CameraSection.Height = double.NaN;
         CameraSection.Margin = _cameraSectionCompactMargin;
         CameraSection.HorizontalAlignment = HorizontalAlignment.Stretch;
+        CameraSection.VerticalAlignment = VerticalAlignment.Stretch;
         Grid.SetColumn(CameraSection, 0);
         Grid.SetColumnSpan(CameraSection, 1);
         Panel.SetZIndex(CameraSection, 0);
@@ -327,6 +352,20 @@ public partial class MainWindow
         CameraSectionScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         CameraSectionScale.ScaleX = 1.0;
         CameraSectionScale.ScaleY = 1.0;
+
+        // Reset NotchBorder height only if it was expanded beyond normal for camera
+        double currentNotchH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : NotchBorder.Height;
+        if (currentNotchH > _expandedHeight + 1)
+        {
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = _expandedHeight;
+            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            double windowHeightDip = _expandedHeight + 80;
+            this.Height = windowHeightDip;
+            _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
+            if (_hwnd != IntPtr.Zero)
+                SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        }
 
         FileShelf.BeginAnimation(OpacityProperty, null);
         FileShelf.Opacity = 1.0;
@@ -377,39 +416,69 @@ public partial class MainWindow
             _lastFrameTimestamp = 0;
             CameraErrorOverlay.Visibility = Visibility.Collapsed;
 
-            var (selectedGroup, errorMsg) = await Task.Run(async () =>
+            // ─── Offload all heavy camera init to background thread ───
+            var cameraDeviceId = _settings.CameraDeviceId;
+            var (mediaCapture, frameReader, errorMsg) = await Task.Run(async () =>
             {
-                var groups = await MediaFrameSourceGroup.FindAllAsync();
-                var group = groups.FirstOrDefault(g =>
-                    g.SourceInfos.Any(s => s.SourceKind == MediaFrameSourceKind.Color));
-                if (group == null)
-                    return (group, "Cannot detect camera device");
-                return (group, (string?)null);
+                try
+                {
+                    var groups = await MediaFrameSourceGroup.FindAllAsync();
+                    MediaFrameSourceGroup? group = null;
+
+                    if (!string.IsNullOrEmpty(cameraDeviceId))
+                    {
+                        group = groups.FirstOrDefault(g => g.Id == cameraDeviceId &&
+                            g.SourceInfos.Any(s => s.SourceKind == MediaFrameSourceKind.Color));
+                    }
+
+                    group ??= groups.FirstOrDefault(g =>
+                        g.SourceInfos.Any(s => s.SourceKind == MediaFrameSourceKind.Color));
+
+                    if (group == null)
+                        return ((MediaCapture?)null, (MediaFrameReader?)null, "Cannot detect camera device");
+
+                    var capture = new MediaCapture();
+                    var initSettings = new MediaCaptureInitializationSettings
+                    {
+                        SourceGroup = group,
+                        MemoryPreference = MediaCaptureMemoryPreference.Cpu,
+                        StreamingCaptureMode = StreamingCaptureMode.Video
+                    };
+
+                    await capture.InitializeAsync(initSettings);
+
+                    var colorSource = capture.FrameSources.Values.FirstOrDefault(s => s.Info.SourceKind == MediaFrameSourceKind.Color);
+                    if (colorSource == null)
+                    {
+                        capture.Dispose();
+                        return ((MediaCapture?)null, (MediaFrameReader?)null, "Cannot detect color source");
+                    }
+
+                    var reader = await capture.CreateFrameReaderAsync(colorSource, MediaEncodingSubtypes.Bgra8);
+                    return (capture, reader, (string?)null);
+                }
+                catch (Exception ex)
+                {
+                    return ((MediaCapture?)null, (MediaFrameReader?)null, ex.Message);
+                }
             });
 
-            if (!_isCameraActive) return; // user cancelled during init
+            if (!_isCameraActive)
+            {
+                // User cancelled during init — dispose on background
+                _ = Task.Run(() =>
+                {
+                    frameReader?.Dispose();
+                    mediaCapture?.Dispose();
+                });
+                return;
+            }
 
-            if (selectedGroup == null)
+            if (mediaCapture == null || frameReader == null)
                 throw new Exception(errorMsg ?? "Cannot detect camera device");
 
-            _mediaCapture = new MediaCapture();
-
-            var settings = new MediaCaptureInitializationSettings
-            {
-                SourceGroup = selectedGroup,
-                MemoryPreference = MediaCaptureMemoryPreference.Cpu,
-                StreamingCaptureMode = StreamingCaptureMode.Video
-            };
-
-            await _mediaCapture.InitializeAsync(settings);
-
-            if (!_isCameraActive) { StopCameraPreviewSafe(); return; }
-
-            var colorSource = _mediaCapture.FrameSources.Values.FirstOrDefault(s => s.Info.SourceKind == MediaFrameSourceKind.Color);
-            if (colorSource == null)
-                throw new Exception("Cannot detect color source");
-
-            _frameReader = await _mediaCapture.CreateFrameReaderAsync(colorSource, MediaEncodingSubtypes.Bgra8);
+            _mediaCapture = mediaCapture;
+            _frameReader = frameReader;
             _frameReader.FrameArrived += FrameReader_FrameArrived;
             await _frameReader.StartAsync();
         }
@@ -432,6 +501,8 @@ public partial class MainWindow
         _cameraPreviewFadeToken++;
         _cameraFrameBuffer = null;
         _cameraFrameBufferSize = 0;
+        _cameraWriteableBitmap = null;
+        _cameraFrameDispatchPending = false;
 
         if (_frameReader != null)
         {
@@ -454,6 +525,10 @@ public partial class MainWindow
         if (now - _lastFrameTimestamp < FrameIntervalTicks)
             return;
         _lastFrameTimestamp = now;
+
+        // ─── Coalesce: skip if previous frame hasn't been rendered yet ───
+        if (_cameraFrameDispatchPending)
+            return;
 
         using var frame = sender.TryAcquireLatestFrame();
         if (frame?.VideoMediaFrame?.SoftwareBitmap == null) return;
@@ -480,21 +555,27 @@ public partial class MainWindow
         softwareBitmap.CopyToBuffer(_cameraFrameBuffer.AsBuffer());
         softwareBitmap.Dispose();
 
-        // Capture buffer reference for the closure
+        // Capture buffer reference and dimensions for the closure
         var buffer = _cameraFrameBuffer;
+        int w = width;
+        int h = height;
 
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
+        _cameraFrameDispatchPending = true;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
         {
+            _cameraFrameDispatchPending = false;
             if (!_isCameraActive) return;
             try
             {
-                if (CameraPreviewImage.Source is not WriteableBitmap wbmp || wbmp.PixelWidth != width || wbmp.PixelHeight != height)
+                var wbmp = _cameraWriteableBitmap;
+                if (wbmp == null || wbmp.PixelWidth != w || wbmp.PixelHeight != h)
                 {
-                    wbmp = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+                    wbmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
+                    _cameraWriteableBitmap = wbmp;
                     CameraPreviewImage.Source = wbmp;
                 }
 
-                wbmp.WritePixels(new Int32Rect(0, 0, width, height), buffer, width * 4, 0);
+                wbmp.WritePixels(new Int32Rect(0, 0, w, h), buffer, w * 4, 0);
 
                 if (_cameraPreviewMorphPending)
                 {
@@ -505,7 +586,7 @@ public partial class MainWindow
             {
                 RuntimeLog.Error("CAMERA", ex, "Frame update failed");
             }
-        }));
+        });
     }
 
     private async void StopCameraPreview()
@@ -521,6 +602,18 @@ public partial class MainWindow
             _cameraFrameBuffer = null;
             _cameraFrameBufferSize = 0;
             int fadeToken = ++_cameraPreviewFadeToken;
+
+            // ─── Capture references and detach immediately to stop frame flow ───
+            var reader = _frameReader;
+            var capture = _mediaCapture;
+            _frameReader = null;
+            _mediaCapture = null;
+
+            if (reader != null)
+            {
+                reader.FrameArrived -= FrameReader_FrameArrived;
+            }
+
         CameraOverlay.BeginAnimation(OpacityProperty, null);
         CameraOverlay.Visibility = Visibility.Visible;
         CameraOverlay.Opacity = 0.0;
@@ -595,19 +688,20 @@ public partial class MainWindow
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, previewScaleOutY, HandoffBehavior.SnapshotAndReplace);
         CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, previewBlurOut, HandoffBehavior.SnapshotAndReplace);
 
-        if (_frameReader != null)
-        {
-            _frameReader.FrameArrived -= FrameReader_FrameArrived;
-            await _frameReader.StopAsync();
-            _frameReader.Dispose();
-            _frameReader = null;
-        }
-
-        if (_mediaCapture != null)
-        {
-            _mediaCapture.Dispose();
-            _mediaCapture = null;
-        }
+            // ─── Offload heavy stop/dispose to background thread ───
+            await Task.Run(async () =>
+            {
+                try
+                {
+                    if (reader != null)
+                    {
+                        await reader.StopAsync();
+                        reader.Dispose();
+                    }
+                    capture?.Dispose();
+                }
+                catch { /* swallow dispose errors */ }
+            });
         }
         catch (Exception ex)
         {

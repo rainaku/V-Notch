@@ -119,6 +119,9 @@ public event EventHandler? AnimatedClosing;
         MonitorCombo.ItemsSource = monitors;
         MonitorCombo.SelectedIndex = Math.Min(_settings.MonitorIndex, monitors.Length - 1);
 
+        // Camera device combo
+        LoadCameraDevices();
+
         AutoStartCheck.IsChecked = StartupManager.IsAutoStartEnabled();
         HelloGreetingCheck.IsChecked = _settings.EnableHelloGreeting;
         HideOnExclusiveFullscreenCheck.IsChecked = _settings.HideOnExclusiveFullscreen;
@@ -1409,6 +1412,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.DisableMouseLeaveAutoClose = DisableMouseLeaveAutoCloseCheck.IsChecked ?? false;
 
         _settings.MonitorIndex = MonitorCombo.SelectedIndex;
+        if (CameraCombo.SelectedItem is CameraDeviceItem selectedCamera)
+            _settings.CameraDeviceId = selectedCamera.Id;
         _settings.AutoStart = AutoStartCheck.IsChecked ?? false;
         _settings.EnableHelloGreeting = HelloGreetingCheck.IsChecked ?? true;
         _settings.HideOnExclusiveFullscreen = HideOnExclusiveFullscreenCheck.IsChecked ?? true;
@@ -1553,7 +1558,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
     private bool IsAnyComboBoxDropDownOpen()
     {
-        return MonitorCombo.IsDropDownOpen || LanguageCombo.IsDropDownOpen;
+        return MonitorCombo.IsDropDownOpen || LanguageCombo.IsDropDownOpen || CameraCombo.IsDropDownOpen;
     }
 
     private void SettingsScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -1620,4 +1625,51 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     }
 
     #endregion
+
+    #region Camera Device
+
+    private async void LoadCameraDevices()
+    {
+        try
+        {
+            var groups = await Windows.Media.Capture.Frames.MediaFrameSourceGroup.FindAllAsync();
+            var cameras = groups
+                .Where(g => g.SourceInfos.Any(s => s.SourceKind == Windows.Media.Capture.Frames.MediaFrameSourceKind.Color))
+                .Select(g => new CameraDeviceItem { Id = g.Id, Name = g.DisplayName })
+                .ToList();
+
+            if (cameras.Count == 0)
+            {
+                cameras.Add(new CameraDeviceItem { Id = "", Name = "No camera detected" });
+            }
+
+            CameraCombo.ItemsSource = cameras;
+            CameraCombo.DisplayMemberPath = "Name";
+
+            var selectedIdx = cameras.FindIndex(c => c.Id == _settings.CameraDeviceId);
+            CameraCombo.SelectedIndex = selectedIdx >= 0 ? selectedIdx : 0;
+        }
+        catch
+        {
+            CameraCombo.ItemsSource = new[] { new CameraDeviceItem { Id = "", Name = "No camera detected" } };
+            CameraCombo.DisplayMemberPath = "Name";
+            CameraCombo.SelectedIndex = 0;
+        }
+    }
+
+    private void CameraCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CameraCombo.SelectedItem is CameraDeviceItem item)
+        {
+            _settings.CameraDeviceId = item.Id;
+        }
+    }
+
+    #endregion
+}
+
+public class CameraDeviceItem
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
 }

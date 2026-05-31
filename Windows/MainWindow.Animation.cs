@@ -47,6 +47,33 @@ public partial class MainWindow
         }
     }
 
+    private void ResetAnimationThumbnailOverlay(bool clearSource = true)
+    {
+        AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
+        AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
+        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, null);
+        this.BeginAnimation(CurrentThumbnailAnimationRadiusProperty, null);
+        CurrentThumbnailAnimationRadius = 6;
+
+        AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+        AnimationThumbnailBorder.Opacity = 0;
+        AnimationThumbnailBorder.Width = 22;
+        AnimationThumbnailBorder.Height = 22;
+        AnimationThumbnailBorder.CornerRadius = new CornerRadius(6);
+        AnimationThumbnailClip.Rect = new Rect(0, 0, 22, 22);
+        AnimationThumbnailClip.RadiusX = 6;
+        AnimationThumbnailClip.RadiusY = 6;
+        AnimationThumbnailTranslate.X = 0;
+        AnimationThumbnailTranslate.Y = 0;
+
+        if (clearSource)
+        {
+            AnimationThumbnailImage.Source = null;
+        }
+    }
+
     private (double X, double Y)? _cachedThumbnailExpandTarget;
 
     private DoubleAnimation? _cachedThumbWidthExpand;
@@ -115,8 +142,7 @@ public partial class MainWindow
         CompactHoverInfo.BeginAnimation(OpacityProperty, null);
         CompactHoverInfo.Opacity = 0;
         CompactHoverInfo.Visibility = Visibility.Collapsed;
-        // Ensure animation thumbnail overlay is hidden initially
-        AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+        ResetAnimationThumbnailOverlay();
         // Reset compact thumbnail corner radius from hover state
         this.BeginAnimation(CurrentCompactThumbnailRadiusProperty, null);
         CurrentCompactThumbnailRadius = 6;
@@ -186,10 +212,7 @@ public partial class MainWindow
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
         SecondaryContent.BeginAnimation(OpacityProperty, null);
-        AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
-        AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
-        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
-        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        ResetAnimationThumbnailOverlay();
         MediaBackground.BeginAnimation(OpacityProperty, null);
         MediaBackground2.BeginAnimation(OpacityProperty, null);
 
@@ -197,8 +220,6 @@ public partial class MainWindow
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
-        AnimationThumbnailTranslate.X = 0;
-        AnimationThumbnailTranslate.Y = 0;
         MediaBackground.Opacity = 0;
         MediaBackground2.Opacity = 0;
 
@@ -257,7 +278,7 @@ public partial class MainWindow
             if (!cachedExpandTarget.HasValue)
             {
                 // No animation overlay possible — keep compact thumbnail visible until expand completes, then expanded view takes over.
-                AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
+                ResetAnimationThumbnailOverlay();
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
             }
@@ -265,6 +286,7 @@ public partial class MainWindow
             {
                 AnimationThumbnailImage.Source = CompactThumbnail.Source;
                 AnimationThumbnailBorder.Visibility = Visibility.Visible;
+                AnimationThumbnailBorder.Opacity = 1;
                 AnimationThumbnailBorder.CornerRadius = new CornerRadius(6);
                 AnimationThumbnailClip.RadiusX = 6;
                 AnimationThumbnailClip.RadiusY = 6;
@@ -374,15 +396,7 @@ public partial class MainWindow
             MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             MusicCompactContentBlur.Radius = 0;
 
-            AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
-            AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
-            AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
-            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
-            AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-            AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, null);
-            this.BeginAnimation(CurrentThumbnailAnimationRadiusProperty, null);
-            AnimationThumbnailTranslate.X = 0;
-            AnimationThumbnailTranslate.Y = 0;
+            ResetAnimationThumbnailOverlay();
 
             if (_isMusicCompactMode)
             {
@@ -467,6 +481,25 @@ public partial class MainWindow
         bool wasSecondary = _isSecondaryView;
         if (wasSecondary)
         {
+            // Stop camera with animation if active, then continue collapse
+            if (_isCameraActive)
+            {
+                StopCameraPreview();
+                // Delay collapse until camera section collapse finishes
+                var cameraCollapseWait = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs + 50)
+                };
+                cameraCollapseWait.Tick += (s, e) =>
+                {
+                    cameraCollapseWait.Stop();
+                    _isAnimating = false; // Reset so CollapseNotch can proceed
+                    CollapseNotch();
+                };
+                cameraCollapseWait.Start();
+                return;
+            }
+
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             var secondaryGroup = new TransformGroup();
             var secondaryScale = new ScaleTransform(1, 1);
@@ -511,10 +544,7 @@ public partial class MainWindow
         ResetCalendarScroll();
         ResetCalendarHoverFocusVisualState();
         CollapsedContent.BeginAnimation(OpacityProperty, null);
-        AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
-        AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
-        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
-        AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        ResetAnimationThumbnailOverlay();
 
         // Cancel any in-progress corner radius animation to prevent jitter
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
@@ -522,10 +552,6 @@ public partial class MainWindow
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-
-        AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
-        AnimationThumbnailTranslate.X = 0;
-        AnimationThumbnailTranslate.Y = 0;
 
         NotchBorder.IsHitTestVisible = false;
         var animFps = 144;
@@ -611,6 +637,7 @@ public partial class MainWindow
 
                 AnimationThumbnailImage.Source = ThumbnailImage.Source;
                 AnimationThumbnailBorder.Visibility = Visibility.Visible;
+                AnimationThumbnailBorder.Opacity = 1;
                 AnimationThumbnailBorder.CornerRadius = new CornerRadius(14);
                 AnimationThumbnailClip.RadiusX = 14;
                 AnimationThumbnailClip.RadiusY = 14;
@@ -711,15 +738,7 @@ public partial class MainWindow
                 contentToShow.Opacity = 1;
                 contentToShow.BeginAnimation(OpacityProperty, null);
 
-                AnimationThumbnailBorder.Visibility = Visibility.Collapsed;
-                AnimationThumbnailBorder.BeginAnimation(WidthProperty, null);
-                AnimationThumbnailBorder.BeginAnimation(HeightProperty, null);
-                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
-                AnimationThumbnailTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-                AnimationThumbnailClip.BeginAnimation(RectangleGeometry.RectProperty, null);
-                this.BeginAnimation(CurrentThumbnailAnimationRadiusProperty, null);
-                AnimationThumbnailTranslate.X = 0;
-                AnimationThumbnailTranslate.Y = 0;
+                ResetAnimationThumbnailOverlay();
 
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);

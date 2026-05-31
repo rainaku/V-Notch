@@ -1006,12 +1006,16 @@
                                 <ScaleTransform x:Name="CompactThumbnailScale" ScaleX="1" ScaleY="1"/>
                             </Border.RenderTransform>
                             <!-- Two-layer crossfade host. Outgoing thumb is the base layer, incoming thumb fades in on top with a soft parallax zoom.... -->
-                            <Grid Width="22" Height="22">
+                            <Grid Width="22" Height="22" ClipToBounds="True">
                                 <Grid.Clip>
-                                    <RectangleGeometry RadiusX="6" RadiusY="6" Rect="0,0,22,22"/>
+                                    <RectangleGeometry x:Name="CompactThumbnailClip" RadiusX="6" RadiusY="6" Rect="0,0,22,22"/>
                                 </Grid.Clip>
                                 <Image x:Name="CompactThumbnail"
+                                       Width="22"
+                                       Height="22"
                                        Stretch="UniformToFill"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
                                        RenderTransformOrigin="0.5,0.5">
                                     <Image.RenderTransform>
                                         <ScaleTransform x:Name="CompactThumbnailOutScale" ScaleX="1" ScaleY="1"/>
@@ -1021,8 +1025,13 @@
                                     </Image.Effect>
                                 </Image>
                                 <Image x:Name="CompactThumbnailNext"
+                                       Width="22"
+                                       Height="22"
                                        Stretch="UniformToFill"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
                                        Opacity="0"
+                                       Visibility="Collapsed"
                                        IsHitTestVisible="False"
                                        RenderTransformOrigin="0.5,0.5">
                                     <Image.RenderTransform>
@@ -2205,7 +2214,7 @@
                     <Grid x:Name="SecondaryContent" 
                           Opacity="0" 
                           Visibility="Collapsed"
-                          Margin="12,10,12,12"
+                          Margin="12,30,12,12"
                           MouseLeftButtonDown="SecondaryContent_Click"
                           RenderOptions.ClearTypeHint="Enabled">
                         <Grid.ColumnDefinitions>
@@ -2456,27 +2465,10 @@
                     <Grid x:Name="TimerContent"
                           Opacity="0"
                           Visibility="Collapsed"
-                          Margin="14,24,14,10"
+                          Margin="14,0,14,10"
                           MouseLeftButtonDown="SecondaryContent_Click"
                           RenderOptions.ClearTypeHint="Enabled">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0"
-                                    HorizontalAlignment="Center"
-                                    Margin="0,0,0,12">
-                            <TextBlock Text="Pomodoro Timer"
-                                       x:Name="TimerTitleText"
-                                       FontSize="19"
-                                       FontWeight="ExtraBold"
-                                       Foreground="White"
-                                       TextAlignment="Center"
-                                       FontFamily="{StaticResource MainSystemFont}"/>
-                        </StackPanel>
-
-                        <Grid Grid.Row="1" VerticalAlignment="Bottom">
+                        <Grid VerticalAlignment="Center">
                             <Border Height="58"
                                     CornerRadius="16"
                                     Padding="12,0"
@@ -2527,7 +2519,7 @@
                                             Grid.Column="1"
                                             Width="46"
                                             Height="46"
-                                            Background="#FF6B00"
+                                            Background="#FF0000"
                                             BorderBrush="#30000000"
                                             BorderThickness="1"
                                             CornerRadius="23"
@@ -2536,14 +2528,15 @@
                                             MouseEnter="TimerControlButton_MouseEnter"
                                             MouseLeave="TimerControlButton_MouseLeave"
                                             MouseLeftButtonDown="CountdownStart_Click">
-                                        <TextBlock x:Name="CountdownStartText"
-                                                   Text="▶"
-                                                   Foreground="White"
-                                                   FontSize="17"
-                                                   FontWeight="Bold"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Margin="2,0,0,0"/>
+                                        <Path x:Name="CountdownStartIcon"
+                                              Data="M212,330.14V181.86a16,16,0,0,1,26.23-12.29l89.09,74.13a16,16,0,0,1,0,24.6l-89.09,74.13A16,16,0,0,1,212,330.14Z"
+                                              Fill="White"
+                                              Stretch="Uniform"
+                                              Width="16"
+                                              Height="18"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="2,0,0,0"/>
                                     </Border>
 
                                     <Border x:Name="CountdownDisplayPanel"
@@ -2714,7 +2707,6 @@
                         </Grid>
 
                         <Grid x:Name="AlarmPickerMode"
-                              Grid.Row="1"
                               Width="186"
                               Height="68"
                               HorizontalAlignment="Right"

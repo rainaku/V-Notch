@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -49,7 +49,26 @@ public partial class MainWindow
             }
             else if (_isSecondaryView && !_isTimerView)
             {
-                SwitchFromSecondaryToTimerView();
+                if (_isCameraActive)
+                {
+                    StopCameraPreview();
+                    // Delay view switch until camera section collapse finishes
+                    var cameraCollapseWait = new System.Windows.Threading.DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs + 50)
+                    };
+                    cameraCollapseWait.Tick += (s2, e2) =>
+                    {
+                        cameraCollapseWait.Stop();
+                        if (!_isAnimating)
+                            SwitchFromSecondaryToTimerView();
+                    };
+                    cameraCollapseWait.Start();
+                }
+                else
+                {
+                    SwitchFromSecondaryToTimerView();
+                }
             }
         }
         else if (e.Delta > 0)

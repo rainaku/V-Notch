@@ -17,6 +17,8 @@ public class NotchSettings
 
     public int MonitorIndex { get; set; } = 0; 
 
+    public string CameraDeviceId { get; set; } = ""; // Empty = auto-detect first available
+
     public bool AutoStart { get; set; } = true;
     public bool EnableHoverExpand { get; set; } = false;
     public bool EnableCursorBypass { get; set; } = false;

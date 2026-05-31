@@ -1146,7 +1146,7 @@
                             <TranslateTransform x:Name="DisplayCardTranslate" Y="12"/>
                         </Border.RenderTransform>
                         <StackPanel>
-                            <TextBlock x:Name="DisplayHeader" Text="DISPLAY" Style="{StaticResource SectionHeader}"/>
+                            <TextBlock x:Name="DisplayHeader" Text="DEVICES" Style="{StaticResource SectionHeader}"/>
                             <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
                                 <StackPanel>
                                     <TextBlock x:Name="MonitorLabel" Text="Active Monitor" Style="{StaticResource SettingTitleText}"/>
@@ -1154,6 +1154,15 @@
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,6,0,0"/>
                                     <ComboBox x:Name="MonitorCombo"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <TextBlock x:Name="CameraLabel" Text="Camera" Style="{StaticResource SettingTitleText}"/>
+                                    <TextBlock x:Name="CameraHint" Text="Choose which camera device to use for the camera view."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,6,0,0"/>
+                                    <ComboBox x:Name="CameraCombo" SelectionChanged="CameraCombo_SelectionChanged"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

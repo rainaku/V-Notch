@@ -54,6 +54,7 @@ public partial class MainWindow
     private bool _isCameraSectionExpanded = false;
     private int _cameraSectionAnimToken = 0;
     private double _cameraSectionCompactWidth = 0;
+    private double _cameraSectionCompactHeight = 0;
     private Thickness _cameraSectionCompactMargin = new Thickness(0, 0, 8, 0);
 
     private string[]? _pendingUnlockFiles = null;

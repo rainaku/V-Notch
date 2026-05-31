@@ -15,6 +15,7 @@ public partial class MainWindow
 {
     // ─── Timer View State ───
     private bool _isTimerView = false;
+    private const double _timerViewHeight = 108;
 
     // ─── Countdown State ───
     private TimeSpan _countdownDuration = TimeSpan.FromMinutes(25);
@@ -148,6 +149,26 @@ public partial class MainWindow
         timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
 
+        // Shrink notch height for timer view
+        double currentHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        NotchBorder.Height = currentHeight;
+        var heightShrink = MakeAnim(currentHeight, _timerViewHeight, durIn, _easeExpOut6, inDelay);
+        heightShrink.Completed += (s, ev) =>
+        {
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = _timerViewHeight;
+        };
+        NotchBorder.BeginAnimation(HeightProperty, heightShrink, HandoffBehavior.SnapshotAndReplace);
+
+        // Resize window to fit
+        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        double windowHeightDip = _timerViewHeight + 80;
+        this.Height = windowHeightDip;
+        _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
+        if (_hwnd != IntPtr.Zero)
+            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+
         UpdateTimerDisplay();
         UpdateAlarmDisplay();
     }
@@ -160,6 +181,13 @@ public partial class MainWindow
         _isAnimating = true;
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
+
+        // Stop camera if still active (e.g. called from nav button without scroll)
+        if (_isCameraActive)
+        {
+            StopCameraPreviewSafe();
+        }
+        ResetCameraSectionLayoutInstant();
 
         UpdateTimerNavIconsState();
         NotchBorder.IsHitTestVisible = false;
@@ -238,6 +266,26 @@ public partial class MainWindow
         timerTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
         timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
+
+        // Shrink notch height for timer view
+        double currentHeight2 = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        NotchBorder.Height = currentHeight2;
+        var heightShrink2 = MakeAnim(currentHeight2, _timerViewHeight, durIn, _easeExpOut6, inDelay);
+        heightShrink2.Completed += (s, ev) =>
+        {
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = _timerViewHeight;
+        };
+        NotchBorder.BeginAnimation(HeightProperty, heightShrink2, HandoffBehavior.SnapshotAndReplace);
+
+        // Resize window to fit
+        double dpiScale2 = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        double windowHeightDip2 = _timerViewHeight + 80;
+        this.Height = windowHeightDip2;
+        _windowHeight = (int)Math.Round(windowHeightDip2 * dpiScale2);
+        if (_hwnd != IntPtr.Zero)
+            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
 
         UpdateTimerDisplay();
         UpdateAlarmDisplay();
@@ -333,6 +381,26 @@ public partial class MainWindow
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
         primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
+
+        // Restore notch height back to expanded
+        double currentH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _timerViewHeight;
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        NotchBorder.Height = currentH;
+        var heightGrow = MakeAnim(currentH, _expandedHeight, durIn, _easeExpOut6, inDelay);
+        heightGrow.Completed += (s, ev) =>
+        {
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = _expandedHeight;
+        };
+        NotchBorder.BeginAnimation(HeightProperty, heightGrow, HandoffBehavior.SnapshotAndReplace);
+
+        // Resize window back
+        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        double windowHeightDip = _expandedHeight + 80;
+        this.Height = windowHeightDip;
+        _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
+        if (_hwnd != IntPtr.Zero)
+            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
     }
 
     private void UpdateTimerNavIconsState()
@@ -438,6 +506,26 @@ public partial class MainWindow
         secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
         secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
+
+        // Restore notch height back to expanded
+        double currentH2 = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _timerViewHeight;
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        NotchBorder.Height = currentH2;
+        var heightGrow2 = MakeAnim(currentH2, _expandedHeight, durIn, _easeExpOut6, inDelay);
+        heightGrow2.Completed += (s, ev) =>
+        {
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = _expandedHeight;
+        };
+        NotchBorder.BeginAnimation(HeightProperty, heightGrow2, HandoffBehavior.SnapshotAndReplace);
+
+        // Resize window back
+        double dpiScale3 = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        double windowHeightDip3 = _expandedHeight + 80;
+        this.Height = windowHeightDip3;
+        _windowHeight = (int)Math.Round(windowHeightDip3 * dpiScale3);
+        if (_hwnd != IntPtr.Zero)
+            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
 
         UpdateShelfCapacityIndicator();
     }
@@ -560,8 +648,8 @@ public partial class MainWindow
             _countdownRemaining = TimeSpan.Zero;
             _isCountdownRunning = false;
             _countdownTimer?.Stop();
-            CountdownStartText.Text = "▶";
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x00));
+            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M212,330.14V181.86a16,16,0,0,1,26.23-12.29l89.09,74.13a16,16,0,0,1,0,24.6l-89.09,74.13A16,16,0,0,1,212,330.14Z");
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0x00));
 
             // Flash the display to indicate completion
             FlashCountdownComplete();
@@ -626,8 +714,8 @@ public partial class MainWindow
             // Pause
             _isCountdownRunning = false;
             _countdownTimer?.Stop();
-            CountdownStartText.Text = "▶";
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x00));
+            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M212,330.14V181.86a16,16,0,0,1,26.23-12.29l89.09,74.13a16,16,0,0,1,0,24.6l-89.09,74.13A16,16,0,0,1,212,330.14Z");
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0x00));
             AnimateCountdownDisplayPulse(1.018);
         }
         else
@@ -640,8 +728,8 @@ public partial class MainWindow
             // Start
             _isCountdownRunning = true;
             _countdownTimer?.Start();
-            CountdownStartText.Text = "⏸";
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x4D, 0x00));
+            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M144,479.92V32.08a16,16,0,0,1,32,0V479.92a16,16,0,0,1-32,0Zm192,0V32.08a16,16,0,0,1,32,0V479.92a16,16,0,0,1-32,0Z");
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xCC, 0x00, 0x00));
             AnimateCountdownDisplayPulse(1.035);
         }
     }
@@ -653,8 +741,8 @@ public partial class MainWindow
         _isCountdownRunning = false;
         _countdownTimer?.Stop();
         _countdownRemaining = _countdownDuration;
-        CountdownStartText.Text = "▶";
-        CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x00));
+        CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M212,330.14V181.86a16,16,0,0,1,26.23-12.29l89.09,74.13a16,16,0,0,1,0,24.6l-89.09,74.13A16,16,0,0,1,212,330.14Z");
+        CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0x00));
         CountdownDisplay.BeginAnimation(OpacityProperty, null);
         CountdownDisplay.Opacity = 1;
         UpdateTimerDisplay();
