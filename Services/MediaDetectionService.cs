@@ -374,7 +374,15 @@ public class MediaDetectionService : IMediaDetectionService
 
             bool needsFallback = !info.IsAnyMediaPlaying || (string.IsNullOrEmpty(info.CurrentTrack) && info.MediaSource == "Browser") || info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource);
 
-            if (needsFallback && info.IsAnyMediaPlaying)
+            // Also scan window titles if we recently had a YouTube/Browser source but SMTC
+            // session was lost (e.g. page refresh). This recovers the title from the browser
+            // window while SMTC is being re-established.
+            bool recentlyHadMedia = !info.IsAnyMediaPlaying &&
+                                    (_lastSource == "YouTube" || _lastSource == "Browser" || _lastSource == "SoundCloud") &&
+                                    _emptyMetadataStartTime != DateTime.MinValue &&
+                                    (DateTime.Now - _emptyMetadataStartTime).TotalSeconds < 6.0;
+
+            if (needsFallback && (info.IsAnyMediaPlaying || recentlyHadMedia))
             {
                 windowTitles ??= GetAllWindowTitles();
 
@@ -616,7 +624,7 @@ public class MediaDetectionService : IMediaDetectionService
                     {
                         _emptyMetadataStartTime = DateTime.Now;
                     }
-                    double holdSeconds = (_lastSource == "YouTube" || _lastSource == "Browser") ? 1.2 : 2.5;
+                    double holdSeconds = (_lastSource == "YouTube" || _lastSource == "Browser") ? 4.0 : 2.5;
                     if ((DateTime.Now - _emptyMetadataStartTime).TotalSeconds < holdSeconds && !string.IsNullOrEmpty(_lastStableTrackSignature))
                     {
                         return;
