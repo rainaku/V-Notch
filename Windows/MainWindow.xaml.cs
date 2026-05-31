@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -100,12 +100,6 @@ public partial class MainWindow : Window
     private const double CompactThumbnailHoverExitMargin = 22.0;
     private DateTime _lastMediaActionTime = DateTime.MinValue;
 
-    /// <summary>
-    /// Arbitrates which transient overlay (volume, charging, bluetooth, clipboard,
-    /// greeting) currently owns the compact pill. Each show path takes a slot;
-    /// each Completed handler guards on the slot's token before mutating state.
-    /// See <see cref="VNotch.Controllers.CompactPillArbiter"/>.
-    /// </summary>
     private readonly VNotch.Controllers.CompactPillArbiter _compactPillArbiter = new();
 
     private readonly DispatcherTimer _progressTimer;
@@ -236,8 +230,6 @@ public partial class MainWindow : Window
                     return;
                 }
 
-                // WPF IsMouseOver can be unreliable with layered/non-activatable windows.
-                // Double-check with Win32 cursor position against actual window rect.
                 if (_hwnd != IntPtr.Zero && IsCursorInsideWindow())
                 {
                     RuntimeLog.Log("COLLAPSE-BLOCKED",
@@ -402,10 +394,6 @@ public partial class MainWindow : Window
                 {
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        // In overlay mode (WS_EX_NOACTIVATE), this message only fires
-                        // spuriously from the initial Show() activation. Outside-click
-                        // collapse is handled by GlobalMouseHook instead.
-                        // Only act on this when in SecondaryView (keyboard input enabled).
                         if (!_isSecondaryView) return;
 
                         if (_isExpanded && !_isAnimating)
@@ -432,10 +420,6 @@ public partial class MainWindow : Window
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
-        // Only collapse via Deactivated when the window is in activatable mode
-        // (i.e. SecondaryView with keyboard input enabled). In normal overlay mode
-        // (WS_EX_NOACTIVATE), the GlobalMouseHook handles outside-click collapse,
-        // and this event only fires spuriously (e.g. from the initial Show() activation).
         if (!_isSecondaryView) return;
 
         if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
@@ -774,9 +758,6 @@ public partial class MainWindow : Window
                 _cachedThumbnailExpandTarget = target;
             }
 
-            // ─── Pre-warm render pipeline ───
-            // Enable BitmapCache on elements that frequently animate scale/opacity
-            // to prevent first-frame GPU texture allocation stutter.
             CompactThumbnailBorder.CacheMode ??= new System.Windows.Media.BitmapCache(2.0);
             AnimationThumbnailBorder.CacheMode ??= new System.Windows.Media.BitmapCache(2.0);
             SettingsButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
@@ -925,10 +906,34 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
             bool languageChanged = newSettings.Language != _settings.Language;
+            string oldSubtitlePriority = _settings.SubtitlePriority ?? "";
             _settings = newSettings.Clone();
             _notchManager.UpdateSettings(_settings);
             _fileShelf.UpdateSettings(_settings);
             ApplySettings(sizeChanged);
+
+            // Sync subtitle language priority to the service and re-fetch if changed
+            _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
+
+            bool priorityChanged = !string.Equals(oldSubtitlePriority, _settings.SubtitlePriority, StringComparison.Ordinal);
+            if (priorityChanged)
+            {
+                VNotch.Services.RuntimeLog.Log("SUBTITLE-PRIORITY",
+                    $"Priority changed: '{oldSubtitlePriority}' -> '{_settings.SubtitlePriority}' " +
+                    $"hasMedia={_currentMediaInfo != null} videoId='{_lastKnownYouTubeVideoId}'");
+
+                if (!string.IsNullOrEmpty(_lastKnownYouTubeVideoId))
+                {
+                    _youtubeSubtitleService.Reset();
+                    _lyricsTrackKey = "";
+                    _syncedTextSource = SyncedTextSource.None;
+                    // Create a minimal MediaInfo with the known video ID for re-fetch
+                    var refetchInfo = _currentMediaInfo ?? new VNotch.Models.MediaInfo();
+                    if (string.IsNullOrEmpty(refetchInfo.YouTubeVideoId))
+                        refetchInfo.YouTubeVideoId = _lastKnownYouTubeVideoId;
+                    FetchSubtitlesForTrack(refetchInfo, force: true);
+                }
+            }
 
             if (languageChanged)
             {
@@ -981,6 +986,9 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
         _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
+
+        // Sync subtitle mode to the service
+        _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
 
         if (_settings.DisableMouseLeaveAutoClose)
         {
@@ -1120,8 +1128,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             LyricsBlurImage.Opacity = lyricsImageOpacity;
         }
 
-        // React to Spotify lyrics toggle: hide the widget if newly disabled,
-        // or kick off a fetch when re-enabled while a Spotify track is playing.
         if (!_settings.EnableSpotifyLyrics)
         {
             if (_isLyricsActive && _syncedTextSource == SyncedTextSource.SpotifyLyrics)
@@ -1181,17 +1187,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         ShelfUnlockSettingsHint.Text = Loc.Get("shelf.unlockSettingsHint");
     }
 
-    /// <summary>
-    /// Top gap (in WPF DIPs) between the screen edge and the notch when
-    /// Dynamic Island Mode is active.
-    /// </summary>
     private const double DynamicIslandTopMargin = 8.0;
 
-    /// <summary>
-    /// Applies the layout pieces that depend on the Dynamic Island toggle:
-    /// pushes the notch container down by a fixed margin and hides the curved
-    /// "ear" paths that would otherwise stitch the notch to the top edge.
-    /// </summary>
     private void ApplyDynamicIslandLayout()
     {
         bool islandMode = _settings.EnableDynamicIslandMode;
@@ -1206,9 +1203,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
         }
 
-        // Ears are only meaningful when the notch is glued to the top of the
-        // screen; in island mode they create stray black triangles next to the
-        // floating pill.
         var earVisibility = islandMode ? Visibility.Collapsed : Visibility.Visible;
         if (LeftEar != null) LeftEar.Visibility = earVisibility;
         if (RightEar != null) RightEar.Visibility = earVisibility;
@@ -1235,8 +1229,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             return;
         }
 
-        // If the volume indicator is merely showing (not being dragged), dismiss it
-        // and continue so the click still expands the notch.
         if (_isVolumeIndicatorActive)
         {
             DismissVolumeIndicatorImmediate();
@@ -1324,8 +1316,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                 return;
             }
 
-            // WPF IsMouseOver is unreliable with layered windows during animations/clicks.
-            // Verify with Win32 cursor position before starting collapse timer.
             if (IsCursorInsideWindow())
             {
                 RuntimeLog.Log("COLLAPSE-BLOCKED",

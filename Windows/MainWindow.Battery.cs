@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -94,8 +94,6 @@ public partial class MainWindow
         if (_isExpanded || _isAnimating || _isGreetingActive)
             return;
 
-        // Acquire the charging slot through the arbiter. This will preempt any
-        // lower-priority overlay (clipboard / volume / bluetooth) that is showing.
         if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Charging, out int token))
             return;
 
@@ -159,8 +157,6 @@ public partial class MainWindow
         MusicCompactContent.Opacity = 0;
         MusicCompactContent.Visibility = Visibility.Collapsed;
 
-        // (Volume / clipboard / bluetooth pre-emption is handled by the arbiter
-        //  in TryAcquireCompactSlot above — no need to repeat here.)
 
         // Show charging notification
         ChargingNotification.Visibility = Visibility.Visible;
@@ -239,10 +235,6 @@ public partial class MainWindow
         ChargingNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, slideDown);
     }
 
-    /// <summary>
-    /// Synchronous cancel used when a higher-priority overlay (e.g. greeting)
-    /// preempts the charging glance. Restores the pill instantly without animating.
-    /// </summary>
     private void CancelChargingGlanceImmediate()
     {
         if (!_isChargingNotificationVisible) return;
@@ -263,8 +255,6 @@ public partial class MainWindow
 
         const int fps = 144;
 
-        // Expand width slightly to accommodate the charging notification content.
-        // Reserve extra room when the watt readout is visible so the layout doesn't clip.
         double extra = ChargingWattText.Visibility == Visibility.Visible ? 56 : 28;
         double targetWidth = _collapsedWidth + extra;
         AnimateCompactWidth(targetWidth, TimeSpan.FromMilliseconds(500), _easeSoftSpring, _chargingGlanceToken);

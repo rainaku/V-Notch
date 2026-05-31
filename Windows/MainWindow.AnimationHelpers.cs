@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -411,12 +411,6 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// Build the notch corner-radius shape based on the active layout mode.
-    /// In default mode only the bottom corners are rounded (the notch hugs the
-    /// top of the screen). In Dynamic Island mode all four corners are rounded
-    /// because the notch floats free of the screen edge.
-    /// </summary>
     private CornerRadius MakeNotchCornerRadius(double radius)
     {
         return _settings.EnableDynamicIslandMode
@@ -456,9 +450,6 @@ public partial class MainWindow
 
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
     {
-        // Capture the current visual radius BEFORE cancelling the animation.
-        // BeginAnimation(null) reverts to the local value which may differ from the
-        // in-flight animated value, causing a visual jump.
         double startRadius = NotchBorder.CornerRadius.BottomLeft;
 
         // Cancel any in-progress corner radius animation

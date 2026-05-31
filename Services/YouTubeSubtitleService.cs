@@ -8,22 +8,13 @@ using YoutubeExplode.Videos.ClosedCaptions;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Fetches synced closed-caption (subtitle) tracks for YouTube videos using
-/// YoutubeExplode and converts them into the same <see cref="LyricLine"/> shape
-/// the Spotify lyrics pipeline consumes, so they can be displayed and synced
-/// with the exact same UI as synced lyrics.
-/// </summary>
+
 internal sealed class YouTubeSubtitleService : IDisposable
 {
-    // Preferred caption languages, in priority order. The first available track
-    // wins; otherwise we fall back to whatever the video offers.
-    private static readonly string[] PreferredLanguages = { "en", "en-US", "en-GB", "vi" };
 
-    // YouTube keywords that STRONGLY indicate a dedicated music video (not just
-    // a video that happens to have background music). We require exact keyword
-    // matches or very specific phrases to avoid false positives on vlogs,
-    // podcasts, and storytelling videos that tag "music" loosely.
+    private string[] _subtitlePriority = { "native", "english", "auto" };
+
+   
     private static readonly string[] StrongMusicKeywords =
     {
         "official music video", "official video", "official audio",
@@ -31,9 +22,7 @@ internal sealed class YouTubeSubtitleService : IDisposable
         "mv chính thức", "official mv"
     };
 
-    // Description patterns that YouTube/distributors inject into music content.
-    // These are highly reliable signals — YouTube's Content ID system and
-    // distributors (DistroKid, TuneCore, etc.) add these automatically.
+    
     private static readonly string[] MusicDescriptionPatterns =
     {
         "provided to youtube by",   // DistroKid, TuneCore, CD Baby, etc.
@@ -50,19 +39,25 @@ internal sealed class YouTubeSubtitleService : IDisposable
 
     private CancellationTokenSource? _cts;
     private string _lastFetchKey = "";
+    private int _fetchGeneration;
 
-    /// <summary>
-    /// Fetches the best available synced subtitle track for the given video.
-    /// For music videos (detected via YouTube keywords), auto-generated captions
-    /// are skipped — only manually-authored tracks are used.
-    /// Returns null when no suitable captions exist, the video id is invalid,
-    /// the request is cancelled, or the same video was already fetched.
-    /// </summary>
-    public async Task<List<LyricLine>?> FetchSubtitlesAsync(string videoId)
+    public void SetMode(string priorityString)
+    {
+        if (string.IsNullOrWhiteSpace(priorityString))
+        {
+            _subtitlePriority = new[] { "native", "english", "auto" };
+            return;
+        }
+        _subtitlePriority = priorityString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (_subtitlePriority.Length == 0)
+            _subtitlePriority = new[] { "native", "english", "auto" };
+    }
+
+    public async Task<List<LyricLine>?> FetchSubtitlesAsync(string videoId, bool force = false)
     {
         if (string.IsNullOrWhiteSpace(videoId)) return null;
 
-        if (videoId == _lastFetchKey) return null; // Already fetched for this video
+        if (!force && videoId == _lastFetchKey) return null; // Already fetched for this video
 
         // Cancel any in-flight request
         _cts?.Cancel();
@@ -70,17 +65,15 @@ internal sealed class YouTubeSubtitleService : IDisposable
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
 
-        // Only commit the fetch key AFTER we have a valid token — if we set it
-        // before and then get cancelled, the next call with the same videoId
-        // would short-circuit and never retry.
+        // Increment generation so cancelled fetches don't clear our key
+        int myGeneration = ++_fetchGeneration;
+
         _lastFetchKey = videoId;
 
         try
         {
             RuntimeLog.Log("YT-SUBS", $"Fetching captions for videoId={videoId}");
 
-            // Fetch video metadata and caption manifest in parallel — both are
-            // needed and neither depends on the other.
             var videoTask = _youtube.Videos.GetAsync(videoId, token);
             var manifestTask = _youtube.Videos.ClosedCaptions.GetManifestAsync(videoId, token);
 
@@ -134,33 +127,21 @@ internal sealed class YouTubeSubtitleService : IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Reset the key so the next call with the same videoId will retry
-            // instead of short-circuiting on the stale key.
-            if (_lastFetchKey == videoId)
+            // Only reset the key if no newer fetch has started
+            if (_fetchGeneration == myGeneration && _lastFetchKey == videoId)
                 _lastFetchKey = "";
             return null;
         }
         catch (Exception ex)
         {
             RuntimeLog.Log("YT-SUBS", $"Error fetching {videoId}: {ex.Message}");
-            // Also reset on error so a transient failure doesn't permanently
-            // block subtitles for this video.
-            if (_lastFetchKey == videoId)
+            // Only reset on error if no newer fetch has started
+            if (_fetchGeneration == myGeneration && _lastFetchKey == videoId)
                 _lastFetchKey = "";
             return null;
         }
     }
 
-    /// <summary>
-    /// Determines whether a video is dedicated music content (official MV, audio
-    /// upload, lyric video, etc.) using multiple signals:
-    /// 1. Description patterns injected by YouTube/distributors (strongest signal)
-    /// 2. Specific keywords that only appear on music uploads
-    /// 3. Duration heuristic (music videos are typically under 10 minutes)
-    ///
-    /// Videos that merely have background music (vlogs, podcasts, storytelling,
-    /// gaming) will NOT match because they lack these distributor-injected markers.
-    /// </summary>
     private static bool DetectMusicVideo(YoutubeExplode.Videos.Video video)
     {
         // Signal 1: Description patterns (highest confidence)
@@ -205,57 +186,92 @@ internal sealed class YouTubeSubtitleService : IDisposable
         return false;
     }
 
-    private static ClosedCaptionTrackInfo? SelectTrack(ClosedCaptionManifest manifest, bool isMusicVideo)
+    private ClosedCaptionTrackInfo? SelectTrack(ClosedCaptionManifest manifest, bool isMusicVideo)
     {
-        // For music videos: only consider manually-authored tracks.
-        // Auto-generated captions on music videos are speech-to-text transcriptions
-        // of the audio — they produce garbled lyric fragments, not real subtitles.
-        if (isMusicVideo)
+        var tracks = manifest.Tracks;
+
+        // Try each priority mode in order
+        foreach (var mode in _subtitlePriority)
         {
-            foreach (var lang in PreferredLanguages)
+            var result = mode switch
             {
-                var manual = manifest.Tracks.FirstOrDefault(
-                    t => !t.IsAutoGenerated && LanguageMatches(t, lang));
-                if (manual != null) return manual;
-            }
-            // No preferred-language manual track — accept any manual track.
-            return manifest.Tracks.FirstOrDefault(t => !t.IsAutoGenerated);
+                "native" => SelectNative(tracks, isMusicVideo),
+                "english" => SelectEnglish(tracks, isMusicVideo),
+                "auto" => SelectAuto(tracks, isMusicVideo),
+                _ => null
+            };
+            if (result != null) return result;
         }
 
-        // For non-music videos: prefer manual tracks in a preferred language,
-        // then any manual track, then auto-generated in a preferred language,
-        // then any auto-generated track (last resort).
-        foreach (var lang in PreferredLanguages)
-        {
-            var manual = manifest.Tracks.FirstOrDefault(
-                t => !t.IsAutoGenerated && LanguageMatches(t, lang));
-            if (manual != null) return manual;
-        }
-
-        var anyManual = manifest.Tracks.FirstOrDefault(t => !t.IsAutoGenerated);
-        if (anyManual != null) return anyManual;
-
-        foreach (var lang in PreferredLanguages)
-        {
-            var auto = manifest.Tracks.FirstOrDefault(t => LanguageMatches(t, lang));
-            if (auto != null) return auto;
-        }
-
-        // Last resort: any track at all (covers languages not in PreferredLanguages)
-        return manifest.Tracks.FirstOrDefault();
+        // Ultimate fallback
+        return tracks.FirstOrDefault();
     }
 
-    private static bool LanguageMatches(ClosedCaptionTrackInfo track, string lang)
+    private static ClosedCaptionTrackInfo? SelectNative(IReadOnlyList<ClosedCaptionTrackInfo> tracks, bool isMusicVideo)
     {
-        string code = track.Language.Code ?? "";
-        return code.Equals(lang, StringComparison.OrdinalIgnoreCase)
-            || code.StartsWith(lang + "-", StringComparison.OrdinalIgnoreCase)
-            || (lang.Contains('-') && lang.StartsWith(code + "-", StringComparison.OrdinalIgnoreCase));
+
+        // Step 1: Identify the native language from auto-generated track
+        var autoTrack = tracks.FirstOrDefault(t => t.IsAutoGenerated);
+        string? nativeLang = autoTrack?.Language.Code;
+
+        if (!string.IsNullOrEmpty(nativeLang))
+        {
+            // Step 2: Prefer manual track in the native language (higher quality)
+            var manualNative = tracks.FirstOrDefault(t =>
+                !t.IsAutoGenerated && LanguageCodeMatches(t.Language.Code, nativeLang!));
+            if (manualNative != null) return manualNative;
+
+            return autoTrack;
+        }
+
+        var nonEn = tracks.FirstOrDefault(t => !t.IsAutoGenerated && !LanguageMatchesEnglish(t));
+        if (nonEn != null) return nonEn;
+
+        return tracks.FirstOrDefault(t => !t.IsAutoGenerated);
+    }
+
+    private static bool LanguageCodeMatches(string code1, string code2)
+    {
+        if (string.Equals(code1, code2, StringComparison.OrdinalIgnoreCase)) return true;
+        // "vi" matches "vi-VN", "en" matches "en-US"
+        string base1 = code1.Contains('-') ? code1.Split('-')[0] : code1;
+        string base2 = code2.Contains('-') ? code2.Split('-')[0] : code2;
+        return string.Equals(base1, base2, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ClosedCaptionTrackInfo? SelectEnglish(IReadOnlyList<ClosedCaptionTrackInfo> tracks, bool isMusicVideo)
+    {
+        // Manual English first (best quality)
+        var manual = tracks.FirstOrDefault(t => !t.IsAutoGenerated && LanguageMatchesEnglish(t));
+        if (manual != null) return manual;
+
+        // Auto-generated English (fallback, even for music videos)
+        var autoEn = tracks.FirstOrDefault(t => t.IsAutoGenerated && LanguageMatchesEnglish(t));
+        if (autoEn != null) return autoEn;
+
+        return null;
+    }
+
+    private static ClosedCaptionTrackInfo? SelectAuto(IReadOnlyList<ClosedCaptionTrackInfo> tracks, bool isMusicVideo)
+    {
+        // Any manual track first
+        var manual = tracks.FirstOrDefault(t => !t.IsAutoGenerated);
+        if (manual != null) return manual;
+
+        // Any auto-generated track (even for music videos — better than nothing)
+        return tracks.FirstOrDefault();
+    }
+
+    private static bool LanguageMatchesEnglish(ClosedCaptionTrackInfo track)
+    {
+        var code = track.Language.Code;
+        return code == "en" || code.StartsWith("en-", StringComparison.OrdinalIgnoreCase);
     }
 
     public void Reset()
     {
         _lastFetchKey = "";
+        _fetchGeneration++;
         _cts?.Cancel();
     }
 

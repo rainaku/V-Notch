@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -139,11 +139,6 @@ internal static class DynamicIslandColorExtractor
         return 0.90 - t * 0.15;
     }
 
-    /// <summary>
-    /// Analyzes a thumbnail's overall brightness and returns an overlay opacity
-    /// to dim overly bright backgrounds. Returns 0 for normal thumbnails,
-    /// up to ~0.55 for extremely bright ones.
-    /// </summary>
     public static double GetBrightnessDimOverlay(BitmapSource bitmap)
     {
         if (bitmap == null) return 0;
@@ -181,8 +176,6 @@ internal static class DynamicIslandColorExtractor
             double avgLuminance = totalLuminance / pixelCount;
             double brightRatio = (double)brightPixelCount / pixelCount;
 
-            // Determine overlay intensity based on average brightness and bright pixel ratio
-            // Threshold: avg luminance > 0.55 or bright pixel ratio > 0.40
             double overlayOpacity = 0;
 
             if (avgLuminance > 0.55)

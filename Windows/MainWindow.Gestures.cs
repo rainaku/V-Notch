@@ -38,10 +38,6 @@ public partial class MainWindow
         NotchBorder_GestureMouseUp(sender, e);
     }
 
-    /// <summary>
-    /// Called from NotchBorder_MouseLeftButtonDown when gestures are enabled.
-    /// Returns true if the gesture system is handling this input.
-    /// </summary>
     private bool TryBeginGesture(MouseButtonEventArgs e)
     {
         if (!_settings.EnableGestureControls)
@@ -71,8 +67,6 @@ public partial class MainWindow
         _gestureController.BeginTracking(pos);
         _isGestureActive = true;
 
-        // Capture mouse on NotchWrapper (where move/up handlers are bound)
-        // so we get events even if cursor leaves the notch area
         NotchWrapper.CaptureMouse();
 
         return true;
@@ -238,10 +232,6 @@ public partial class MainWindow
 
     // ─── Visual Feedback Animations ───
 
-    /// <summary>
-    /// Applies a subtle horizontal translation to the notch content while dragging,
-    /// giving the user a sense of "pulling" the media.
-    /// </summary>
     private void ApplyGestureDragFeedback(double deltaX)
     {
         // Dampen the movement (rubber-band feel)
@@ -261,9 +251,6 @@ public partial class MainWindow
         _gestureTranslate.X = clamped;
     }
 
-    /// <summary>
-    /// Snaps the notch back to center with a spring animation.
-    /// </summary>
     private void AnimateGestureSnapBack()
     {
         if (_gestureTranslate == null) return;
@@ -282,9 +269,6 @@ public partial class MainWindow
         _gestureTranslate.BeginAnimation(TranslateTransform.XProperty, snapBack);
     }
 
-    /// <summary>
-    /// Plays a quick horizontal "flick" animation in the swipe direction.
-    /// </summary>
     private void PlayGestureSwipeFeedback(bool isLeft)
     {
         if (_gestureTranslate == null)
@@ -332,9 +316,6 @@ public partial class MainWindow
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
     }
 
-    /// <summary>
-    /// Plays a downward "pull" animation for swipe-down gesture.
-    /// </summary>
     private void PlayGestureSwipeDownFeedback()
     {
         var pullDown = new DoubleAnimationUsingKeyFrames();
@@ -350,9 +331,6 @@ public partial class MainWindow
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, pullDown);
     }
 
-    /// <summary>
-    /// Plays a quick "bounce" for double-tap play/pause.
-    /// </summary>
     private void PlayGestureDoubleTapFeedback()
     {
         var bounce = new DoubleAnimationUsingKeyFrames();

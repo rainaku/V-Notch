@@ -150,9 +150,6 @@ public class ElasticSlider : Slider
 
     #region Tick Marks & Indicator
 
-    /// <summary>
-    /// Get the right reserve space based on value text width.
-    /// </summary>
     private double GetRightReserve()
     {
         if (_valueText == null) return 62;
@@ -161,12 +158,6 @@ public class ElasticSlider : Slider
         return Math.Max(50, _valueText.DesiredSize.Width + 22);
     }
 
-    /// <summary>
-    /// Draw tick marks with major/minor pattern.
-    /// Every 5th tick is a "major" tick (taller, brighter).
-    /// Others are "minor" ticks (shorter, dimmer).
-    /// Ticks are not drawn in the right area reserved for value text.
-    /// </summary>
     private void DrawTicks()
     {
         if (_tickCanvas == null || _rootBorder == null) return;
@@ -471,9 +462,6 @@ public class ElasticSlider : Slider
     private void AnimateScaleImmediate(double scaleX, double scaleY, bool stretchFromLeft)
     {
         if (_rootScale == null || _rootBorder == null) return;
-        // Set origin so stretch extends from one side only
-        // stretchFromLeft = true → origin at left (0, 0.5), stretches rightward
-        // stretchFromLeft = false → origin at right (1, 0.5), stretches leftward
         _rootBorder.RenderTransformOrigin = stretchFromLeft
             ? new Point(0, 0.5)
             : new Point(1, 0.5);

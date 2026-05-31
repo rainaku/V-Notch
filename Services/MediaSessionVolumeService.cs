@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -64,8 +64,6 @@ public sealed class MediaSessionVolumeService
         // ─── Slow path: resolve session and cache it ───
         return TryWithAudioSession(sourceAppId, session =>
         {
-            // Cache the SimpleAudioVolume for fast subsequent calls
-            // Dispose old cached volume if different session
             if (_cachedSimpleVolume != null)
             {
                 try { _cachedSimpleVolume.Dispose(); } catch { }
@@ -83,7 +81,6 @@ public sealed class MediaSessionVolumeService
         }, skipSimpleVolumeDispose: true);
     }
 
-    /// <summary>Invalidates the cached volume session so the next call does a full resolve.</summary>
     public void InvalidateVolumeSessionCache()
     {
         if (_cachedSimpleVolume != null)

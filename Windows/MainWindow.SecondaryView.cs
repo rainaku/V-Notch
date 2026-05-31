@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -16,11 +16,6 @@ public partial class MainWindow
         {
             if (_settings.EnableHoverExpand) return;
 
-            // While a gesture/click-to-expand is being tracked (mouse held down on
-            // the notch with media playing), the expand is deferred to mouse-up.
-            // Swallow scroll-inertia wheel events during this window so they can't
-            // re-show the volume bar that the click just dismissed (causes flicker
-            // right before the notch expands).
             if (_isGestureActive)
             {
                 e.Handled = true;
@@ -37,10 +32,6 @@ public partial class MainWindow
 
         e.Handled = true;
 
-        // ─── Smooth-scroll guard ───
-        // After a view switch, lock out further switches until the scroll session
-        // ends (no wheel event for 400ms). This prevents smooth-scroll utilities
-        // from firing multiple view switches per single scroll gesture.
         ResetScrollSessionTimer();
         if (_isScrollSessionLocked) return;
 
@@ -66,8 +57,6 @@ public partial class MainWindow
             }
             else if (_isSecondaryView)
             {
-                // If camera is active, stop it first and wait for section to collapse
-                // before switching views so the user sees the camera fold animation.
                 if (_isCameraActive)
                 {
                     StopCameraPreview();
@@ -92,10 +81,6 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// Resets (or starts) the scroll session timer. Each wheel event restarts the timer.
-    /// When no wheel event arrives for 400ms, the session lock is released.
-    /// </summary>
     private void ResetScrollSessionTimer()
     {
         if (_scrollSessionResetTimer == null)
@@ -247,8 +232,6 @@ public partial class MainWindow
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             SecondaryContent.RenderTransform = null;
 
-            // Play queued thumbnail flip animation (track changed mid-transition)
-            // force:true is required so the morph isn't suppressed by early-exit guards.
             if (_pendingFlipThumbnail != null)
             {
                 var thumb = _pendingFlipThumbnail;
@@ -363,8 +346,6 @@ public partial class MainWindow
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.RenderTransform = null;
 
-            // Play queued thumbnail flip animation (track changed mid-transition)
-            // force:true is required so the morph isn't suppressed by early-exit guards.
             if (_pendingFlipThumbnail != null)
             {
                 var thumb = _pendingFlipThumbnail;

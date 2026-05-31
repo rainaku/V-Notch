@@ -3,11 +3,6 @@ using VNotch.Controllers;
 
 namespace VNotch.Controllers;
 
-/// <summary>
-/// Manages drag-and-drop orchestration logic: deciding when to auto-expand,
-/// navigate to secondary view, and auto-collapse after drag leave.
-/// UI actions are delegated back via events.
-/// </summary>
 public sealed class DragDropController
 {
     private readonly FileShelfController _fileShelf;
@@ -19,25 +14,18 @@ public sealed class DragDropController
 
     // ─── Events (MainWindow subscribes to drive UI) ───
 
-    /// <summary>Request to expand the notch.</summary>
     public event Action? ExpandRequested;
 
-    /// <summary>Request to switch to secondary (file shelf) view.</summary>
     public event Action? SwitchToSecondaryRequested;
 
-    /// <summary>Request to switch back to primary view.</summary>
     public event Action? SwitchToPrimaryRequested;
 
-    /// <summary>Request to collapse the notch.</summary>
     public event Action? CollapseRequested;
 
-    /// <summary>Fired when files should be enqueued to the shelf.</summary>
     public event Action<string[]>? FilesAccepted;
 
-    /// <summary>Fired when unlock prompt should be shown. Args: files, count.</summary>
     public event Action<string[], int>? UnlockPromptRequested;
 
-    /// <summary>Fired when a drop rejection visual should be shown. Args: message.</summary>
     public event Action<string>? DropRejected;
 
     // ─── Constructor ───
@@ -49,9 +37,6 @@ public sealed class DragDropController
 
     // ─── Drag Enter Logic ───
 
-    /// <summary>
-    /// Handles drag enter. Returns true if the drag contains files.
-    /// </summary>
     public bool HandleDragEnter(bool hasFiles, bool isExpanded, bool isAnimating, bool isSecondaryView)
     {
         if (!hasFiles) return false;
@@ -78,10 +63,6 @@ public sealed class DragDropController
         return true;
     }
 
-    /// <summary>
-    /// Called when the notch finishes expanding/animating during a drag operation.
-    /// Decides whether to switch to secondary view.
-    /// </summary>
     public void OnAnimationCompleted(bool isExpanded, bool isSecondaryView)
     {
         if (_dragAutoExpanded && isExpanded && !isSecondaryView)
@@ -92,17 +73,11 @@ public sealed class DragDropController
 
     // ─── Drag Leave Logic ───
 
-    /// <summary>
-    /// Handles drag leave. Returns true if auto-collapse should be scheduled.
-    /// </summary>
     public bool HandleDragLeave()
     {
         return _dragAutoExpanded;
     }
 
-    /// <summary>
-    /// Executes the auto-collapse sequence after drag leave timeout.
-    /// </summary>
     public void AutoCollapseAfterDrag(bool isExpanded, bool isSecondaryView, bool isAnimating)
     {
         _dragAutoExpanded = false;
@@ -120,9 +95,6 @@ public sealed class DragDropController
         }
     }
 
-    /// <summary>
-    /// Called after switching back to primary view completes during auto-collapse.
-    /// </summary>
     public void CollapseAfterViewSwitch(bool isSecondaryView, bool isAnimating)
     {
         if (!isSecondaryView && !isAnimating)
@@ -133,9 +105,6 @@ public sealed class DragDropController
 
     // ─── Drop Logic ───
 
-    /// <summary>
-    /// Validates and processes a file drop.
-    /// </summary>
     public void HandleDrop(string[]? files)
     {
         _dragAutoExpanded = false;
@@ -159,9 +128,6 @@ public sealed class DragDropController
         }
     }
 
-    /// <summary>
-    /// Resets drag state (e.g., on actual drop or forced cancel).
-    /// </summary>
     public void Reset()
     {
         _dragAutoExpanded = false;

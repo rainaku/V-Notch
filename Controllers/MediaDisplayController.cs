@@ -4,11 +4,6 @@ using VNotch.Models;
 
 namespace VNotch.Controllers;
 
-/// <summary>
-/// Manages media display state: track identity, source stabilization,
-/// thumbnail decision logic, and display text resolution.
-/// No WPF/UI references — pure business logic.
-/// </summary>
 public sealed class MediaDisplayController
 {
     private static readonly string[] GenericTitles =
@@ -38,29 +33,18 @@ public sealed class MediaDisplayController
 
     // ─── Events ───
 
-    // NOTE: These events are available for future use when MainWindow is further
-    // decoupled and can subscribe to controller events instead of reading results.
-    // Suppressing warnings as they are part of the public API contract.
 #pragma warning disable CS0067
-    /// <summary>Fired when a new track is detected (title/artist changed).</summary>
     public event Action<TrackChangeInfo>? NewTrackDetected;
 
-    /// <summary>Fired when the same track gets a thumbnail update (async fetch completed).</summary>
     public event Action<ThumbnailUpdateInfo>? ThumbnailUpdateDetected;
 
-    /// <summary>Fired when media stops entirely (no track playing).</summary>
     public event Action? MediaCleared;
 
-    /// <summary>Fired when the color track signature changes (new artwork for background).</summary>
     public event Action<MediaInfo>? BackgroundUpdateNeeded;
 #pragma warning restore CS0067
 
     // ─── Core Logic ───
 
-    /// <summary>
-    /// Processes an incoming MediaInfo update and determines what UI actions are needed.
-    /// Returns a <see cref="MediaDisplayResult"/> describing the decisions made.
-    /// </summary>
     public MediaDisplayResult ProcessMediaUpdate(MediaInfo info, bool isExpanded, bool isMusicExpanded, bool isMusicCompactMode, bool isAnimating)
     {
         var result = new MediaDisplayResult();
@@ -163,9 +147,6 @@ public sealed class MediaDisplayController
         return result;
     }
 
-    /// <summary>
-    /// Determines whether a compact mode thumbnail switch animation should run.
-    /// </summary>
     public bool ShouldAnimateCompactThumbnail(MediaInfo info)
     {
         if (info?.Thumbnail == null) return false;
@@ -179,9 +160,6 @@ public sealed class MediaDisplayController
         return false;
     }
 
-    /// <summary>
-    /// Determines whether compact mode should be active.
-    /// </summary>
     public bool ShouldBeCompactMode(MediaInfo? info)
     {
         if (info == null) return false;
@@ -190,31 +168,18 @@ public sealed class MediaDisplayController
         return true;
     }
 
-    /// <summary>
-    /// Increments and returns the new thumbnail switch generation token.
-    /// Used to invalidate in-flight animation Completed handlers.
-    /// </summary>
     public int IncrementGeneration() => ++_thumbnailSwitchGeneration;
 
-    /// <summary>
-    /// Marks that the thumbnail has been shown for the current track.
-    /// </summary>
     public void MarkThumbnailShown()
     {
         _thumbnailShownForCurrentTrack = true;
     }
 
-    /// <summary>
-    /// Updates the last animated thumbnail reference (after animation completes).
-    /// </summary>
     public void SetLastAnimatedThumbnail(ImageSource? thumb)
     {
         _lastAnimatedThumbnail = thumb;
     }
 
-    /// <summary>
-    /// Resets all state (e.g., when media is cleared).
-    /// </summary>
     public void Reset()
     {
         _lastAnimatedTrackSignature = "";
@@ -237,8 +202,6 @@ public sealed class MediaDisplayController
             _lastRenderedMediaSource != "Browser" &&
             (incomingSource == "" || incomingSource == "Browser"))
         {
-            // Keep the previously-rendered specific source instead of flipping
-            // back to the generic Browser icon on the same track.
             renderedSource = _lastRenderedMediaSource;
         }
 
@@ -284,8 +247,6 @@ public sealed class MediaDisplayController
         if (ReferenceEquals(info.Thumbnail, _lastAnimatedThumbnail))
             return ThumbnailAction.None;
 
-        // If thumbnail was already shown and this is NOT a genuine thumbnail-only update,
-        // skip animation (prevents spurious crossfade on pause→play).
         if (_thumbnailShownForCurrentTrack && !info.IsThumbnailOnlyUpdate)
             return ThumbnailAction.None;
 
@@ -293,8 +254,6 @@ public sealed class MediaDisplayController
         _lastAnimatedThumbnail = info.Thumbnail;
         _thumbnailShownForCurrentTrack = true;
 
-        // If the track change bounce was deferred (track arrived before thumbnail),
-        // promote this to AnimateSwitch so the bounce plays now.
         if (_trackChangeBounceNeeded)
         {
             _trackChangeBounceNeeded = false;

@@ -6,12 +6,6 @@ using System.Windows.Media.Imaging;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Produces an Apple-Music-style background where the album artwork is heavily blurred
-/// and darkened overall, with a softer "spotlight" centered on the dominant subject
-/// (face / person / product / animal) detected by the ONNX model. Falls back to a
-/// uniform <see cref="FastBlurService"/> output when no subject is provided.
-/// </summary>
 public static class SubjectAwareBlurService
 {
     public static async Task<BitmapSource?> GetSubjectBlurredAsync(
@@ -69,9 +63,6 @@ public static class SubjectAwareBlurService
                 }
                 Brighten(subjectLayer, 1.04f); // gentle lift so subject "glows"
 
-                // ─── Composite via radial mask centered on subject ───
-                // Mask: 1.0 inside the subject ellipse, falling to 0.0 over a feather band.
-                // Ellipse axes derive from subject extent; feather is ~40% of axis length.
                 float cx = Math.Clamp(s.CenterX, 0f, 1f) * width;
                 float cy = Math.Clamp(s.CenterY, 0f, 1f) * height;
                 float rx = MathF.Max(width * 0.18f, s.Width * width * 0.55f);

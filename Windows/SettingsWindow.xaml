@@ -1289,6 +1289,45 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- Subtitle Language Priority -->
+                            <Border Style="{StaticResource SettingRowBorder}">
+                                <StackPanel>
+                                    <TextBlock x:Name="SubtitlePriorityLabel" Text="Subtitle Language" Style="{StaticResource SettingTitleText}"/>
+                                    <TextBlock x:Name="SubtitlePriorityHint"
+                                               Text="Drag to reorder priority. Subtitles are selected using the first available match."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,6,0,8"/>
+                                    <ItemsControl x:Name="SubtitlePriorityItems"
+                                                  Background="Transparent"
+                                                  AllowDrop="True"
+                                                  Drop="SubtitlePriority_Drop"
+                                                  DragOver="SubtitlePriority_DragOver">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#1A1A1A" CornerRadius="8" Padding="12,10" Margin="0,2"
+                                                        Cursor="Hand"
+                                                        MouseMove="SubtitlePriorityItem_MouseMove"
+                                                        MouseLeftButtonDown="SubtitlePriorityItem_MouseLeftButtonDown"
+                                                        GiveFeedback="SubtitlePriorityItem_GiveFeedback">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="20"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="≡" FontSize="14" Foreground="#555"
+                                                                   VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
+                                                                   FontSize="13" Foreground="#E0E0E0"
+                                                                   FontFamily="{StaticResource SettingsFont}"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
                             <Border Style="{StaticResource SettingRowBorder}">
                                 <StackPanel>
                                     <CheckBox x:Name="YouTubeApiCheck" x:Uid="youtubeApi" Content="Use YouTube Data API"

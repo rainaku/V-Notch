@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Windows;
@@ -90,12 +90,8 @@ namespace VNotch.Controls
         private const double RightBiasDeadzone = 0.05;
         // Filter sub-pixel jitter: changes smaller than this are ignored.
         private const double MinHeightChangeThreshold = 0.006;
-        // Extra smoothing for short bars to make small movements slower & smoother.
-        // Bars below SmallBarHeightThreshold get up to SmallBarAlphaBoost added to their smoothing alpha.
         private const double SmallBarHeightThreshold = 0.30;
         private const double SmallBarAlphaBoost = 0.04;
-        // Minimum target delta required to actually move a short bar (per-frame, in height ratio).
-        // Suppresses tiny audio-driven wobble when the band level barely changes.
         private const double SmallBarTargetDeadzone = 0.008;
 
         // Reference frame interval the alpha constants were tuned for (old DispatcherTimer effective rate)
@@ -305,16 +301,12 @@ namespace VNotch.Controls
                     }
                 }
 
-                // Slow down small bars: when both current and target sit in the lower band,
-                // boost the smoothing alpha so movement is gentler and less jittery.
                 double smallBarRef = Math.Max(_currentHeights[i], targetH);
                 if (smallBarRef < SmallBarHeightThreshold && _state != VisualizerState.Paused)
                 {
                     double smallness = 1.0 - (smallBarRef / SmallBarHeightThreshold);
                     baseAlpha = Math.Min(0.985, baseAlpha + (smallness * SmallBarAlphaBoost));
 
-                    // Deadzone: ignore micro target wobble for short bars so they don't
-                    // continuously twitch. Snap target to current when delta is tiny.
                     if (Math.Abs(targetH - _currentHeights[i]) < SmallBarTargetDeadzone * (1.0 + smallness))
                     {
                         targetH = _currentHeights[i];
@@ -356,8 +348,6 @@ namespace VNotch.Controls
 
         private static double ApplyMiniBarSensitivity(int barIndex, double normalized)
         {
-            // With the improved AGC, bass bars no longer need artificial sensitivity reduction.
-            // All bars respond equally to normalized audio levels.
             return Math.Clamp(normalized, 0.0, 1.0);
         }
 
@@ -429,8 +419,6 @@ namespace VNotch.Controls
             double smoothingFactor = Math.Pow(0.70, _lastDtMs / ReferenceFrameMs);
             for (int i = 0; i < BarCount; i++)
             {
-                // Short bars get a heavier smoothing factor so tiny movements are slower
-                // and any residual jitter is visually flattened.
                 double targetSmoothing = smoothingFactor;
                 double refHeight = Math.Max(_smoothedHeights[i], _currentHeights[i]);
                 if (refHeight < SmallBarHeightThreshold)
@@ -790,8 +778,6 @@ namespace VNotch.Controls
             _agcPeak = Math.Max(peak, _agcPeak * AgcRelease);
             double agcScale = 1.0 / Math.Max(AgcFloor, _agcPeak);
 
-            // Extra boost for very quiet signals: when AGC peak is low, apply additional
-            // gain so the visualizer responds equally regardless of system volume.
             double quietBoost = 1.0;
             if (_agcPeak < 0.05)
             {
@@ -810,11 +796,6 @@ namespace VNotch.Controls
             snare = Math.Clamp(snare * agcScale, 0.0, 1.0);
             rms = Math.Clamp(rms * agcScale, 0.0, 1.0);
 
-            // ─── Loud-signal spread enhancement ───
-            // When all bands are saturated near 1.0 (common in rock/metal), AGC
-            // normalizes everything to a flat line → no bar movement. Counter this
-            // by measuring how "flat" the spectrum is and artificially spreading
-            // the values apart from their mean.
             double postAgcMax = Math.Max(Math.Max(Math.Max(subBass, bass), Math.Max(lowMid, mid)), Math.Max(highMid, high));
             double postAgcMin = Math.Min(Math.Min(Math.Min(subBass, bass), Math.Min(lowMid, mid)), Math.Min(highMid, high));
             double postAgcSpread = postAgcMax - postAgcMin;

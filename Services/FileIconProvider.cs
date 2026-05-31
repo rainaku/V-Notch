@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -12,15 +12,11 @@ using Windows.Storage.FileProperties;
 namespace VNotch.Services;
 internal static class FileIconProvider
 {
-    // ─── Icon Cache ───
-    // Key: full file path (case-insensitive). Frozen ImageSource values are thread-safe.
     private static readonly ConcurrentDictionary<string, ImageSource?> _iconCache = new(StringComparer.OrdinalIgnoreCase);
     private const int MaxCacheSize = 200;
 
-    /// <summary>Evicts a single path from the cache (e.g. after rename/delete).</summary>
     public static void Invalidate(string filePath) => _iconCache.TryRemove(filePath, out _);
 
-    /// <summary>Clears the entire icon cache.</summary>
     public static void ClearCache() => _iconCache.Clear();
 
     #region Native interop

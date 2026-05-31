@@ -18,11 +18,8 @@ public partial class MainWindow
     private int _currentLyricIndex = -1;
     private string _lyricsTrackKey = "";
     private bool _isLyricsActive = false;
+    private string _lastKnownYouTubeVideoId = "";
 
-    /// <summary>
-    /// Identifies what kind of synced text is currently driving the lyrics widget,
-    /// so the right user setting gates show/hide behavior and re-fetches.
-    /// </summary>
     private enum SyncedTextSource { None, SpotifyLyrics, YouTubeSubtitles }
     private SyncedTextSource _syncedTextSource = SyncedTextSource.None;
 
@@ -53,8 +50,6 @@ public partial class MainWindow
         _currentLyrics = null;
         _currentLyricIndex = -1;
 
-        // If lyrics widget is active, keep it visible but show new track placeholder
-        // Don't hide to calendar yet — wait for fetch result
         if (_isLyricsActive)
         {
             Dispatcher.Invoke(() =>
@@ -82,12 +77,7 @@ public partial class MainWindow
         ApplySyncedLines(lyrics, info);
     }
 
-    /// <summary>
-    /// Fetches YouTube closed captions for the current video and displays them in
-    /// the same synced-lyrics widget used for Spotify. Captions already carry
-    /// per-line timestamps, so they sync to playback position exactly like lyrics.
-    /// </summary>
-    private async void FetchSubtitlesForTrack(MediaInfo info)
+    private async void FetchSubtitlesForTrack(MediaInfo info, bool force = false)
     {
         // Honor user setting — YouTube subtitles can be disabled
         if (!_settings.EnableYouTubeSubtitles)
@@ -96,16 +86,14 @@ public partial class MainWindow
             return;
         }
 
-        // Need a resolved video id to fetch captions. The id is filled in by
-        // MediaDetectionService asynchronously, so this method may be called
-        // again (with the same track) once the id becomes available.
         if (string.IsNullOrEmpty(info.YouTubeVideoId))
             return;
 
-        // Key on the video id so we don't refetch while it stays the same,
-        // but still react when the underlying video changes.
+        // Persist the video ID so we can re-fetch when subtitle priority changes
+        _lastKnownYouTubeVideoId = info.YouTubeVideoId;
+
         string trackKey = $"yt:{info.YouTubeVideoId}";
-        if (trackKey == _lyricsTrackKey) return;
+        if (!force && trackKey == _lyricsTrackKey) return;
         _lyricsTrackKey = trackKey;
         _syncedTextSource = SyncedTextSource.YouTubeSubtitles;
 
@@ -123,14 +111,11 @@ public partial class MainWindow
                 LyricTextB.Opacity = 0;
                 LyricTextA.Text = "";
                 LyricTextB.Text = "";
-                // For YouTube, CurrentTrack is the full video title — too long and
-                // not meaningful as a "song name" placeholder. Show the channel name
-                // (artist) instead, which is short and identifies the source.
                 ShowLyricsPlaceholder(info.CurrentArtist, "");
             });
         }
 
-        var subtitles = await _youtubeSubtitleService.FetchSubtitlesAsync(info.YouTubeVideoId);
+        var subtitles = await _youtubeSubtitleService.FetchSubtitlesAsync(info.YouTubeVideoId, force: force);
 
         // Verify we're still on the same video after async
         if (trackKey != _lyricsTrackKey) return;
@@ -138,17 +123,10 @@ public partial class MainWindow
         ApplySyncedLines(subtitles, info, isYouTube: true);
     }
 
-    /// <summary>
-    /// Shared post-fetch handling for both Spotify lyrics and YouTube subtitles:
-    /// shows the widget, seeds the current line, or hides if nothing was found.
-    /// </summary>
     private void ApplySyncedLines(List<LyricLine>? lines, MediaInfo info, bool isYouTube = false)
     {
         if (lines == null || lines.Count == 0)
         {
-            // No synced text — hide the widget and restore calendar.
-            // Also clear the track key so a subsequent MediaChanged event
-            // (e.g. when the video id resolves later) can trigger a retry.
             _lyricsTrackKey = "";
             if (_isLyricsActive)
                 HideLyricsWidget();
@@ -176,8 +154,6 @@ public partial class MainWindow
             }
             else if (LyricsPlaceholderPanel.Visibility != Visibility.Visible || LyricsPlaceholderPanel.Opacity < 0.01)
             {
-                // For YouTube, show the channel name as the placeholder title —
-                // the video title is too long and not a meaningful "song name".
                 string placeholderTitle = isYouTube ? info.CurrentArtist : info.CurrentTrack;
                 string placeholderArtist = isYouTube ? "" : info.CurrentArtist;
                 ShowLyricsPlaceholder(placeholderTitle, placeholderArtist);
@@ -269,9 +245,6 @@ public partial class MainWindow
         if (!_isLyricsActive || _currentLyrics == null || _currentLyrics.Count == 0)
             return;
 
-        // Use ProgressEngine for lyrics sync when playing — it correctly predicts position
-        // without a hard elapsed-time cap, preventing lyrics from freezing mid-song when
-        // SMTC doesn't push timeline updates for extended periods (common with Spotify).
         TimeSpan position;
         if (_currentMediaInfo != null && _currentMediaInfo.IsPlaying && _currentMediaInfo.Duration.TotalSeconds > 0)
         {

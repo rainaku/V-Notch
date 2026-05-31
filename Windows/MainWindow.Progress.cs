@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -135,8 +135,6 @@ public partial class MainWindow
 
                 if (hWndAtPoint != _hwnd && !IsChildWindow(_hwnd, hWndAtPoint))
                 {
-                    // Double-check: if the click point is inside our window rect, don't collapse.
-                    // WindowFromPoint can miss layered/transparent windows on first render.
                     if (_hwnd != IntPtr.Zero &&
                         GetWindowRect(_hwnd, out var rc) &&
                         pt.x >= rc.Left && pt.x <= rc.Right &&
@@ -148,9 +146,6 @@ public partial class MainWindow
                         return;
                     }
 
-                    // Grace period: suppress outside-click collapse briefly after thumbnail
-                    // animation starts. During blur-morph transitions, WindowFromPoint can
-                    // return stale/wrong handles due to WPF visual tree changes.
                     if (DateTime.UtcNow < _suppressOutsideClickUntilUtc)
                     {
                         RuntimeLog.Log("COLLAPSE-BLOCKED",
@@ -201,10 +196,6 @@ public partial class MainWindow
         return false;
     }
 
-    /// <summary>
-    /// Checks if the actual cursor position (via Win32) is inside the notch window rect.
-    /// More reliable than WPF IsMouseOver for layered/non-activatable windows.
-    /// </summary>
     private bool IsCursorInsideWindow()
     {
         if (_hwnd == IntPtr.Zero) return false;
@@ -251,19 +242,12 @@ public partial class MainWindow
             bool isSessionSwitch = !string.IsNullOrEmpty(info.SourceAppId) && info.SourceAppId != _lastSessionId;
             bool isFirstEverTrack = string.IsNullOrEmpty(_lastProgressSignature);
 
-            // Detect "artist-only" metadata stabilization: same app + same track title,
-            // only the artist field changed (e.g., "YouTube" → real artist from oEmbed).
-            // In this case, do NOT reset progress — just update the signature silently.
             if (isTrackChanged && !isFirstEverTrack && !isSessionSwitch && info.IsPlaying && info.Position > TimeSpan.Zero)
             {
-                // Extract the track prefix (SourceAppId|Track|) from both old and new signatures.
-                // If only the artist portion differs, it's metadata stabilization.
                 string trackPrefix = $"{info.SourceAppId}|{info.CurrentTrack}|";
                 if (_lastProgressSignature.StartsWith(trackPrefix, StringComparison.Ordinal))
                 {
                     string oldArtist = _lastProgressSignature.Substring(trackPrefix.Length);
-                    // Artist-only change while playing — metadata stabilization, not a real track change.
-                    // Update signature without resetting progress.
                     _lastProgressSignature = newSignature;
                     isTrackChanged = false;
                     RuntimeLog.Log("PROGRESS-TRACK", 
@@ -288,10 +272,6 @@ public partial class MainWindow
                 StopCatchUpAnimation();
                 StopRewindTextAnimation();
 
-                // If a rewind animation is already running toward 0 (e.g., external seek detection
-                // fired when position jumped to 0 before track metadata changed, or
-                // OptimisticPrepareForPreviousTrack already started a rewind), let it finish
-                // instead of starting a duplicate rewind.
                 bool alreadyRewindingToZero = _isRewindAnimating && _progressTargetRatio <= 0.01;
 
                 _isRewindAnimating = false;
@@ -306,10 +286,6 @@ public partial class MainWindow
                 _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
                 StopSpringRenderLoop();
 
-                // Use the visual ScaleX value (after cancelling animations) as the rewind start point.
-                // _progressDisplayRatio may already be 0 from a previous rewind's early assignment,
-                // but the visual bar could still be at the old position due to FillBehavior.Stop reverting
-                // to the local value set before the animation started.
                 double fromRatio = Math.Clamp(ProgressBarScale.ScaleX, 0, 1);
                 _progressDisplayRatio = fromRatio;
                 _progressTargetRatio = 0;
@@ -320,17 +296,11 @@ public partial class MainWindow
 
                 if (alreadyRewindingToZero)
                 {
-                    // A rewind-to-zero animation was already in progress (triggered by external
-                    // seek detection when position jumped to 0 before metadata changed).
-                    // Just commit to 0 — no need for a second visual rewind.
                     _progressDisplayRatio = 0;
                     ProgressBarScale.ScaleX = 0;
                 }
                 else if (isFirstEverTrack)
                 {
-                    // First track after app launch — if media is already playing at a non-zero
-                    // position, initialize directly to that position instead of snapping to 0.
-                    // This prevents the "jump to 0:00" bug on first boot when media is mid-playback.
                     if (info.IsPlaying && info.Position > TimeSpan.Zero && info.Duration.TotalSeconds > 0)
                     {
                         double initialRatio = Math.Clamp(info.Position.TotalSeconds / info.Duration.TotalSeconds, 0, 1);
@@ -353,18 +323,11 @@ public partial class MainWindow
                 }
                 else if (fromRatio > 0.97)
                 {
-                    // Track ended naturally (progress was near 100%) — snap to 0 immediately.
-                    // A rewind animation from the very end looks unnatural since the user
-                    // expects the bar to simply reset when a song finishes.
                     _progressDisplayRatio = 0;
                     ProgressBarScale.ScaleX = 0;
                 }
                 else if (fromRatio > 0.01 && (_isExpanded || _isMusicExpanded))
                 {
-                    // Animate rewind from current position to 0 — only when expanded
-                    // (progress bar is visible). When in compact pill state the bar is
-                    // hidden, so running the animation is pointless and would be seen
-                    // as a "reverse" glitch if the user expands mid-rewind.
                     AnimateTrackChangeRewindToZero(fromRatio, info.Duration);
                 }
                 else
@@ -373,8 +336,6 @@ public partial class MainWindow
                     ProgressBarScale.ScaleX = 0;
                 }
 
-                // Suppress external seek detection briefly after track change to prevent
-                // stale timestamps from triggering false "jump to full" animations
                 _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(2);
             }
             else if (isSessionSwitch)
@@ -615,9 +576,6 @@ public partial class MainWindow
                 _springSettleFrames = 0;
                 RuntimeLog.Log("PROGRESS-SPRING", $"settled at ratio={_progressDisplayRatio:F4} engineRatio={engineRatio:F4}");
                 
-                // Snap to engine position and suppress external seek detection briefly
-                // to prevent the gap between spring-settled position and engine from
-                // triggering a false "external seek" animation.
                 _progressDisplayRatio = engineRatio;
                 ProgressBarScale.ScaleX = engineRatio;
                 _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(1.5);
@@ -695,24 +653,13 @@ public partial class MainWindow
                 bool backwardJump = rawTargetRatio < _progressDisplayRatio &&
                                     rawDiffSeconds >= 0.6;
 
-                // When progress is near the end (last ~5%) and target jumps to near 0,
-                // this is almost certainly a track skip — not a user seek. Suppress the
-                // external seek animation and let the track change handler deal with it.
                 bool isLikelyTrackSkip = _progressDisplayRatio > 0.92 &&
                                          rawTargetRatio < 0.05;
 
-                // Guard against false zero reports from SMTC/browser sources.
-                // If we're well into a track (>5%) and suddenly get position=0,
-                // it's almost always a transient glitch — not a real seek.
                 bool isFalseZeroReport = rawTargetRatio < 0.001 &&
                                          _progressDisplayRatio > 0.05 &&
                                          playing;
 
-                // Guard against stale position reports from SMTC.
-                // A backward jump > 30 seconds while playing is almost never a real user seek —
-                // it's typically a stale/cached position being reported momentarily.
-                // Real user seeks backward are usually < 30s. If it's genuinely a large
-                // backward seek, the next frame will confirm it and the spring will catch up.
                 bool isSuspiciousBackward = backwardJump && playing &&
                                             rawDiffSeconds > 30.0 &&
                                             _progressDisplayRatio > 0.10;
@@ -730,17 +677,12 @@ public partial class MainWindow
                 if (playing && (forwardJump || backwardJump) && !isLikelyTrackSkip && !isFalseZeroReport && !isSuspiciousBackward)
                 {
                     AnimateExternalSeekTo(rawTargetRatio, frame);
-                    // Suppress re-detection while the animation runs to prevent
-                    // multiple triggers from SMTC latency jitter.
                     _suppressExternalSeekDetectionUntil = DateTime.Now.AddMilliseconds(800);
                     _lastRenderTime = now;
                     _lastRenderedDuration = frame.Duration;
                     return;
                 }
 
-                // If we detected a false zero or suspicious backward jump, skip this
-                // entire frame to prevent the SOURCE_SMOOTH_SECONDS path from snapping
-                // the progress bar to the bogus position.
                 if (isFalseZeroReport || isSuspiciousBackward)
                 {
                     _lastRenderTime = now;
@@ -928,8 +870,6 @@ public partial class MainWindow
         if (_isClickSeekPending && !_isDraggingProgress)
         {
             double dist = Math.Abs(currentPos.X - _mouseDownPoint.X);
-            // While spring animation is running from click seek, require much larger movement
-            // to initiate drag — prevents accidental drag from small mouse jitter
             double threshold = _isSeekSpringActive ? 25.0 : DRAG_THRESHOLD;
             if (dist < threshold) return; 
 
@@ -983,8 +923,6 @@ public partial class MainWindow
                 _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
                 _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
                 _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
-                // Protect spring target from being overwritten by stale engine position
-                // until the engine reports the new seek position
                 _protectSpringTargetUntil = DateTime.UtcNow.AddSeconds(1.5);
                 _progressEngine.NotifyUserSeek(_dragSeekPosition);
 
@@ -1344,8 +1282,6 @@ public partial class MainWindow
             ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         }
 
-        // If spring seek animation is still in progress, let it finish naturally
-        // (it now continues running even when collapsed)
         if (_isSeekSpringActive && Spring.IsActive)
         {
             return;

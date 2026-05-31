@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using VNotch.Models;
 
@@ -21,8 +21,6 @@ public class BatteryServiceImpl : IBatteryService
         public int BatteryFullLifeTime;
     }
 
-    // ─── CallNtPowerInformation: SystemBatteryState (live mW rate) ────────
-    // https://learn.microsoft.com/en-us/windows/win32/api/powerbase/nf-powerbase-callntpowerinformation
     [DllImport("powrprof.dll", SetLastError = true)]
     private static extern uint CallNtPowerInformation(
         int InformationLevel,
@@ -93,8 +91,6 @@ public class BatteryServiceImpl : IBatteryService
             {
                 int rateMilliwatts = bs.Rate;
 
-                // Some firmwares report 0 while idle (plugged in at 100%) — that's a real value, not "unknown".
-                // Others report INT32_MIN-ish sentinels when unknown. Sanity-clamp to a plausible window.
                 bool plausible = Math.Abs(rateMilliwatts) < 200_000; // < 200 W upper bound
 
                 if (plausible)

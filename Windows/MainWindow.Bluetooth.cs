@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -79,8 +79,6 @@ public partial class MainWindow
 
     private void AnimateBluetoothNotificationIn(bool connected)
     {
-        // Acquire the bluetooth slot. Preempts clipboard / volume; rejected by
-        // charging / greeting (those have higher priority).
         if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Bluetooth, out int token))
         {
             return;
@@ -120,8 +118,6 @@ public partial class MainWindow
             MusicCompactContent.Visibility = Visibility.Collapsed;
         }
 
-        // (Volume / clipboard preemption is handled by the arbiter in
-        //  TryAcquireCompactSlot above — no manual cancel needed here.)
 
         // Animate bluetooth notification in
         var fadeIn = MakeAnim(0d, 1d, _dur350, _easeExpOut7, TimeSpan.FromMilliseconds(100));
@@ -182,10 +178,6 @@ public partial class MainWindow
             TranslateTransform.YProperty, slideDown, HandoffBehavior.SnapshotAndReplace);
     }
 
-    /// <summary>
-    /// Synchronous cancel used when a higher-priority overlay (charging glance,
-    /// greeting) preempts the bluetooth toast. No animation — clean handoff.
-    /// </summary>
     private void CancelBluetoothNotificationImmediate()
     {
         if (!_isBluetoothNotificationVisible) return;

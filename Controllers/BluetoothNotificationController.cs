@@ -4,11 +4,6 @@ using VNotch.Services;
 
 namespace VNotch.Controllers;
 
-/// <summary>
-/// Manages bluetooth notification lifecycle: deciding when to show/dismiss,
-/// selecting icon geometry, and tracking notification state.
-/// UI animation is delegated back to MainWindow via events.
-/// </summary>
 public sealed class BluetoothNotificationController
 {
     private bool _isVisible;
@@ -22,10 +17,8 @@ public sealed class BluetoothNotificationController
 
     // ─── Events (MainWindow subscribes to drive UI) ───
 
-    /// <summary>Fired when a notification should be shown. Args: device info, connected flag.</summary>
     public event Action<BluetoothDeviceInfo, bool>? ShowRequested;
 
-    /// <summary>Fired when the notification should be dismissed (auto-timeout).</summary>
     public event Action? DismissRequested;
 
     // ─── Configuration ───
@@ -34,17 +27,6 @@ public sealed class BluetoothNotificationController
 
     // ─── Lifecycle ───
 
-    /// <summary>
-    /// Determines whether a notification should be shown given the current notch state,
-    /// and if so, fires ShowRequested.
-    /// </summary>
-    /// <param name="device">The bluetooth device info.</param>
-    /// <param name="connected">True if connected, false if disconnected.</param>
-    /// <param name="isNotchVisible">Whether the notch is currently visible.</param>
-    /// <param name="isAnimating">Whether the notch is mid-animation.</param>
-    /// <param name="isExpanded">Whether the notch is expanded.</param>
-    /// <param name="isMusicExpanded">Whether the music widget is expanded.</param>
-    /// <returns>True if the notification will be shown.</returns>
     public bool TryShow(BluetoothDeviceInfo device, bool connected,
         bool isNotchVisible, bool isAnimating, bool isExpanded, bool isMusicExpanded)
     {
@@ -60,18 +42,12 @@ public sealed class BluetoothNotificationController
         return true;
     }
 
-    /// <summary>
-    /// Called when the dismiss animation completes (from UI side).
-    /// </summary>
     public void MarkDismissed()
     {
         _isVisible = false;
         StopDismissTimer();
     }
 
-    /// <summary>
-    /// Force-dismiss (e.g., when notch expands while notification is visible).
-    /// </summary>
     public void ForceDismiss()
     {
         if (!_isVisible) return;

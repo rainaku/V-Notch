@@ -8,22 +8,12 @@ using System.Windows.Media.Imaging;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Pools reusable buffers and MemoryStreams for thumbnail processing to reduce GC pressure.
-/// Thread-safe. All returned objects must be returned via the corresponding Return* method.
-/// </summary>
 public static class BitmapBufferPool
 {
-    // ─── MemoryStream Pool ───
-    // Typical thumbnail PNG is 20-80KB. Pool streams with initial capacity 128KB.
     private static readonly ConcurrentBag<MemoryStream> _streamPool = new();
     private const int MaxPooledStreams = 8;
     private const int StreamInitialCapacity = 128 * 1024;
 
-    /// <summary>
-    /// Rents a MemoryStream from the pool (or creates a new one).
-    /// The stream is reset to position 0 with length 0.
-    /// </summary>
     public static MemoryStream RentStream()
     {
         if (_streamPool.TryTake(out var stream))
@@ -35,9 +25,6 @@ public static class BitmapBufferPool
         return new MemoryStream(StreamInitialCapacity);
     }
 
-    /// <summary>
-    /// Returns a MemoryStream to the pool. Do not use the stream after returning.
-    /// </summary>
     public static void ReturnStream(MemoryStream stream)
     {
         if (stream == null) return;
@@ -56,18 +43,12 @@ public static class BitmapBufferPool
 
     // ─── Pixel Buffer Pool (delegates to ArrayPool) ───
 
-    /// <summary>
-    /// Rents a byte buffer for pixel data. Size = width * height * 4 (BGRA32).
-    /// </summary>
     public static byte[] RentPixelBuffer(int width, int height)
     {
         int size = width * height * 4;
         return ArrayPool<byte>.Shared.Rent(size);
     }
 
-    /// <summary>
-    /// Returns a pixel buffer to the pool.
-    /// </summary>
     public static void ReturnPixelBuffer(byte[] buffer)
     {
         if (buffer != null)
@@ -76,11 +57,6 @@ public static class BitmapBufferPool
 
     // ─── BitmapImage Creation (zero-copy from WriteableBitmap) ───
 
-    /// <summary>
-    /// Creates a frozen BitmapImage from a cropped region of a BitmapSource.
-    /// Uses pooled buffers internally to minimize allocations.
-    /// This is the optimized replacement for the CroppedBitmap → PNG encode → BitmapImage decode path.
-    /// </summary>
     public static BitmapImage? CreateCroppedBitmapImage(BitmapSource source, Int32Rect cropRect)
     {
         if (source == null) return null;
@@ -112,9 +88,6 @@ public static class BitmapBufferPool
             pixels = ArrayPool<byte>.Shared.Rent(stride * cropH);
             cropSource.CopyPixels(new Int32Rect(0, 0, cropW, cropH), pixels, stride, 0);
 
-            // Write directly to WriteableBitmap (avoids PNG encode/decode round-trip for WPF usage)
-            // But since the caller expects a BitmapImage (frozen, shareable), we use BMP encoding
-            // which is ~10x faster than PNG (no compression overhead).
             ms = RentStream();
 
             // BMP header for BGRA32 (fastest encode — no compression)
@@ -143,10 +116,6 @@ public static class BitmapBufferPool
         }
     }
 
-    /// <summary>
-    /// Creates a frozen BitmapImage from raw BGRA32 pixel data.
-    /// Uses pooled MemoryStream internally.
-    /// </summary>
     public static BitmapImage? CreateFromPixels(byte[] pixels, int width, int height, int stride)
     {
         if (pixels == null || width <= 0 || height <= 0) return null;
@@ -180,11 +149,6 @@ public static class BitmapBufferPool
 
     // ─── BMP Writer (fastest possible encode for BGRA32) ───
 
-    /// <summary>
-    /// Writes a minimal BMP file (BITMAPV4 with alpha) to the stream.
-    /// BMP encoding has zero compression overhead — just a header + raw pixels.
-    /// This is ~10-20x faster than PNG encoding for the same data.
-    /// </summary>
     private static void WriteBmpToStream(MemoryStream ms, byte[] pixels, int width, int height, int stride)
     {
         // BMP with BITMAPV4HEADER for BGRA32 support

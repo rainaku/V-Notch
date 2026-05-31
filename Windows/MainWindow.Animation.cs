@@ -64,21 +64,12 @@ public partial class MainWindow
         _notchState.TryTransitionTo(NotchState.Expanding);
         CancelThumbnailSwitchForExpand();
 
-        // Cancel any competing width/height animations on NotchBorder (e.g. from
-        // UpdateMusicCompactMode or CollapseAfterGreeting) to prevent two animations
-        // fighting over the same property simultaneously.
         NotchBorder.BeginAnimation(WidthProperty, null);
         NotchBorder.BeginAnimation(HeightProperty, null);
 
-        // Suppress hover-collapse during expand animation and shortly after.
-        // WPF can fire spurious MouseLeave events during layout recalculation
-        // when the NotchBorder resizes, causing the collapse timer to start
-        // while the user is still hovering over the notch.
         _hoverCollapseTimer.Stop();
         _suppressHoverCollapseUntilUtc = DateTime.UtcNow.AddMilliseconds(800);
 
-        // Cancel any in-progress rewind animation immediately so the user doesn't
-        // see the progress bar animating backward while the notch is expanding.
         if (_isRewindAnimating)
         {
             _isRewindAnimating = false;
@@ -88,16 +79,11 @@ public partial class MainWindow
             _progressDisplayRatio = 0;
         }
 
-        // Immediately dismiss the volume indicator if it's showing. Without this,
-        // expand paths other than the notch click (hover-expand, gestures, drag-drop)
-        // leave the volume bar overlaying the expanded view (Panel.ZIndex=90).
         if (_isVolumeIndicatorActive)
         {
             DismissVolumeIndicatorImmediate();
         }
 
-        // Immediately dismiss any active notification overlays to prevent them
-        // lingering over the expanded content or persisting through collapse
         if (_isChargingNotificationVisible)
         {
             _chargingNotificationDismissTimer?.Stop();
@@ -117,12 +103,8 @@ public partial class MainWindow
             BluetoothDisconnectNotification.Visibility = Visibility.Collapsed;
             _isBluetoothNotificationVisible = false;
         }
-        // Surrender any compact-pill slot so a stale Completed handler from
-        // a transient overlay can't fight the expand animation.
         _compactPillArbiter.ForceClear();
 
-        // Stop hover state tracking but DON'T reset thumbnail scale —
-        // let it fade out naturally with the collapsed content
         bool wasHovered = _isCompactThumbnailHovered;
         if (_isCompactThumbnailHovered)
         {
@@ -155,8 +137,6 @@ public partial class MainWindow
         NotchBorder.Width = currentWidth;
         NotchBorder.Height = currentHeight;
 
-        // Capture current animated scale before cancelling — if a track-change bounce
-        // is mid-flight, snapping to 1.0 causes a visible reverse-jump.
         double liveScaleX = NotchScale.ScaleX;
         double liveScaleY = NotchScale.ScaleY;
 
@@ -165,8 +145,6 @@ public partial class MainWindow
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
-        // If the scale was mid-bounce (not at 1.0), animate it smoothly to 1.0
-        // instead of snapping — prevents the visual "reverse" glitch.
         bool wasBouncing = Math.Abs(liveScaleX - 1.0) > 0.005 || Math.Abs(liveScaleY - 1.0) > 0.005;
         if (wasBouncing)
         {
@@ -379,9 +357,6 @@ public partial class MainWindow
             StartProgressCatchUpAnimation();
             RenderProgressBar();
 
-            // Play queued thumbnail flip animation
-            // force:true is required — early-exit guards (e.g. _thumbnailShownForCurrentTrack)
-            // would otherwise silently skip this morph and the user sees a snap-jump.
             if (_pendingFlipThumbnail != null)
             {
                 var thumb = _pendingFlipThumbnail;
@@ -421,9 +396,6 @@ public partial class MainWindow
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
             if (CompactThumbnailBorder != null && !_isClipboardPeekActive)
             {
-                // Clear any leftover opacity animation first: a volume-bar fade-out
-                // (thumbOut) holds opacity at 0 and a local-value assignment would
-                // otherwise lose to the still-active animation, leaving it invisible.
                 CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
                 CompactThumbnailBorder.Opacity = 1;
@@ -468,8 +440,6 @@ public partial class MainWindow
         _notchState.TryTransitionTo(NotchState.Collapsing);
         CancelThumbnailSwitchAnimations();
 
-        // Cancel any in-progress rewind animation to prevent it continuing
-        // invisibly during collapse and causing state drift.
         if (_isRewindAnimating)
         {
             _isRewindAnimating = false;
@@ -699,8 +669,6 @@ public partial class MainWindow
 
             contentToShow.RenderTransform = null;
 
-            // Safety: ensure notification overlays are hidden after collapse to prevent
-            // them overlapping with the restored collapsed content (thumbnail + equalizer)
             if (_isChargingNotificationVisible)
             {
                 _chargingNotificationDismissTimer?.Stop();
@@ -762,13 +730,6 @@ public partial class MainWindow
                 CompactHoverInfo.Visibility = Visibility.Collapsed;
             }
 
-            // Always restore opacity — may have been set to 0 during collapse animation.
-            // Clear any leftover opacity animation first: a volume-bar fade-out
-            // (thumbOut) holds opacity at 0 and, if it wasn't cleared on dismiss,
-            // a local-value assignment loses to the still-active animation — leaving
-            // the thumbnail invisible after returning to the compact pill.
-            // Guard: skip if volume indicator is actively animating the thumbnail back in
-            // (HideVolumeIndicator already drives the fade-in; snapping here causes a flash).
             if (CompactThumbnailBorder != null && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
             {
                 CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
@@ -789,8 +750,6 @@ public partial class MainWindow
             MusicCompactContent.InvalidateArrange();
             MusicCompactContent.UpdateLayout();
 
-            // Play queued thumbnail flip animation (track changed mid-collapse)
-            // force:true is required — see expand-completion comment for details.
             if (_pendingFlipThumbnail != null)
             {
                 var thumb = _pendingFlipThumbnail;

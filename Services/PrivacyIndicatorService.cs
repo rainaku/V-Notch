@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Threading;
@@ -63,8 +63,6 @@ public sealed class PrivacyIndicatorService : IDisposable
             var cam = ScanCapability("webcam");
             var screenRec = DetectScreenRecording();
 
-            // Registry says mic is "in use" but that only means an app has access.
-            // Verify the capture device is actually receiving audio (not muted/idle).
             bool micActuallyActive = mic.Count > 0 && IsMicrophoneActuallyCapturing();
 
             var next = new PrivacyIndicatorState(
@@ -86,11 +84,6 @@ public sealed class PrivacyIndicatorService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Checks whether the default capture (microphone) device has any active audio sessions
-    /// that are actually capturing audio. This distinguishes between "app has mic permission"
-    /// and "mic is actually recording right now".
-    /// </summary>
     private static bool IsMicrophoneActuallyCapturing()
     {
         try
@@ -125,8 +118,6 @@ public sealed class PrivacyIndicatorService : IDisposable
                     var session = sessions[i];
                     if (session == null) continue;
 
-                    // MasterPeakValue > 0 means audio is actually flowing through this session
-                    // This catches the case where an app has mic access but mic is muted/idle
                     try
                     {
                         if (session.AudioMeterInformation.MasterPeakValue > 0.0001f)

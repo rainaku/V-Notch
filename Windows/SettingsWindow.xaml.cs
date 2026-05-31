@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -74,6 +76,12 @@ public event EventHandler? AnimatedClosing;
                 return true;
             }
 
+            // Don't let window drag intercept the subtitle priority drag-reorder area
+            if (source is FrameworkElement fe && fe.Name == "SubtitlePriorityItems")
+            {
+                return true;
+            }
+
             source = VisualTreeHelper.GetParent(source);
         }
 
@@ -93,6 +101,8 @@ public event EventHandler? AnimatedClosing;
         EnableSpotifyLyricsCheck.IsChecked = _settings.EnableSpotifyLyrics;
         UpdateLyricsDependentControls(_settings.EnableSpotifyLyrics);
         EnableYouTubeSubtitlesCheck.IsChecked = _settings.EnableYouTubeSubtitles;
+
+        LoadSubtitlePriority();
 
         DynamicIslandModeCheck.IsChecked = _settings.EnableDynamicIslandMode;
 
@@ -173,6 +183,10 @@ public event EventHandler? AnimatedClosing;
         EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint");
         EnableYouTubeSubtitlesCheck.Content = Loc.Get("settings.enableYouTubeSubtitles");
         EnableYouTubeSubtitlesHint.Text = Loc.Get("settings.enableYouTubeSubtitles.hint");
+
+        SubtitlePriorityLabel.Text = Loc.Get("settings.subtitlePriority");
+        SubtitlePriorityHint.Text = Loc.Get("settings.subtitlePriority.hint");
+        LoadSubtitlePriority(); // Refresh display names for new language
 
         DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode");
         DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint");
@@ -289,6 +303,205 @@ public event EventHandler? AnimatedClosing;
         if (_isLoadingSettings) return;
         PushLivePreview();
     }
+
+    #region Subtitle Priority
+
+    private class SubtitlePriorityItem
+    {
+        public string Key { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+    }
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<SubtitlePriorityItem> _subtitleItems = new();
+    private Point _subtitleDragStart;
+    private bool _subtitleIsDragging;
+
+    private void LoadSubtitlePriority()
+    {
+        _subtitleItems.Clear();
+        bool isVi = _settings.Language == "vi";
+
+        var keys = (_settings.SubtitlePriority ?? "native,english,auto")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        // Ensure all 3 modes are present
+        var allKeys = new[] { "native", "english", "auto" };
+        var ordered = keys.Where(k => allKeys.Contains(k)).ToList();
+        foreach (var k in allKeys)
+        {
+            if (!ordered.Contains(k)) ordered.Add(k);
+        }
+
+        foreach (var key in ordered)
+        {
+            _subtitleItems.Add(new SubtitlePriorityItem
+            {
+                Key = key,
+                DisplayName = GetSubtitleModeName(key, isVi)
+            });
+        }
+
+        SubtitlePriorityItems.ItemsSource = _subtitleItems;
+    }
+
+    private static string GetSubtitleModeName(string key, bool isVi) => key switch
+    {
+        "native" => isVi ? "🌐  Ngôn ngữ gốc video" : "🌐  Video's native language",
+        "english" => isVi ? "🇬🇧  Tiếng Anh" : "🇬🇧  English",
+        "auto" => isVi ? "⚡  Tự động (bất kỳ)" : "⚡  Auto (any available)",
+        _ => key
+    };
+
+    private void SubtitlePriorityItem_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        _subtitleDragStart = e.GetPosition(null);
+        _subtitleIsDragging = false;
+        e.Handled = true; // Prevent window DragMove from intercepting
+    }
+
+    private void SubtitlePriorityItem_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+        if (_subtitleIsDragging) return;
+
+        var pos = e.GetPosition(null);
+        if (Math.Abs(pos.X - _subtitleDragStart.X) > SystemParameters.MinimumHorizontalDragDistance ||
+            Math.Abs(pos.Y - _subtitleDragStart.Y) > SystemParameters.MinimumVerticalDragDistance)
+        {
+            _subtitleIsDragging = true;
+
+            if (sender is FrameworkElement fe && fe.DataContext is SubtitlePriorityItem item)
+            {
+                var data = new DataObject("SubtitlePriorityItem", item);
+                DragDrop.DoDragDrop(fe, data, DragDropEffects.Move);
+            }
+
+            _subtitleIsDragging = false;
+        }
+    }
+
+    private void SubtitlePriorityItem_GiveFeedback(object sender, GiveFeedbackEventArgs e)
+    {
+        e.UseDefaultCursors = true;
+        e.Handled = true;
+    }
+
+    private void SubtitlePriority_DragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent("SubtitlePriorityItem"))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void SubtitlePriority_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent("SubtitlePriorityItem")) return;
+
+        var draggedItem = e.Data.GetData("SubtitlePriorityItem") as SubtitlePriorityItem;
+        if (draggedItem == null) return;
+
+        // Find drop target
+        var dropPos = e.GetPosition(SubtitlePriorityItems);
+        int newIndex = GetSubtitleDropIndex(dropPos);
+
+        int oldIndex = _subtitleItems.IndexOf(draggedItem);
+        if (oldIndex < 0 || oldIndex == newIndex) return;
+
+        // Capture positions before move for animation
+        var positions = new Dictionary<SubtitlePriorityItem, double>();
+        for (int i = 0; i < _subtitleItems.Count; i++)
+        {
+            var container = SubtitlePriorityItems.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+            if (container != null)
+                positions[_subtitleItems[i]] = container.TranslatePoint(new Point(0, 0), SubtitlePriorityItems).Y;
+        }
+
+        _subtitleItems.Move(oldIndex, newIndex);
+
+        // Animate items sliding to new positions
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+        {
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            for (int i = 0; i < _subtitleItems.Count; i++)
+            {
+                var container = SubtitlePriorityItems.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+                if (container == null) continue;
+
+                var item = _subtitleItems[i];
+                double newY = container.TranslatePoint(new Point(0, 0), SubtitlePriorityItems).Y;
+
+                if (positions.TryGetValue(item, out double oldY) && Math.Abs(oldY - newY) > 1)
+                {
+                    var translate = container.RenderTransform as TranslateTransform;
+                    if (translate == null)
+                    {
+                        translate = new TranslateTransform();
+                        container.RenderTransform = translate;
+                    }
+
+                    translate.Y = oldY - newY;
+                    var anim = new DoubleAnimation(oldY - newY, 0, TimeSpan.FromMilliseconds(250))
+                    {
+                        EasingFunction = ease
+                    };
+                    translate.BeginAnimation(TranslateTransform.YProperty, anim);
+                }
+
+                // Scale pop on the moved item
+                if (item == draggedItem)
+                {
+                    var scale = container.RenderTransform as ScaleTransform;
+                    if (container.RenderTransform is TranslateTransform)
+                    {
+                        var group = new TransformGroup();
+                        group.Children.Add(container.RenderTransform);
+                        var sc = new ScaleTransform(1, 1);
+                        group.Children.Add(sc);
+                        container.RenderTransformOrigin = new Point(0.5, 0.5);
+                        container.RenderTransform = group;
+
+                        var scaleAnim = new DoubleAnimation(1.03, 1.0, TimeSpan.FromMilliseconds(200))
+                        {
+                            EasingFunction = ease
+                        };
+                        sc.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
+                        sc.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+                    }
+                }
+            }
+        });
+
+        // Persist immediately so the new priority takes effect right away
+        ApplySettingsFromUi(persist: true);
+    }
+
+    private int GetSubtitleDropIndex(Point dropPoint)
+    {
+        double y = 0;
+        for (int i = 0; i < _subtitleItems.Count; i++)
+        {
+            var container = SubtitlePriorityItems.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+            if (container == null) continue;
+
+            double itemHeight = container.ActualHeight;
+            if (dropPoint.Y < y + itemHeight / 2)
+                return i;
+            y += itemHeight;
+        }
+        return _subtitleItems.Count - 1;
+    }
+
+    private string GetSubtitlePriorityString()
+    {
+        return string.Join(",", _subtitleItems.Select(i => i.Key));
+    }
+
+    #endregion
 
     private void DynamicIslandModeCheck_Changed(object sender, RoutedEventArgs e)
     {
@@ -840,6 +1053,9 @@ private void PushLivePreview()
         EnableSpotifyLyricsCheck.IsChecked = defaults.EnableSpotifyLyrics;
         EnableYouTubeSubtitlesCheck.IsChecked = defaults.EnableYouTubeSubtitles;
 
+        _settings.SubtitlePriority = defaults.SubtitlePriority;
+        LoadSubtitlePriority();
+
         DynamicIslandModeCheck.IsChecked = defaults.EnableDynamicIslandMode;
 
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
@@ -1152,6 +1368,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.MediaBlurDarkOverlay = BlurDarkOverlaySlider.Value / 100.0;
         _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
         _settings.EnableYouTubeSubtitles = EnableYouTubeSubtitlesCheck.IsChecked ?? true;
+
+        // Sync subtitle mode from ComboBox
+        _settings.SubtitlePriority = GetSubtitlePriorityString();
 
         _settings.EnableDynamicIslandMode = DynamicIslandModeCheck.IsChecked ?? false;
 

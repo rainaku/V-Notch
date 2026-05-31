@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Automation;
 
@@ -10,12 +10,6 @@ public interface IWindowTitleScanner
     string? TryGetBrowserUrl();
     string? TryGetMediaUrlFromAnyBrowser();
 
-    /// <summary>
-    /// Returns true if any browser window currently has the Spotify Web Player
-    /// (open.spotify.com) open in the active tab or any background tab. Used to
-    /// classify a browser-owned SMTC session as Spotify so features like synced
-    /// lyrics work for Spotify played via the web player.
-    /// </summary>
     bool IsSpotifyWebPlayerOpen();
 
     void InvalidateUrlCaches();
@@ -166,9 +160,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
     {
         lock (_cacheLock)
         {
-            // Cache positive hits a little longer than misses so we don't pay the
-            // UI-Automation tab scan on every media poll. The web player tab tends
-            // to stay open for the whole listening session.
             int ttlMs = _cachedSpotifyWebPlayerOpen ? 3000 : 1000;
             if ((DateTime.Now - _lastSpotifyWebPlayerTime).TotalMilliseconds < ttlMs)
                 return _cachedSpotifyWebPlayerOpen;
@@ -383,9 +374,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
 
     private const string SpotifyWebPlayerHost = "open.spotify.com";
 
-    // Enumerates every visible browser window and checks the address bar plus all
-    // tabs for an open.spotify.com URL. Used to recognize Spotify Web Player so it
-    // can be treated like the Spotify desktop app (e.g. for synced lyrics).
     private bool DetectSpotifyWebPlayer()
     {
         bool found = false;
@@ -474,8 +462,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
 
-            // 2) Background tabs — the address bar only reflects the active tab,
-            //    so walk the tab strip (Chromium exposes the URL via HelpText).
             var tabCondition = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem);
             var tabs = element.FindAll(TreeScope.Descendants, tabCondition);
             if (tabs != null)

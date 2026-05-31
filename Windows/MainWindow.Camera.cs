@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -95,19 +95,6 @@ public partial class MainWindow
         return 12.0;
     }
 
-    /// <summary>
-    /// Builds a clip geometry for CameraSection that has a cutout in the top-left
-    /// corner to avoid overlapping the NavIconsPanel. The shape:
-    /// 
-    ///        cutoutW
-    ///   ┌──────────┐
-    ///   │  (nav)   ╰──────────────────╮  ← top-right radius
-    ///   │                              │
-    ///   │                              │
-    ///   ╰──────────────────────────────╯  ← bottom corners radius
-    /// 
-    /// When expanded to shelf, uses simple rounded rect (nav icons are hidden).
-    /// </summary>
     private void ApplyCameraCornerRadius(bool expandedToShelf)
     {
         double radius = ComputeCameraCornerRadius(expandedToShelf);
@@ -119,28 +106,14 @@ public partial class MainWindow
         // Always apply the cutout clip (even when camera is expanded/active)
         CameraSection.CornerRadius = new CornerRadius(0); // We handle clipping via geometry
 
-        // ─── Cutout dimensions ───
-        // NavIconsPanel: Margin="14,3,0,0", 3 icons × 22px + 2 gaps × 8px = 82px wide, ~22px tall
-        // SecondaryContent: Margin="12,10,12,12"
-        // Nav bottom in NotchContent = 3 + 22 + 5 = 30px
-        // CameraSection top in NotchContent = 10px
-        // → cutout height in local coords = 30 - 10 = 20px
-        // Nav right in NotchContent = 14 + 82 = 96px
-        // CameraSection left in NotchContent = 12px
-        // → cutout width in local coords = 96 - 12 + 6(breathing room) = 90px
         double cutH = 22.0;
         double cr = 8.0; // small radius for the inner concave corners of the cutout step
-        // Calculate cutW dynamically based on actual NavIconsPanel position
-        // Both NavIconsPanel and CameraSection share NotchContent as parent,
-        // so calculate relative positions via margins.
         double cutW;
         if (NavIconsPanel != null && NavIconsPanel.Visibility == Visibility.Visible
             && NavIconsPanel.ActualWidth > 0)
         {
             // NavIconsPanel right edge in NotchContent coords:
             double navRight = NavIconsPanel.Margin.Left + NavIconsPanel.ActualWidth + 10;
-            // CameraSection left edge in NotchContent coords:
-            // SecondaryContent.Margin.Left (12) + CameraSection.Margin.Left (0)
             double camLeft = 12.0 + CameraSection.Margin.Left;
             cutW = Math.Max(0, Math.Min(navRight - camLeft, w - radius - cr));
         }
@@ -149,25 +122,6 @@ public partial class MainWindow
             cutW = Math.Min(90.0, w - radius - cr);
         }
 
-        // Shape: an "L-step" cutout at top-left. The camera section has a notch
-        // carved out for the nav icons. The top-left portion is flat at cutH,
-        // then steps up to y=0 at x=cutW with small rounded inner corners.
-        //
-        //   (0,0)                          (cutW,0)─────────────(w-r,0)╮
-        //     │                               │                        │
-        //   (0,cutH)──────(cutW-cr,cutH)╮     │                        │
-        //                                ╰──(cutW,cutH+cr)             │
-        //                                  ... but we want step shape:
-        //
-        //   icons area (not drawn)
-        //   (0,cutH)───(cutW-cr,cutH)╮                                 
-        //                             ╰(cutW, cutH-cr)                 
-        //                              │                               
-        //                        (cutW, 0)────────────(w-r, 0)╮ top-right
-        //                                                      │
-        //   (0, cutH)                                          │
-        //   │                                                  │
-        //   ╰──────────────────────────────────────────────────╯ bottom
 
         var fig = new PathFigure { StartPoint = new Point(0, cutH), IsClosed = true, IsFilled = true };
 
@@ -423,8 +377,6 @@ public partial class MainWindow
             _lastFrameTimestamp = 0;
             CameraErrorOverlay.Visibility = Visibility.Collapsed;
 
-            // Offload heavy device enumeration to background thread
-            // so the expand animation runs stutter-free
             var (selectedGroup, errorMsg) = await Task.Run(async () =>
             {
                 var groups = await MediaFrameSourceGroup.FindAllAsync();

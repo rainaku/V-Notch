@@ -305,8 +305,6 @@ public partial class MainWindow
             }
 
             _isFadingTrack = false;
-            // The next blur update should snap (no dissolve) so we don't double-fade
-            // on top of the just-completed black fade.
             _suppressNextBlurDissolve = true;
             UpdateMediaBackground(info, forceRefresh: true);
         };
@@ -449,10 +447,6 @@ public partial class MainWindow
             return;
         }
 
-        // The opacity fade-in started by ShowMediaBackground runs for ~500 ms. While
-        // it's still in flight the animated Opacity is legitimately near 0, so don't
-        // treat that as a failed paint — re-triggering here would cancel the running
-        // fade and start a second one, making the glow appear to flash in twice.
         bool fadeInProgress = (DateTime.UtcNow - _lastMediaBackgroundFadeStartUtc).TotalMilliseconds < 600;
 
         // A collapsed layer is a definite paint failure — always recover.
@@ -487,8 +481,6 @@ public partial class MainWindow
     {
         try
         {
-            // Dedup: same BitmapImage reference as last accepted call → skip entirely.
-            // Different references with same visual content can still re-blur (rare, harmless).
             if (ReferenceEquals(thumbnail, _lastBlurThumbnailRef))
             {
                 return;
@@ -499,8 +491,6 @@ public partial class MainWindow
 
             if (_settings.EnableSubjectBlur)
             {
-                // Subject detection is best-effort and runs on the same cached ONNX session
-                // as smart-crop, so this adds at most ~10–30 ms only when smart-crop is on.
                 SubjectBounds? subject = null;
                 try
                 {
@@ -520,11 +510,6 @@ public partial class MainWindow
 
             if (blurredImage == null) return;
 
-            // Two paths:
-            //   1) Snap path — first paint, or right after FadeToBlackThenUpdate.
-            //      No dissolve so we don't double-fade on top of the black fade.
-            //   2) Dissolve path — debounced ~160 ms so a burst of artwork updates
-            //      (SMTC raw → enriched → palette refresh) collapses into ONE fade.
             if (_suppressNextBlurDissolve || MediaBackgroundImage.Source == null)
             {
                 _suppressNextBlurDissolve = false;
@@ -585,11 +570,6 @@ public partial class MainWindow
         _blurDissolveDebounce.Start();
     }
 
-    /// <summary>
-    /// Dissolves the new blurred bitmap over the current one across both background layers
-    /// instead of snapping <c>Source</c>. Cancels mid-flight crossfades so rapid track
-    /// changes don't stack animations.
-    /// </summary>
     private void CrossfadeBlurredBackground(BitmapSource blurred)
     {
         int version = ++_blurCrossfadeVersion;
@@ -615,8 +595,6 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(fadeIn, 90);
         Timeline.SetDesiredFrameRate(fadeOut, 90);
 
-        // When the dissolve completes, promote back → front so the next call
-        // starts from a clean state. Guarded against version races.
         fadeIn.Completed += (_, _) =>
         {
             if (version != _blurCrossfadeVersion) return;

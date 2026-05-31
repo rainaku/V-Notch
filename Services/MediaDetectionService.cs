@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows.Media.Imaging;
@@ -256,9 +256,6 @@ public class MediaDetectionService : IMediaDetectionService
 
     private void OnSessionsChanged(GlobalSystemMediaTransportControlsSessionManager sender, SessionsChangedEventArgs args)
     {
-        // Fires when a session is added or removed — e.g. an app that was playing media gets closed.
-        // This is the only signal we get when a *non-current* app closes, so force a full rescan to
-        // switch the notch onto whatever session is still playing.
         Log("Sessions Changed", "Session list changed (app opened/closed)");
         _changeChannel.Writer.TryWrite(ChangeType.SessionChanged);
     }
@@ -509,8 +506,6 @@ public class MediaDetectionService : IMediaDetectionService
 
                                 if (extractedTitle.Contains(" - "))
                                 {
-                                    // Use last " - " to split: YouTube titles can have multiple separators
-                                    // when artist names contain " - "
                                     int lastSep = extractedTitle.LastIndexOf(" - ", StringComparison.Ordinal);
                                     trackName = extractedTitle.Substring(lastSep + 3).Trim();
                                     artistName = extractedTitle.Substring(0, lastSep).Trim();
@@ -588,8 +583,6 @@ public class MediaDetectionService : IMediaDetectionService
                 _lastTrackName = info.CurrentTrack;
                 _lastMetadataChangeTime = DateTime.Now;
 
-                // Reset _stableArtist on genuine track change so the previous track's artist
-                // doesn't bleed into the new track via the stabilization logic.
                 if (!string.IsNullOrEmpty(info.CurrentTrack))
                 {
                     _stableArtist = "";
@@ -623,7 +616,8 @@ public class MediaDetectionService : IMediaDetectionService
                     {
                         _emptyMetadataStartTime = DateTime.Now;
                     }
-                    if ((DateTime.Now - _emptyMetadataStartTime).TotalSeconds < 2.5 && !string.IsNullOrEmpty(_lastStableTrackSignature))
+                    double holdSeconds = (_lastSource == "YouTube" || _lastSource == "Browser") ? 1.2 : 2.5;
+                    if ((DateTime.Now - _emptyMetadataStartTime).TotalSeconds < holdSeconds && !string.IsNullOrEmpty(_lastStableTrackSignature))
                     {
                         return;
                     }
@@ -667,12 +661,6 @@ public class MediaDetectionService : IMediaDetectionService
                     return;
                 }
 
-                // Suppress publishing a new track that is not playing yet. During a
-                // browser-based track change (e.g. Spotify Web Player) Windows SMTC
-                // briefly reports metadata from other tabs (e.g. a paused YouTube video)
-                // before settling on the correct new track. Publishing those intermediate
-                // paused-track updates causes a visible flash. Hold until the new track
-                // is actually playing, or until it has been stable for a short window.
                 bool isNewTrack = !string.IsNullOrEmpty(info.CurrentTrack) &&
                                   !string.Equals(
                                       BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist),
@@ -681,8 +669,6 @@ public class MediaDetectionService : IMediaDetectionService
 
                 if (isNewTrack && !info.IsPlaying && !forceRefresh)
                 {
-                    // Track changed but it's not playing — could be a transient SMTC
-                    // metadata cycle. Record when we first saw this candidate.
                     string candidateKey = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
                     if (candidateKey != _pendingNewTrackKey)
                     {
@@ -690,8 +676,6 @@ public class MediaDetectionService : IMediaDetectionService
                         _pendingNewTrackSince = DateTime.UtcNow;
                     }
 
-                    // Allow publish only after the candidate has been stable for 600ms
-                    // without becoming playing — this handles genuine pause-on-new-track.
                     if ((DateTime.UtcNow - _pendingNewTrackSince).TotalMilliseconds < 600)
                     {
                         return;
@@ -1081,8 +1065,6 @@ public class MediaDetectionService : IMediaDetectionService
                             {
                                 info.YouTubeVideoId = videoId;
 
-                                // Fire MediaChanged immediately if artist was resolved from API/oEmbed
-                                // so the UI updates without waiting for the thumbnail fetch
                                 if (!string.IsNullOrEmpty(_stableArtist) && 
                                     _stableArtist != "YouTube" &&
                                     IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
@@ -1641,13 +1623,6 @@ public class MediaDetectionService : IMediaDetectionService
         return status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
     }
 
-    /// <summary>
-    /// Returns true if the given session projection is still present in the live SMTC session list.
-    /// When an app is closed its session is removed from the list, but the cached projection object
-    /// keeps returning its last known (stale) playback status/metadata. We rely on the WinRT session
-    /// projections being reference-stable across GetSessions() calls (the scoring scan already does
-    /// the same via ReferenceEquals).
-    /// </summary>
     private bool IsSessionStillPresent(GlobalSystemMediaTransportControlsSession session)
     {
         try
@@ -1823,12 +1798,6 @@ public class MediaDetectionService : IMediaDetectionService
             string? spotifyGroundTruth = null;
             string osCurrentId = _sessionManager.GetCurrentSession()?.SourceAppUserModelId ?? "";
 
-            // The active display session can become stale when its backing app is closed:
-            // the WinRT projection keeps returning the last cached "Playing" status and title,
-            // and closing a non-current app raises no event we listen to (only CurrentSessionChanged).
-            // On heartbeat ticks (forceRefresh == false) the fast path below would then re-lock onto
-            // the dead session forever and never switch to the app that's still playing.
-            // Guard against that by confirming the active session is still in the live session list.
             if (_activeDisplaySession != null && !forceRefresh && !IsSessionStillPresent(_activeDisplaySession))
             {
                 RuntimeLog.Log("MEDIA-SESSION", "Active display session no longer listed (app closed) — forcing rescan.");
@@ -1946,12 +1915,6 @@ public class MediaDetectionService : IMediaDetectionService
                                 ClearSessionSourceOverride(sessionInstanceKey, sourceApp);
 
                                 _lastTrackSignature = "";
-                                // Do NOT clear _lastThumbTrackIdentity or _cachedThumbnail here.
-                                // When the same session resumes playing (pause→play), the track
-                                // hasn't changed — clearing thumbnail state causes unnecessary
-                                // re-fetch and visual flicker. The track-change check at the
-                                // thumbnail processing stage (trackChangedForThisPass) will
-                                // properly invalidate if the track actually changed.
                             }
 
                             _sessionState.SetPlayingState(sessionInstanceKey, isActive);
@@ -2056,13 +2019,6 @@ public class MediaDetectionService : IMediaDetectionService
                                         score += (int)Math.Max(0, 200 - (timelineAge * 8));
                                     }
 
-                                    // ─── Position-advancement tie-breaker ───
-                                    // When multiple browser tabs share the same SourceAppUserModelId,
-                                    // a backgrounded tab can report a stale "Playing" status. The only
-                                    // reliable signal for which session is truly audible is whether its
-                                    // playback position actually moves forward between scans. Strongly
-                                    // favor sessions observed advancing, and penalize "Playing" sessions
-                                    // whose position is frozen.
                                     if (isActive)
                                     {
                                         var advance = _sessionState.RecordTimelinePosition(
@@ -2071,11 +2027,6 @@ public class MediaDetectionService : IMediaDetectionService
                                         if (advance == MediaSessionState.TimelineAdvanceResult.Advanced ||
                                             _sessionState.IsRecentlyAdvancing(sessionInstanceKey, nowUtc, TimeSpan.FromSeconds(6)))
                                         {
-                                            // Decisively favor the session whose position is actually
-                                            // moving. The magnitude must clearly exceed the combined
-                                            // recency (+2600) and OS-current (+1000) bonuses so a
-                                            // stale-but-focused background tab can never outscore the
-                                            // session that is genuinely producing output.
                                             score += 3000;
                                         }
                                         else if (advance == MediaSessionState.TimelineAdvanceResult.Stalled)
@@ -2134,14 +2085,6 @@ public class MediaDetectionService : IMediaDetectionService
 
                 if (bestSession != null && _activeDisplaySession != null && !ReferenceEquals(bestSession, _activeDisplaySession))
                 {
-                    // Guard against transient track-change flicker: when the chosen session
-                    // is NOT actively playing and the current display session is still present
-                    // in the live session list, stay put. During a track change on browser
-                    // media (e.g. Spotify Web Player) the playing session momentarily reports
-                    // "not playing", which makes a *different* paused tab (e.g. a paused
-                    // YouTube video sharing the same browser SourceAppId) score highest and
-                    // briefly hijack the display. Holding the current session until something
-                    // is genuinely playing avoids that flash.
                     bool bestIsPlaying = false;
                     try
                     {
@@ -2441,12 +2384,6 @@ public class MediaDetectionService : IMediaDetectionService
                     isStaleSMTC = true;
                 }
 
-                // ─── Spotify metadata sanity check ───
-                // SMTC metadata can be malformed for some tracks (artist/title fields
-                // swapped, producer tags in wrong field, etc.).
-                // Use the window title ("Artist - Track") to cross-validate, but parse
-                // it using SMTC artist as anchor (since ParseSpotifyTitle with LastIndexOf
-                // fails when track names contain " - ").
                 if (!isStaleSMTC && !string.IsNullOrEmpty(spotifyGroundTruth) &&
                     !string.IsNullOrEmpty(info.CurrentArtist))
                 {
@@ -2456,16 +2393,11 @@ public class MediaDetectionService : IMediaDetectionService
 
                     if (info.CurrentArtist.Contains(" - ", StringComparison.Ordinal))
                     {
-                        // SMTC artist contains " - " — this CAN be a legitimate artist name
-                        // (e.g. "Jack - J97"). Only treat as malformed if the window title
-                        // does NOT start with the SMTC artist followed by " - ".
                         string artistPrefix = info.CurrentArtist + " - ";
                         bool artistMatchesWindowTitle = spotifyGroundTruth.StartsWith(artistPrefix, StringComparison.OrdinalIgnoreCase);
 
                         if (!artistMatchesWindowTitle)
                         {
-                            // Artist doesn't match window title prefix — likely malformed.
-                            // Try to extract the real artist from window title using first " - ".
                             int firstSep = spotifyGroundTruth.IndexOf(" - ", StringComparison.Ordinal);
                             if (firstSep > 0)
                             {
@@ -2483,8 +2415,6 @@ public class MediaDetectionService : IMediaDetectionService
                         }
                     }
 
-                    // Pattern 2: SMTC title is just a tag/substring within the real track
-                    // e.g. SMTC title="Prod.Suno" when real track="Keep Phong Trần (Prod.Suno)"
                     if (!needsCorrection && !string.IsNullOrEmpty(info.CurrentTrack))
                     {
                         // Use SMTC artist (which is clean) to split window title correctly
@@ -2706,14 +2636,6 @@ public class MediaDetectionService : IMediaDetectionService
                 }
             }
 
-            // ─── Spotify Web Player promotion ───
-            // Spotify played through open.spotify.com is owned by the browser's SMTC
-            // session, so it lands here as "Browser". If no other platform claimed the
-            // session and a Spotify Web Player tab is open, treat it as Spotify so
-            // features like synced lyrics work for web-based playback.
-            // Guard: don't promote if the track looks like YouTube content — the YouTube
-            // video may be playing/paused in another tab of the same browser session and
-            // Windows SMTC can briefly report its metadata during Spotify track changes.
             if ((info.MediaSource == "Browser" || string.IsNullOrEmpty(info.MediaSource)) &&
                 !string.IsNullOrEmpty(sessionSourceApp) &&
                 IsBrowserSourceApp(sessionSourceApp) &&
@@ -2807,8 +2729,6 @@ public class MediaDetectionService : IMediaDetectionService
                                                                             !hasVerifiedSoundCloudThumb &&
                                                                             !likelySoundCloudArtwork;
 
-                                // For YouTube/Browser: on track change, reject SMTC thumbnail if it's a wide video frame
-                                // (likely stale from the previous tab/video — Windows SMTC thumbnail lags behind metadata)
                                 double smtcAspect = (double)newBitmap.PixelWidth / newBitmap.PixelHeight;
                                 bool isWideVideoFrame = smtcAspect > 1.3;
                                 // Also reject wide video frames within 4 seconds of a track change (SMTC thumbnail can lag multiple cycles)
@@ -2968,17 +2888,6 @@ public class MediaDetectionService : IMediaDetectionService
                         }
                         else if (isInitialOrBigChange)
                         {
-                            // Native source observed for the first time — e.g. the app was
-                            // launched (or rebuilt via ./r) while a track was ALREADY playing.
-                            // Native players (Spotify, etc.) push SMTC timeline updates only
-                            // sporadically, so LastUpdatedTime can be tens of seconds — even
-                            // minutes — old. With the default 15s window the latency check
-                            // fails, compensation is skipped, and the bar freezes at a stale
-                            // position until the player happens to push a fresh timeline.
-                            // Allow extrapolation across the whole track (same as browser's
-                            // initial path) so we land on the real current position. This only
-                            // runs while IsPlaying, and the result is still clamped to 95% of
-                            // duration below, so a steadily-advancing track is corrected safely.
                             var durationWindow = duration > TimeSpan.Zero
                                 ? duration + TimeSpan.FromSeconds(5)
                                 : TimeSpan.FromMinutes(10);
@@ -3333,12 +3242,6 @@ public class MediaDetectionService : IMediaDetectionService
         return false;
     }
 
-    /// <summary>
-    /// Returns true if the source cache or session override already identifies this
-    /// track as belonging to a non-Spotify platform (YouTube, SoundCloud, etc.).
-    /// Used to prevent the Spotify Web Player promotion from mislabelling a YouTube
-    /// video that briefly surfaces in the browser's SMTC session during a track change.
-    /// </summary>
     private bool IsKnownNonSpotifyTrack(MediaInfo info)
     {
         if (string.IsNullOrEmpty(info.CurrentTrack)) return false;
@@ -3428,12 +3331,6 @@ public class MediaDetectionService : IMediaDetectionService
         info.CurrentTrack = track;
     }
 
-    /// <summary>
-    /// Checks whether the Spotify window title likely contains the given SMTC track name.
-    /// Handles cases where Spotify uses " - " in the window title but SMTC uses parentheses
-    /// for remix/version info. E.g., window: "Sơn Tùng M-TP - Chạy Ngay Đi - Onionn Remix"
-    /// vs SMTC track: "Chạy Ngay Đi (Onionn Remix)".
-    /// </summary>
     private static bool SpotifyTitleContainsTrack(string spotifyWindowTitle, string smtcTrack)
     {
         if (string.IsNullOrEmpty(spotifyWindowTitle) || string.IsNullOrEmpty(smtcTrack))
@@ -3443,9 +3340,6 @@ public class MediaDetectionService : IMediaDetectionService
         if (spotifyWindowTitle.Contains(smtcTrack, StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // Normalize: strip parentheses/brackets and their content markers, replace with " - "
-        // so "Chạy Ngay Đi (Onionn Remix)" becomes "Chạy Ngay Đi - Onionn Remix"
-        // and can match against "Sơn Tùng M-TP - Chạy Ngay Đi - Onionn Remix"
         string normalizedTrack = NormalizeTrackForComparison(smtcTrack);
         string normalizedTitle = NormalizeTrackForComparison(spotifyWindowTitle);
 
@@ -3461,10 +3355,6 @@ public class MediaDetectionService : IMediaDetectionService
         return false;
     }
 
-    /// <summary>
-    /// Normalizes a track name for comparison by replacing parenthesized/bracketed suffixes
-    /// with " - " separated form, matching Spotify's window title format.
-    /// </summary>
     private static string NormalizeTrackForComparison(string text)
     {
         // Replace " (" or " [" with " - " and remove closing ")" or "]"
@@ -3478,10 +3368,6 @@ public class MediaDetectionService : IMediaDetectionService
         return result.Trim();
     }
 
-    /// <summary>
-    /// Extracts the core track name before any parenthesized suffix.
-    /// E.g., "Chạy Ngay Đi (Onionn Remix)" → "Chạy Ngay Đi"
-    /// </summary>
     private static string ExtractCoreTrackName(string track)
     {
         int parenIdx = track.IndexOf('(');

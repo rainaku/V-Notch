@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -179,10 +179,6 @@ public static string ExtractTitleFromWindow(string windowTitle, string platformF
     }
 public static (string Artist, string Track) ParseSpotifyTitle(string title)
     {
-        // Spotify window title format: "Artist(s) - Track"
-        // Use LAST " - " separator to split artist from track.
-        // Artist names can contain " - " (e.g. "Jack - J97"), so splitting
-        // from the right preserves the full artist name.
         int lastSep = title.LastIndexOf(" - ", StringComparison.Ordinal);
         if (lastSep > 0)
         {

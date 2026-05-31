@@ -766,7 +766,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             RuntimeLog.Log("META-YOUTUBE-API", ex.ToString());
             return null;
         }
-    }    /// <summary>
+    }
     private static string? PickBestThumbnail(JsonElement thumbnails)
     {
         foreach (var key in _thumbnailPreference)

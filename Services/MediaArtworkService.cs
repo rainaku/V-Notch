@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Media;
@@ -14,25 +14,11 @@ public interface IMediaArtworkService
     Task<BitmapImage?> ConvertToWpfBitmapAsync(IRandomAccessStreamWithContentType stream, CancellationToken ct = default);
     void ConfigureSmartCrop(bool enabled);
 
-    /// <summary>
-    /// Detects the dominant subject in <paramref name="source"/> (if the on-device YOLOv8n
-    /// model is loaded). Returns null when unavailable; callers should fall back gracefully.
-    /// </summary>
     SubjectBounds? GetDominantSubjectBounds(BitmapImage source);
 }
 
 public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
 {
-    /// <summary>
-    /// Fixed pixel width used to decode every album artwork bitmap. Choosing a
-    /// single value makes the in-memory pixel buffer identical for every provider
-    /// (Spotify 600 px, SoundCloud 500 px, YouTube 480 px) and every screen DPI,
-    /// so the downstream crop / blur / display steps always operate on the same
-    /// canvas size and the result is bit-for-bit consistent.
-    ///
-    /// 256 covers the largest consumer (expanded thumbnail 102 logical px ×
-    /// 200% DPI ≈ 204 device px) with headroom for hover scale and crop.
-    /// </summary>
     private const int ArtworkDecodeWidth = 256;
 
     private static readonly HttpClient _httpClient = new();
@@ -102,11 +88,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                         bitmap.BeginInit();
                         bitmap.StreamSource = ms;
                         bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                        // Decode at a fixed pixel width so the buffer size is identical
-                        // regardless of source resolution (Spotify 600px vs YouTube 480px
-                        // vs SoundCloud 500px). 256 covers the largest consumer (expanded
-                        // thumbnail = 102 logical px × 200 % DPI = 204 device px) with
-                        // a small headroom for crop / hover scale.
                         bitmap.DecodePixelWidth = ArtworkDecodeWidth;
                         bitmap.EndInit();
                         bitmap.Freeze();
@@ -136,8 +117,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
             VNotch.Services.RuntimeLog.Log("CROP-START",
                 $"src={width}x{height} aspect={(double)width / height:F2} mediaSource='{mediaSource}' forceCenterCrop={forceCenterCrop} smartEnabled={EnableSmartCrop} smartAvail={_smartCropAvailable}");
 
-            // If image is already square (within 2% tolerance), return as-is — no crop needed.
-            // This prevents unnecessary 3% zoom-crop on Spotify/SMTC album art that's already square.
             double srcAspect = (double)width / height;
             if (Math.Abs(srcAspect - 1.0) < 0.02 && !forceCenterCrop)
             {
@@ -161,8 +140,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
 
             double aspect = (double)width / height;
 
-            // Use full size (no zoom) for near-square images to avoid visible crop on large screens.
-            // Only apply 0.97 zoom for wide/tall images where trimming edges improves framing.
             double zoom = aspect >= 0.9 && aspect <= 1.1 ? 1.0 : 0.97;
             int squareSize = (int)(Math.Min(width, height) * zoom);
 
@@ -212,8 +189,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                 }
             }
 
-            // Fast path: CroppedBitmap → pooled buffer → BMP encode → BitmapImage
-            // (BMP is ~10-20x faster than PNG — no compression overhead)
             var result = BitmapBufferPool.CreateCroppedBitmapImage(workingSource, rect);
             if (result != null)
                 return result;
@@ -310,9 +285,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                 bitmap.BeginInit();
                 bitmap.StreamSource = memoryStream;
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                // Normalize SMTC artwork to a fixed pixel buffer so subsequent
-                // crop / display steps produce identical output across providers
-                // and across DPI scales.
                 bitmap.DecodePixelWidth = ArtworkDecodeWidth;
                 bitmap.EndInit();
                 bitmap.Freeze();

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -210,9 +210,6 @@ public partial class MainWindow
     {
         try
         {
-            // Freeze the progress bar at its current position to prevent the "jump to end"
-            // glitch that occurs when the media player briefly reports position=duration
-            // before the track change is detected.
             var frame = _progressEngine.GetUiFrame();
             _progressEngine.NotifyUserSeek(frame.Position);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
@@ -231,9 +228,6 @@ public partial class MainWindow
 
     private void CompactThumbnailBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        // If gesture controls are enabled and media is playing in collapsed mode,
-        // let the gesture system handle this (swipe to skip track).
-        // The gesture system will call ExpandNotch via ToggleNotchFromClick if it was just a tap.
         if (_settings.EnableGestureControls && !_isExpanded && !_isMusicExpanded &&
             _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && !_isAnimating)
         {
@@ -351,10 +345,6 @@ public partial class MainWindow
         // CRITICAL: never run the compact-mode volume UI when the notch is expanded
         if (_isExpanded || _isAnimating) return;
 
-        // ─── Arbiter: try to acquire the volume slot ───
-        // - If charging / bluetooth / greeting is showing → reject (those have higher priority).
-        // - If clipboard is showing → preempt and continue.
-        // - If volume is already showing → returns Won (refresh case).
         if (!_isVolumeIndicatorActive)
         {
             if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Volume, out int token))
@@ -515,9 +505,6 @@ public partial class MainWindow
         }
     }
 
-    // Instantly clears the volume indicator state without the compact shrink animation.
-    // Used when the user clicks to expand the notch while the volume bar is showing —
-    // the expand animation will take over the notch sizing.
     private void DismissVolumeIndicatorImmediate()
     {
         _volumeIndicatorHideTimer?.Stop();
@@ -537,10 +524,6 @@ public partial class MainWindow
             VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
         }
 
-        // Clear the held fade-out animations from ShowVolumeIndicator. These hold
-        // opacity at 0 (FillBehavior.HoldEnd); if left active, the expand/collapse
-        // completion handlers' local Opacity = 1 assignment loses to the animation
-        // and the thumbnail stays invisible after returning to the compact pill.
         if (CompactThumbnailBorder != null)
         {
             CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);

@@ -2,12 +2,6 @@ using System;
 
 namespace VNotch.Controllers;
 
-/// <summary>
-/// Identifies a transient overlay that competes for the compact pill area.
-/// Higher numeric value = higher priority. The arbiter ensures only one slot
-/// is active at a time and that lower-priority requests are rejected when a
-/// higher one is showing.
-/// </summary>
 public enum CompactPillSlot
 {
     None       = 0,
@@ -18,16 +12,6 @@ public enum CompactPillSlot
     Greeting   = 5  // Startup "Hello" handwriting
 }
 
-/// <summary>
-/// Single source of truth for which compact-pill overlay currently owns the
-/// notch's collapsed area. Each show path requests a slot via <see cref="TryAcquire"/>;
-/// the arbiter reports back whether the request won, what was preempted, and a
-/// monotonic <c>token</c> the caller must check inside any deferred animation
-/// callbacks before mutating UI state.
-///
-/// Tokens are also bumped when the slot is released so a late-firing animation
-/// completion handler from a previous owner can detect that it's stale.
-/// </summary>
 public sealed class CompactPillArbiter
 {
     private readonly object _gate = new();
@@ -50,11 +34,6 @@ public sealed class CompactPillArbiter
         lock (_gate) return _activeSlot == slot;
     }
 
-    /// <summary>
-    /// Returns true if a slot of the given priority should be allowed to show.
-    /// A request wins when no slot is active, when it has strictly higher priority
-    /// than the active one, or when it's the same slot (refresh).
-    /// </summary>
     public bool CanAcquire(CompactPillSlot slot)
     {
         if (slot == CompactPillSlot.None) return false;
@@ -65,11 +44,6 @@ public sealed class CompactPillArbiter
         }
     }
 
-    /// <summary>
-    /// Attempts to take ownership for <paramref name="slot"/>. Returns the result
-    /// describing whether it won, what was preempted (so the caller can cancel its
-    /// animations), and a fresh token for guarding deferred callbacks.
-    /// </summary>
     public AcquireResult TryAcquire(CompactPillSlot slot)
     {
         if (slot == CompactPillSlot.None)
@@ -95,11 +69,6 @@ public sealed class CompactPillArbiter
         }
     }
 
-    /// <summary>
-    /// Releases ownership when <paramref name="token"/> matches the active token.
-    /// Stale releases are ignored so a late dismiss from a preempted overlay
-    /// can't clear a slot that has since been taken by a newer overlay.
-    /// </summary>
     public void Release(int token)
     {
         lock (_gate)
@@ -110,10 +79,6 @@ public sealed class CompactPillArbiter
         }
     }
 
-    /// <summary>
-    /// Forcefully releases the active slot (used by global cancel paths such as
-    /// the notch entering full expand mode).
-    /// </summary>
     public void ForceClear()
     {
         lock (_gate)
@@ -123,10 +88,6 @@ public sealed class CompactPillArbiter
         }
     }
 
-    /// <summary>
-    /// True when a deferred callback's <paramref name="token"/> still matches the
-    /// active slot — i.e. the callback's animation hasn't been preempted.
-    /// </summary>
     public bool IsTokenCurrent(int token)
     {
         if (token == 0) return false;
@@ -142,20 +103,10 @@ public sealed class CompactPillArbiter
             Token = token;
         }
 
-        /// <summary>True if the caller may now show its overlay.</summary>
         public bool Won { get; }
 
-        /// <summary>
-        /// The slot that was active before this acquire and must be visually
-        /// cancelled by the caller. <see cref="CompactPillSlot.None"/> means
-        /// nothing was preempted.
-        /// </summary>
         public CompactPillSlot Preempted { get; }
 
-        /// <summary>
-        /// Token to capture and check inside Completed handlers before committing
-        /// state changes. 0 when the request was rejected.
-        /// </summary>
         public int Token { get; }
     }
 }

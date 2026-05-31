@@ -3,15 +3,6 @@ using System.Windows;
 
 namespace VNotch.Controllers;
 
-/// <summary>
-/// Recognizes trackpad/mouse gestures on the notch:
-/// - Horizontal swipe left/right → next/previous track
-/// - Vertical swipe down → open File Shelf
-/// - Double-tap → play/pause
-/// 
-/// Uses mouse delta accumulation with thresholds to distinguish
-/// intentional swipes from incidental movement.
-/// </summary>
 public sealed class GestureController
 {
     // ─── Configuration ───
@@ -37,10 +28,6 @@ public sealed class GestureController
     public event Action? SwipeDown;       // → Open File Shelf
     public event Action? DoubleTap;       // → Play/Pause
 
-    /// <summary>
-    /// Call when mouse button is pressed on the notch.
-    /// Returns true if the gesture system is now tracking (caller should not handle as click yet).
-    /// </summary>
     public void BeginTracking(Point position)
     {
         _isTracking = true;
@@ -50,9 +37,6 @@ public sealed class GestureController
         _gestureTriggered = false;
     }
 
-    /// <summary>
-    /// Call on mouse move while tracking. Returns true if a gesture was triggered.
-    /// </summary>
     public bool UpdateTracking(Point currentPosition)
     {
         if (!_isTracking || _gestureTriggered) return false;
@@ -98,9 +82,6 @@ public sealed class GestureController
         return false;
     }
 
-    /// <summary>
-    /// Call when mouse button is released. Returns true if this was a tap (no swipe occurred).
-    /// </summary>
     public bool EndTracking(Point position)
     {
         if (!_isTracking) return false;
@@ -125,32 +106,17 @@ public sealed class GestureController
         return false;
     }
 
-    /// <summary>
-    /// Cancel tracking without triggering any gesture.
-    /// </summary>
     public void CancelTracking()
     {
         _isTracking = false;
         _gestureTriggered = false;
     }
 
-    /// <summary>
-    /// Whether the controller is currently tracking a potential gesture.
-    /// </summary>
     public bool IsTracking => _isTracking;
 
-    /// <summary>
-    /// Whether a gesture was already triggered in the current tracking session.
-    /// </summary>
     public bool GestureTriggered => _gestureTriggered;
 
-    /// <summary>
-    /// Current horizontal accumulation (for visual feedback during drag).
-    /// </summary>
     public double AccumulatedX => _accumulatedX;
 
-    /// <summary>
-    /// Current vertical accumulation (for visual feedback during drag).
-    /// </summary>
     public double AccumulatedY => _accumulatedY;
 }

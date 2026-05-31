@@ -5,11 +5,6 @@ using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Controllers;
 
-/// <summary>
-/// Manages fullscreen auto-hide decision logic: determines whether the notch
-/// should be hidden based on foreground window state, settings, and cooldowns.
-/// No WPF/UI references — pure Win32 + decision logic.
-/// </summary>
 public sealed class FullscreenAutoHideController
 {
     private static readonly TimeSpan FullscreenStateCooldown = TimeSpan.FromMilliseconds(180);
@@ -28,10 +23,8 @@ public sealed class FullscreenAutoHideController
 
     // ─── Events ───
 
-    /// <summary>Fired when the hide state changes. Args: shouldHide.</summary>
     public event Action<bool>? HideStateChanged;
 
-    /// <summary>Fired when a recheck should be scheduled (cooldown prevented immediate transition).</summary>
     public event Action? RecheckNeeded;
 
     // ─── Constructor ───
@@ -44,13 +37,6 @@ public sealed class FullscreenAutoHideController
 
     // ─── Core Logic ───
 
-    /// <summary>
-    /// Evaluates whether the notch should be hidden based on the current foreground window.
-    /// Call this from WndProc, foreground change hooks, or periodic checks.
-    /// </summary>
-    /// <param name="foregroundHwnd">The foreground window handle (0 = auto-detect).</param>
-    /// <param name="force">Bypass throttle and cooldown.</param>
-    /// <returns>True if the hide state changed.</returns>
     public bool Evaluate(IntPtr foregroundHwnd = default, bool force = false)
     {
         IntPtr notchHwnd = _getNotchHwnd();
@@ -95,9 +81,6 @@ public sealed class FullscreenAutoHideController
         return true;
     }
 
-    /// <summary>
-    /// Force-resets the hidden state (e.g., when settings change).
-    /// </summary>
     public void Reset()
     {
         if (_isHiddenByFullscreen)

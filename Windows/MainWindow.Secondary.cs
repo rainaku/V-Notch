@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -34,11 +34,6 @@ public partial class MainWindow
     }
     private DateTime _lastViewSwitchUtc = DateTime.MinValue;
     private static readonly TimeSpan ViewSwitchCooldown = TimeSpan.FromMilliseconds(600);
-    /// <summary>
-    /// When true, all view-switch scroll events are suppressed until the scroll
-    /// "session" ends (no wheel event for _scrollSessionTimeout ms).
-    /// This prevents smooth-scroll apps from firing multiple view switches per gesture.
-    /// </summary>
     private bool _isScrollSessionLocked = false;
     private System.Windows.Threading.DispatcherTimer? _scrollSessionResetTimer;
 
@@ -808,8 +803,6 @@ public partial class MainWindow
         {
             if (ShelfItemsContainer.Children[i] is Border item && item.Tag is string path)
             {
-                // Use cached position from layout (Margin + index) for fast hit-testing
-                // TransformToAncestor is expensive — only use it when layout is complex
                 GeneralTransform transform = item.TransformToAncestor(FileShelfGrid);
                 Rect itemBounds = transform.TransformBounds(new Rect(0, 0, item.ActualWidth, item.ActualHeight));
 

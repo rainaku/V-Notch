@@ -107,8 +107,6 @@ public partial class MainWindow
 
     private void PlayXinChaoStrokeAnimation()
     {
-        // Timing from the React component (in seconds), converted to ms
-        // Each path has a duration and delay matching the original animation
         var paths = new (Path path, double durationMs, double delayMs)[]
         {
             (ViPath1,  110,    0),      // x1        — nhanh nhất
@@ -199,9 +197,6 @@ public partial class MainWindow
         double length = GetPathLength(geometry);
         double normalizedLength = length / path.StrokeThickness;
 
-        // Use a single dash that covers the entire path, with a very large gap
-        // so that when offset = normalizedLength, nothing is visible
-        // and when offset = 0, the full stroke is visible (no dots/artifacts)
         path.StrokeDashCap = PenLineCap.Flat;
         path.StrokeStartLineCap = PenLineCap.Flat;
         path.StrokeEndLineCap = PenLineCap.Flat;

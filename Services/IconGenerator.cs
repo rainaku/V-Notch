@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
@@ -40,8 +40,6 @@ public static class IconGenerator
         using var dotBrush = new SolidBrush(Color.FromArgb(60, 60, 60));
         g.FillEllipse(dotBrush, dotX, dotY, dotSize, dotSize);
 
-        // GetHicon() allocates an HICON that Icon.FromHandle does not own. Build the
-        // managed Icon, clone it so it owns its own copy, then free the native HICON.
         IntPtr hIcon = bitmap.GetHicon();
         try
         {

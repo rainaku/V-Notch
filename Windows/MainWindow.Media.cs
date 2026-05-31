@@ -63,10 +63,6 @@ public partial class MainWindow
                 }
                 else if (result.HasRealTrack && renderedSource == "YouTube")
                 {
-                    // YouTube: show synced closed captions in the lyrics widget.
-                    // The video id may not be resolved yet on this first event —
-                    // FetchSubtitlesForTrack no-ops until it is, and a later
-                    // MediaChanged with the resolved id will trigger the fetch.
                     FetchSubtitlesForTrack(info);
                 }
                 else
@@ -80,8 +76,6 @@ public partial class MainWindow
                 TrackArtist.Text = result.DisplayText.Artist;
                 CompactTitleMarquee.Text = result.DisplayText.Title;
 
-                // Same track, but the YouTube video id may have just been resolved
-                // asynchronously by MediaDetectionService — try fetching captions now.
                 if (result.HasRealTrack && renderedSource == "YouTube"
                     && !string.IsNullOrEmpty(info.YouTubeVideoId))
                 {
@@ -178,6 +172,17 @@ public partial class MainWindow
                     }
                     else
                     {
+                        var transitionBlur = new DoubleAnimation(0, 12, TimeSpan.FromMilliseconds(300))
+                        {
+                            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                        };
+                        ThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, transitionBlur);
+                        CompactThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty,
+                            new DoubleAnimation(0, 6, TimeSpan.FromMilliseconds(300))
+                            {
+                                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                            });
+
                         if (CompactThumbnail.Source == null)
                         {
                             CompactThumbnail.Source = ThumbnailImage.Source;
@@ -252,8 +257,6 @@ public partial class MainWindow
 
         VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"BLUR-MORPH-START force={force}");
 
-        // Suppress outside-click collapse during thumbnail animation to prevent
-        // WindowFromPoint misses caused by WPF visual tree changes (blur, opacity, scale)
         _suppressOutsideClickUntilUtc = DateTime.UtcNow.AddMilliseconds(700);
 
         CancelThumbnailSwitchAnimations();
@@ -299,10 +302,6 @@ public partial class MainWindow
         CompactThumbnail.Opacity = 1.0;
         CompactThumbnailOutBlur.Radius = 0.0;
 
-        // ─── Outgoing animations ───
-        // Blur ramps up first (cubic out → fast at start, slow at end), then
-        // opacity fades (cubic in → starts slow, accelerates) so dissolve feels
-        // gradual instead of an instant fade.
         var outBlurExpanded = new DoubleAnimation(0.0, expandedPeakBlur, outDur) { EasingFunction = cubicOut };
         var outBlurCompact  = new DoubleAnimation(0.0, compactPeakBlur,  outDur) { EasingFunction = cubicOut };
         var outFade         = new DoubleAnimation(1.0, 0.0, outDur)              { EasingFunction = cubicIn };
@@ -312,8 +311,6 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(outFade, 144);
         Timeline.SetDesiredFrameRate(outScale, 144);
 
-        // ─── Incoming animations (delayed by 'overlap') ───
-        // Hold blurred + invisible for 'overlap', then bloom into focus.
         DoubleAnimationUsingKeyFrames MakeInBlur(double peak)
         {
             var a = new DoubleAnimationUsingKeyFrames();
@@ -361,9 +358,6 @@ public partial class MainWindow
         CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, inScale);
         CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, inBlurCompact);
 
-        // Single Completed handler on the longest timeline commits the swap:
-        // promote the overlay's image to the base layer, clear the overlay,
-        // and reset every transient transform/opacity/blur.
         inScale.Completed += (s, e) =>
         {
             if (_thumbnailSwitchGeneration != generation) return;
@@ -416,8 +410,6 @@ public partial class MainWindow
             CompactThumbnailOutBlur.Radius = 0.0;
             CompactThumbnailNextBlur.Radius = 0.0;
 
-            // Restore MusicViz after thumbnail switch completes — ensures the equalizer
-            // is visible even if a prior animation left it hidden during the morph.
             if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true
                 && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
             {
@@ -467,14 +459,6 @@ public partial class MainWindow
         CompactThumbnailOutBlur.Radius = 0.0;
         CompactThumbnailNextBlur.Radius = 0.0;
 
-        // If an in-flight transition was interrupted, the overlay layer may hold
-        // the most recent target frame — promote it onto the base so the user
-        // doesn't see the old thumbnail snap back.
-        // NOTE: Do NOT fall back to _currentMediaInfo?.Thumbnail here. When this
-        // method is called as the preamble of AnimateThumbnailSwitchOnly, that
-        // value is the morph's destination; promoting it to the base layer would
-        // make the upcoming morph render new→new (invisible) and the user sees a
-        // snap-jump. The base layer's current Source is the correct "from" frame.
         var overlayTarget = ThumbnailImageNext.Source ?? CompactThumbnailNext.Source;
         var resolvedThumb = targetThumb ?? overlayTarget
                             ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
@@ -493,14 +477,6 @@ public partial class MainWindow
         CompactThumbnail.Opacity = 1.0;
     }
 
-    /// <summary>
-    /// Variant of CancelThumbnailSwitchAnimations for use during expand.
-    /// Resolves the correct thumbnail source (promoting overlay if mid-morph)
-    /// but does NOT snap compact layer opacity/blur/scale back to defaults,
-    /// since the compact content will be faded out by the expand animation anyway.
-    /// This prevents the visible "reverse snap" when a track-change morph is
-    /// interrupted by expanding the notch.
-    /// </summary>
     private void CancelThumbnailSwitchForExpand()
     {
         // Stop animations on expanded layers (these will be used by expand).
@@ -515,9 +491,6 @@ public partial class MainWindow
         ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         ThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
-        // Stop compact layer animations but DON'T reset their visual state —
-        // the expand animation will fade out compact content, so any mid-morph
-        // state (partial blur/opacity) will naturally disappear with the fade.
         CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
 
         // Capture current animated values before cancelling to prevent snap-back.
@@ -537,9 +510,6 @@ public partial class MainWindow
         CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
-        // Cancel opacity animation but preserve current visual value (no snap to 1.0).
-        // In WPF, BeginAnimation(null) reverts to the local value (1.0), so we must
-        // capture the animated value first and set it as the new local value.
         double compactThumbOpacity = CompactThumbnail.Opacity;
         CompactThumbnail.BeginAnimation(OpacityProperty, null);
         CompactThumbnail.Opacity = compactThumbOpacity;
@@ -552,8 +522,6 @@ public partial class MainWindow
         ThumbnailOutBlur.Radius = 0.0;
         ThumbnailNextBlur.Radius = 0.0;
 
-        // Resolve the correct thumbnail: prefer overlay target (the new track's thumb)
-        // since that's what the user should see in the expanded view.
         var overlayTarget = ThumbnailImageNext.Source ?? CompactThumbnailNext.Source;
         var resolvedThumb = overlayTarget
                             ?? ThumbnailImage.Source ?? CompactThumbnail.Source;
@@ -569,8 +537,6 @@ public partial class MainWindow
         ThumbnailImageNext.Opacity = 0.0;
         CompactThumbnailNext.Opacity = 0.0;
         ThumbnailImage.Opacity = 1.0;
-        // NOTE: CompactThumbnail.Opacity is NOT reset to 1.0 here — let it stay
-        // at whatever mid-morph value it has; expand fade-out will handle it.
     }
 
     #endregion
@@ -609,9 +575,6 @@ public partial class MainWindow
                         MusicViz.IsPlaying = info.IsPlaying;
                         MusicViz.TrackId = info.GetSignature();
 
-                        // Ensure MusicViz is immediately visible when track changes.
-                        // Without this, MusicViz stays hidden if a prior animation
-                        // (volume bar, thumbnail exit) left it Collapsed/Opacity=0.
                         if (info.IsPlaying && !_isVolumeIndicatorActive)
                         {
                             MusicViz.BeginAnimation(OpacityProperty, null);
@@ -628,8 +591,6 @@ public partial class MainWindow
         
         if (!_isExpanded)
         {
-            // Don't animate content switch while bluetooth/charging notification or greeting is showing
-            // or while the notch is in the middle of expanding (would conflict with expand animation)
             if (_isBluetoothNotificationVisible || _isChargingNotificationVisible || _isGreetingActive || _isAnimating)
             {
                 return;
@@ -650,10 +611,6 @@ public partial class MainWindow
                 ResetCompactThumbnailRestingState();
                 if (info?.Thumbnail != null && !_isClipboardPeekActive)
                 {
-                    // When re-entering compact mode for the same track (e.g. pause→play),
-                    // don't touch the source at all. The track hasn't changed — the
-                    // existing thumbnail is correct. Setting source would trigger a
-                    // re-render which can cause a visible flash/shift.
                     string compactTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
                     if (compactTrackId != _lastAnimatedTrackSignature && !_thumbnailShownForCurrentTrack)
                     {
@@ -669,8 +626,6 @@ public partial class MainWindow
             }
             else
             {
-                // Media turned off — play a pop-out collapse on the compact thumbnail
-                // before switching back to the idle collapsed content.
                 PlayCompactThumbnailExitAnimation(() =>
                 {
                     FadeSwitch(MusicCompactContent, CollapsedContent);
@@ -690,11 +645,6 @@ public partial class MainWindow
 
     #region Thumbnail Transition
 
-    /// <summary>
-    /// Plays a subtle "pop-in" reveal animation on the compact thumbnail
-    /// when it transitions from empty (null) to having an image for the first time.
-    /// Scale 0→1 with a soft spring + opacity fade-in for a polished feel.
-    /// </summary>
     private void PlayThumbnailRevealAnimation()
     {
         // Start from scale 0 and opacity 0
@@ -735,16 +685,8 @@ public partial class MainWindow
         };
     }
 
-    /// <summary>
-    /// Plays a "pop-out" collapse on the compact thumbnail when media stops/turns off,
-    /// mirroring <see cref="PlayThumbnailRevealAnimation"/>. Scale 1→0 with an anticipation
-    /// dip + opacity fade so the pill shrinks away smoothly before switching back to the
-    /// idle collapsed content. Calls <paramref name="onCompleted"/> when finished.
-    /// </summary>
     private void PlayCompactThumbnailExitAnimation(Action? onCompleted = null)
     {
-        // Scale from the thumbnail center so it collapses inward symmetrically,
-        // rather than from the top-left origin used for the hover-expand morph.
         var originalOrigin = CompactThumbnailBorder.RenderTransformOrigin;
         CompactThumbnailBorder.RenderTransformOrigin = new Point(0.5, 0.5);
 
@@ -811,9 +753,6 @@ public partial class MainWindow
             CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
-            // Leave the thumbnail collapsed (scale 0 / opacity 0) so it doesn't pop
-            // back to full size while the content fades out. The resting state is
-            // restored by ResetCompactThumbnailRestingState() when the pill is next shown.
             CompactThumbnailBorder.RenderTransformOrigin = originalOrigin;
             onCompleted?.Invoke();
         };
@@ -823,11 +762,6 @@ public partial class MainWindow
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, opacityAnim);
     }
 
-    /// <summary>
-    /// Restores the compact thumbnail to its resting visual state (full scale, opaque).
-    /// Called when re-entering compact mode so a prior exit pop-out (which leaves the
-    /// thumbnail collapsed) doesn't keep it invisible.
-    /// </summary>
     private void ResetCompactThumbnailRestingState()
     {
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -845,10 +779,6 @@ public partial class MainWindow
     private Storyboard? _titleShimmerStoryboard;
     private bool _isShimmerActive;
 
-    /// <summary>
-    /// Starts a subtle shimmering highlight sweep on the "No media playing" text.
-    /// Uses an animated LinearGradientBrush that sweeps a bright highlight across the text.
-    /// </summary>
     private void StartTitleShimmer()
     {
         if (_isShimmerActive) return;
@@ -874,9 +804,6 @@ public partial class MainWindow
         // Apply the brush to the TrackTitle
         TrackTitle.Foreground = shimmerBrush;
 
-        // Animate the gradient stops to sweep from left to right
-        // The highlight band (0.2 wide) sweeps fully off-screen on both ends
-        // so start and end frames are visually identical → seamless loop
         var duration = TimeSpan.FromMilliseconds(2500);
         var storyboard = new Storyboard
         {
@@ -924,9 +851,6 @@ public partial class MainWindow
         storyboard.Begin(this, true);
     }
 
-    /// <summary>
-    /// Stops the shimmer effect and restores the normal title foreground.
-    /// </summary>
     private void StopTitleShimmer()
     {
         if (!_isShimmerActive) return;

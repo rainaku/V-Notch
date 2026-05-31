@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -89,8 +89,6 @@ public partial class MainWindow
     }
     private void ShowClipboardCopiedState()
     {
-        // Acquire the clipboard slot. Clipboard is the lowest-priority overlay,
-        // so this returns false if anything else is showing.
         if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Clipboard, out int token))
             return;
 
@@ -103,8 +101,6 @@ public partial class MainWindow
         // Update text with localization
         ClipboardCopiedText.Text = Loc.Get("clipboard.copied");
 
-        // ─── Immediately hide all other notch elements to prevent overlap ───
-        // Cancel any ongoing thumbnail switch animations that could restore visibility
         CancelThumbnailSwitchAnimations();
 
         // Fade-out thumbnail smoothly
@@ -243,10 +239,6 @@ public partial class MainWindow
         MusicViz.BeginAnimation(OpacityProperty, vizFadeIn);
     }
 
-    /// <summary>
-    /// Synchronous cancel used by the arbiter when a higher-priority overlay
-    /// (volume / bluetooth / charging / greeting) takes over. No animation.
-    /// </summary>
     private void CancelClipboardPeekImmediate()
     {
         if (!_isClipboardPeekActive) return;

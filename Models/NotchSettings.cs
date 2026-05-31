@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Text.Json.Serialization;
 
 namespace VNotch.Models;
@@ -38,11 +38,6 @@ public class NotchSettings
     public bool EnableGlowOnHover { get; set; } = true;
     public string NotchStyle { get; set; } = "default"; 
 
-    /// <summary>
-    /// When true, the notch detaches from the top edge of the screen and renders
-    /// as a free-floating rounded rectangle (Dynamic Island style) with all four
-    /// corners rounded and a small gap from the top of the display.
-    /// </summary>
     public bool EnableDynamicIslandMode { get; set; } = false;
 
     public bool HideOnExclusiveFullscreen { get; set; } = true;
@@ -54,12 +49,6 @@ public class NotchSettings
 
     public bool EnableSmartCrop { get; set; } = true;
 
-    /// <summary>
-    /// Use the on-device YOLOv8n model to detect the dominant subject in artwork
-    /// and produce a "spotlight" background blur (Apple Music style) instead of a
-    /// uniform blur. Falls back to uniform blur when no subject is found or the
-    /// model isn't available.
-    /// </summary>
     public bool EnableSubjectBlur { get; set; } = true;
 
     public bool EnableGestureControls { get; set; } = true;
@@ -75,6 +64,8 @@ public class NotchSettings
     public bool EnableYouTubeApi { get; set; } = false;
     public string YouTubeApiKey { get; set; } = "";
 
+    public string SubtitlePriority { get; set; } = "native,english,auto";
+
     public string Language { get; set; } = "en"; // "en" or "vi"
 
     [JsonIgnore]
@@ -85,11 +76,6 @@ public class NotchSettings
         typeof(NotchSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance),
         p => p.CanRead && p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
 
-    /// <summary>
-    /// Creates a deep copy of this settings instance.
-    /// Uses cached reflection to automatically copy all serializable properties —
-    /// new properties are included without manual maintenance.
-    /// </summary>
     public NotchSettings Clone()
     {
         var clone = new NotchSettings();
