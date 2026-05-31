@@ -41,10 +41,25 @@ public partial class MainWindow
     private bool _cameraFrameDispatchPending = false;
 
     // ─── Lifecycle serialization: prevent race conditions on rapid click ───
+    private readonly object _cameraLifecycleLock = new();
+    private MediaCapture? _initializingMediaCapture;
     private bool _cameraStarting = false;
     private bool _cameraStopping = false;
-    private bool IsCameraPreviewLifecycleActive =>
-        _isCameraActive || _cameraStarting || _cameraStopping || _frameReader != null || _mediaCapture != null;
+    private bool IsCameraPreviewLifecycleActive
+    {
+        get
+        {
+            lock (_cameraLifecycleLock)
+            {
+                return _isCameraActive
+                    || _cameraStarting
+                    || _cameraStopping
+                    || _frameReader != null
+                    || _mediaCapture != null
+                    || _initializingMediaCapture != null;
+            }
+        }
+    }
 
     private static async Task DisposeCameraResourcesAsync(MediaFrameReader? reader, MediaCapture? capture)
     {
@@ -455,6 +470,7 @@ public partial class MainWindow
             var cameraDeviceId = _settings.CameraDeviceId;
             var (mediaCapture, frameReader, errorMsg) = await Task.Run(async () =>
             {
+                MediaCapture? capture = null;
                 try
                 {
                     var groups = await MediaFrameSourceGroup.FindAllAsync();
@@ -472,7 +488,12 @@ public partial class MainWindow
                     if (group == null)
                         return ((MediaCapture?)null, (MediaFrameReader?)null, "Cannot detect camera device");
 
-                    var capture = new MediaCapture();
+                    capture = new MediaCapture();
+                    lock (_cameraLifecycleLock)
+                    {
+                        _initializingMediaCapture = capture;
+                    }
+
                     var initSettings = new MediaCaptureInitializationSettings
                     {
                         SourceGroup = group,
@@ -481,19 +502,56 @@ public partial class MainWindow
                     };
 
                     await capture.InitializeAsync(initSettings);
+                    if (startToken != _cameraPreviewFadeToken || !_isCameraActive || !_isSecondaryView)
+                    {
+                        lock (_cameraLifecycleLock)
+                        {
+                            if (ReferenceEquals(_initializingMediaCapture, capture))
+                            {
+                                _initializingMediaCapture = null;
+                            }
+                        }
+                        capture.Dispose();
+                        return ((MediaCapture?)null, (MediaFrameReader?)null, (string?)null);
+                    }
 
                     var colorSource = capture.FrameSources.Values.FirstOrDefault(s => s.Info.SourceKind == MediaFrameSourceKind.Color);
                     if (colorSource == null)
                     {
+                        lock (_cameraLifecycleLock)
+                        {
+                            if (ReferenceEquals(_initializingMediaCapture, capture))
+                            {
+                                _initializingMediaCapture = null;
+                            }
+                        }
                         capture.Dispose();
                         return ((MediaCapture?)null, (MediaFrameReader?)null, "Cannot detect color source");
                     }
 
                     var reader = await capture.CreateFrameReaderAsync(colorSource, MediaEncodingSubtypes.Bgra8);
+                    lock (_cameraLifecycleLock)
+                    {
+                        if (ReferenceEquals(_initializingMediaCapture, capture))
+                        {
+                            _initializingMediaCapture = null;
+                        }
+                    }
                     return (capture, reader, (string?)null);
                 }
                 catch (Exception ex)
                 {
+                    if (capture != null)
+                    {
+                        lock (_cameraLifecycleLock)
+                        {
+                            if (ReferenceEquals(_initializingMediaCapture, capture))
+                            {
+                                _initializingMediaCapture = null;
+                            }
+                        }
+                        try { capture.Dispose(); } catch { }
+                    }
                     return ((MediaCapture?)null, (MediaFrameReader?)null, ex.Message);
                 }
             });
@@ -509,6 +567,13 @@ public partial class MainWindow
 
             _mediaCapture = mediaCapture;
             _frameReader = frameReader;
+            lock (_cameraLifecycleLock)
+            {
+                if (ReferenceEquals(_initializingMediaCapture, mediaCapture))
+                {
+                    _initializingMediaCapture = null;
+                }
+            }
             _frameReader.FrameArrived += FrameReader_FrameArrived;
             await frameReader.StartAsync();
 
@@ -566,6 +631,13 @@ public partial class MainWindow
         _cameraWriteableBitmap = null;
         _cameraFrameDispatchPending = false;
 
+        MediaCapture? initializingCapture;
+        lock (_cameraLifecycleLock)
+        {
+            initializingCapture = _initializingMediaCapture;
+            _initializingMediaCapture = null;
+        }
+
         var reader = _frameReader;
         var capture = _mediaCapture;
         _frameReader = null;
@@ -591,7 +663,11 @@ public partial class MainWindow
         CameraOverlay.Visibility = Visibility.Collapsed;
         CameraErrorOverlay.Visibility = Visibility.Collapsed;
 
-        _ = Task.Run(() => DisposeCameraResourcesAsync(reader, capture));
+        _ = DisposeCameraResourcesAsync(reader, capture);
+        if (initializingCapture != null && !ReferenceEquals(initializingCapture, capture))
+        {
+            _ = DisposeCameraResourcesAsync(null, initializingCapture);
+        }
     }
 
     private void FrameReader_FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)

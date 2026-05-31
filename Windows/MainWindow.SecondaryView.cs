@@ -49,6 +49,7 @@ public partial class MainWindow
             }
             else if (_isSecondaryView && !_isTimerView)
             {
+                StopCameraPreviewForViewExit();
                 SwitchFromSecondaryToTimerView();
             }
         }
@@ -60,6 +61,7 @@ public partial class MainWindow
             }
             else if (_isSecondaryView)
             {
+                StopCameraPreviewForViewExit();
                 SwitchToPrimaryView();
             }
         }
@@ -103,6 +105,7 @@ public partial class MainWindow
         }
         else if (_isSecondaryView && !_isAnimating)
         {
+            StopCameraPreviewForViewExit();
             SwitchToPrimaryView();
         }
     }
