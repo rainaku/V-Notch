@@ -300,10 +300,83 @@ public partial class MainWindow
 
     private float _currentVolume = 0.5f;
     private const float VolumeScrollStep = 0.05f; // 5% per scroll tick
+    private const double CompactVolumeImmediateWheelDelta = 120.0;
+    private const double CompactVolumeSmoothActivationDelta = 240.0;
+    private const double CompactVolumeWheelSessionResetMs = 450.0;
+    private const double CompactVolumeClickSuppressMs = 600.0;
     private DispatcherTimer? _volumeIndicatorHideTimer;
     private bool _isVolumeIndicatorActive = false;
     private bool _volumeSynced = false;
     private int _volumeIndicatorToken = 0;
+    private double _compactVolumeWheelAccumulator = 0;
+    private DateTime _lastCompactVolumeWheelUtc = DateTime.MinValue;
+    private DateTime _suppressCompactVolumeWheelUntilUtc = DateTime.MinValue;
+    private bool _isCompactVolumeWheelActive = false;
+
+    private void SuppressCompactVolumeWheelForClick()
+    {
+        _suppressCompactVolumeWheelUntilUtc = DateTime.UtcNow.AddMilliseconds(CompactVolumeClickSuppressMs);
+        ResetCompactVolumeWheelIntent();
+    }
+
+    private void ResetCompactVolumeWheelIntent()
+    {
+        _compactVolumeWheelAccumulator = 0;
+        _lastCompactVolumeWheelUtc = DateTime.MinValue;
+        _isCompactVolumeWheelActive = false;
+    }
+
+    private bool TryGetCompactVolumeWheelDelta(int rawDelta, out int volumeDelta)
+    {
+        volumeDelta = 0;
+        if (rawDelta == 0) return false;
+
+        var now = DateTime.UtcNow;
+        if (now < _suppressCompactVolumeWheelUntilUtc)
+        {
+            ResetCompactVolumeWheelIntent();
+            return false;
+        }
+
+        if ((now - _lastCompactVolumeWheelUtc).TotalMilliseconds > CompactVolumeWheelSessionResetMs)
+        {
+            _compactVolumeWheelAccumulator = 0;
+            _isCompactVolumeWheelActive = false;
+        }
+        _lastCompactVolumeWheelUtc = now;
+
+        if (_isVolumeIndicatorActive || _isCompactVolumeWheelActive)
+        {
+            _isCompactVolumeWheelActive = true;
+            volumeDelta = rawDelta;
+            return true;
+        }
+
+        if (Math.Abs(rawDelta) >= CompactVolumeImmediateWheelDelta)
+        {
+            _isCompactVolumeWheelActive = true;
+            volumeDelta = rawDelta;
+            return true;
+        }
+
+        if (_compactVolumeWheelAccumulator != 0 &&
+            Math.Sign(_compactVolumeWheelAccumulator) != Math.Sign(rawDelta))
+        {
+            _compactVolumeWheelAccumulator = 0;
+        }
+
+        _compactVolumeWheelAccumulator += rawDelta;
+        if (Math.Abs(_compactVolumeWheelAccumulator) < CompactVolumeSmoothActivationDelta)
+        {
+            return false;
+        }
+
+        _compactVolumeWheelAccumulator = 0;
+        _isCompactVolumeWheelActive = true;
+        volumeDelta = Math.Sign(rawDelta) * (int)CompactVolumeImmediateWheelDelta;
+        return true;
+    }
+
     private void AdjustVolumeByScroll(int delta)
     {
         // Sync current volume from system only once per scroll session
@@ -443,6 +516,7 @@ public partial class MainWindow
             _volumeIndicatorHideTimer.Tick += (s, e) =>
             {
                 _volumeIndicatorHideTimer.Stop();
+                ResetCompactVolumeWheelIntent();
                 HideVolumeIndicator();
             };
         }
@@ -452,6 +526,7 @@ public partial class MainWindow
     private void HideVolumeIndicator()
     {
         if (VolumeIndicatorContainer == null) return;
+        ResetCompactVolumeWheelIntent();
         int token = _volumeIndicatorToken;
 
         _isVolumeIndicatorActive = false;
@@ -504,6 +579,7 @@ public partial class MainWindow
     private void DismissVolumeIndicatorImmediate()
     {
         _volumeIndicatorHideTimer?.Stop();
+        ResetCompactVolumeWheelIntent();
         int token = _volumeIndicatorToken;
 
         _isVolumeIndicatorActive = false;

@@ -23,7 +23,10 @@ public partial class MainWindow
             }
 
             e.Handled = true;
-            AdjustVolumeByScroll(e.Delta);
+            if (TryGetCompactVolumeWheelDelta(e.Delta, out int volumeDelta))
+            {
+                AdjustVolumeByScroll(volumeDelta);
+            }
             return;
         }
 

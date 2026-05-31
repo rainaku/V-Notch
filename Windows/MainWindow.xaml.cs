@@ -1255,6 +1255,11 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             return;
         }
 
+        if (!_isExpanded)
+        {
+            SuppressCompactVolumeWheelForClick();
+        }
+
         if (_isVolumeIndicatorActive)
         {
             DismissVolumeIndicatorImmediate();
