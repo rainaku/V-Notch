@@ -601,6 +601,8 @@ public partial class MainWindow
             _cameraPreviewMorphPending = false;
             _cameraFrameBuffer = null;
             _cameraFrameBufferSize = 0;
+            _cameraWriteableBitmap = null;
+            _cameraFrameDispatchPending = false;
             int fadeToken = ++_cameraPreviewFadeToken;
 
             // ─── Capture references and detach immediately to stop frame flow ───
@@ -681,6 +683,7 @@ public partial class MainWindow
             CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             CameraPreviewBlur.Radius = 16.0;
             CameraPreviewImage.Source = null;
+            _cameraWriteableBitmap = null; // ← FIX: Ensure bitmap is cleared after animation
         };
         CameraPreviewImage.BeginAnimation(OpacityProperty, previewFadeOut, HandoffBehavior.SnapshotAndReplace);
         CameraOverlay.BeginAnimation(OpacityProperty, overlayFadeIn, HandoffBehavior.SnapshotAndReplace);
