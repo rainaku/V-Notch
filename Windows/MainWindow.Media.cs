@@ -750,9 +750,16 @@ public partial class MainWindow
 
         scaleAnimX.Completed += (s, e) =>
         {
+            // Set local values to "hidden" state BEFORE clearing animations.
+            // Without this, clearing the animation snaps back to the pre-animation
+            // local values (scale=1, opacity=1) causing a 1-frame flash.
+            CompactThumbnailBorder.Visibility = Visibility.Collapsed;
             CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+            CompactThumbnailScale.ScaleX = 1.0;
+            CompactThumbnailScale.ScaleY = 1.0;
+            CompactThumbnailBorder.Opacity = 1.0;
             CompactThumbnailBorder.RenderTransformOrigin = originalOrigin;
             onCompleted?.Invoke();
         };
@@ -770,6 +777,7 @@ public partial class MainWindow
         CompactThumbnailScale.ScaleX = 1.0;
         CompactThumbnailScale.ScaleY = 1.0;
         CompactThumbnailBorder.Opacity = 1.0;
+        CompactThumbnailBorder.Visibility = Visibility.Visible;
     }
 
     #endregion
