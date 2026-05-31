@@ -49,26 +49,7 @@ public partial class MainWindow
             }
             else if (_isSecondaryView && !_isTimerView)
             {
-                if (_isCameraActive)
-                {
-                    StopCameraPreview();
-                    // Delay view switch until camera section collapse finishes
-                    var cameraCollapseWait = new System.Windows.Threading.DispatcherTimer
-                    {
-                        Interval = TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs + 50)
-                    };
-                    cameraCollapseWait.Tick += (s2, e2) =>
-                    {
-                        cameraCollapseWait.Stop();
-                        if (!_isAnimating)
-                            SwitchFromSecondaryToTimerView();
-                    };
-                    cameraCollapseWait.Start();
-                }
-                else
-                {
-                    SwitchFromSecondaryToTimerView();
-                }
+                SwitchFromSecondaryToTimerView();
             }
         }
         else if (e.Delta > 0)
@@ -79,26 +60,7 @@ public partial class MainWindow
             }
             else if (_isSecondaryView)
             {
-                if (_isCameraActive)
-                {
-                    StopCameraPreview();
-                    // Delay view switch until camera section collapse finishes
-                    var cameraCollapseWait = new System.Windows.Threading.DispatcherTimer
-                    {
-                        Interval = TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs + 50)
-                    };
-                    cameraCollapseWait.Tick += (s2, e2) =>
-                    {
-                        cameraCollapseWait.Stop();
-                        if (_isSecondaryView && !_isAnimating)
-                            SwitchToPrimaryView();
-                    };
-                    cameraCollapseWait.Start();
-                }
-                else
-                {
-                    SwitchToPrimaryView();
-                }
+                SwitchToPrimaryView();
             }
         }
     }
@@ -249,6 +211,7 @@ public partial class MainWindow
         fadeIn.Completed += (s, e) =>
         {
             _isAnimating = false;
+            _isScrollSessionLocked = false;
             NotchBorder.IsHitTestVisible = true;
             SecondaryContent.Opacity = 1;
             SecondaryContent.BeginAnimation(OpacityProperty, null);
@@ -261,14 +224,11 @@ public partial class MainWindow
                 AnimateThumbnailSwitchOnly(thumb, force: true);
             }
 
-            if (_isCameraActive)
+            if (IsCameraPreviewLifecycleActive)
             {
-                AnimateCameraSectionToShelf(true);
+                StopCameraPreviewForViewExit();
             }
-            else
-            {
-                ResetCameraSectionLayoutInstant();
-            }
+            ResetCameraSectionLayoutInstant();
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeIn);
@@ -285,10 +245,13 @@ public partial class MainWindow
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
 
-        // Stop camera if still active (e.g. called from nav button without scroll)
-        if (_isCameraActive)
+        if (IsCameraPreviewLifecycleActive)
         {
-            StopCameraPreview();
+            StopCameraPreviewForViewExit();
+        }
+        else
+        {
+            ResetCameraSectionLayoutInstant();
         }
 
         UpdateNavIconsActiveState();
@@ -297,7 +260,6 @@ public partial class MainWindow
         NavIconsBackground.Visibility = Visibility.Collapsed;
 
         NotchBorder.IsHitTestVisible = false;
-        ResetCameraSectionLayoutInstant();
 
         var durOut  = new Duration(TimeSpan.FromMilliseconds(180));
         var durIn   = new Duration(TimeSpan.FromMilliseconds(480));
@@ -363,6 +325,7 @@ public partial class MainWindow
         fadeIn.Completed += (s, e) =>
         {
             _isAnimating = false;
+            _isScrollSessionLocked = false;
             NotchBorder.IsHitTestVisible = true;
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
@@ -384,28 +347,33 @@ public partial class MainWindow
 
     private void UpdateNavIconsActiveState()
     {
+        var showShelfCountBadge = false;
+
         if (_isTimerView)
         {
             HomeIconButton.Opacity = 0.4;
             FileShelfIconButton.Opacity = 0.4;
             TimerIconButton.Opacity = 1.0;
-            ShelfCountBadge.Visibility = Visibility.Collapsed;
         }
         else if (_isSecondaryView)
         {
             HomeIconButton.Opacity = 0.4;
             FileShelfIconButton.Opacity = 1.0;
             TimerIconButton.Opacity = 0.4;
-            ShelfCountBadge.Visibility = ShelfUnlockBanner.Visibility == Visibility.Visible
-                ? Visibility.Collapsed
-                : Visibility.Visible;
+            showShelfCountBadge = ShelfUnlockBanner.Visibility != Visibility.Visible;
         }
         else
         {
             HomeIconButton.Opacity = 1.0;
             FileShelfIconButton.Opacity = 0.4;
             TimerIconButton.Opacity = 0.4;
-            ShelfCountBadge.Visibility = Visibility.Collapsed;
+        }
+
+        if (!_isAnimating)
+        {
+            ShelfCountBadge.Visibility = showShelfCountBadge
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
     }
 

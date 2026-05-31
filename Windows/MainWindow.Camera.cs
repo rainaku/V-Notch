@@ -43,6 +43,27 @@ public partial class MainWindow
     // ─── Lifecycle serialization: prevent race conditions on rapid click ───
     private bool _cameraStarting = false;
     private bool _cameraStopping = false;
+    private bool IsCameraPreviewLifecycleActive =>
+        _isCameraActive || _cameraStarting || _cameraStopping || _frameReader != null || _mediaCapture != null;
+
+    private static async Task DisposeCameraResourcesAsync(MediaFrameReader? reader, MediaCapture? capture)
+    {
+        if (reader != null)
+        {
+            try
+            {
+                await reader.StopAsync();
+            }
+            catch
+            {
+                // Reader may already be stopped or disposed when cancelling an in-flight start.
+            }
+
+            try { reader.Dispose(); } catch { }
+        }
+
+        try { capture?.Dispose(); } catch { }
+    }
 
     private void PrimeCameraPreviewMorphIn()
     {
@@ -406,9 +427,9 @@ public partial class MainWindow
         if (_cameraStarting) return;
 
         _cameraStarting = true;
+        int startToken = ++_cameraPreviewFadeToken;
         try
         {
-            _cameraPreviewFadeToken++;
             CameraPreviewImage.BeginAnimation(OpacityProperty, null);
             CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             PrimeCameraPreviewMorphIn();
@@ -463,14 +484,9 @@ public partial class MainWindow
                 }
             });
 
-            if (!_isCameraActive)
+            if (startToken != _cameraPreviewFadeToken || !_isCameraActive || !_isSecondaryView)
             {
-                // User cancelled during init — dispose on background
-                _ = Task.Run(() =>
-                {
-                    frameReader?.Dispose();
-                    mediaCapture?.Dispose();
-                });
+                await DisposeCameraResourcesAsync(frameReader, mediaCapture);
                 return;
             }
 
@@ -480,13 +496,33 @@ public partial class MainWindow
             _mediaCapture = mediaCapture;
             _frameReader = frameReader;
             _frameReader.FrameArrived += FrameReader_FrameArrived;
-            await _frameReader.StartAsync();
+            await frameReader.StartAsync();
+
+            if (startToken != _cameraPreviewFadeToken || !_isCameraActive || !_isSecondaryView)
+            {
+                frameReader.FrameArrived -= FrameReader_FrameArrived;
+                if (ReferenceEquals(_frameReader, frameReader))
+                {
+                    _frameReader = null;
+                }
+                if (ReferenceEquals(_mediaCapture, mediaCapture))
+                {
+                    _mediaCapture = null;
+                }
+                await DisposeCameraResourcesAsync(frameReader, mediaCapture);
+            }
         }
         catch (Exception ex)
         {
             StopCameraPreviewSafe();
-            CameraOverlay.Visibility = Visibility.Collapsed;
-            CameraErrorOverlay.Visibility = Visibility.Visible;
+            if (_isSecondaryView)
+            {
+                CameraErrorOverlay.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                CameraErrorOverlay.Visibility = Visibility.Collapsed;
+            }
             RuntimeLog.Error("CAMERA", ex, "Camera initialization failed");
         }
         finally
@@ -494,9 +530,21 @@ public partial class MainWindow
             _cameraStarting = false;
         }
     }
+
+    private void StopCameraPreviewForViewExit(bool resetLayout = true)
+    {
+        StopCameraPreviewSafe();
+        if (resetLayout)
+        {
+            ResetCameraSectionLayoutInstant();
+        }
+    }
+
     private void StopCameraPreviewSafe()
     {
         _isCameraActive = false;
+        _cameraStarting = false;
+        _cameraStopping = false;
         _cameraPreviewMorphPending = false;
         _cameraPreviewFadeToken++;
         _cameraFrameBuffer = null;
@@ -504,18 +552,32 @@ public partial class MainWindow
         _cameraWriteableBitmap = null;
         _cameraFrameDispatchPending = false;
 
-        if (_frameReader != null)
+        var reader = _frameReader;
+        var capture = _mediaCapture;
+        _frameReader = null;
+        _mediaCapture = null;
+
+        if (reader != null)
         {
-            _frameReader.FrameArrived -= FrameReader_FrameArrived;
-            _frameReader.Dispose();
-            _frameReader = null;
+            reader.FrameArrived -= FrameReader_FrameArrived;
         }
 
-        if (_mediaCapture != null)
-        {
-            _mediaCapture.Dispose();
-            _mediaCapture = null;
-        }
+        CameraPreviewImage.BeginAnimation(OpacityProperty, null);
+        CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        CameraOverlay.BeginAnimation(OpacityProperty, null);
+
+        CameraPreviewImage.Opacity = 0;
+        CameraPreviewImage.Source = null;
+        CameraPreviewScale.ScaleX = 1.06;
+        CameraPreviewScale.ScaleY = 1.06;
+        CameraPreviewBlur.Radius = 16.0;
+        CameraOverlay.Opacity = 0;
+        CameraOverlay.Visibility = Visibility.Collapsed;
+        CameraErrorOverlay.Visibility = Visibility.Collapsed;
+
+        _ = Task.Run(() => DisposeCameraResourcesAsync(reader, capture));
     }
 
     private void FrameReader_FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
