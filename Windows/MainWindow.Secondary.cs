@@ -210,7 +210,7 @@ public partial class MainWindow
 
     private void UpdateShelfCapacityIndicator(string? transientMessage = null, bool isError = false)
     {
-        if (ShelfStatusText == null || ShelfPlaceholder == null || ShelfCountText == null)
+        if (ShelfStatusText == null || ShelfPlaceholder == null || ShelfCountText == null || ShelfCountBadge == null)
             return;
 
         ShelfPlaceholder.Text = Loc.Get("shelf.placeholder");
@@ -218,6 +218,9 @@ public partial class MainWindow
 
         ShelfCountText.Text = _fileShelf.GetCountDisplayText();
         ShelfCountText.Foreground = _fileShelf.IsCountWarning ? _brushShelfStatusWarning : Brushes.White;
+        ShelfCountBadge.Visibility = _isSecondaryView && ShelfUnlockBanner.Visibility != Visibility.Visible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         if (!string.IsNullOrWhiteSpace(transientMessage))
         {
@@ -346,7 +349,7 @@ public partial class MainWindow
     private void ShowShelfUnlockBanner(int fileCount)
     {
         ShelfUnlockBanner.Visibility = Visibility.Visible;
-        ShelfCountText.Visibility = Visibility.Collapsed;
+        ShelfCountBadge.Visibility = Visibility.Collapsed;
         ShelfPlaceholder.Visibility = Visibility.Collapsed;
         ShelfUnlockMessageText.Text = Loc.Get("shelf.unlockMessage", fileCount);
         ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
@@ -389,7 +392,7 @@ public partial class MainWindow
         fadeOut.Completed += (s, e) =>
         {
             ShelfUnlockBanner.Visibility = Visibility.Collapsed;
-            ShelfCountText.Visibility = Visibility.Visible;
+            ShelfCountBadge.Visibility = _isSecondaryView ? Visibility.Visible : Visibility.Collapsed;
             UpdateShelfCapacityIndicator();
         };
         ShelfUnlockBanner.BeginAnimation(OpacityProperty, fadeOut);

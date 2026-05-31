@@ -8,6 +8,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using static VNotch.Services.AnimationPrimitives;
+using static VNotch.Services.Win32Interop;
 
 namespace VNotch;
 
@@ -23,11 +24,15 @@ public partial class MainWindow
     private bool _isCountdownRunning = false;
     private DispatcherTimer? _countdownTimer;
 
-    // ─── Alarm State ───
-    private int _alarmHour = 7;
-    private int _alarmMinute = 0;
-    private bool _isAlarmSet = false;
-    private DispatcherTimer? _alarmCheckTimer;
+    // ─── Countdown Hold-to-Repeat ───
+    private DispatcherTimer? _countdownRepeatTimer;
+    private int _countdownRepeatDirection; // +1 or -1
+    private int _countdownRepeatCount;
+    private const int RepeatInitialDelayMs = 400;
+    private const int RepeatFastIntervalMs = 80;
+    private const int RepeatAccelerateAfter = 4; // ticks before speeding up
+
+
 
     #region Timer View Navigation
 
@@ -170,7 +175,6 @@ public partial class MainWindow
             SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
 
         UpdateTimerDisplay();
-        UpdateAlarmDisplay();
     }
 
     private void SwitchFromSecondaryToTimerView()
@@ -288,7 +292,6 @@ public partial class MainWindow
             SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
 
         UpdateTimerDisplay();
-        UpdateAlarmDisplay();
     }
 
     private void SwitchFromTimerToPrimaryView()
@@ -408,6 +411,7 @@ public partial class MainWindow
         HomeIconButton.Opacity = 0.4;
         FileShelfIconButton.Opacity = 0.4;
         TimerIconButton.Opacity = 1.0;
+        ShelfCountBadge.Visibility = Visibility.Collapsed;
     }
 
     private void SwitchFromTimerToSecondaryView()
@@ -596,36 +600,6 @@ public partial class MainWindow
         CountdownDisplay.BeginAnimation(OpacityProperty, textFlash);
     }
 
-    private void AnimateAlarmDisplayPulse()
-    {
-        var scale = AlarmDisplayMode.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
-        AlarmDisplayMode.RenderTransform = scale;
-        AlarmDisplayMode.RenderTransformOrigin = new Point(0.5, 0.5);
-
-        var upX = MakeAnim(1.0, 1.04, _dur80, _easeQuadOut, null);
-        var upY = MakeAnim(1.0, 1.04, _dur80, _easeQuadOut, null);
-        var settleX = new DoubleAnimation(1.04, 1.0, _dur250) { EasingFunction = _easeSoftSpring };
-        var settleY = new DoubleAnimation(1.04, 1.0, _dur250) { EasingFunction = _easeSoftSpring };
-
-        upX.Completed += (_, _) => scale.BeginAnimation(ScaleTransform.ScaleXProperty, settleX);
-        upY.Completed += (_, _) => scale.BeginAnimation(ScaleTransform.ScaleYProperty, settleY);
-
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, upX);
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, upY);
-    }
-
-    private (ScaleTransform Scale, TranslateTransform Translate) PrepareAlarmPickerTransform(double scaleValue, double y)
-    {
-        var scale = new ScaleTransform(scaleValue, scaleValue);
-        var translate = new TranslateTransform(0, y);
-        var group = new TransformGroup();
-        group.Children.Add(scale);
-        group.Children.Add(translate);
-        AlarmPickerMode.RenderTransform = group;
-        AlarmPickerMode.RenderTransformOrigin = new Point(0.5, 1.0);
-        return (scale, translate);
-    }
-
     #endregion
 
     #region Countdown Logic
@@ -648,27 +622,183 @@ public partial class MainWindow
             _countdownRemaining = TimeSpan.Zero;
             _isCountdownRunning = false;
             _countdownTimer?.Stop();
-            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M212,330.14V181.86a16,16,0,0,1,26.23-12.29l89.09,74.13a16,16,0,0,1,0,24.6l-89.09,74.13A16,16,0,0,1,212,330.14Z");
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0x00));
-
-            // Flash the display to indicate completion
-            FlashCountdownComplete();
 
             // Play system notification sound
             SystemSounds.Exclamation.Play();
+
+            // Collapse to pill and show completion overlay
+            ShowCountdownCompletionOnPill();
+            return;
         }
 
         UpdateTimerDisplay();
     }
 
-    private void FlashCountdownComplete()
+    private bool _isCountdownCompleteVisible = false;
+
+    private void ShowCountdownCompletionOnPill()
     {
-        var flash = new DoubleAnimation(1, 0.3, new Duration(TimeSpan.FromMilliseconds(300)))
+        _isCountdownCompleteVisible = true;
+
+        // If not expanded, expand to timer view size first
+        if (!_isExpanded)
+        {
+            // Expand notch to timer view size
+            _isExpanded = true;
+            _isTimerView = true;
+            _isAnimating = true;
+
+            NotchBorder.IsHitTestVisible = false;
+
+            var durExpand = new Duration(TimeSpan.FromMilliseconds(480));
+            var widthAnim = MakeAnim(_expandedWidth, durExpand, _easeExpOut6, 144);
+            var heightAnim = MakeAnim(_timerViewHeight, durExpand, _easeExpOut6, 144);
+
+            heightAnim.Completed += (s, ev) =>
+            {
+                _isAnimating = false;
+                NotchBorder.IsHitTestVisible = true;
+                ShowCompletionOverlayContent();
+            };
+
+            NotchBorder.BeginAnimation(WidthProperty, widthAnim);
+            NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+
+            // Resize window
+            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            double windowHeightDip = _timerViewHeight + 80;
+            this.Height = windowHeightDip;
+            _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
+            if (_hwnd != IntPtr.Zero)
+                SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+
+            // Hide collapsed content during expand
+            CollapsedContent.Visibility = Visibility.Collapsed;
+            MusicCompactContent.Visibility = Visibility.Collapsed;
+        }
+        else if (_isExpanded && _isTimerView)
+        {
+            // Already in timer view, just hide timer content and show overlay
+            TimerContent.BeginAnimation(OpacityProperty, null);
+            TimerContent.Opacity = 0;
+            TimerContent.Visibility = Visibility.Collapsed;
+
+            NavIconsBackground.BeginAnimation(OpacityProperty, null);
+            NavIconsBackground.Opacity = 0;
+            NavIconsBackground.Visibility = Visibility.Collapsed;
+            NavIconsPanel.BeginAnimation(OpacityProperty, null);
+            NavIconsPanel.Opacity = 0;
+            NavIconsPanel.Visibility = Visibility.Collapsed;
+
+            ShowCompletionOverlayContent();
+        }
+        else
+        {
+            // Expanded but not in timer view — just show overlay
+            ShowCompletionOverlayContent();
+        }
+    }
+
+    private void ShowCompletionOverlayContent()
+    {
+        // Hide normal content
+        ExpandedContent.Visibility = Visibility.Collapsed;
+        TimerContent.Visibility = Visibility.Collapsed;
+        SecondaryContent.Visibility = Visibility.Collapsed;
+
+        // Show completion overlay
+        CountdownCompleteOverlay.Visibility = Visibility.Visible;
+        CountdownCompleteOverlay.Opacity = 1;
+
+        // Flash the 00:00 text
+        var flash = new DoubleAnimation(1, 0.2, new Duration(TimeSpan.FromMilliseconds(500)))
         {
             AutoReverse = true,
-            RepeatBehavior = new RepeatBehavior(3)
+            RepeatBehavior = RepeatBehavior.Forever
         };
-        CountdownDisplay.BeginAnimation(OpacityProperty, flash);
+        Timeline.SetDesiredFrameRate(flash, 30);
+        CountdownCompleteText.BeginAnimation(OpacityProperty, flash);
+    }
+
+    private void CountdownRestart_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        DismissCountdownCompletion();
+
+        // Reset and start again in timer view
+        _countdownRemaining = _countdownDuration;
+        _isCountdownRunning = true;
+        if (_countdownTimer == null) InitializeCountdownTimer();
+        _countdownTimer?.Start();
+
+        // Switch to timer view
+        _isTimerView = true;
+        TimerContent.Visibility = Visibility.Visible;
+        TimerContent.Opacity = 1;
+        NavIconsPanel.Visibility = Visibility.Visible;
+        NavIconsPanel.Opacity = 1;
+        NavIconsBackground.Visibility = Visibility.Visible;
+        NavIconsBackground.Opacity = 1;
+        UpdateTimerNavIconsState();
+        UpdateTimerDisplay();
+
+        CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M224,320a16,16,0,0,1-32,0V192a16,16,0,0,1,32,0Zm96,0a16,16,0,0,1-32,0V192a16,16,0,0,1,32,0Z");
+        CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xCC, 0x70, 0x00));
+    }
+
+    private void CountdownDismiss_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        DismissCountdownCompletion();
+
+        // Reset timer state and collapse
+        _countdownRemaining = _countdownDuration;
+        _isTimerView = false;
+
+        // Collapse back to pill
+        _isAnimating = true;
+        var durCollapse = new Duration(TimeSpan.FromMilliseconds(400));
+        var widthAnim = MakeAnim(_collapsedWidth, durCollapse, _easeExpOut6, 144);
+        var heightAnim = MakeAnim(_collapsedHeight, durCollapse, _easeExpOut6, 144);
+
+        heightAnim.Completed += (s, ev) =>
+        {
+            _isAnimating = false;
+            _isExpanded = false;
+            NotchBorder.IsHitTestVisible = true;
+
+            // Restore normal collapsed content
+            if (_isMusicCompactMode)
+            {
+                MusicCompactContent.Visibility = Visibility.Visible;
+                MusicCompactContent.Opacity = 1;
+            }
+            else
+            {
+                CollapsedContent.Visibility = Visibility.Visible;
+                CollapsedContent.Opacity = 1;
+            }
+        };
+
+        NotchBorder.BeginAnimation(WidthProperty, widthAnim);
+        NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+
+        // Reset play icon
+        CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z");
+        CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
+    }
+
+    private void DismissCountdownCompletion()
+    {
+        _isCountdownCompleteVisible = false;
+
+        // Stop flashing
+        CountdownCompleteText.BeginAnimation(OpacityProperty, null);
+        CountdownCompleteText.Opacity = 1;
+
+        // Hide overlay
+        CountdownCompleteOverlay.Visibility = Visibility.Collapsed;
+        CountdownCompleteOverlay.Opacity = 0;
     }
 
     private void CountdownMinus_Click(object sender, MouseButtonEventArgs e)
@@ -677,13 +807,8 @@ public partial class MainWindow
         PlayTimerButtonPress(CountdownMinusBtn);
         if (_isCountdownRunning) return;
 
-        if (_countdownDuration.TotalMinutes > 1)
-        {
-            _countdownDuration = _countdownDuration.Subtract(TimeSpan.FromMinutes(1));
-            _countdownRemaining = _countdownDuration;
-            UpdateTimerDisplay();
-            AnimateCountdownDisplayPulse(1.02);
-        }
+        ApplyCountdownStep(-1);
+        StartCountdownRepeat(-1);
     }
 
     private void CountdownPlus_Click(object sender, MouseButtonEventArgs e)
@@ -692,12 +817,78 @@ public partial class MainWindow
         PlayTimerButtonPress(CountdownPlusBtn);
         if (_isCountdownRunning) return;
 
-        if (_countdownDuration.TotalMinutes < 99)
+        ApplyCountdownStep(+1);
+        StartCountdownRepeat(+1);
+    }
+
+    private void ApplyCountdownStep(int direction)
+    {
+        if (direction > 0 && _countdownDuration.TotalMinutes < 99)
         {
             _countdownDuration = _countdownDuration.Add(TimeSpan.FromMinutes(1));
             _countdownRemaining = _countdownDuration;
             UpdateTimerDisplay();
             AnimateCountdownDisplayPulse(1.02);
+        }
+        else if (direction < 0 && _countdownDuration.TotalMinutes > 1)
+        {
+            _countdownDuration = _countdownDuration.Subtract(TimeSpan.FromMinutes(1));
+            _countdownRemaining = _countdownDuration;
+            UpdateTimerDisplay();
+            AnimateCountdownDisplayPulse(1.02);
+        }
+    }
+
+    private void StartCountdownRepeat(int direction)
+    {
+        StopCountdownRepeat();
+        _countdownRepeatDirection = direction;
+        _countdownRepeatCount = 0;
+        _countdownRepeatTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(RepeatInitialDelayMs)
+        };
+        _countdownRepeatTimer.Tick += CountdownRepeat_Tick;
+        _countdownRepeatTimer.Start();
+    }
+
+    private void CountdownRepeat_Tick(object? sender, EventArgs e)
+    {
+        if (_isCountdownRunning)
+        {
+            StopCountdownRepeat();
+            return;
+        }
+
+        _countdownRepeatCount++;
+        ApplyCountdownStep(_countdownRepeatDirection);
+
+        // Accelerate: after a few ticks, switch to fast interval
+        if (_countdownRepeatCount == RepeatAccelerateAfter && _countdownRepeatTimer != null)
+        {
+            _countdownRepeatTimer.Interval = TimeSpan.FromMilliseconds(RepeatFastIntervalMs);
+        }
+    }
+
+    private void StopCountdownRepeat()
+    {
+        if (_countdownRepeatTimer != null)
+        {
+            _countdownRepeatTimer.Stop();
+            _countdownRepeatTimer.Tick -= CountdownRepeat_Tick;
+            _countdownRepeatTimer = null;
+        }
+    }
+
+    private void CountdownBtn_MouseLeaveOrUp(object sender, EventArgs e)
+    {
+        StopCountdownRepeat();
+        // Also run the normal hover-leave visual effect
+        if (sender is Border button)
+        {
+            button.Background = new SolidColorBrush(
+                button == CountdownPlusBtn ? (Color)ColorConverter.ConvertFromString("#22FFFFFF")
+                                           : (Color)ColorConverter.ConvertFromString("#16FFFFFF"));
         }
     }
 
@@ -714,9 +905,8 @@ public partial class MainWindow
             // Pause
             _isCountdownRunning = false;
             _countdownTimer?.Stop();
-            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M212,330.14V181.86a16,16,0,0,1,26.23-12.29l89.09,74.13a16,16,0,0,1,0,24.6l-89.09,74.13A16,16,0,0,1,212,330.14Z");
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0x00));
-            AnimateCountdownDisplayPulse(1.018);
+            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z");
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
         }
         else
         {
@@ -728,9 +918,8 @@ public partial class MainWindow
             // Start
             _isCountdownRunning = true;
             _countdownTimer?.Start();
-            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M144,479.92V32.08a16,16,0,0,1,32,0V479.92a16,16,0,0,1-32,0Zm192,0V32.08a16,16,0,0,1,32,0V479.92a16,16,0,0,1-32,0Z");
-            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xCC, 0x00, 0x00));
-            AnimateCountdownDisplayPulse(1.035);
+            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M224,320a16,16,0,0,1-32,0V192a16,16,0,0,1,32,0Zm96,0a16,16,0,0,1-32,0V192a16,16,0,0,1,32,0Z");
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xCC, 0x70, 0x00));
         }
     }
 
@@ -741,8 +930,8 @@ public partial class MainWindow
         _isCountdownRunning = false;
         _countdownTimer?.Stop();
         _countdownRemaining = _countdownDuration;
-        CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M212,330.14V181.86a16,16,0,0,1,26.23-12.29l89.09,74.13a16,16,0,0,1,0,24.6l-89.09,74.13A16,16,0,0,1,212,330.14Z");
-        CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0x00));
+        CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z");
+        CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
         CountdownDisplay.BeginAnimation(OpacityProperty, null);
         CountdownDisplay.Opacity = 1;
         UpdateTimerDisplay();
@@ -754,319 +943,23 @@ public partial class MainWindow
         var minutes = (int)_countdownRemaining.TotalMinutes;
         var seconds = _countdownRemaining.Seconds;
         CountdownDisplay.Text = $"{minutes:D2}:{seconds:D2}";
+        UpdateCountdownProgressFill();
     }
 
-    #endregion
-
-    #region Alarm Logic
-
-    private bool _isAlarmPickerOpen = false;
-    private bool _alarmPickerInitialized = false;
-    private const int WheelItemHeight = 28;
-    private const int WheelVisibleItems = 3; // show 3 items at a time (top, center, bottom)
-
-    private void InitializeAlarmCheckTimer()
+    private void UpdateCountdownProgressFill()
     {
-        _alarmCheckTimer = new DispatcherTimer
+        double totalMs = Math.Max(1.0, _countdownDuration.TotalMilliseconds);
+        double remainingMs = Math.Clamp(_countdownRemaining.TotalMilliseconds, 0.0, totalMs);
+        double progress = 1.0 - (remainingMs / totalMs);
+
+        double availableWidth = CountdownDisplayPanel.ActualWidth;
+        if (availableWidth <= 0)
         {
-            Interval = TimeSpan.FromSeconds(1)
-        };
-        _alarmCheckTimer.Tick += AlarmCheck_Tick;
-    }
-
-    private void AlarmCheck_Tick(object? sender, EventArgs e)
-    {
-        if (!_isAlarmSet) return;
-
-        var now = DateTime.Now;
-        if (now.Hour == _alarmHour && now.Minute == _alarmMinute && now.Second == 0)
-        {
-            // Alarm triggered!
-            _isAlarmSet = false;
-            _alarmCheckTimer?.Stop();
-            AlarmSetText.Text = "OK";
-            AlarmSetBtn.Background = new SolidColorBrush(Color.FromRgb(0x30, 0xD1, 0x58));
-
-            // Flash alarm display
-            var flash = new DoubleAnimation(1, 0.3, new Duration(TimeSpan.FromMilliseconds(300)))
-            {
-                AutoReverse = true,
-                RepeatBehavior = new RepeatBehavior(5)
-            };
-            AlarmDisplay.BeginAnimation(OpacityProperty, flash);
-
-            // Play system notification sound
-            SystemSounds.Asterisk.Play();
-
-            UpdateAlarmDisplay();
-        }
-    }
-
-    private void InitializeAlarmWheelPicker()
-    {
-        if (_alarmPickerInitialized) return;
-        _alarmPickerInitialized = true;
-
-        // Populate hour items (00-23)
-        AlarmHourItems.Children.Clear();
-        // Add padding items at top
-        AlarmHourItems.Children.Add(CreateWheelPadding());
-        for (int i = 0; i < 24; i++)
-        {
-            AlarmHourItems.Children.Add(CreateWheelItem(i.ToString("D2"), i));
-        }
-        // Add padding items at bottom
-        AlarmHourItems.Children.Add(CreateWheelPadding());
-
-        // Populate minute items (00-59)
-        AlarmMinuteItems.Children.Clear();
-        // Add padding items at top
-        AlarmMinuteItems.Children.Add(CreateWheelPadding());
-        for (int i = 0; i < 60; i++)
-        {
-            AlarmMinuteItems.Children.Add(CreateWheelItem(i.ToString("D2"), i));
-        }
-        // Add padding items at bottom
-        AlarmMinuteItems.Children.Add(CreateWheelPadding());
-    }
-
-    private FrameworkElement CreateWheelItem(string text, int value)
-    {
-        var tb = new TextBlock
-        {
-            Text = text,
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.White,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Height = WheelItemHeight,
-            Padding = new Thickness(0, 4, 0, 4),
-            Tag = value
-        };
-        tb.SetValue(FontFamilyProperty, FindResource("MainSystemFont") as FontFamily);
-        return tb;
-    }
-
-    private FrameworkElement CreateWheelPadding()
-    {
-        return new Border { Height = WheelItemHeight, Background = Brushes.Transparent };
-    }
-
-    private void ScrollWheelToValue(ScrollViewer scroller, int value)
-    {
-        // value is 0-based index, offset by 1 for the top padding
-        double offset = value * WheelItemHeight;
-        scroller.ScrollToVerticalOffset(offset);
-    }
-
-    private int GetWheelSelectedValue(ScrollViewer scroller)
-    {
-        double offset = scroller.VerticalOffset;
-        int index = (int)Math.Round(offset / WheelItemHeight);
-        return Math.Max(0, index);
-    }
-
-    private void SnapWheelToNearest(ScrollViewer scroller, int maxValue)
-    {
-        double offset = scroller.VerticalOffset;
-        int index = (int)Math.Round(offset / WheelItemHeight);
-        index = Math.Max(0, Math.Min(index, maxValue - 1));
-        double targetOffset = index * WheelItemHeight;
-
-        // Smooth snap animation
-        var anim = new DoubleAnimation(offset, targetOffset, new Duration(TimeSpan.FromMilliseconds(150)))
-        {
-            EasingFunction = _easeExpOut6
-        };
-        Timeline.SetDesiredFrameRate(anim, 120);
-
-        // Use a timer to animate scroll position
-        var startTime = DateTime.UtcNow;
-        var duration = TimeSpan.FromMilliseconds(150);
-        var startOffset = offset;
-        var snapTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(8) };
-        snapTimer.Tick += (s, ev) =>
-        {
-            var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
-            var progress = Math.Min(1.0, elapsed / duration.TotalMilliseconds);
-            // Ease out cubic
-            var eased = 1.0 - Math.Pow(1.0 - progress, 3);
-            var current = startOffset + (targetOffset - startOffset) * eased;
-            scroller.ScrollToVerticalOffset(current);
-
-            if (progress >= 1.0)
-            {
-                snapTimer.Stop();
-                scroller.ScrollToVerticalOffset(targetOffset);
-                UpdateAlarmFromWheels();
-            }
-        };
-        snapTimer.Start();
-    }
-
-    private void UpdateAlarmFromWheels()
-    {
-        _alarmHour = Math.Min(23, GetWheelSelectedValue(AlarmHourScroller));
-        _alarmMinute = Math.Min(59, GetWheelSelectedValue(AlarmMinuteScroller));
-        UpdateAlarmDisplay();
-    }
-
-    private void AlarmHourScroller_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        e.Handled = true;
-        var scroller = AlarmHourScroller;
-        double newOffset = scroller.VerticalOffset - (e.Delta > 0 ? WheelItemHeight : -WheelItemHeight);
-        newOffset = Math.Max(0, Math.Min(newOffset, (24 - 1) * WheelItemHeight));
-        scroller.ScrollToVerticalOffset(newOffset);
-
-        // Debounce snap
-        SnapWheelToNearest(scroller, 24);
-    }
-
-    private void AlarmMinuteScroller_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        e.Handled = true;
-        var scroller = AlarmMinuteScroller;
-        double newOffset = scroller.VerticalOffset - (e.Delta > 0 ? WheelItemHeight : -WheelItemHeight);
-        newOffset = Math.Max(0, Math.Min(newOffset, (60 - 1) * WheelItemHeight));
-        scroller.ScrollToVerticalOffset(newOffset);
-
-        // Debounce snap
-        SnapWheelToNearest(scroller, 60);
-    }
-
-    private void AlarmPickerBtn_Click(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        PlayTimerButtonPress(AlarmPickerBtn);
-        if (_isAlarmSet) return; // Can't change time while alarm is active
-
-        if (!_isAlarmPickerOpen)
-        {
-            ShowAlarmPicker();
-        }
-        else
-        {
-            HideAlarmPicker();
-        }
-    }
-
-    private void ShowAlarmPicker()
-    {
-        _isAlarmPickerOpen = true;
-        InitializeAlarmWheelPicker();
-
-        AlarmPickerBtnText.Text = "Done";
-        AlarmPickerBtn.Background = new SolidColorBrush(Color.FromRgb(0x50, 0x50, 0x50));
-        var (pickerScale, pickerTranslate) = PrepareAlarmPickerTransform(0.96, 8);
-
-        // Animate display mode out, picker mode in
-        var fadeOut = new DoubleAnimation(1, 0, new Duration(TimeSpan.FromMilliseconds(150)))
-        {
-            EasingFunction = _easeQuadIn
-        };
-        fadeOut.Completed += (s, ev) =>
-        {
-            AlarmDisplayMode.Visibility = Visibility.Collapsed;
-            AlarmPickerMode.Visibility = Visibility.Visible;
-
-            // Set scroll positions to current alarm values
-            Dispatcher.BeginInvoke(() =>
-            {
-                ScrollWheelToValue(AlarmHourScroller, _alarmHour);
-                ScrollWheelToValue(AlarmMinuteScroller, _alarmMinute);
-            }, System.Windows.Threading.DispatcherPriority.Loaded);
-
-            var fadeIn = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(200)))
-            {
-                EasingFunction = _easeExpOut6
-            };
-            var scaleInX = MakeAnim(0.96, 1.0, _dur250, _easeSoftSpring, null);
-            var scaleInY = MakeAnim(0.96, 1.0, _dur250, _easeSoftSpring, null);
-            var slideIn = MakeAnim(8.0, 0.0, _dur250, _easeExpOut6, null);
-            AlarmPickerMode.BeginAnimation(OpacityProperty, fadeIn);
-            pickerScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleInX);
-            pickerScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleInY);
-            pickerTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
-        };
-        AlarmDisplayMode.BeginAnimation(OpacityProperty, fadeOut);
-    }
-
-    private void HideAlarmPicker()
-    {
-        _isAlarmPickerOpen = false;
-
-        // Read final values from wheels
-        UpdateAlarmFromWheels();
-
-        AlarmPickerBtnText.Text = "Set";
-        AlarmPickerBtn.Background = new SolidColorBrush(Color.FromRgb(0x0B, 0x0B, 0x0B));
-        var (pickerScale, pickerTranslate) = PrepareAlarmPickerTransform(1.0, 0);
-
-        // Animate picker mode out, display mode in
-        var fadeOut = new DoubleAnimation(1, 0, new Duration(TimeSpan.FromMilliseconds(150)))
-        {
-            EasingFunction = _easeQuadIn
-        };
-        fadeOut.Completed += (s, ev) =>
-        {
-            AlarmPickerMode.Visibility = Visibility.Collapsed;
-            AlarmDisplayMode.Visibility = Visibility.Visible;
-
-            var fadeIn = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(200)))
-            {
-                EasingFunction = _easeExpOut6
-            };
-            AlarmDisplayMode.BeginAnimation(OpacityProperty, fadeIn);
-        };
-        AlarmPickerMode.BeginAnimation(OpacityProperty, fadeOut);
-        pickerScale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(1.0, 0.97, _dur150, _easeQuadIn, null));
-        pickerScale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(1.0, 0.97, _dur150, _easeQuadIn, null));
-        pickerTranslate.BeginAnimation(TranslateTransform.YProperty, MakeAnim(0.0, 8.0, _dur150, _easeQuadIn, null));
-    }
-
-    private void AlarmSet_Click(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        PlayTimerButtonPress(AlarmSetBtn);
-
-        if (_alarmCheckTimer == null)
-            InitializeAlarmCheckTimer();
-
-        // If picker is open, close it first and read values
-        if (_isAlarmPickerOpen)
-        {
-            UpdateAlarmFromWheels();
-            HideAlarmPicker();
+            availableWidth = CountdownDisplayPanel.MinWidth;
         }
 
-        if (_isAlarmSet)
-        {
-            // Cancel alarm
-            _isAlarmSet = false;
-            _alarmCheckTimer?.Stop();
-            AlarmSetText.Text = "OK";
-            AlarmSetBtn.Background = new SolidColorBrush(Color.FromRgb(0x30, 0xD1, 0x58));
-            AlarmDisplay.BeginAnimation(OpacityProperty, null);
-            AlarmDisplay.Opacity = 1;
-        }
-        else
-        {
-            // Set alarm
-            _isAlarmSet = true;
-            _alarmCheckTimer?.Start();
-            AlarmSetText.Text = "Off";
-            AlarmSetBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x45, 0x3A));
-        }
-
-        UpdateAlarmDisplay();
-        AnimateAlarmDisplayPulse();
-    }
-
-    private void UpdateAlarmDisplay()
-    {
-        AlarmDisplay.Text = $"{_alarmHour:D2}:{_alarmMinute:D2}";
+        CountdownProgressFill.Width = Math.Max(0, availableWidth * progress);
+        CountdownProgressEdge.Opacity = progress > 0.001 ? 1.0 : 0.0;
     }
 
     #endregion

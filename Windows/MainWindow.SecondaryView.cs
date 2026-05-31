@@ -389,18 +389,23 @@ public partial class MainWindow
             HomeIconButton.Opacity = 0.4;
             FileShelfIconButton.Opacity = 0.4;
             TimerIconButton.Opacity = 1.0;
+            ShelfCountBadge.Visibility = Visibility.Collapsed;
         }
         else if (_isSecondaryView)
         {
             HomeIconButton.Opacity = 0.4;
             FileShelfIconButton.Opacity = 1.0;
             TimerIconButton.Opacity = 0.4;
+            ShelfCountBadge.Visibility = ShelfUnlockBanner.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
         }
         else
         {
             HomeIconButton.Opacity = 1.0;
             FileShelfIconButton.Opacity = 0.4;
             TimerIconButton.Opacity = 0.4;
+            ShelfCountBadge.Visibility = Visibility.Collapsed;
         }
     }
 

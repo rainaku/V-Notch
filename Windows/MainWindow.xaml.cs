@@ -394,12 +394,12 @@ public partial class MainWindow : Window
                 {
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        if (!_isSecondaryView) return;
+                        if (!_isSecondaryView && !_isTimerView) return;
 
                         if (_isExpanded && !_isAnimating)
                         {
                             RuntimeLog.Log("COLLAPSE-TRIGGER",
-                                $"WM_ACTIVATEAPP(deactivate) -> CollapseNotch: isSecondary={_isSecondaryView}");
+                                $"WM_ACTIVATEAPP(deactivate) -> CollapseNotch: isSecondary={_isSecondaryView} isTimer={_isTimerView}");
                             CollapseNotch();
                         }
                     }));
@@ -424,12 +424,12 @@ public partial class MainWindow : Window
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
-        if (!_isSecondaryView) return;
+        if (!_isSecondaryView && !_isTimerView) return;
 
         if ((_isExpanded || _isMusicExpanded) && !_isAnimating)
         {
             RuntimeLog.Log("COLLAPSE-TRIGGER",
-                $"Deactivated event -> CollapseAll: isExpanded={_isExpanded} isMusicExpanded={_isMusicExpanded} isSecondary={_isSecondaryView}");
+                $"Deactivated event -> CollapseAll: isExpanded={_isExpanded} isMusicExpanded={_isMusicExpanded} isSecondary={_isSecondaryView} isTimer={_isTimerView}");
             CollapseAll();
         }
     }

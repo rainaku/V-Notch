@@ -442,65 +442,89 @@
                             MouseLeftButtonDown="NavIconsPanel_MouseLeftButtonDown"/>
 
                     <!-- Navigation Icons (fixed position, not affected by section transitions) -->
-                    <StackPanel x:Name="NavIconsPanel"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Left" VerticalAlignment="Top"
-                                Margin="14,3,0,0" Panel.ZIndex="200"
-                                Background="Transparent"
-                                Opacity="0"
-                                Visibility="Collapsed"
-                                MouseLeftButtonDown="NavIconsPanel_MouseLeftButtonDown">
-                        <StackPanel.RenderTransform>
+                    <Grid x:Name="NavIconsPanel"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                          Panel.ZIndex="200"
+                          Opacity="0"
+                          Visibility="Collapsed"
+                          MouseLeftButtonDown="NavIconsPanel_MouseLeftButtonDown">
+                        <Grid.RenderTransform>
                             <TranslateTransform x:Name="NavIconsTranslate" Y="0"/>
-                        </StackPanel.RenderTransform>
-                        <Border x:Name="HomeIconButton"
-                                Width="22" Height="22"
-                                Background="Transparent"
-                                Cursor="Hand"
-                                Margin="0,0,8,0"
-                                Opacity="1.0"
-                                MouseLeftButtonDown="HomeIconButton_Click">
-                            <Border.Effect>
-                                <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
-                            </Border.Effect>
-                            <Viewbox Width="15" Height="15" Stretch="Uniform"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Path Data="M8 0L0 6V8H1V15H4V10H7V15H15V8H16V6L14 4.5V1H11V2.25L8 0ZM9 10H12V13H9V10Z" 
-                                      Fill="White"/>
-                            </Viewbox>
+                        </Grid.RenderTransform>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                                    Margin="14,3,0,0"
+                                    Background="Transparent">
+                            <Border x:Name="HomeIconButton"
+                                    Width="22" Height="22"
+                                    Background="Transparent"
+                                    Cursor="Hand"
+                                    Margin="0,0,8,0"
+                                    Opacity="1.0"
+                                    MouseLeftButtonDown="HomeIconButton_Click">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
+                                </Border.Effect>
+                                <Viewbox Width="15" Height="15" Stretch="Uniform"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path Data="M8 0L0 6V8H1V15H4V10H7V15H15V8H16V6L14 4.5V1H11V2.25L8 0ZM9 10H12V13H9V10Z" 
+                                          Fill="White"/>
+                                </Viewbox>
+                            </Border>
+                            <Border x:Name="FileShelfIconButton"
+                                    Width="22" Height="22"
+                                    Background="Transparent"
+                                    Cursor="Hand"
+                                    Opacity="0.4"
+                                    Margin="0,0,8,0"
+                                    MouseLeftButtonDown="FileShelfIconButton_Click">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
+                                </Border.Effect>
+                                <Viewbox Width="15" Height="15" Stretch="Uniform"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path Data="M34.133,145.067H460.8c4.71,0,8.533-3.814,8.533-8.533c0-23.526-19.14-42.667-42.667-42.667h-132.54L254.02,45.73c-1.621-1.937-4.019-3.063-6.554-3.063H59.733C40.909,42.667,25.6,57.975,25.6,76.8v59.733C25.6,141.252,29.423,145.067,34.133,145.067z M477.867,162.133H34.133C15.309,162.133,0,177.442,0,196.267V435.2c0,18.825,15.309,34.133,34.133,34.133h443.733c18.825,0,34.133-15.309,34.133-34.133V196.267C512,177.442,496.691,162.133,477.867,162.133z M162.133,264.533h-102.4c-4.71,0-8.533-3.814-8.533-8.533s3.823-8.533,8.533-8.533h102.4c4.71,0,8.533,3.814,8.533,8.533S166.844,264.533,162.133,264.533z M162.133,230.4h-102.4c-4.71,0-8.533-3.814-8.533-8.533s3.823-8.533,8.533-8.533h102.4c4.71,0,8.533,3.814,8.533,8.533S166.844,230.4,162.133,230.4z" 
+                                          Fill="White"/>
+                                </Viewbox>
+                            </Border>
+                            <Border x:Name="TimerIconButton"
+                                    Width="22" Height="22"
+                                    Background="Transparent"
+                                    Cursor="Hand"
+                                    Opacity="0.4"
+                                    MouseLeftButtonDown="TimerIconButton_Click">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
+                                </Border.Effect>
+                                <Viewbox Width="15" Height="15" Stretch="Uniform"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path Data="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12ZM15.8321 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.8321L11.8451 13.0986C11.3171 12.7466 11 12.1541 11 11.5196V11.5V7C11 6.44772 11.4477 6 12 6C12.5523 6 13 6.44772 13 7V11.4648L15.5547 13.1679C16.0142 13.4743 16.1384 14.0952 15.8321 14.5547Z" 
+                                          Fill="White"/>
+                                </Viewbox>
+                            </Border>
+                        </StackPanel>
+                        <Border x:Name="ShelfCountBadge"
+                                Height="18"
+                                MinWidth="34"
+                                Margin="0,5,14,0"
+                                Padding="7,2"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Background="#22000000"
+                                BorderBrush="#2FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="9"
+                                Visibility="Collapsed">
+                            <TextBlock x:Name="ShelfCountText"
+                                       Text="0/30"
+                                       Style="{StaticResource SmallText}"
+                                       FontSize="9.5"
+                                       FontWeight="Bold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
                         </Border>
-                        <Border x:Name="FileShelfIconButton"
-                                Width="22" Height="22"
-                                Background="Transparent"
-                                Cursor="Hand"
-                                Opacity="0.4"
-                                Margin="0,0,8,0"
-                                MouseLeftButtonDown="FileShelfIconButton_Click">
-                            <Border.Effect>
-                                <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
-                            </Border.Effect>
-                            <Viewbox Width="15" Height="15" Stretch="Uniform"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Path Data="M34.133,145.067H460.8c4.71,0,8.533-3.814,8.533-8.533c0-23.526-19.14-42.667-42.667-42.667h-132.54L254.02,45.73c-1.621-1.937-4.019-3.063-6.554-3.063H59.733C40.909,42.667,25.6,57.975,25.6,76.8v59.733C25.6,141.252,29.423,145.067,34.133,145.067z M477.867,162.133H34.133C15.309,162.133,0,177.442,0,196.267V435.2c0,18.825,15.309,34.133,34.133,34.133h443.733c18.825,0,34.133-15.309,34.133-34.133V196.267C512,177.442,496.691,162.133,477.867,162.133z M162.133,264.533h-102.4c-4.71,0-8.533-3.814-8.533-8.533s3.823-8.533,8.533-8.533h102.4c4.71,0,8.533,3.814,8.533,8.533S166.844,264.533,162.133,264.533z M162.133,230.4h-102.4c-4.71,0-8.533-3.814-8.533-8.533s3.823-8.533,8.533-8.533h102.4c4.71,0,8.533,3.814,8.533,8.533S166.844,230.4,162.133,230.4z" 
-                                      Fill="White"/>
-                            </Viewbox>
-                        </Border>
-                        <Border x:Name="TimerIconButton"
-                                Width="22" Height="22"
-                                Background="Transparent"
-                                Cursor="Hand"
-                                Opacity="0.4"
-                                MouseLeftButtonDown="TimerIconButton_Click">
-                            <Border.Effect>
-                                <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
-                            </Border.Effect>
-                            <Viewbox Width="15" Height="15" Stretch="Uniform"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Path Data="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12ZM15.8321 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.8321L11.8451 13.0986C11.3171 12.7466 11 12.1541 11 11.5196V11.5V7C11 6.44772 11.4477 6 12 6C12.5523 6 13 6.44772 13 7V11.4648L15.5547 13.1679C16.0142 13.4743 16.1384 14.0952 15.8321 14.5547Z" 
-                                      Fill="White"/>
-                            </Viewbox>
-                        </Border>
-                    </StackPanel>
+                    </Grid>
 
                     <StackPanel x:Name="CollapsedContent" 
                                 Orientation="Horizontal"
@@ -1466,11 +1490,14 @@
                                                 </Image.Effect>
                                             </Image>
 
-                                            <TextBlock x:Name="ThumbnailFallback"
-                                                       
-                                                       FontSize="20"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"/>
+                                            <Viewbox x:Name="ThumbnailFallback"
+                                                     Width="32" Height="32"
+                                                     HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center">
+                                                <Canvas Width="512" Height="512">
+                                                    <Path Fill="#66FFFFFF" Data="M421.84,37.37a25.86,25.86,0,0,0-22.6-4.46L199.92,86.49A32.3,32.3,0,0,0,176,118v226c0,6.74-4.36,12.56-11.11,14.83l-.12.05-52,18C92.88,383.53,80,402,80,423.91a55.54,55.54,0,0,0,23.23,45.63A54.78,54.78,0,0,0,135.34,480a55.82,55.82,0,0,0,17.75-2.93l.38-.13L175.31,469A47.84,47.84,0,0,0,208,423.91v-212c0-7.29,4.77-13.21,12.16-15.07l.21-.06L395,150.14a4,4,0,0,1,5,3.86V295.93c0,6.75-4.25,12.38-11.11,14.68l-.25.09-50.89,18.11A49.09,49.09,0,0,0,304,375.92a55.67,55.67,0,0,0,23.23,45.8,54.63,54.63,0,0,0,49.88,7.35l.36-.12L399.31,421A47.83,47.83,0,0,0,432,375.92V58A25.74,25.74,0,0,0,421.84,37.37Z"/>
+                                                </Canvas>
+                                            </Viewbox>
 
                                         </Grid>
                                     </Border>
@@ -2300,21 +2327,6 @@
                                            VerticalAlignment="Center"
                                            Style="{StaticResource SubtitleText}"/>
 
-                                <Border HorizontalAlignment="Right"
-                                        VerticalAlignment="Top"
-                                        Margin="0,10,12,0"
-                                        Panel.ZIndex="10"
-                                        Background="#22000000"
-                                        BorderBrush="#2FFFFFFF"
-                                        BorderThickness="1"
-                                        CornerRadius="9"
-                                        Padding="7,3">
-                                    <TextBlock x:Name="ShelfCountText"
-                                               Text="0/30"
-                                               Style="{StaticResource SmallText}"
-                                               Foreground="White"/>
-                                </Border>
-
                                 <TextBlock x:Name="ShelfStatusText"
                                            Text="Shelf full"
                                            HorizontalAlignment="Center"
@@ -2465,7 +2477,7 @@
                     <Grid x:Name="TimerContent"
                           Opacity="0"
                           Visibility="Collapsed"
-                          Margin="14,0,14,10"
+                          Margin="14,30,14,10"
                           MouseLeftButtonDown="SecondaryContent_Click"
                           RenderOptions.ClearTypeHint="Enabled">
                         <Grid VerticalAlignment="Center">
@@ -2491,9 +2503,6 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <Border x:Name="CountdownResetBtn"
@@ -2519,7 +2528,7 @@
                                             Grid.Column="1"
                                             Width="46"
                                             Height="46"
-                                            Background="#FF0000"
+                                            Background="#FF8C00"
                                             BorderBrush="#30000000"
                                             BorderThickness="1"
                                             CornerRadius="23"
@@ -2529,14 +2538,13 @@
                                             MouseLeave="TimerControlButton_MouseLeave"
                                             MouseLeftButtonDown="CountdownStart_Click">
                                         <Path x:Name="CountdownStartIcon"
-                                              Data="M212,330.14V181.86a16,16,0,0,1,26.23-12.29l89.09,74.13a16,16,0,0,1,0,24.6l-89.09,74.13A16,16,0,0,1,212,330.14Z"
+                                              Data="M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z"
                                               Fill="White"
                                               Stretch="Uniform"
-                                              Width="16"
+                                              Width="18"
                                               Height="18"
                                               HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Margin="2,0,0,0"/>
+                                              VerticalAlignment="Center"/>
                                     </Border>
 
                                     <Border x:Name="CountdownDisplayPanel"
@@ -2562,11 +2570,23 @@
                                                 <ColumnDefinition Width="24"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <Border Grid.Column="0" Background="#14FF6B00"/>
-                                            <Border Grid.Column="0" Width="2" HorizontalAlignment="Right" Background="#FF6B00"/>
+                                            <Border x:Name="CountdownProgressFill"
+                                                    Grid.Column="0"
+                                                    Grid.ColumnSpan="3"
+                                                    Width="0"
+                                                    HorizontalAlignment="Left"
+                                                    Background="#22FF6B00"
+                                                    IsHitTestVisible="False">
+                                                <Border x:Name="CountdownProgressEdge"
+                                                        Width="2"
+                                                        HorizontalAlignment="Right"
+                                                        Background="#FF6B00"
+                                                        Opacity="0"/>
+                                            </Border>
 
                                             <TextBlock x:Name="CountdownDisplay"
                                                        Grid.Column="1"
+                                                       Panel.ZIndex="1"
                                                        Text="00:00"
                                                        FontSize="31"
                                                        FontWeight="Medium"
@@ -2578,6 +2598,7 @@
                                                        Typography.NumeralStyle="Lining"/>
 
                                             <StackPanel Grid.Column="2"
+                                                        Panel.ZIndex="1"
                                                         VerticalAlignment="Center"
                                                         HorizontalAlignment="Center">
                                                 <Border x:Name="CountdownPlusBtn"
@@ -2588,8 +2609,9 @@
                                                         Cursor="Hand"
                                                         Margin="0,0,0,2"
                                                         MouseEnter="TimerControlButton_MouseEnter"
-                                                        MouseLeave="TimerControlButton_MouseLeave"
-                                                        MouseLeftButtonDown="CountdownPlus_Click">
+                                                        MouseLeave="CountdownBtn_MouseLeaveOrUp"
+                                                        MouseLeftButtonDown="CountdownPlus_Click"
+                                                        MouseLeftButtonUp="CountdownBtn_MouseLeaveOrUp">
                                                     <TextBlock Text="+"
                                                                Foreground="White"
                                                                FontSize="11"
@@ -2605,8 +2627,9 @@
                                                         CornerRadius="6"
                                                         Cursor="Hand"
                                                         MouseEnter="TimerControlButton_MouseEnter"
-                                                        MouseLeave="TimerControlButton_MouseLeave"
-                                                        MouseLeftButtonDown="CountdownMinus_Click">
+                                                        MouseLeave="CountdownBtn_MouseLeaveOrUp"
+                                                        MouseLeftButtonDown="CountdownMinus_Click"
+                                                        MouseLeftButtonUp="CountdownBtn_MouseLeaveOrUp">
                                                     <TextBlock Text="−"
                                                                Foreground="White"
                                                                FontSize="12"
@@ -2619,166 +2642,62 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border x:Name="AlarmPickerBtn"
-                                            Grid.Column="3"
-                                            Width="42"
-                                            Height="42"
-                                            Background="#0B0B0B"
-                                            BorderBrush="#22FFFFFF"
-                                            BorderThickness="1"
-                                            CornerRadius="21"
-                                            Cursor="Hand"
-                                            MouseEnter="TimerControlButton_MouseEnter"
-                                            MouseLeave="TimerControlButton_MouseLeave"
-                                            MouseLeftButtonDown="AlarmPickerBtn_Click">
-                                        <Grid>
-                                            <Ellipse Stroke="#1AFFFFFF" StrokeThickness="3" Margin="3"/>
-                                            <Viewbox Width="15" Height="15" VerticalAlignment="Top" Margin="0,8,0,0">
-                                                <Canvas Width="24" Height="24">
-                                                    <Path Fill="White" Data="M7 2h10v2H7V2zm2 3h6v2H9V5zm-2.5 4h11A2.5 2.5 0 0 1 20 11.5V13a5 5 0 0 1-10 0v-1.5A2.5 2.5 0 0 1 12.5 9zM18 11.5a.5.5 0 0 0-.5-.5h-11a.5.5 0 0 0-.5.5V13a3 3 0 0 0 6 0v-1h2v1a3 3 0 0 0 6 0v-1.5z"/>
-                                                </Canvas>
-                                            </Viewbox>
-                                            <TextBlock x:Name="AlarmPickerBtnText"
-                                                       Text="Set"
-                                                       Foreground="#DFFFFFFF"
-                                                       FontSize="7.5"
-                                                       FontWeight="Bold"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Bottom"
-                                                       Margin="0,0,0,7"
-                                                       FontFamily="{StaticResource MainSystemFont}"/>
-                                        </Grid>
-                                    </Border>
-
-                                    <Border Grid.Column="4"
-                                            Width="58"
-                                            Height="46"
-                                            CornerRadius="9"
-                                            Background="#1C242424"
-                                            BorderBrush="#18FFFFFF"
-                                            BorderThickness="1"
-                                            Margin="8,0,0,0"
-                                            ClipToBounds="True">
-                                        <Grid x:Name="AlarmDisplayMode">
-                                            <TextBlock Text="Alarm"
-                                                       Foreground="#80FFFFFF"
-                                                       FontSize="7.5"
-                                                       FontWeight="Bold"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Top"
-                                                       Margin="0,6,0,0"
-                                                       FontFamily="{StaticResource MainSystemFont}"/>
-                                            <TextBlock x:Name="AlarmDisplay"
-                                                       Text="--:--"
-                                                       FontSize="17"
-                                                       FontWeight="Bold"
-                                                       Foreground="White"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,8,0,0"
-                                                       FontFamily="{StaticResource MainSystemFont}"
-                                                       Typography.NumeralAlignment="Tabular"
-                                                       Typography.NumeralStyle="Lining"/>
-                                        </Grid>
-                                    </Border>
-
-                                    <Border x:Name="AlarmSetBtn"
-                                            Grid.Column="5"
-                                            Width="40"
-                                            Height="42"
-                                            Background="#30D158"
-                                            CornerRadius="21"
-                                            Cursor="Hand"
-                                            Margin="8,0,0,0"
-                                            MouseEnter="TimerControlButton_MouseEnter"
-                                            MouseLeave="TimerControlButton_MouseLeave"
-                                            MouseLeftButtonDown="AlarmSet_Click">
-                                        <TextBlock x:Name="AlarmSetText"
-                                                   Text="OK"
-                                                   Foreground="White"
-                                                   FontSize="10"
-                                                   FontWeight="ExtraBold"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   FontFamily="{StaticResource MainSystemFont}"/>
-                                    </Border>
                                 </Grid>
                             </Border>
                         </Grid>
 
-                        <Grid x:Name="AlarmPickerMode"
-                              Width="186"
-                              Height="68"
-                              HorizontalAlignment="Right"
-                              VerticalAlignment="Bottom"
-                              Margin="0,0,48,62"
-                              Visibility="Collapsed"
-                              Opacity="0"
-                              Panel.ZIndex="40">
-                            <Border CornerRadius="12"
-                                    BorderBrush="#24FFFFFF"
-                                    BorderThickness="1"
-                                    Padding="8,6">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#F2121212" Offset="0"/>
-                                        <GradientStop Color="#F0080808" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                    </Grid>
 
-                                    <Border Grid.Column="0" CornerRadius="8" Background="#20252525" Margin="0,0,5,0">
-                                        <Grid>
-                                            <ScrollViewer x:Name="AlarmHourScroller"
-                                                          VerticalScrollBarVisibility="Hidden"
-                                                          HorizontalScrollBarVisibility="Disabled"
-                                                          Background="Transparent"
-                                                          PreviewMouseWheel="AlarmHourScroller_PreviewMouseWheel">
-                                                <StackPanel x:Name="AlarmHourItems" HorizontalAlignment="Center"/>
-                                            </ScrollViewer>
-                                            <Border Height="28"
-                                                    VerticalAlignment="Center"
-                                                    Background="#18FFFFFF"
-                                                    CornerRadius="6"
-                                                    IsHitTestVisible="False"
-                                                    Margin="4,0"/>
-                                        </Grid>
-                                    </Border>
-
-                                    <TextBlock Grid.Column="1"
-                                               Text=":"
-                                               FontSize="20"
-                                               FontWeight="Bold"
-                                               Foreground="#88FFFFFF"
-                                               VerticalAlignment="Center"
-                                               HorizontalAlignment="Center"
-                                               Margin="0,0,5,0"
-                                               FontFamily="{StaticResource MainSystemFont}"/>
-
-                                    <Border Grid.Column="2" CornerRadius="8" Background="#20252525">
-                                        <Grid>
-                                            <ScrollViewer x:Name="AlarmMinuteScroller"
-                                                          VerticalScrollBarVisibility="Hidden"
-                                                          HorizontalScrollBarVisibility="Disabled"
-                                                          Background="Transparent"
-                                                          PreviewMouseWheel="AlarmMinuteScroller_PreviewMouseWheel">
-                                                <StackPanel x:Name="AlarmMinuteItems" HorizontalAlignment="Center"/>
-                                            </ScrollViewer>
-                                            <Border Height="28"
-                                                    VerticalAlignment="Center"
-                                                    Background="#18FFFFFF"
-                                                    CornerRadius="6"
-                                                    IsHitTestVisible="False"
-                                                    Margin="4,0"/>
-                                        </Grid>
-                                    </Border>
-                                </Grid>
-                            </Border>
+                    <!-- Countdown Completion Overlay (expanded, same size as timer view) -->
+                    <Grid x:Name="CountdownCompleteOverlay"
+                          Opacity="0"
+                          Visibility="Collapsed"
+                          Margin="14,30,14,10"
+                          Panel.ZIndex="200">
+                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="CountdownCompleteText"
+                                           Text="00:00"
+                                           FontSize="36"
+                                           FontWeight="Bold"
+                                           Foreground="#FF8C00"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{StaticResource MainSystemFont}"
+                                           Typography.NumeralAlignment="Tabular"
+                                           Typography.NumeralStyle="Lining"/>
+                                <Border x:Name="CountdownRestartBtn"
+                                        Width="38" Height="38"
+                                        Background="#30FFFFFF"
+                                        CornerRadius="19"
+                                        Cursor="Hand"
+                                        Margin="20,0,0,0"
+                                        MouseEnter="TimerControlButton_MouseEnter"
+                                        MouseLeave="TimerControlButton_MouseLeave"
+                                        MouseLeftButtonDown="CountdownRestart_Click">
+                                    <Path Data="M256,48C141.31,48,48,141.31,48,256s93.31,208,208,208,208-93.31,208-208S370.69,48,256,48Zm130,182H256V100l130,130Z M126,326H256V456L126,326Z"
+                                          Fill="White"
+                                          Stretch="Uniform"
+                                          Width="16" Height="16"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                                </Border>
+                                <Border x:Name="CountdownDismissBtn"
+                                        Width="38" Height="38"
+                                        Background="#30FFFFFF"
+                                        CornerRadius="19"
+                                        Cursor="Hand"
+                                        Margin="8,0,0,0"
+                                        MouseEnter="TimerControlButton_MouseEnter"
+                                        MouseLeave="TimerControlButton_MouseLeave"
+                                        MouseLeftButtonDown="CountdownDismiss_Click">
+                                    <Path Data="M289.94,256l95-95A24,24,0,0,0,351,127l-95,95-95-95A24,24,0,0,0,127,161l95,95-95,95A24,24,0,1,0,161,385l95-95,95,95A24,24,0,0,0,385,351Z"
+                                          Fill="White"
+                                          Stretch="Uniform"
+                                          Width="14" Height="14"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                                </Border>
+                            </StackPanel>
                         </Grid>
                     </Grid>
 

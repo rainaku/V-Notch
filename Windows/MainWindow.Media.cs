@@ -182,7 +182,6 @@ public partial class MainWindow
                     {
                         ThumbnailImage.Visibility = Visibility.Collapsed;
                         ThumbnailFallback.Visibility = Visibility.Visible;
-                        ThumbnailFallback.Text = "🎵";
                     }
                     else
                     {
@@ -219,7 +218,6 @@ public partial class MainWindow
                     {
                         ThumbnailImage.Visibility = Visibility.Collapsed;
                         ThumbnailFallback.Visibility = Visibility.Visible;
-                        ThumbnailFallback.Text = "🎵";
                     }
                 }
                 else
@@ -229,7 +227,6 @@ public partial class MainWindow
                     ThumbnailImage.Visibility = Visibility.Collapsed;
                     ThumbnailFallback.Visibility = Visibility.Visible;
                     HideMediaBackground();
-                    ThumbnailFallback.Text = "🎵";
                     ClearLyrics();
                 }
             }

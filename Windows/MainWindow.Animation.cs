@@ -477,8 +477,9 @@ public partial class MainWindow
         NavIconsPanel.Opacity = 0;
         NavIconsPanel.Visibility = Visibility.Collapsed;
 
-        // If collapsing from secondary view, animate it out with a slide-down + fade
+        // If collapsing from secondary/timer view, animate that surface out while the notch returns to compact.
         bool wasSecondary = _isSecondaryView;
+        bool wasTimer = _isTimerView;
         if (wasSecondary)
         {
             // Stop camera with animation if active, then continue collapse
@@ -539,6 +540,51 @@ public partial class MainWindow
             _isTimerView = false;
         }
 
+        if (wasTimer)
+        {
+            // Stop camera if somehow still active
+            if (_isCameraActive)
+            {
+                StopCameraPreviewSafe();
+            }
+
+            TimerContent.BeginAnimation(OpacityProperty, null);
+
+            var timerGroup = new TransformGroup();
+            var timerScale = new ScaleTransform(1, 1);
+            var timerTranslate = new TranslateTransform(0, 0);
+            timerGroup.Children.Add(timerScale);
+            timerGroup.Children.Add(timerTranslate);
+            TimerContent.RenderTransform = timerGroup;
+            TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
+
+            var timerFadeOut = MakeAnim(TimerContent.Opacity, 0, _dur200, _easeQuadIn);
+            var timerSlideDown = MakeAnim(0, 12, _dur250, _easeQuadIn);
+            var timerScaleDown = MakeAnim(1, 0.95, _dur250, _easeQuadIn);
+            var timerBlur = TimerContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+            TimerContent.Effect = timerBlur;
+            var timerBlurOut = MakeAnim(timerBlur.Radius, 10, _dur200, _easeQuadIn);
+            Timeline.SetDesiredFrameRate(timerFadeOut, 144);
+            Timeline.SetDesiredFrameRate(timerSlideDown, 144);
+            Timeline.SetDesiredFrameRate(timerScaleDown, 144);
+
+            timerFadeOut.Completed += (s, e) =>
+            {
+                TimerContent.BeginAnimation(OpacityProperty, null);
+                TimerContent.Opacity = 0;
+                TimerContent.Visibility = Visibility.Collapsed;
+                TimerContent.RenderTransform = null;
+                TimerContent.Effect = null;
+                timerBlur.Radius = 0;
+            };
+
+            TimerContent.BeginAnimation(OpacityProperty, timerFadeOut);
+            timerTranslate.BeginAnimation(TranslateTransform.YProperty, timerSlideDown);
+            timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, timerScaleDown);
+            timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, timerScaleDown);
+            timerBlur.BeginAnimation(BlurEffect.RadiusProperty, timerBlurOut);
+        }
+
         ExpandedContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
         ResetCalendarScroll();
@@ -581,8 +627,11 @@ public partial class MainWindow
                 SecondaryContent.Opacity = 0;
                 SecondaryContent.Visibility = Visibility.Collapsed;
                 SecondaryContent.RenderTransform = null;
-                TimerContent.Visibility = Visibility.Collapsed;
-                TimerContent.Opacity = 0;
+                if (!wasTimer)
+                {
+                    TimerContent.Visibility = Visibility.Collapsed;
+                    TimerContent.Opacity = 0;
+                }
             }
         };
 
