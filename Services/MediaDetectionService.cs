@@ -438,25 +438,51 @@ public class MediaDetectionService : IMediaDetectionService
                                 info.IsAnyMediaPlaying = true;
                                 info.MediaSource = "SoundCloud";
                                 info.IsSoundCloudRunning = true;
-                                
-                                // Extract track info from window title Format: "Artist - Track | SoundCloud"
+
+                                // Extract track info from window title
+                                // Format can be either "Artist - Track" or "Track - Artist"
                                 string extractedTitle = ExtractVideoTitle(title, "SoundCloud");
                                 if (extractedTitle.Contains(" - "))
                                 {
                                     // Use last " - " to split: artist names can contain " - "
                                     int lastSep = extractedTitle.LastIndexOf(" - ", StringComparison.Ordinal);
-                                    info.CurrentArtist = extractedTitle.Substring(0, lastSep).Trim();
-                                    info.CurrentTrack = extractedTitle.Substring(lastSep + 3).Trim();
+                                    string firstPart = extractedTitle.Substring(0, lastSep).Trim();
+                                    string secondPart = extractedTitle.Substring(lastSep + 3).Trim();
+
+                                    // ─── Smart format detection ───
+                                    // Heuristic: If first part is very short (1-2 words) and second part is longer,
+                                    // it's likely "Track - Artist" format
+                                    int firstWordCount = firstPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                                    int secondWordCount = secondPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+                                    // If first part is short (≤3 words) and second part has "by" or is much longer,
+                                    // assume "Track - Artist" format
+                                    bool likelyTrackFirst = (firstWordCount <= 3 && secondWordCount > firstWordCount) ||
+                                                           secondPart.StartsWith("by ", StringComparison.OrdinalIgnoreCase) ||
+                                                           secondPart.Contains(" by ", StringComparison.OrdinalIgnoreCase);
+
+                                    if (likelyTrackFirst)
+                                    {
+                                        // "Track - Artist" format
+                                        info.CurrentTrack = firstPart;
+                                        info.CurrentArtist = secondPart;
+                                    }
+                                    else
+                                    {
+                                        // "Artist - Track" format (traditional)
+                                        info.CurrentArtist = firstPart;
+                                        info.CurrentTrack = secondPart;
+                                    }
                                 }
                                 else
                                 {
                                     info.CurrentTrack = extractedTitle;
                                     info.CurrentArtist = "SoundCloud";
                                 }
-                                
+
                                 // Mark for thumbnail fetch
                                 SetSessionSourceOverride(info, "SoundCloud");
-                                
+
                                 break;
                             }
                         }
@@ -515,8 +541,32 @@ public class MediaDetectionService : IMediaDetectionService
                                 if (extractedTitle.Contains(" - "))
                                 {
                                     int lastSep = extractedTitle.LastIndexOf(" - ", StringComparison.Ordinal);
-                                    trackName = extractedTitle.Substring(lastSep + 3).Trim();
-                                    artistName = extractedTitle.Substring(0, lastSep).Trim();
+                                    string firstPart = extractedTitle.Substring(0, lastSep).Trim();
+                                    string secondPart = extractedTitle.Substring(lastSep + 3).Trim();
+
+                                    // ─── Smart format detection ───
+                                    // Heuristic: Detect "Track - Artist" vs "Artist - Track" format
+                                    int firstWordCount = firstPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                                    int secondWordCount = secondPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+                                    // If first part is short (≤3 words) and second part has "by" or is much longer,
+                                    // assume "Track - Artist" format
+                                    bool likelyTrackFirst = (firstWordCount <= 3 && secondWordCount > firstWordCount) ||
+                                                           secondPart.StartsWith("by ", StringComparison.OrdinalIgnoreCase) ||
+                                                           secondPart.Contains(" by ", StringComparison.OrdinalIgnoreCase);
+
+                                    if (likelyTrackFirst)
+                                    {
+                                        // "Track - Artist" format
+                                        trackName = firstPart;
+                                        artistName = secondPart;
+                                    }
+                                    else
+                                    {
+                                        // "Artist - Track" format (traditional)
+                                        trackName = secondPart;
+                                        artistName = firstPart;
+                                    }
                                 }
 
                                 bool isNewTrack = trackName != _lastTrackName && !_lastTrackName.Contains(trackName);

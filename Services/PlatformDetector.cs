@@ -179,11 +179,15 @@ public static string ExtractTitleFromWindow(string windowTitle, string platformF
     }
 public static (string Artist, string Track) ParseSpotifyTitle(string title)
     {
-        int lastSep = title.LastIndexOf(" - ", StringComparison.Ordinal);
-        if (lastSep > 0)
+        // Spotify window title format is "Artist - Track".
+        // Artist names with multiple artists use commas (e.g. "kidsai, BeepBeepChild"),
+        // so the FIRST " - " is the separator between artist and track.
+        // Track names can contain " - " (e.g. "NHIEULUC - Remix Version").
+        int firstSep = title.IndexOf(" - ", StringComparison.Ordinal);
+        if (firstSep > 0)
         {
-            string artist = title.Substring(0, lastSep).Trim();
-            string track = title.Substring(lastSep + 3).Trim();
+            string artist = title.Substring(0, firstSep).Trim();
+            string track = title.Substring(firstSep + 3).Trim();
             if (!string.IsNullOrEmpty(track))
             {
                 return (artist, track);
