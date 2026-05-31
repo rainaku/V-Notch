@@ -410,6 +410,10 @@ public partial class MainWindow : Window
                 Dispatcher.BeginInvoke(() => PositionAtTop());
                 break;
 
+            case WM_DPICHANGED:
+                Dispatcher.BeginInvoke(() => PositionAtTop());
+                break;
+
             case WM_CLIPBOARDUPDATE:
                 HandleClipboardUpdate();
                 break;
@@ -852,13 +856,30 @@ public partial class MainWindow : Window
         var screen = System.Windows.Forms.Screen.PrimaryScreen;
         if (screen == null) return;
 
-        _windowWidth = (int)(_expandedWidth + 40);
-        _windowHeight = (int)(_expandedHeight + 80);
+        // Get the DPI scale factor for this window.
+        // GetDpiForWindow returns the DPI (96 = 100%, 144 = 150%, 192 = 200%, etc.)
+        double dpiScale = 1.0;
+        if (_hwnd != IntPtr.Zero)
+        {
+            uint dpi = GetDpiForWindow(_hwnd);
+            if (dpi > 0) dpiScale = dpi / 96.0;
+        }
+
+        // Window dimensions in DIPs (for WPF layout)
+        double windowWidthDip = _expandedWidth + 40;
+        double windowHeightDip = _expandedHeight + 80;
+
+        // Physical pixel dimensions for SetWindowPos
+        _windowWidth = (int)Math.Round(windowWidthDip * dpiScale);
+        _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
+
+        // Screen.Bounds is in physical pixels, so center using physical pixel width
         _fixedX = screen.Bounds.Left + (screen.Bounds.Width - _windowWidth) / 2;
         _fixedY = 0;
 
-        this.Width = _windowWidth;
-        this.Height = _windowHeight;
+        // WPF Width/Height must be in DIPs
+        this.Width = windowWidthDip;
+        this.Height = windowHeightDip;
         SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
 
         // Monitor for the notch may have changed (display add/remove, resolution change)
@@ -877,13 +898,18 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         double notchW = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
         double notchH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight;
 
-        var source = PresentationSource.FromVisual(this);
-        double dpiX = source?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
-        double dpiY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1.0;
+        // Get DPI scale to convert physical pixel positions to WPF DIPs
+        double dpiScale = 1.0;
+        if (_hwnd != IntPtr.Zero)
+        {
+            uint dpi = GetDpiForWindow(_hwnd);
+            if (dpi > 0) dpiScale = dpi / 96.0;
+        }
 
-        double winLeft = _fixedX * dpiX;
-        double winTop = _fixedY * dpiY;
-        double winWidth = _windowWidth * dpiX;
+        // _fixedX/_fixedY are in physical pixels; convert to DIPs for WPF coordinate space
+        double winLeft = _fixedX / dpiScale;
+        double winTop = _fixedY / dpiScale;
+        double winWidth = _windowWidth / dpiScale;
 
         double notchLeft = winLeft + (winWidth - notchW) / 2.0;
         double notchTop = winTop;

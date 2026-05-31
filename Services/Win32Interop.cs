@@ -107,6 +107,9 @@ internal static class Win32Interop
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
 
+    [DllImport("user32.dll")]
+    public static extern uint GetDpiForWindow(IntPtr hwnd);
+
     #endregion
 
     #region dwmapi.dll
@@ -148,6 +151,7 @@ internal static class Win32Interop
     public const int WM_ACTIVATE = 0x0006;
     public const int WM_ACTIVATEAPP = 0x001C;
     public const int WM_DISPLAYCHANGE = 0x007E;
+    public const int WM_DPICHANGED = 0x02E0;
     public const int WM_CLIPBOARDUPDATE = 0x031D;
     public const byte VK_MEDIA_PLAY_PAUSE = 0xB3;
     public const byte VK_MEDIA_NEXT_TRACK = 0xB0;
