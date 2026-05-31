@@ -8,6 +8,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
+using System.Windows.Threading;
 using VNotch.Controls;
 using VNotch.Models;
 using VNotch.Services;
@@ -22,6 +23,7 @@ public partial class SettingsWindow : Window
     private readonly IUpdateService _updateService;
     private UpdateInfo? _availableUpdate;
     private bool _isLoadingSettings = true;
+    private DispatcherTimer? _livePreviewDebounce;
 
     public event EventHandler<NotchSettings>? SettingsChanged;
 public event EventHandler? AnimatedClosing;
@@ -659,7 +661,7 @@ public event EventHandler? AnimatedClosing;
     private void AnimateLocalizationChange()
     {
         var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        const int fps = 60;
+        const int fps = 30;
         const double slideDist = 3.0;
         int staggerMs = 0;
         const int staggerStep = 20;
@@ -824,7 +826,7 @@ public event EventHandler? AnimatedClosing;
                 From = 18,
                 To = 0,
                 Duration = TimeSpan.FromMilliseconds(380),
-                EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 8 }
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };
             Timeline.SetDesiredFrameRate(slideIn, fps);
 
@@ -880,7 +882,21 @@ private void PushLivePreview()
         if (_isLoadingSettings) return;
         if (!IsLoaded) return;
 
-        ApplySettingsFromUi(persist: false);
+        if (_livePreviewDebounce == null)
+        {
+            _livePreviewDebounce = new DispatcherTimer(DispatcherPriority.Normal)
+            {
+                Interval = TimeSpan.FromMilliseconds(16)
+            };
+            _livePreviewDebounce.Tick += (s, e) =>
+            {
+                _livePreviewDebounce.Stop();
+                ApplySettingsFromUi(persist: false);
+            };
+        }
+
+        _livePreviewDebounce.Stop();
+        _livePreviewDebounce.Start();
     }
 
     #endregion
