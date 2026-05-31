@@ -89,6 +89,11 @@ public partial class MainWindow
         if (_isAnimating || _isExpanded || _isGreetingActive) return;
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Expanding);
+        bool suppressCompactThumbnailMotion = IsCountdownCompletionVisualActive;
+        if (suppressCompactThumbnailMotion)
+        {
+            SuppressCompactMediaChromeForCountdownCompletion();
+        }
         CancelThumbnailSwitchForExpand();
 
         NotchBorder.BeginAnimation(WidthProperty, null);
@@ -266,7 +271,7 @@ public partial class MainWindow
         var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
         ExpandedContentBlur.Radius = 24;
 
-        if (_isMusicCompactMode && CompactThumbnail.Source != null)
+        if (_isMusicCompactMode && CompactThumbnail.Source != null && !suppressCompactThumbnailMotion)
         {
             var cachedExpandTarget = _cachedThumbnailExpandTarget;
             if (!cachedExpandTarget.HasValue && TryComputeThumbnailExpandTarget(out var computedTarget))
@@ -350,6 +355,10 @@ public partial class MainWindow
             _isExpanded = true;
             _notchState.TryTransitionTo(NotchState.Expanded);
             NotchBorder.IsHitTestVisible = true;
+
+            // ─── Restore UI element opacity after expand completes ───
+            RestoreExpandedContentOpacity();
+
             UpdateProgressTimerState();
             UpdateBatteryInfo();
             UpdateCalendarInfo();
@@ -408,7 +417,7 @@ public partial class MainWindow
 
             // Always restore opacity — it may have been set to 0 during expand animation even if _isMusicCompactMode changed during the animation
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-            if (CompactThumbnailBorder != null && !_isClipboardPeekActive)
+            if (CompactThumbnailBorder != null && !_isClipboardPeekActive && !suppressCompactThumbnailMotion)
             {
                 CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
@@ -424,6 +433,10 @@ public partial class MainWindow
                 CompactThumbnailOutScale.ScaleY = 1.0;
                 CompactThumbnailOutBlur.Radius = 0.0;
                 CompactThumbnail.Opacity = 1.0;
+            }
+            else if (suppressCompactThumbnailMotion)
+            {
+                SuppressCompactMediaChromeForCountdownCompletion();
             }
 
             CollapsedContent.Visibility = Visibility.Collapsed;
@@ -452,6 +465,11 @@ public partial class MainWindow
         if (_isAnimating || !_isExpanded || _isGreetingActive) return;
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Collapsing);
+        bool suppressCompactThumbnailMotion = IsCountdownCompletionVisualActive;
+        if (suppressCompactThumbnailMotion)
+        {
+            SuppressCompactMediaChromeForCountdownCompletion();
+        }
         CancelThumbnailSwitchAnimations();
 
         if (_isRewindAnimating)
@@ -465,6 +483,9 @@ public partial class MainWindow
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
+
+        // ─── Apple-Style: Fade out UI elements with staggered timing BEFORE notch shrinks ───
+        AnimateExpandedContentFadeOut();
 
         // Hide Status Bar (Battery + Settings)
         AnimateStatusBarReveal(false);
@@ -482,23 +503,9 @@ public partial class MainWindow
         bool wasTimer = _isTimerView;
         if (wasSecondary)
         {
-            // Stop camera with animation if active, then continue collapse
-            if (_isCameraActive)
+            if (IsCameraPreviewLifecycleActive)
             {
-                StopCameraPreview();
-                // Delay collapse until camera section collapse finishes
-                var cameraCollapseWait = new System.Windows.Threading.DispatcherTimer
-                {
-                    Interval = TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs + 50)
-                };
-                cameraCollapseWait.Tick += (s, e) =>
-                {
-                    cameraCollapseWait.Stop();
-                    _isAnimating = false; // Reset so CollapseNotch can proceed
-                    CollapseNotch();
-                };
-                cameraCollapseWait.Start();
-                return;
+                StopCameraPreviewForViewExit();
             }
 
             SecondaryContent.BeginAnimation(OpacityProperty, null);
@@ -542,11 +549,13 @@ public partial class MainWindow
 
         if (wasTimer)
         {
-            // Stop camera if somehow still active
-            if (_isCameraActive)
+            if (IsCameraPreviewLifecycleActive)
             {
-                StopCameraPreviewSafe();
+                StopCameraPreviewForViewExit();
             }
+
+            // ─── Apple-Style: Fade out timer elements with staggered timing ───
+            AnimateTimerContentFadeOut();
 
             TimerContent.BeginAnimation(OpacityProperty, null);
 
@@ -558,12 +567,13 @@ public partial class MainWindow
             TimerContent.RenderTransform = timerGroup;
             TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-            var timerFadeOut = MakeAnim(TimerContent.Opacity, 0, _dur200, _easeQuadIn);
-            var timerSlideDown = MakeAnim(0, 12, _dur250, _easeQuadIn);
-            var timerScaleDown = MakeAnim(1, 0.95, _dur250, _easeQuadIn);
+            // Delay container fade to let internal elements fade first
+            var timerFadeOut = MakeAnim(TimerContent.Opacity, 0, _dur200, _easeQuadIn, TimeSpan.FromMilliseconds(60));
+            var timerSlideDown = MakeAnim(0, 12, _dur250, _easeQuadIn, TimeSpan.FromMilliseconds(60));
+            var timerScaleDown = MakeAnim(1, 0.95, _dur250, _easeQuadIn, TimeSpan.FromMilliseconds(60));
             var timerBlur = TimerContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
             TimerContent.Effect = timerBlur;
-            var timerBlurOut = MakeAnim(timerBlur.Radius, 10, _dur200, _easeQuadIn);
+            var timerBlurOut = MakeAnim(timerBlur.Radius, 10, _dur200, _easeQuadIn, TimeSpan.FromMilliseconds(60));
             Timeline.SetDesiredFrameRate(timerFadeOut, 144);
             Timeline.SetDesiredFrameRate(timerSlideDown, 144);
             Timeline.SetDesiredFrameRate(timerScaleDown, 144);
@@ -663,7 +673,7 @@ public partial class MainWindow
         CollapsedContentBlur.Radius = 24;
         MusicCompactContentBlur.Radius = 24;
 
-        if (_isMusicCompactMode && ThumbnailImage.Source != null)
+        if (_isMusicCompactMode && ThumbnailImage.Source != null && !suppressCompactThumbnailMotion)
         {
             // Hide both real thumbnails immediately to prevent double-thumbnail during crossfade
             if (CompactThumbnailBorder != null)
@@ -798,16 +808,20 @@ public partial class MainWindow
                 CompactHoverInfo.Visibility = Visibility.Collapsed;
             }
 
-            if (CompactThumbnailBorder != null && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
+            if (CompactThumbnailBorder != null && !_isClipboardPeekActive && !_isVolumeIndicatorActive && !suppressCompactThumbnailMotion)
             {
                 CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
                 CompactThumbnailBorder.Opacity = 1;
             }
+            else if (suppressCompactThumbnailMotion)
+            {
+                SuppressCompactMediaChromeForCountdownCompletion();
+            }
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
             // Ensure MusicViz is properly positioned after collapse
-            if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
+            if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true && !_isClipboardPeekActive && !_isVolumeIndicatorActive && !suppressCompactThumbnailMotion)
             {
                 ShowMusicVisualizer(animate: false);
             }
@@ -816,11 +830,15 @@ public partial class MainWindow
             MusicCompactContent.InvalidateArrange();
             MusicCompactContent.UpdateLayout();
 
-            if (_pendingFlipThumbnail != null)
+            if (_pendingFlipThumbnail != null && !suppressCompactThumbnailMotion)
             {
                 var thumb = _pendingFlipThumbnail;
                 _pendingFlipThumbnail = null;
                 AnimateThumbnailSwitchOnly(thumb, force: true);
+            }
+            else if (suppressCompactThumbnailMotion)
+            {
+                _pendingFlipThumbnail = null;
             }
 
         };

@@ -88,6 +88,7 @@ public partial class MainWindow : Window
     private double _expandedHeight = 146;
     private double _cornerRadiusCollapsed;
     private double _cornerRadiusExpanded = 24;
+    private const double NotchWindowHorizontalPadding = 96;
 
     private int _fixedX = 0;
     private int _fixedY = 0;
@@ -866,7 +867,9 @@ public partial class MainWindow : Window
         }
 
         // Window dimensions in DIPs (for WPF layout)
-        double windowWidthDip = _expandedWidth + 40;
+        // The shadow wrapper includes 11px ears on each side and a 20px blur. Keep
+        // enough transparent window surface so the side shadow is not clipped.
+        double windowWidthDip = _expandedWidth + NotchWindowHorizontalPadding;
         double windowHeightDip = _expandedHeight + 80;
 
         // Physical pixel dimensions for SetWindowPos

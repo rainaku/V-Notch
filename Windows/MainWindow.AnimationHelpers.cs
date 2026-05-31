@@ -888,5 +888,301 @@ public void PlaySettingsAbsorbAnimation()
     }
 
     #endregion
+
+    #region Apple-Style Collapse Fade Out
+
+    /// <summary>
+    /// Fade out UI elements with Apple-style staggered timing before notch collapse.
+    /// Elements fade out in waves with blur effects for smooth, natural motion.
+    /// Only animates elements that are currently visible to avoid breaking existing logic.
+    /// </summary>
+    private void AnimateExpandedContentFadeOut()
+    {
+        // Safety: Only run if we're actually in expanded state with visible content
+        if (!_isExpanded || ExpandedContent.Visibility != Visibility.Visible) return;
+
+        const int fps = 144;
+
+        // Apple-style timing: fast fade with slight stagger
+        var baseDuration = new Duration(TimeSpan.FromMilliseconds(180));
+        var easing = _easeQuadIn; // Fast ease-in for disappearing elements
+
+        // ─── Wave 1: Media controls and interactive elements (fade first) ───
+        var wave1Delay = TimeSpan.Zero;
+
+        // Media control buttons - only fade if visible and opacity is not already 0
+        if (PlayPauseButton != null && PlayPauseButton.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = PlayPauseButton.Opacity;
+            if (currentOpacity > 0.01) // Only animate if actually visible
+            {
+                PlayPauseButton.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave1Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                PlayPauseButton.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        if (PrevButton != null && PrevButton.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = PrevButton.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                PrevButton.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave1Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                PrevButton.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        if (NextButton != null && NextButton.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = NextButton.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                NextButton.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave1Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                NextButton.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        // ─── Wave 2: Progress bar (fades early to feel responsive) ───
+        var wave2Delay = TimeSpan.FromMilliseconds(20);
+
+        if (ProgressBarContainer != null && ProgressBarContainer.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = ProgressBarContainer.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                ProgressBarContainer.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave2Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                ProgressBarContainer.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        if (RemainingTimeText != null && RemainingTimeText.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = RemainingTimeText.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                RemainingTimeText.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave2Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                RemainingTimeText.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        // ─── Wave 3: Calendar widget ───
+        var wave3Delay = TimeSpan.FromMilliseconds(40);
+
+        if (CalendarWidget != null && CalendarWidget.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = CalendarWidget.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                CalendarWidget.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave3Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                CalendarWidget.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        // ─── Wave 4: Lyrics (if active) ───
+        if (_isLyricsActive && LyricsBlurBackground != null && LyricsBlurBackground.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = LyricsBlurBackground.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                var wave4Delay = TimeSpan.FromMilliseconds(30);
+                LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
+                var blurFadeAnim = MakeAnim(currentOpacity, 0, new Duration(TimeSpan.FromMilliseconds(150)), easing, wave4Delay);
+                Timeline.SetDesiredFrameRate(blurFadeAnim, fps);
+                LyricsBlurBackground.BeginAnimation(OpacityProperty, blurFadeAnim);
+            }
+        }
+
+        // ─── Music Visualizer fade out (if visible) ───
+        if (MusicViz != null && MusicViz.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = MusicViz.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                MusicViz.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, new Duration(TimeSpan.FromMilliseconds(140)), easing, TimeSpan.FromMilliseconds(15));
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                MusicViz.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Restore UI element opacity after collapse animation completes.
+    /// Ensures elements are visible when notch expands again.
+    /// This is called during expand to reset any fade-out state.
+    /// </summary>
+    private void RestoreExpandedContentOpacity()
+    {
+        // Stop any ongoing fade animations and restore full opacity
+        // Only restore if element exists - don't force visibility changes
+        if (PlayPauseButton != null)
+        {
+            PlayPauseButton.BeginAnimation(OpacityProperty, null);
+            if (PlayPauseButton.Visibility == Visibility.Visible)
+                PlayPauseButton.Opacity = 1.0;
+        }
+
+        if (PrevButton != null)
+        {
+            PrevButton.BeginAnimation(OpacityProperty, null);
+            if (PrevButton.Visibility == Visibility.Visible)
+                PrevButton.Opacity = 1.0;
+        }
+
+        if (NextButton != null)
+        {
+            NextButton.BeginAnimation(OpacityProperty, null);
+            if (NextButton.Visibility == Visibility.Visible)
+                NextButton.Opacity = 1.0;
+        }
+
+        if (ProgressBarContainer != null)
+        {
+            ProgressBarContainer.BeginAnimation(OpacityProperty, null);
+            if (ProgressBarContainer.Visibility == Visibility.Visible)
+                ProgressBarContainer.Opacity = 1.0;
+        }
+
+        if (RemainingTimeText != null)
+        {
+            RemainingTimeText.BeginAnimation(OpacityProperty, null);
+            if (RemainingTimeText.Visibility == Visibility.Visible)
+                RemainingTimeText.Opacity = 1.0;
+        }
+
+        if (CalendarWidget != null)
+        {
+            CalendarWidget.BeginAnimation(OpacityProperty, null);
+            if (CalendarWidget.Visibility == Visibility.Visible)
+                CalendarWidget.Opacity = 1.0;
+        }
+
+        if (MusicViz != null)
+        {
+            MusicViz.BeginAnimation(OpacityProperty, null);
+            if (MusicViz.Visibility == Visibility.Visible)
+                MusicViz.Opacity = 1.0;
+        }
+
+        // Lyrics opacity is handled separately in ExpandNotch's completion handler
+    }
+
+    /// <summary>
+    /// Apple-style staggered fade out for timer/clock view elements.
+    /// Countdown display, buttons, and progress fade in waves before container animates.
+    /// </summary>
+    private void AnimateTimerContentFadeOut()
+    {
+        // Safety: Only run if timer content is actually visible
+        if (TimerContent == null || TimerContent.Visibility != Visibility.Visible) return;
+
+        const int fps = 144;
+        var baseDuration = new Duration(TimeSpan.FromMilliseconds(160));
+        var easing = _easeQuadIn;
+
+        // ─── Wave 1: Countdown display (main timer text) ───
+        if (CountdownDisplay != null && CountdownDisplay.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = CountdownDisplay.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                CountdownDisplay.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, TimeSpan.Zero);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                CountdownDisplay.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        // ─── Wave 2: Progress fill and display panel ───
+        var wave2Delay = TimeSpan.FromMilliseconds(25);
+
+        if (CountdownProgressFill != null && CountdownProgressFill.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = CountdownProgressFill.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                CountdownProgressFill.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave2Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                CountdownProgressFill.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        if (CountdownDisplayPanel != null && CountdownDisplayPanel.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = CountdownDisplayPanel.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                CountdownDisplayPanel.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, new Duration(TimeSpan.FromMilliseconds(180)), easing, wave2Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                CountdownDisplayPanel.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        // ─── Wave 3: Control buttons (start, reset, plus, minus) ───
+        var wave3Delay = TimeSpan.FromMilliseconds(40);
+
+        if (CountdownStartBtn != null && CountdownStartBtn.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = CountdownStartBtn.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                CountdownStartBtn.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave3Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                CountdownStartBtn.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        if (CountdownResetBtn != null && CountdownResetBtn.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = CountdownResetBtn.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                CountdownResetBtn.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave3Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                CountdownResetBtn.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        if (CountdownPlusBtn != null && CountdownPlusBtn.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = CountdownPlusBtn.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                CountdownPlusBtn.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave3Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                CountdownPlusBtn.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+
+        if (CountdownMinusBtn != null && CountdownMinusBtn.Visibility == Visibility.Visible)
+        {
+            double currentOpacity = CountdownMinusBtn.Opacity;
+            if (currentOpacity > 0.01)
+            {
+                CountdownMinusBtn.BeginAnimation(OpacityProperty, null);
+                var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave3Delay);
+                Timeline.SetDesiredFrameRate(fadeAnim, fps);
+                CountdownMinusBtn.BeginAnimation(OpacityProperty, fadeAnim);
+            }
+        }
+    }
+
+    #endregion
 }
 
