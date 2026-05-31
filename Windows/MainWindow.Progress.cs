@@ -54,6 +54,20 @@ public partial class MainWindow
     private const double NORMAL_LERP_SPEED = 14.0;
     private const double SOURCE_IGNORE_SECONDS = 0.30;
     private const double SOURCE_SMOOTH_SECONDS = 2.0;
+
+    private static readonly TimeSpan EndSeekSafetyMargin = TimeSpan.FromMilliseconds(1500);
+
+    private static TimeSpan ClampSeekTarget(TimeSpan target, TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero) return target < TimeSpan.Zero ? TimeSpan.Zero : target;
+
+        TimeSpan maxSeek = duration - EndSeekSafetyMargin;
+        if (maxSeek < TimeSpan.Zero) maxSeek = TimeSpan.Zero;
+
+        if (target > maxSeek) target = maxSeek;
+        if (target < TimeSpan.Zero) target = TimeSpan.Zero;
+        return target;
+    }
     
     private void StartSpringRenderLoop()
     {
@@ -216,7 +230,8 @@ public partial class MainWindow
 
     private void UpdateProgressTracking(MediaInfo info)
     {
-        _currentMediaInfo = info;
+        if (!info.IsThumbnailOnlyUpdate)
+            _currentMediaInfo = info;
         NormalizeStartupSnapshotTimestamp(info);
 
         // Thumbnail-only updates carry stale Position/LastUpdated from when the background fetch started
@@ -919,24 +934,14 @@ public partial class MainWindow
         {
             if (wasClickSeek && !wasDragging)
             {
-                // Click seek (no drag): spring is already animating to target
+                var duration2 = _progressEngine.GetUiFrame().Duration;
+                _dragSeekPosition = ClampSeekTarget(_dragSeekPosition, duration2);
+
                 _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
                 _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
                 _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
                 _protectSpringTargetUntil = DateTime.UtcNow.AddSeconds(1.5);
                 _progressEngine.NotifyUserSeek(_dragSeekPosition);
-
-                var duration2 = _progressEngine.GetUiFrame().Duration;
-                if (duration2.TotalSeconds > 0)
-                {
-                    bool seekToEnd = _dragSeekPosition >= duration2 - TimeSpan.FromMilliseconds(900);
-                    if (seekToEnd)
-                    {
-                        _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
-                        _lastProgressTimelineKey = "";
-                        _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(6);
-                    }
-                }
 
                 _lastDisplayedSecond = (int)_dragSeekPosition.TotalSeconds;
                 CurrentTimeText.Text = FormatTime(_dragSeekPosition);
@@ -1116,20 +1121,14 @@ public partial class MainWindow
         var duration = _progressEngine.GetUiFrame().Duration;
         if (duration.TotalSeconds <= 0) return;
 
+        newPos = ClampSeekTarget(newPos, duration);
+
         try 
         {
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
             _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(newPos);
-
-            bool seekToTrackEnd = duration.TotalSeconds > 0 && newPos >= duration - TimeSpan.FromMilliseconds(900);
-            if (seekToTrackEnd)
-            {
-                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
-                _lastProgressTimelineKey = "";
-                _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(6);
-            }
 
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
@@ -1157,8 +1156,7 @@ public partial class MainWindow
         var currentPos = frame.Position;
         var newPos = currentPos + TimeSpan.FromSeconds(seconds);
 
-        if (newPos < TimeSpan.Zero) newPos = TimeSpan.Zero;
-        if (newPos > duration) newPos = duration;
+        newPos = ClampSeekTarget(newPos, duration);
 
         try
         {
@@ -1166,14 +1164,6 @@ public partial class MainWindow
             _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(newPos);
-
-            bool seekToTrackEnd = duration.TotalSeconds > 0 && newPos >= duration - TimeSpan.FromMilliseconds(900);
-            if (seekToTrackEnd)
-            {
-                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
-                _lastProgressTimelineKey = "";
-                _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(6);
-            }
 
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);

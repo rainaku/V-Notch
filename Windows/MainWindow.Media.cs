@@ -29,10 +29,23 @@ public partial class MainWindow
 
     private void OnMediaChanged(object? sender, MediaInfo info)
     {
-        _currentMediaInfo = info;
+        if (!info.IsThumbnailOnlyUpdate)
+            _currentMediaInfo = info;
 
         Dispatcher.BeginInvoke(() =>
         {
+            if (info.IsThumbnailOnlyUpdate && _currentMediaInfo != null)
+            {
+                string incomingTrack = info.CurrentTrack ?? "";
+                string currentTrack = _currentMediaInfo.CurrentTrack ?? "";
+                if (!string.IsNullOrEmpty(currentTrack) && !string.IsNullOrEmpty(incomingTrack) &&
+                    !string.Equals(incomingTrack, currentTrack, StringComparison.OrdinalIgnoreCase))
+                {
+                    VNotch.Services.RuntimeLog.Log("MEDIA-THUMB", $"Rejected stale thumbnail: incoming='{incomingTrack}' current='{currentTrack}'");
+                    return;
+                }
+            }
+
             var result = _mediaDisplayController.ProcessMediaUpdate(
                 info, _isExpanded, _isMusicExpanded, _isMusicCompactMode, _isAnimating);
 
@@ -299,8 +312,11 @@ public partial class MainWindow
 
         CompactThumbnailOutScale.ScaleX = 1.0;
         CompactThumbnailOutScale.ScaleY = 1.0;
-        CompactThumbnail.Opacity = 1.0;
         CompactThumbnailOutBlur.Radius = 0.0;
+
+        bool compactWasHidden = CompactThumbnailBorder.Visibility != Visibility.Visible ||
+                                CompactThumbnailBorder.Opacity < 0.01;
+        CompactThumbnail.Opacity = compactWasHidden ? 0.0 : 1.0;
 
         var outBlurExpanded = new DoubleAnimation(0.0, expandedPeakBlur, outDur) { EasingFunction = cubicOut };
         var outBlurCompact  = new DoubleAnimation(0.0, compactPeakBlur,  outDur) { EasingFunction = cubicOut };
@@ -413,9 +429,7 @@ public partial class MainWindow
             if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true
                 && !_isClipboardPeekActive && !_isVolumeIndicatorActive)
             {
-                MusicViz.BeginAnimation(OpacityProperty, null);
-                MusicViz.Visibility = Visibility.Visible;
-                MusicViz.Opacity = 1;
+                ShowMusicVisualizer(animate: false);
             }
         };
     }
@@ -543,6 +557,31 @@ public partial class MainWindow
 
     #region Music Compact Mode
 
+    private void ShowMusicVisualizer(bool animate = true, Duration? duration = null)
+    {
+        double currentOpacity = Math.Clamp(MusicViz.Opacity, 0.0, 1.0);
+
+        // Promote the current animated value before clearing the animation. Otherwise WPF
+        // falls back to the old base opacity, which can make the visualizer blink on polling updates.
+        MusicViz.Opacity = currentOpacity;
+        MusicViz.BeginAnimation(OpacityProperty, null);
+        MusicViz.Visibility = Visibility.Visible;
+
+        if (!animate || currentOpacity >= 0.5)
+        {
+            MusicViz.Opacity = 1.0;
+            return;
+        }
+
+        var vizFadeIn = MakeAnim(currentOpacity, 1.0, duration ?? _dur200, _easeQuadOut);
+        vizFadeIn.Completed += (s, e) =>
+        {
+            MusicViz.Opacity = 1.0;
+            MusicViz.BeginAnimation(OpacityProperty, null);
+        };
+        MusicViz.BeginAnimation(OpacityProperty, vizFadeIn);
+    }
+
     private void UpdateMusicCompactMode(MediaInfo info)
     {
         bool shouldBeCompact = _mediaDisplayController.ShouldBeCompactMode(info);
@@ -577,9 +616,7 @@ public partial class MainWindow
 
                         if (info.IsPlaying && !_isVolumeIndicatorActive)
                         {
-                            MusicViz.BeginAnimation(OpacityProperty, null);
-                            MusicViz.Visibility = Visibility.Visible;
-                            MusicViz.Opacity = 1;
+                            ShowMusicVisualizer(duration: _dur200);
                         }
                     }
                 }
@@ -607,16 +644,38 @@ public partial class MainWindow
 
             if (_isMusicCompactMode)
             {
-                // A prior exit pop-out may have left the thumbnail collapsed/invisible.
-                ResetCompactThumbnailRestingState();
                 if (info?.Thumbnail != null && !_isClipboardPeekActive)
                 {
                     string compactTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
                     if (compactTrackId != _lastAnimatedTrackSignature && !_thumbnailShownForCurrentTrack)
                     {
-                        AnimateThumbnailSwitchOnly(info.Thumbnail);
+                        bool wasHidden = CompactThumbnailBorder.Visibility != Visibility.Visible ||
+                                         CompactThumbnailBorder.Opacity < 0.01;
+
+                        if (wasHidden)
+                        {
+                            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                            CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                            CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+                            CompactThumbnailBorder.Visibility = Visibility.Visible;
+                            CompactThumbnail.Source = info.Thumbnail;
+                            ThumbnailImage.Source = info.Thumbnail;
+                            PlayThumbnailRevealAnimation();
+                        }
+                        else
+                        {
+                            AnimateThumbnailSwitchOnly(info.Thumbnail);
+                        }
                         _thumbnailShownForCurrentTrack = true;
                     }
+                    else
+                    {
+                        ResetCompactThumbnailRestingState();
+                    }
+                }
+                else
+                {
+                    ResetCompactThumbnailRestingState();
                 }
                 // Don't switch to MusicCompactContent while clipboard notification is active
                 if (!_isClipboardPeekActive)
@@ -750,9 +809,6 @@ public partial class MainWindow
 
         scaleAnimX.Completed += (s, e) =>
         {
-            // Set local values to "hidden" state BEFORE clearing animations.
-            // Without this, clearing the animation snaps back to the pre-animation
-            // local values (scale=1, opacity=1) causing a 1-frame flash.
             CompactThumbnailBorder.Visibility = Visibility.Collapsed;
             CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
