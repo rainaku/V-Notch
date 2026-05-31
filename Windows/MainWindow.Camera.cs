@@ -393,8 +393,22 @@ public partial class MainWindow
         FileShelf.Visibility = Visibility.Visible;
         FileShelf.IsHitTestVisible = true;
 
-        if (_isSecondaryView)
+        if (!IsCameraPreviewLifecycleActive)
         {
+            CameraPreviewImage.BeginAnimation(OpacityProperty, null);
+            CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            CameraOverlay.BeginAnimation(OpacityProperty, null);
+
+            CameraPreviewImage.Opacity = 0;
+            CameraPreviewImage.Source = null;
+            CameraPreviewScale.ScaleX = 1.06;
+            CameraPreviewScale.ScaleY = 1.06;
+            CameraPreviewBlur.Radius = 16.0;
+            CameraOverlay.Visibility = Visibility.Visible;
+            CameraOverlay.Opacity = 1.0;
+            CameraErrorOverlay.Visibility = Visibility.Collapsed;
         }
     }
 
