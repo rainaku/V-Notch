@@ -748,6 +748,44 @@ public partial class MainWindow
         var opacityAnim = MakeAnim(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
         Timeline.SetDesiredFrameRate(opacityAnim, 60);
 
+        // ─── MusicViz: fade out simultaneously with thumbnail ───
+        MusicViz.BeginAnimation(OpacityProperty, null);
+        var vizFadeOut = MakeAnim(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
+        vizFadeOut.Completed += (s, e) =>
+        {
+            MusicViz.Visibility = Visibility.Collapsed;
+            MusicViz.IsPlaying = false;
+        };
+        MusicViz.BeginAnimation(OpacityProperty, vizFadeOut);
+
+        // ─── Notch: subtle squeeze animation (shrink slightly then back) ───
+        NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+
+        var squeezePeak = TimeSpan.FromMilliseconds(130);
+        var squeezeEnd = TimeSpan.FromMilliseconds(400);
+
+        var squeezeX = new DoubleAnimationUsingKeyFrames();
+        squeezeX.KeyFrames.Add(new EasingDoubleKeyFrame(0.97,
+            KeyTime.FromTimeSpan(squeezePeak), _easeQuadOut));
+        squeezeX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
+            KeyTime.FromTimeSpan(squeezeEnd), _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(squeezeX, 120);
+
+        var squeezeY = new DoubleAnimationUsingKeyFrames();
+        squeezeY.KeyFrames.Add(new EasingDoubleKeyFrame(1.02,
+            KeyTime.FromTimeSpan(squeezePeak), _easeQuadOut));
+        squeezeY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
+            KeyTime.FromTimeSpan(squeezeEnd), _easeSoftSpring));
+        Timeline.SetDesiredFrameRate(squeezeY, 120);
+
+        NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, squeezeX);
+        NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, squeezeY);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, squeezeX);
+        NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, squeezeY);
+
         scaleAnimX.Completed += (s, e) =>
         {
             CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
