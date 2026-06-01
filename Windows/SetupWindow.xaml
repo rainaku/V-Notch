@@ -281,7 +281,7 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     
-                    <Image Source="Assets/logo.png" Width="30" Height="30" Margin="18,0,0,0"/>
+                    <Image Source="/Assets/logo.png" Width="30" Height="30" Margin="18,0,0,0"/>
                     
                     <TextBlock Grid.Column="1"
                                Text="Setup Assistant"
@@ -383,7 +383,7 @@
 
                     <Border Grid.Column="0" CornerRadius="20" Background="#101014" BorderBrush="#18FFFFFF" BorderThickness="1" Padding="16" Margin="0,0,24,0">
                         <StackPanel>
-                            <Image Source="Assets/logo.png" Width="68" Height="68" HorizontalAlignment="Left" Margin="0,0,0,18"/>
+                            <Image Source="/Assets/logo.png" Width="68" Height="68" HorizontalAlignment="Left" Margin="0,0,0,18"/>
                             <TextBlock Text="V-Notch" FontSize="18" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"/>
                             <TextBlock Text="Dynamic Island for Windows" FontSize="11.5" Foreground="#99FFFFFF" TextWrapping="Wrap" LineHeight="16" Margin="0,4,0,18"/>
                             <StackPanel>
@@ -407,7 +407,7 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         
-                        <Image x:Name="IconContainer" Grid.Row="0" Source="Assets/logo.png" Width="52" Height="52" HorizontalAlignment="Left" Margin="0,0,0,18" Opacity="0">
+                        <Image x:Name="IconContainer" Grid.Row="0" Source="/Assets/logo.png" Width="52" Height="52" HorizontalAlignment="Left" Margin="0,0,0,18" Opacity="0">
                             <Image.RenderTransform>
                                 <TranslateTransform x:Name="IconTranslate" Y="8"/>
                             </Image.RenderTransform>
