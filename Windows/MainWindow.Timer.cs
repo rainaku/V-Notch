@@ -65,6 +65,15 @@ public partial class MainWindow
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
 
+        // Hide media background and lyrics blur immediately
+        HideMediaBackground();
+        if (LyricsBlurBackground != null && LyricsBlurBackground.Visibility == Visibility.Visible)
+        {
+            LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
+            LyricsBlurBackground.Opacity = 0;
+            LyricsBlurBackground.Visibility = Visibility.Collapsed;
+        }
+
         UpdateTimerNavIconsState();
         NavIconsPanel.Visibility = Visibility.Visible;
         NavIconsPanel.Opacity = 1;
@@ -393,6 +402,22 @@ public partial class MainWindow
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.RenderTransform = null;
+
+            // Restore blur background and lyrics background
+            ShowMediaBackground();
+
+            if (_isLyricsActive && LyricsBlurBackground != null)
+            {
+                LyricsBlurImage.BeginAnimation(OpacityProperty, null);
+                LyricsBlurImage.Opacity = 1;
+                LyricsBlurBackground.Visibility = Visibility.Visible;
+                LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
+                var lyricsBlurFadeIn = new DoubleAnimation(0, 0.55, new Duration(TimeSpan.FromMilliseconds(250)))
+                {
+                    EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
+                };
+                LyricsBlurBackground.BeginAnimation(OpacityProperty, lyricsBlurFadeIn);
+            }
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeIn);

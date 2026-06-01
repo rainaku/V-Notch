@@ -253,40 +253,39 @@ public partial class MainWindow
 
     private void PlayNextSkipAnimation(System.Windows.Shapes.Path arrow0, System.Windows.Shapes.Path arrow1, System.Windows.Shapes.Path arrow2)
     {
-        var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
-        arrow2.RenderTransform = arrow2Transform;
-
-        var slideOut2 = new DoubleAnimation(0, 8, _dur250) { EasingFunction = _easeQuadOut };
-        var fadeOut2 = new DoubleAnimation(1, 0, _dur250) { EasingFunction = _easeQuadOut };
+        // Conveyor belt effect for "next/forward":
+        // arrow1 (visible center) slides out to the right + fades out
+        // arrow0 (hidden, behind) slides in from left + fades in
+        // arrow2 stays hidden
+        const double slideDistance = 220; // in 512-unit canvas space
 
         var arrow1Transform = arrow1.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow1.RenderTransform = arrow1Transform;
 
-        var slideRight1 = new DoubleAnimation(0, 8, _dur250) { EasingFunction = _easeQuadOut };
+        var slideOut1 = new DoubleAnimation(0, slideDistance, _dur250) { EasingFunction = _easeQuadOut };
+        var fadeOut1 = new DoubleAnimation(1, 0, _dur250) { EasingFunction = _easeQuadOut };
 
         var arrow0Transform = arrow0.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow0.RenderTransform = arrow0Transform;
 
-        var slideIn0 = new DoubleAnimation(0, 8, _dur250) { EasingFunction = _easeQuadOut };
+        var slideIn0 = new DoubleAnimation(-slideDistance, 0, _dur250) { EasingFunction = _easeQuadOut };
         var fadeIn0 = new DoubleAnimation(0, 1, _dur250) { EasingFunction = _easeQuadOut };
 
-        arrow2Transform.BeginAnimation(TranslateTransform.XProperty, slideOut2);
-        arrow2.BeginAnimation(OpacityProperty, fadeOut2);
-        arrow1Transform.BeginAnimation(TranslateTransform.XProperty, slideRight1);
+        arrow1Transform.BeginAnimation(TranslateTransform.XProperty, slideOut1);
+        arrow1.BeginAnimation(OpacityProperty, fadeOut1);
         arrow0Transform.BeginAnimation(TranslateTransform.XProperty, slideIn0);
         arrow0.BeginAnimation(OpacityProperty, fadeIn0);
 
-        fadeOut2.Completed += (s, e) =>
+        fadeOut1.Completed += (s, e) =>
         {
-            arrow2Transform.X = 0;
-            arrow2.Opacity = 1;
+            // Reset: arrow1 back to visible resting state
             arrow1Transform.X = 0;
+            arrow1.Opacity = 1;
             arrow0Transform.X = 0;
             arrow0.Opacity = 0;
 
-            arrow2Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow2.BeginAnimation(OpacityProperty, null);
             arrow1Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow1.BeginAnimation(OpacityProperty, null);
             arrow0Transform.BeginAnimation(TranslateTransform.XProperty, null);
             arrow0.BeginAnimation(OpacityProperty, null);
         };
@@ -299,40 +298,39 @@ public partial class MainWindow
 
     private void PlayPrevSkipAnimation(System.Windows.Shapes.Path arrow0, System.Windows.Shapes.Path arrow1, System.Windows.Shapes.Path arrow2)
     {
-        var arrow1Transform = arrow1.RenderTransform as TranslateTransform ?? new TranslateTransform();
-        arrow1.RenderTransform = arrow1Transform;
-
-        var slideOut1 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
-        var fadeOut1 = new DoubleAnimation(1, 0, _dur250) { EasingFunction = _easeQuadOut };
+        // Conveyor belt effect for "prev/backward":
+        // arrow2 (visible center) slides out to the left + fades out
+        // arrow0 (hidden, behind) slides in from right + fades in
+        // arrow1 stays hidden
+        const double slideDistance = 220; // in 512-unit canvas space
 
         var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow2.RenderTransform = arrow2Transform;
 
-        var slideLeft2 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
+        var slideOut2 = new DoubleAnimation(0, -slideDistance, _dur250) { EasingFunction = _easeQuadOut };
+        var fadeOut2 = new DoubleAnimation(1, 0, _dur250) { EasingFunction = _easeQuadOut };
 
         var arrow0Transform = arrow0.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow0.RenderTransform = arrow0Transform;
 
-        var slideIn0 = new DoubleAnimation(0, -8, _dur250) { EasingFunction = _easeQuadOut };
+        var slideIn0 = new DoubleAnimation(slideDistance, 0, _dur250) { EasingFunction = _easeQuadOut };
         var fadeIn0 = new DoubleAnimation(0, 1, _dur250) { EasingFunction = _easeQuadOut };
 
-        arrow1Transform.BeginAnimation(TranslateTransform.XProperty, slideOut1);
-        arrow1.BeginAnimation(OpacityProperty, fadeOut1);
-        arrow2Transform.BeginAnimation(TranslateTransform.XProperty, slideLeft2);
+        arrow2Transform.BeginAnimation(TranslateTransform.XProperty, slideOut2);
+        arrow2.BeginAnimation(OpacityProperty, fadeOut2);
         arrow0Transform.BeginAnimation(TranslateTransform.XProperty, slideIn0);
         arrow0.BeginAnimation(OpacityProperty, fadeIn0);
 
-        fadeOut1.Completed += (s, e) =>
+        fadeOut2.Completed += (s, e) =>
         {
-            arrow1Transform.X = 0;
-            arrow1.Opacity = 1;
+            // Reset: arrow2 back to visible resting state
             arrow2Transform.X = 0;
+            arrow2.Opacity = 1;
             arrow0Transform.X = 0;
             arrow0.Opacity = 0;
 
-            arrow1Transform.BeginAnimation(TranslateTransform.XProperty, null);
-            arrow1.BeginAnimation(OpacityProperty, null);
             arrow2Transform.BeginAnimation(TranslateTransform.XProperty, null);
+            arrow2.BeginAnimation(OpacityProperty, null);
             arrow0Transform.BeginAnimation(TranslateTransform.XProperty, null);
             arrow0.BeginAnimation(OpacityProperty, null);
         };

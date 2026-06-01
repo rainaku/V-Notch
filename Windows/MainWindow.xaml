@@ -1641,19 +1641,19 @@
                                                     <Border.RenderTransform>
                                                         <ScaleTransform ScaleX="1" ScaleY="1"/>
                                                     </Border.RenderTransform>
-                                                <Viewbox Width="17" Height="12.5" Margin="0,-1,0,0">
-                                                    <Canvas Width="19" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
-                                                        <Path x:Name="PrevArrow0" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M10,0 L0,8 L10,16 Z" Canvas.Left="16" Canvas.Top="0" Opacity="0">
+                                                <Viewbox Width="16" Height="16" Margin="0,0,0,0" Stretch="Uniform">
+                                                    <Canvas Width="512" Height="512" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
+                                                        <Path x:Name="PrevArrow0" Fill="White" StrokeThickness="0" Data="M30.71,229.47l188.87-113a30.54,30.54,0,0,1,31.09-.39,33.74,33.74,0,0,1,16.76,29.47V224.6L448.15,116.44a30.54,30.54,0,0,1,31.09-.39A33.74,33.74,0,0,1,496,145.52v221A33.73,33.73,0,0,1,479.24,396a30.54,30.54,0,0,1-31.09-.39L267.43,287.4v79.08A33.73,33.73,0,0,1,250.67,396a30.54,30.54,0,0,1-31.09-.39l-188.87-113a31.27,31.27,0,0,1,0-53Z" Opacity="0">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
                                                         </Path>
-                                                        <Path x:Name="PrevArrow2" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M10,0 L0,8 L10,16 Z" Canvas.Left="8" Canvas.Top="0">
+                                                        <Path x:Name="PrevArrow2" Fill="White" StrokeThickness="0" Data="M30.71,229.47l188.87-113a30.54,30.54,0,0,1,31.09-.39,33.74,33.74,0,0,1,16.76,29.47V224.6L448.15,116.44a30.54,30.54,0,0,1,31.09-.39A33.74,33.74,0,0,1,496,145.52v221A33.73,33.73,0,0,1,479.24,396a30.54,30.54,0,0,1-31.09-.39L267.43,287.4v79.08A33.73,33.73,0,0,1,250.67,396a30.54,30.54,0,0,1-31.09-.39l-188.87-113a31.27,31.27,0,0,1,0-53Z">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
                                                         </Path>
-                                                        <Path x:Name="PrevArrow1" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M10,0 L0,8 L10,16 Z" Canvas.Left="0" Canvas.Top="0">
+                                                        <Path x:Name="PrevArrow1" Fill="White" StrokeThickness="0" Data="M30.71,229.47l188.87-113a30.54,30.54,0,0,1,31.09-.39,33.74,33.74,0,0,1,16.76,29.47V224.6L448.15,116.44a30.54,30.54,0,0,1,31.09-.39A33.74,33.74,0,0,1,496,145.52v221A33.73,33.73,0,0,1,479.24,396a30.54,30.54,0,0,1-31.09-.39L267.43,287.4v79.08A33.73,33.73,0,0,1,250.67,396a30.54,30.54,0,0,1-31.09-.39l-188.87-113a31.27,31.27,0,0,1,0-53Z" Opacity="0">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
@@ -1723,19 +1723,19 @@
                                                     <Border.RenderTransform>
                                                         <ScaleTransform ScaleX="1" ScaleY="1"/>
                                                     </Border.RenderTransform>
-                                                <Viewbox Width="17" Height="12.5" Margin="0,-1,0,0">
-                                                    <Canvas Width="19" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
-                                                        <Path x:Name="NextArrow0" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="-8" Canvas.Top="0" Opacity="0">
+                                                <Viewbox Width="16" Height="16" Margin="0,0,0,0" Stretch="Uniform">
+                                                    <Canvas Width="512" Height="512" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
+                                                        <Path x:Name="NextArrow0" Fill="White" StrokeThickness="0" Data="M481.29,229.47l-188.87-113a30.54,30.54,0,0,0-31.09-.39,33.74,33.74,0,0,0-16.76,29.47V224.6L63.85,116.44a30.54,30.54,0,0,0-31.09-.39A33.74,33.74,0,0,0,16,145.52v221A33.74,33.74,0,0,0,32.76,396a30.54,30.54,0,0,0,31.09-.39L244.57,287.4v79.08A33.74,33.74,0,0,0,261.33,396a30.54,30.54,0,0,0,31.09-.39l188.87-113a31.27,31.27,0,0,0,0-53Z" Opacity="0">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
                                                         </Path>
-                                                        <Path x:Name="NextArrow1" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="0" Canvas.Top="0">
+                                                        <Path x:Name="NextArrow1" Fill="White" StrokeThickness="0" Data="M481.29,229.47l-188.87-113a30.54,30.54,0,0,0-31.09-.39,33.74,33.74,0,0,0-16.76,29.47V224.6L63.85,116.44a30.54,30.54,0,0,0-31.09-.39A33.74,33.74,0,0,0,16,145.52v221A33.74,33.74,0,0,0,32.76,396a30.54,30.54,0,0,0,31.09-.39L244.57,287.4v79.08A33.74,33.74,0,0,0,261.33,396a30.54,30.54,0,0,0,31.09-.39l188.87-113a31.27,31.27,0,0,0,0-53Z">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
                                                         </Path>
-                                                        <Path x:Name="NextArrow2" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M0,0 L10,8 L0,16 Z" Canvas.Left="8" Canvas.Top="0">
+                                                        <Path x:Name="NextArrow2" Fill="White" StrokeThickness="0" Data="M481.29,229.47l-188.87-113a30.54,30.54,0,0,0-31.09-.39,33.74,33.74,0,0,0-16.76,29.47V224.6L63.85,116.44a30.54,30.54,0,0,0-31.09-.39A33.74,33.74,0,0,0,16,145.52v221A33.74,33.74,0,0,0,32.76,396a30.54,30.54,0,0,0,31.09-.39L244.57,287.4v79.08A33.74,33.74,0,0,0,261.33,396a30.54,30.54,0,0,0,31.09-.39l188.87-113a31.27,31.27,0,0,0,0-53Z" Opacity="0">
                                                             <Path.RenderTransform>
                                                                 <TranslateTransform X="0" Y="0"/>
                                                             </Path.RenderTransform>
@@ -1887,29 +1887,29 @@
                                             <Border.RenderTransform>
                                                 <ScaleTransform x:Name="InlinePrevScale" ScaleX="1" ScaleY="1"/>
                                             </Border.RenderTransform>
-                                            <Canvas Width="26" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True" Margin="0,-1,0,0">
-
-                                                <Path x:Name="InlinePrevArrow0" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M10,0 L0,8 L10,16 Z"
-                                                      Canvas.Left="16" Canvas.Top="0" Opacity="0">
+                                            <Viewbox Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Canvas Width="512" Height="512" ClipToBounds="True">
+                                                <Path x:Name="InlinePrevArrow0" Fill="White" StrokeThickness="0" Data="M30.71,229.47l188.87-113a30.54,30.54,0,0,1,31.09-.39,33.74,33.74,0,0,1,16.76,29.47V224.6L448.15,116.44a30.54,30.54,0,0,1,31.09-.39A33.74,33.74,0,0,1,496,145.52v221A33.73,33.73,0,0,1,479.24,396a30.54,30.54,0,0,1-31.09-.39L267.43,287.4v79.08A33.73,33.73,0,0,1,250.67,396a30.54,30.54,0,0,1-31.09-.39l-188.87-113a31.27,31.27,0,0,1,0-53Z"
+                                                      Opacity="0">
                                                     <Path.RenderTransform>
                                                         <TranslateTransform X="0" Y="0"/>
                                                     </Path.RenderTransform>
                                                 </Path>
 
-                                                <Path x:Name="InlinePrevArrow2" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M10,0 L0,8 L10,16 Z"
-                                                      Canvas.Left="8" Canvas.Top="0">
+                                                <Path x:Name="InlinePrevArrow2" Fill="White" StrokeThickness="0" Data="M30.71,229.47l188.87-113a30.54,30.54,0,0,1,31.09-.39,33.74,33.74,0,0,1,16.76,29.47V224.6L448.15,116.44a30.54,30.54,0,0,1,31.09-.39A33.74,33.74,0,0,1,496,145.52v221A33.73,33.73,0,0,1,479.24,396a30.54,30.54,0,0,1-31.09-.39L267.43,287.4v79.08A33.73,33.73,0,0,1,250.67,396a30.54,30.54,0,0,1-31.09-.39l-188.87-113a31.27,31.27,0,0,1,0-53Z">
                                                     <Path.RenderTransform>
                                                         <TranslateTransform X="0" Y="0"/>
                                                     </Path.RenderTransform>
                                                 </Path>
 
-                                                <Path x:Name="InlinePrevArrow1" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M10,0 L0,8 L10,16 Z"
-                                                      Canvas.Left="0" Canvas.Top="0">
+                                                <Path x:Name="InlinePrevArrow1" Fill="White" StrokeThickness="0" Data="M30.71,229.47l188.87-113a30.54,30.54,0,0,1,31.09-.39,33.74,33.74,0,0,1,16.76,29.47V224.6L448.15,116.44a30.54,30.54,0,0,1,31.09-.39A33.74,33.74,0,0,1,496,145.52v221A33.73,33.73,0,0,1,479.24,396a30.54,30.54,0,0,1-31.09-.39L267.43,287.4v79.08A33.73,33.73,0,0,1,250.67,396a30.54,30.54,0,0,1-31.09-.39l-188.87-113a31.27,31.27,0,0,1,0-53Z"
+                                                      Opacity="0">
                                                     <Path.RenderTransform>
                                                         <TranslateTransform X="0" Y="0"/>
                                                     </Path.RenderTransform>
                                                 </Path>
                                             </Canvas>
+                                            </Viewbox>
                                         </Border>
 
                                         <Border x:Name="InlinePlayPauseButton"
@@ -1970,29 +1970,30 @@
                                             <Border.RenderTransform>
                                                 <ScaleTransform x:Name="InlineNextScale" ScaleX="1" ScaleY="1"/>
                                             </Border.RenderTransform>
-                                            <Canvas Width="26" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True" Margin="0,-1,0,0">
+                                            <Viewbox Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Canvas Width="512" Height="512" ClipToBounds="True">
 
-                                                <Path x:Name="InlineNextArrow0" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M0,0 L10,8 L0,16 Z"
-                                                      Canvas.Left="-8" Canvas.Top="0" Opacity="0">
+                                                <Path x:Name="InlineNextArrow0" Fill="White" StrokeThickness="0" Data="M481.29,229.47l-188.87-113a30.54,30.54,0,0,0-31.09-.39,33.74,33.74,0,0,0-16.76,29.47V224.6L63.85,116.44a30.54,30.54,0,0,0-31.09-.39A33.74,33.74,0,0,0,16,145.52v221A33.74,33.74,0,0,0,32.76,396a30.54,30.54,0,0,0,31.09-.39L244.57,287.4v79.08A33.74,33.74,0,0,0,261.33,396a30.54,30.54,0,0,0,31.09-.39l188.87-113a31.27,31.27,0,0,0,0-53Z"
+                                                      Opacity="0">
                                                     <Path.RenderTransform>
                                                         <TranslateTransform X="0" Y="0"/>
                                                     </Path.RenderTransform>
                                                 </Path>
 
-                                                <Path x:Name="InlineNextArrow1" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M0,0 L10,8 L0,16 Z"
-                                                      Canvas.Left="0" Canvas.Top="0">
+                                                <Path x:Name="InlineNextArrow1" Fill="White" StrokeThickness="0" Data="M481.29,229.47l-188.87-113a30.54,30.54,0,0,0-31.09-.39,33.74,33.74,0,0,0-16.76,29.47V224.6L63.85,116.44a30.54,30.54,0,0,0-31.09-.39A33.74,33.74,0,0,0,16,145.52v221A33.74,33.74,0,0,0,32.76,396a30.54,30.54,0,0,0,31.09-.39L244.57,287.4v79.08A33.74,33.74,0,0,0,261.33,396a30.54,30.54,0,0,0,31.09-.39l188.87-113a31.27,31.27,0,0,0,0-53Z">
                                                     <Path.RenderTransform>
                                                         <TranslateTransform X="0" Y="0"/>
                                                     </Path.RenderTransform>
                                                 </Path>
 
-                                                <Path x:Name="InlineNextArrow2" Fill="White" Stroke="White" StrokeThickness="0.9" StrokeLineJoin="Round" Data="M0,0 L10,8 L0,16 Z"
-                                                      Canvas.Left="8" Canvas.Top="0">
+                                                <Path x:Name="InlineNextArrow2" Fill="White" StrokeThickness="0" Data="M481.29,229.47l-188.87-113a30.54,30.54,0,0,0-31.09-.39,33.74,33.74,0,0,0-16.76,29.47V224.6L63.85,116.44a30.54,30.54,0,0,0-31.09-.39A33.74,33.74,0,0,0,16,145.52v221A33.74,33.74,0,0,0,32.76,396a30.54,30.54,0,0,0,31.09-.39L244.57,287.4v79.08A33.74,33.74,0,0,0,261.33,396a30.54,30.54,0,0,0,31.09-.39l188.87-113a31.27,31.27,0,0,0,0-53Z"
+                                                      Opacity="0">
                                                     <Path.RenderTransform>
                                                         <TranslateTransform X="0" Y="0"/>
                                                     </Path.RenderTransform>
                                                 </Path>
                                             </Canvas>
+                                            </Viewbox>
                                         </Border>
                                     </StackPanel>
                                     </StackPanel>
