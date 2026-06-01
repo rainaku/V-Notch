@@ -615,7 +615,7 @@ public partial class MainWindow
         SettingsScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, null);
 
-        bool showBatterySection = show;
+        bool showBatterySection = show && _settings.ShowBatteryIndicator;
 
         if (show)
         {
@@ -731,9 +731,25 @@ public partial class MainWindow
         BatterySection.BeginAnimation(OpacityProperty, batteryOpacityAnim);
         BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
 
-        // NavIconsPanel (icons themselves) always animate with expand/collapse
-        NavIconsPanel.BeginAnimation(OpacityProperty, batteryOpacityAnim);
-        NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
+        // NavIconsPanel (icons themselves) always animate with expand/collapse — independent of battery setting
+        var navOpacityAnim = new DoubleAnimation
+        {
+            To = show ? 1.0 : 0.0,
+            Duration = dur,
+            EasingFunction = easing
+        };
+        Timeline.SetDesiredFrameRate(navOpacityAnim, animFps);
+
+        var navTranslateAnim = new DoubleAnimation
+        {
+            To = show ? 0 : -6,
+            Duration = dur,
+            EasingFunction = easing
+        };
+        Timeline.SetDesiredFrameRate(navTranslateAnim, animFps);
+
+        NavIconsPanel.BeginAnimation(OpacityProperty, navOpacityAnim);
+        NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, navTranslateAnim);
 
         // NavIconsBackground (black border) only in secondary view
         if (_isSecondaryView)

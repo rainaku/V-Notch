@@ -40,6 +40,7 @@ public event EventHandler? AnimatedClosing;
         _bluetoothModule = bluetoothModule;
         _updateService = new UpdateService();
 
+        InitializeNavigation();
         LoadSettings();
         CheckForUpdatesAsync().SafeFireAndForget("SETTINGS-UPDATE-CHECK");
     }
@@ -82,9 +83,18 @@ public event EventHandler? AnimatedClosing;
             }
 
             // Don't let window drag intercept the subtitle priority drag-reorder area
-            if (source is FrameworkElement fe && fe.Name == "SubtitlePriorityItems")
+            if (source is FrameworkElement fe)
             {
-                return true;
+                if (fe.Name == "SubtitlePriorityItems")
+                    return true;
+
+                // Nav sidebar items are clickable Borders with a Tag
+                if (fe is Border border && border.Tag is string tag &&
+                    (tag == "Appearance" || tag == "Behavior" || tag == "Devices" ||
+                     tag == "System" || tag == "Advanced" || tag == "Updates"))
+                {
+                    return true;
+                }
             }
 
             source = VisualTreeHelper.GetParent(source);
@@ -133,6 +143,7 @@ public event EventHandler? AnimatedClosing;
         SystemNotifyCheck.IsChecked = _settings.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = _settings.IsShelfUploadLimitUnlocked;
         CopyShelfClipboardCheck.IsChecked = _settings.CopyShelfFilesToClipboard;
+        ShowBatteryCheck.IsChecked = _settings.ShowBatteryIndicator;
 
         // Language combo
         LanguageCombo.Items.Clear();
@@ -162,6 +173,7 @@ public event EventHandler? AnimatedClosing;
         // Header
         SettingsTitleText.Text = Loc.Get("settings.title");
         SettingsSubtitleText.Text = Loc.Get("settings.subtitle");
+        SearchPlaceholder.Text = Loc.Get("settings.searchPlaceholder");
 
         // Section headers
         AppearanceHeader.Text = Loc.Get("settings.appearance");
@@ -169,6 +181,14 @@ public event EventHandler? AnimatedClosing;
         UpdatesHeader.Text = Loc.Get("settings.updates");
         DisplayHeader.Text = Loc.Get("settings.display");
         SystemHeader.Text = Loc.Get("settings.system");
+
+        // Nav items
+        NavAppearanceText.Text = Loc.Get("settings.nav.appearance");
+        NavBehaviorText.Text = Loc.Get("settings.nav.behavior");
+        NavDevicesText.Text = Loc.Get("settings.nav.devices");
+        NavSystemText.Text = Loc.Get("settings.nav.system");
+        NavAdvancedText.Text = Loc.Get("settings.nav.advanced");
+        NavUpdatesText.Text = Loc.Get("settings.nav.updates");
 
         // Appearance labels & hints
         WidthLabel.Text = Loc.Get("settings.width");
@@ -198,7 +218,6 @@ public event EventHandler? AnimatedClosing;
         SubtitlePriorityHint.Text = Loc.Get("settings.subtitlePriority.hint");
         LoadSubtitlePriority(); // Refresh display names for new language
 
-        DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode");
         DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint");
 
         // Behavior labels & hints
@@ -249,6 +268,8 @@ public event EventHandler? AnimatedClosing;
         ShelfUnlockHint.Text = Loc.Get("settings.shelfUnlock.hint");
         CopyShelfClipboardCheck.Content = Loc.Get("settings.copyShelfClipboard");
         CopyShelfClipboardHint.Text = Loc.Get("settings.copyShelfClipboard.hint");
+        ShowBatteryCheck.Content = Loc.Get("settings.showBattery");
+        ShowBatteryHint.Text = Loc.Get("settings.showBattery.hint");
         LanguageLabel.Text = Loc.Get("settings.language");
         LanguageHint.Text = Loc.Get("settings.language.hint");
 
@@ -683,6 +704,7 @@ public event EventHandler? AnimatedClosing;
             // Header
             (SettingsTitleText, () => SettingsTitleText.Text = Loc.Get("settings.title")),
             (SettingsSubtitleText, () => SettingsSubtitleText.Text = Loc.Get("settings.subtitle")),
+            (SearchPlaceholder, () => SearchPlaceholder.Text = Loc.Get("settings.searchPlaceholder")),
 
             // Section headers
             (AppearanceHeader, () => AppearanceHeader.Text = Loc.Get("settings.appearance")),
@@ -690,6 +712,14 @@ public event EventHandler? AnimatedClosing;
             (UpdatesHeader, () => UpdatesHeader.Text = Loc.Get("settings.updates")),
             (DisplayHeader, () => DisplayHeader.Text = Loc.Get("settings.display")),
             (SystemHeader, () => SystemHeader.Text = Loc.Get("settings.system")),
+
+            // Nav items
+            (NavAppearanceText, () => NavAppearanceText.Text = Loc.Get("settings.nav.appearance")),
+            (NavBehaviorText, () => NavBehaviorText.Text = Loc.Get("settings.nav.behavior")),
+            (NavDevicesText, () => NavDevicesText.Text = Loc.Get("settings.nav.devices")),
+            (NavSystemText, () => NavSystemText.Text = Loc.Get("settings.nav.system")),
+            (NavAdvancedText, () => NavAdvancedText.Text = Loc.Get("settings.nav.advanced")),
+            (NavUpdatesText, () => NavUpdatesText.Text = Loc.Get("settings.nav.updates")),
 
             // Appearance
             (WidthLabel, () => { WidthLabel.Text = Loc.Get("settings.width"); WidthSlider.Label = Loc.Get("settings.width"); WidthSlider.Description = Loc.Get("settings.width.hint"); }),
@@ -729,6 +759,7 @@ public event EventHandler? AnimatedClosing;
             (MusicNotifyHint, () => MusicNotifyHint.Text = Loc.Get("settings.musicNotify.hint")),
             (SystemNotifyHint, () => SystemNotifyHint.Text = Loc.Get("settings.systemNotify.hint")),
             (ShelfUnlockHint, () => ShelfUnlockHint.Text = Loc.Get("settings.shelfUnlock.hint")),
+            (ShowBatteryHint, () => ShowBatteryHint.Text = Loc.Get("settings.showBattery.hint")),
             (LanguageLabel, () => LanguageLabel.Text = Loc.Get("settings.language")),
             (LanguageHint, () => LanguageHint.Text = Loc.Get("settings.language.hint")),
 
@@ -766,6 +797,8 @@ public event EventHandler? AnimatedClosing;
         staggerMs += staggerStep;
         AnimateContentChange(CopyShelfClipboardCheck, () => CopyShelfClipboardCheck.Content = Loc.Get("settings.copyShelfClipboard"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
+        AnimateContentChange(ShowBatteryCheck, () => ShowBatteryCheck.Content = Loc.Get("settings.showBattery"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
         AnimateContentChange(YouTubeApiCheck, () => YouTubeApiCheck.Content = Loc.Get("settings.youtubeApi"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(HoverExpandCheck, () => HoverExpandCheck.Content = Loc.Get("settings.hoverExpand"), staggerMs, easeOut, fps, slideDist);
@@ -775,8 +808,6 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(EnableSpotifyLyricsCheck, () => EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(EnableYouTubeSubtitlesCheck, () => EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles"), staggerMs, easeOut, fps, slideDist);
-        staggerMs += staggerStep;
-        AnimateContentChange(DynamicIslandModeCheck, () => DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
 
         foreach (var (element, update) in textUpdates)
@@ -1023,17 +1054,18 @@ private void PushLivePreview()
 
         // Social icons stagger (appear shortly after header)
         int socialDelay = contentDelay + 80;
-        AnimateSocialIcon(SocialGitHub, SocialGitHubTranslate, socialDelay);
-        AnimateSocialIcon(SocialFacebook, SocialFacebookTranslate, socialDelay + 60);
-        AnimateSocialIcon(SocialDiscord, SocialDiscordTranslate, socialDelay + 120);
+        AnimateSocialIcon(SocialWebsite, SocialWebsiteTranslate, socialDelay);
+        AnimateSocialIcon(SocialGitHub, SocialGitHubTranslate, socialDelay + 60);
+        AnimateSocialIcon(SocialFacebook, SocialFacebookTranslate, socialDelay + 120);
+        AnimateSocialIcon(SocialDiscord, SocialDiscordTranslate, socialDelay + 180);
 
-        AnimateEntranceItem(AppearanceCard, AppearanceCardTranslate, contentDelay + 40);
-        AnimateEntranceItem(BehaviorCard, BehaviorCardTranslate, contentDelay + 80);
-        AnimateEntranceItem(DisplayCard, DisplayCardTranslate, contentDelay + 120);
-        AnimateEntranceItem(SystemCard, SystemCardTranslate, contentDelay + 160);
-        AnimateEntranceItem(AdvancedCard, AdvancedCardTranslate, contentDelay + 200);
-        AnimateEntranceItem(UpdatesCard, UpdatesCardTranslate, contentDelay + 240);
-        AnimateEntranceItem(FooterBar, FooterTranslate, contentDelay + 280);
+        // Nav panel
+        AnimateEntranceItem(NavPanel, NavPanelTranslate, contentDelay + 40);
+
+        // Active content card only
+        AnimateActivePanel(_activeNav);
+
+        AnimateEntranceItem(FooterBar, FooterTranslate, contentDelay + 160);
 
         void AnimateSocialIcon(UIElement element, TranslateTransform translate, int delayMs)
         {
@@ -1111,6 +1143,7 @@ private void PushLivePreview()
         SystemNotifyCheck.IsChecked = defaults.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = defaults.IsShelfUploadLimitUnlocked;
         CopyShelfClipboardCheck.IsChecked = defaults.CopyShelfFilesToClipboard;
+        ShowBatteryCheck.IsChecked = defaults.ShowBatteryIndicator;
         _settings.BatteryDeviceId = defaults.BatteryDeviceId;
         HideOnExclusiveFullscreenCheck.IsChecked = defaults.HideOnExclusiveFullscreen;
         HideOnWindowedFullscreenCheck.IsChecked = defaults.HideOnWindowedFullscreen;
@@ -1126,6 +1159,15 @@ private void PushLivePreview()
 private void RevertLivePreviewIfNeeded()
     {
         SettingsChanged?.Invoke(this, _originalSettings.Clone());
+    }
+
+    private void SocialLink_Website_Click(object sender, RoutedEventArgs e)
+    {
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "https://v-notch.vercel.app/",
+            UseShellExecute = true
+        });
     }
 
     private void SocialLink_GitHub_Click(object sender, RoutedEventArgs e)
@@ -1284,13 +1326,33 @@ private void CloseWithAnimation()
 
         // --- Staggered content hide (reverse of entrance reveal) ---
         AnimateExitItem(FooterBar, FooterTranslate, 0);
-        AnimateExitItem(UpdatesCard, UpdatesCardTranslate, 20);
-        AnimateExitItem(AdvancedCard, AdvancedCardTranslate, 40);
-        AnimateExitItem(SystemCard, SystemCardTranslate, 60);
-        AnimateExitItem(DisplayCard, DisplayCardTranslate, 80);
-        AnimateExitItem(BehaviorCard, BehaviorCardTranslate, 100);
-        AnimateExitItem(AppearanceCard, AppearanceCardTranslate, 120);
-        AnimateExitItem(SettingsHeader, HeaderTranslate, 140);
+        AnimateExitItem(NavPanel, NavPanelTranslate, 40);
+
+        // Animate only the active card
+        UIElement? activeCard = _activeNav switch
+        {
+            "Appearance" => AppearanceCard,
+            "Behavior" => BehaviorCard,
+            "Devices" => DisplayCard,
+            "System" => SystemCard,
+            "Advanced" => AdvancedCard,
+            "Updates" => UpdatesCard,
+            _ => null
+        };
+        TranslateTransform? activeTranslate = _activeNav switch
+        {
+            "Appearance" => AppearanceCardTranslate,
+            "Behavior" => BehaviorCardTranslate,
+            "Devices" => DisplayCardTranslate,
+            "System" => SystemCardTranslate,
+            "Advanced" => AdvancedCardTranslate,
+            "Updates" => UpdatesCardTranslate,
+            _ => null
+        };
+        if (activeCard != null && activeTranslate != null)
+            AnimateExitItem(activeCard, activeTranslate, 60);
+
+        AnimateExitItem(SettingsHeader, HeaderTranslate, 100);
 
         // --- CornerRadius: 24 → notch radius ---
         double notchRadius = 8;
@@ -1434,6 +1496,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.ShowSystemNotifications = SystemNotifyCheck.IsChecked ?? true;
         _settings.IsShelfUploadLimitUnlocked = ShelfUnlockCheck.IsChecked ?? false;
         _settings.CopyShelfFilesToClipboard = CopyShelfClipboardCheck.IsChecked ?? false;
+        _settings.ShowBatteryIndicator = ShowBatteryCheck.IsChecked ?? true;
 
         // YouTube API
         _settings.EnableYouTubeApi = YouTubeApiCheck.IsChecked ?? false;
@@ -1556,6 +1619,279 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             DownloadUpdateButton.IsEnabled = true;
             CheckUpdateButton.IsEnabled = true;
         }
+    }
+
+    #endregion
+
+    #region Navigation
+
+    private string _activeNav = "Appearance";
+    private readonly Dictionary<string, StackPanel> _navPanels = new();
+    private readonly Dictionary<string, Border> _navButtons = new();
+
+    private void InitializeNavigation()
+    {
+        _navPanels["Appearance"] = PanelAppearance;
+        _navPanels["Behavior"] = PanelBehavior;
+        _navPanels["Devices"] = PanelDevices;
+        _navPanels["System"] = PanelSystem;
+        _navPanels["Advanced"] = PanelAdvanced;
+        _navPanels["Updates"] = PanelUpdates;
+
+        _navButtons["Appearance"] = NavAppearance;
+        _navButtons["Behavior"] = NavBehavior;
+        _navButtons["Devices"] = NavDevices;
+        _navButtons["System"] = NavSystem;
+        _navButtons["Advanced"] = NavAdvanced;
+        _navButtons["Updates"] = NavUpdates;
+    }
+
+    private void Nav_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border border && border.Tag is string section)
+        {
+            NavigateToSection(section);
+        }
+    }
+
+    private void NavigateToSection(string section)
+    {
+        if (section == _activeNav) return;
+
+        // Hide current panel
+        if (_navPanels.TryGetValue(_activeNav, out var oldPanel))
+            oldPanel.Visibility = Visibility.Collapsed;
+
+        // Deactivate old nav button
+        if (_navButtons.TryGetValue(_activeNav, out var oldBtn))
+        {
+            oldBtn.Background = new SolidColorBrush(Colors.Transparent);
+            var oldStack = oldBtn.Child as StackPanel;
+            if (oldStack != null && oldStack.Children.Count > 1 && oldStack.Children[1] is TextBlock oldText)
+                oldText.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+        }
+
+        _activeNav = section;
+
+        // Show new panel
+        if (_navPanels.TryGetValue(section, out var newPanel))
+            newPanel.Visibility = Visibility.Visible;
+
+        // Activate new nav button
+        if (_navButtons.TryGetValue(section, out var newBtn))
+        {
+            newBtn.Background = (SolidColorBrush)FindResource("NavItemActiveBg");
+            var newStack = newBtn.Child as StackPanel;
+            if (newStack != null && newStack.Children.Count > 1 && newStack.Children[1] is TextBlock newText)
+                newText.Foreground = new SolidColorBrush(Colors.White);
+        }
+
+        // Reset scroll position
+        SettingsScrollViewer.ScrollToTop();
+
+        // Animate the card entrance for the new section
+        AnimateActivePanel(section);
+    }
+
+    private void AnimateActivePanel(string section)
+    {
+        var ease = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 };
+
+        UIElement? card = section switch
+        {
+            "Appearance" => AppearanceCard,
+            "Behavior" => BehaviorCard,
+            "Devices" => DisplayCard,
+            "System" => SystemCard,
+            "Advanced" => AdvancedCard,
+            "Updates" => UpdatesCard,
+            _ => null
+        };
+
+        TranslateTransform? translate = section switch
+        {
+            "Appearance" => AppearanceCardTranslate,
+            "Behavior" => BehaviorCardTranslate,
+            "Devices" => DisplayCardTranslate,
+            "System" => SystemCardTranslate,
+            "Advanced" => AdvancedCardTranslate,
+            "Updates" => UpdatesCardTranslate,
+            _ => null
+        };
+
+        if (card == null || translate == null) return;
+
+        card.Opacity = 0;
+        translate.Y = 12;
+
+        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350)) { EasingFunction = ease };
+        Timeline.SetDesiredFrameRate(fade, 144);
+        var slide = new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(420)) { EasingFunction = ease };
+        Timeline.SetDesiredFrameRate(slide, 144);
+
+        card.BeginAnimation(OpacityProperty, fade);
+        translate.BeginAnimation(TranslateTransform.YProperty, slide);
+    }
+
+    #endregion
+
+    #region Search
+
+    private void SettingsSearchBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        string query = SettingsSearchBox.Text?.Trim() ?? "";
+
+        // Toggle placeholder visibility
+        SearchPlaceholder.Visibility = string.IsNullOrEmpty(query) ? Visibility.Visible : Visibility.Collapsed;
+
+        if (string.IsNullOrEmpty(query))
+        {
+            // Restore normal nav view — show active panel
+            ShowAllNavItems();
+            foreach (var kvp in _navPanels)
+            {
+                kvp.Value.Visibility = kvp.Key == _activeNav ? Visibility.Visible : Visibility.Collapsed;
+            }
+            AnimateActivePanel(_activeNav);
+            return;
+        }
+
+        // Search: show all panels that have matching content, hide others
+        var matchedSections = new List<string>();
+        var searchItems = GetSearchableItems();
+
+        foreach (var item in searchItems)
+        {
+            if (item.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!matchedSections.Contains(item.Section))
+                    matchedSections.Add(item.Section);
+            }
+        }
+
+        // Show matched panels, hide unmatched
+        foreach (var kvp in _navPanels)
+        {
+            kvp.Value.Visibility = matchedSections.Contains(kvp.Key) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // Highlight matched nav items
+        foreach (var kvp in _navButtons)
+        {
+            bool matched = matchedSections.Contains(kvp.Key);
+            kvp.Value.Opacity = matched ? 1.0 : 0.4;
+        }
+
+        // Animate visible cards
+        foreach (var section in matchedSections)
+        {
+            AnimateActivePanel(section);
+        }
+
+        // If only one match, navigate to it
+        if (matchedSections.Count == 1)
+        {
+            var section = matchedSections[0];
+            if (_navButtons.TryGetValue(section, out var btn))
+            {
+                btn.Background = (SolidColorBrush)FindResource("NavItemActiveBg");
+                var stack = btn.Child as StackPanel;
+                if (stack?.Children.Count > 1 && stack.Children[1] is TextBlock txt)
+                    txt.Foreground = new SolidColorBrush(Colors.White);
+            }
+        }
+    }
+
+    private void ShowAllNavItems()
+    {
+        foreach (var kvp in _navButtons)
+        {
+            kvp.Value.Opacity = 1.0;
+            bool isActive = kvp.Key == _activeNav;
+            kvp.Value.Background = isActive
+                ? (SolidColorBrush)FindResource("NavItemActiveBg")
+                : new SolidColorBrush(Colors.Transparent);
+            var stack = kvp.Value.Child as StackPanel;
+            if (stack?.Children.Count > 1 && stack.Children[1] is TextBlock txt)
+                txt.Foreground = isActive
+                    ? new SolidColorBrush(Colors.White)
+                    : new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+        }
+    }
+
+    private record SearchItem(string Section, string Text);
+
+    private List<SearchItem> GetSearchableItems()
+    {
+        return new List<SearchItem>
+        {
+            // Appearance
+            new("Appearance", Loc.Get("settings.nav.appearance")),
+            new("Appearance", Loc.Get("settings.width")),
+            new("Appearance", Loc.Get("settings.height")),
+            new("Appearance", Loc.Get("settings.cornerRadius")),
+            new("Appearance", Loc.Get("settings.opacity")),
+            new("Appearance", Loc.Get("settings.blurBrightness")),
+            new("Appearance", Loc.Get("settings.dynamicIslandMode")),
+            new("Appearance", "Dynamic Island"),
+
+            // Behavior
+            new("Behavior", Loc.Get("settings.nav.behavior")),
+            new("Behavior", Loc.Get("settings.hoverExpand")),
+            new("Behavior", Loc.Get("settings.expandDelay")),
+            new("Behavior", Loc.Get("settings.disableAutoClose")),
+            new("Behavior", "hover"),
+            new("Behavior", "expand"),
+
+            // Devices
+            new("Devices", Loc.Get("settings.nav.devices")),
+            new("Devices", Loc.Get("settings.activeMonitor")),
+            new("Devices", Loc.Get("settings.camera")),
+            new("Devices", "monitor"),
+            new("Devices", "camera"),
+
+            // System
+            new("System", Loc.Get("settings.nav.system")),
+            new("System", Loc.Get("settings.autoStart")),
+            new("System", Loc.Get("settings.helloGreeting")),
+            new("System", Loc.Get("settings.hideExclusiveFs")),
+            new("System", Loc.Get("settings.hideWindowedFs")),
+            new("System", Loc.Get("settings.musicNotify")),
+            new("System", Loc.Get("settings.systemNotify")),
+            new("System", Loc.Get("settings.showBattery")),
+            new("System", Loc.Get("settings.shelfUnlock")),
+            new("System", Loc.Get("settings.copyShelfClipboard")),
+            new("System", Loc.Get("settings.language")),
+            new("System", "battery"),
+            new("System", "pin"),
+            new("System", "notification"),
+            new("System", "fullscreen"),
+            new("System", "startup"),
+            new("System", "language"),
+            new("System", "shelf"),
+
+            // Advanced
+            new("Advanced", Loc.Get("settings.nav.advanced")),
+            new("Advanced", Loc.Get("settings.enableSpotifyLyrics")),
+            new("Advanced", Loc.Get("settings.enableYouTubeSubtitles")),
+            new("Advanced", Loc.Get("settings.lyricsDarkOverlay")),
+            new("Advanced", Loc.Get("settings.subtitlePriority")),
+            new("Advanced", Loc.Get("settings.youtubeApi")),
+            new("Advanced", "Spotify"),
+            new("Advanced", "YouTube"),
+            new("Advanced", "lyrics"),
+            new("Advanced", "subtitle"),
+            new("Advanced", "API"),
+
+            // Updates
+            new("Updates", Loc.Get("settings.nav.updates")),
+            new("Updates", Loc.Get("settings.reportBug")),
+            new("Updates", Loc.Get("settings.requestFeature")),
+            new("Updates", Loc.Get("settings.clearCache")),
+            new("Updates", "update"),
+            new("Updates", "bug"),
+            new("Updates", "cache"),
+        };
     }
 
     #endregion

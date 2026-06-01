@@ -50,6 +50,8 @@ public class NotchSettings
 
     public bool ShowMusicNotifications { get; set; } = true;
     public bool ShowSystemNotifications { get; set; } = true;
+
+    public bool ShowBatteryIndicator { get; set; } = true;
     public int NotificationDuration { get; set; } = 5000; 
 
     public bool EnableSmartCrop { get; set; } = true;

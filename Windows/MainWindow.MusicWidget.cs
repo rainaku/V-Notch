@@ -208,11 +208,18 @@ public partial class MainWindow
             LyricsWidget.BeginAnimation(OpacityProperty, fadeInLyrics);
         }
 
-        BatterySection.BeginAnimation(OpacityProperty, null);
-        BatterySection.Opacity = 0;
-        BatterySection.Visibility = Visibility.Visible;
-        var fadeInBattery = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
-        BatterySection.BeginAnimation(OpacityProperty, fadeInBattery);
+        if (_settings.ShowBatteryIndicator)
+        {
+            BatterySection.BeginAnimation(OpacityProperty, null);
+            BatterySection.Opacity = 0;
+            BatterySection.Visibility = Visibility.Visible;
+            var fadeInBattery = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(100));
+            BatterySection.BeginAnimation(OpacityProperty, fadeInBattery);
+        }
+        else
+        {
+            BatterySection.Visibility = Visibility.Collapsed;
+        }
 
         NavIconsPanel.BeginAnimation(OpacityProperty, null);
         NavIconsPanel.Opacity = 0;

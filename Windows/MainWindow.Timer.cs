@@ -65,8 +65,8 @@ public partial class MainWindow
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
 
-        // Hide media background and lyrics blur immediately
-        HideMediaBackground();
+        // Hide media background blur overlay only (preserve progress bar gradient & tint colors)
+        HideMediaBackgroundOverlay();
         if (LyricsBlurBackground != null && LyricsBlurBackground.Visibility == Visibility.Visible)
         {
             LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
@@ -335,47 +335,36 @@ public partial class MainWindow
 
         NotchBorder.IsHitTestVisible = false;
 
-        var durOut = new Duration(TimeSpan.FromMilliseconds(180));
+        var durScroll = new Duration(TimeSpan.FromMilliseconds(420));
         var durIn = new Duration(TimeSpan.FromMilliseconds(480));
-        var inDelay = TimeSpan.FromMilliseconds(50);
+        var inDelay = TimeSpan.FromMilliseconds(30);
         const int fps = 144;
 
-        // Fade out timer content
-        var timerGroup = new TransformGroup();
-        var timerScale = new ScaleTransform(1, 1);
+        // ─── Scroll animation: both views move DOWN together ───
+        // Timer scrolls down and out, primary scrolls down into view from above.
+
+        // Timer content scrolls down + fades out
         var timerTranslate = new TranslateTransform(0, 0);
-        timerGroup.Children.Add(timerScale);
-        timerGroup.Children.Add(timerTranslate);
-        TimerContent.RenderTransform = timerGroup;
+        TimerContent.RenderTransform = timerTranslate;
         TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeOut = MakeAnim(1, 0, durOut, _easeQuadIn);
-        var slideDown = MakeAnim(0, 16, durOut, _easeQuadIn);
-        var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
-        var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
-        Timeline.SetDesiredFrameRate(slideDown, fps);
-        Timeline.SetDesiredFrameRate(scaleDownX, fps);
-        Timeline.SetDesiredFrameRate(scaleDownY, fps);
+        var timerSlideDown = MakeAnim(0, 40, durScroll, _easeExpOut6);
+        var timerFadeOut = MakeAnim(1, 0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
+        Timeline.SetDesiredFrameRate(timerSlideDown, fps);
+        Timeline.SetDesiredFrameRate(timerFadeOut, fps);
 
-        var timerBlur = TimerContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
-        TimerContent.Effect = timerBlur;
-        var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
-
-        fadeOut.Completed += (s, ev) =>
+        timerFadeOut.Completed += (s, ev) =>
         {
             TimerContent.Visibility = Visibility.Collapsed;
             TimerContent.RenderTransform = null;
-            TimerContent.Effect = null;
-            timerBlur.Radius = 0;
+            TimerContent.BeginAnimation(OpacityProperty, null);
+            TimerContent.Opacity = 0;
         };
 
-        TimerContent.BeginAnimation(OpacityProperty, fadeOut);
-        timerTranslate.BeginAnimation(TranslateTransform.YProperty, slideDown);
-        timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDownX);
-        timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
-        timerBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
+        TimerContent.BeginAnimation(OpacityProperty, timerFadeOut);
+        timerTranslate.BeginAnimation(TranslateTransform.YProperty, timerSlideDown);
 
-        // Fade in primary content
+        // Primary content scrolls in from above
         ExpandedContent.Visibility = Visibility.Visible;
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
@@ -383,18 +372,34 @@ public partial class MainWindow
         ExpandedContent.Height = _expandedHeight - 2;
         ExpandedContent.UpdateLayout();
 
-        var primaryGroup = new TransformGroup();
-        var primaryTranslate = new TranslateTransform(0, -26);
-        primaryGroup.Children.Add(primaryTranslate);
-        ExpandedContent.RenderTransform = primaryGroup;
+        // Restore progress bar gradient & tint colors immediately so they're visible
+        // during the fade-in (blur background will fade in after animation completes).
+        if (_currentMediaInfo?.Thumbnail != null && _currentMediaInfo.IsAnyMediaPlaying)
+        {
+            var palette = DynamicIslandColorExtractor.GetDynamicIslandPalette(_currentMediaInfo.Thumbnail);
+            var subColor = LiftDarkColor(palette.Sub);
+            var vibrantColor = Color.FromRgb(subColor.R, subColor.G, subColor.B);
+            var darkColor = Color.FromArgb(vibrantColor.A,
+                (byte)(vibrantColor.R * 0.65),
+                (byte)(vibrantColor.G * 0.65),
+                (byte)(vibrantColor.B * 0.65));
+
+            ProgressBarGradientStart.BeginAnimation(GradientStop.ColorProperty, null);
+            ProgressBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, null);
+            ProgressBarGradientStart.Color = vibrantColor;
+            ProgressBarGradientEnd.Color = darkColor;
+        }
+
+        var primaryTranslate = new TranslateTransform(0, -36);
+        ExpandedContent.RenderTransform = primaryTranslate;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
-        var springSlide = MakeAnim(-26, 0, durIn, _easeExpOut7, inDelay);
-        Timeline.SetDesiredFrameRate(fadeIn, fps);
-        Timeline.SetDesiredFrameRate(springSlide, fps);
+        var primarySlideDown = MakeAnim(-36, 0, durIn, _easeExpOut7, inDelay);
+        var primaryFadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
+        Timeline.SetDesiredFrameRate(primarySlideDown, fps);
+        Timeline.SetDesiredFrameRate(primaryFadeIn, fps);
 
-        fadeIn.Completed += (s, ev) =>
+        primaryFadeIn.Completed += (s, ev) =>
         {
             _isAnimating = false;
             _isScrollSessionLocked = false;
@@ -420,8 +425,8 @@ public partial class MainWindow
             }
         };
 
-        ExpandedContent.BeginAnimation(OpacityProperty, fadeIn);
-        primaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
+        ExpandedContent.BeginAnimation(OpacityProperty, primaryFadeIn);
+        primaryTranslate.BeginAnimation(TranslateTransform.YProperty, primarySlideDown);
 
         // Restore notch height back to expanded
         double currentH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _timerViewHeight;

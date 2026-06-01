@@ -334,31 +334,11 @@ public partial class MainWindow
 
     private void HideMediaBackground()
     {
-        if (MediaBackground.Opacity == 0 && MediaBackground.Visibility != Visibility.Visible) return;
+        HideMediaBackgroundOverlay();
 
-        _lastDominantColor = Colors.Transparent;
-        int animationVersion = ++_mediaBackgroundAnimationVersion;
-        var opacityAnim = new DoubleAnimation(0, TimeSpan.FromMilliseconds(400))
-        {
-            EasingFunction = _easePowerIn2
-        };
-
-        opacityAnim.Completed += (s, e) =>
-        {
-            if (animationVersion != _mediaBackgroundAnimationVersion)
-            {
-                return;
-            }
-
-            if (MediaBackground.Opacity <= 0.001)
-            {
-                MediaBackground.Visibility = Visibility.Collapsed;
-                MediaBackground2.Visibility = Visibility.Collapsed;
-            }
-        };
-
-        MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
-        MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
+        // When in timer/clock view, preserve progress bar gradient & tint so they're
+        // ready when switching back to main view.
+        if (_isTimerView) return;
 
         var defaultColorAnim = new ColorAnimation
         {
@@ -415,6 +395,40 @@ public partial class MainWindow
         ResetUnfrozenFill(InlineNextArrow0);
         ResetUnfrozenFill(InlineNextArrow1);
         ResetUnfrozenFill(InlineNextArrow2);
+    }
+
+    /// <summary>
+    /// Fades out only the blur overlay (MediaBackground) without resetting
+    /// progress bar gradient colors or UI tint. Used when switching to timer/clock view
+    /// so that colors are preserved when returning to main view.
+    /// </summary>
+    private void HideMediaBackgroundOverlay()
+    {
+        if (MediaBackground.Opacity == 0 && MediaBackground.Visibility != Visibility.Visible) return;
+
+        _lastDominantColor = Colors.Transparent;
+        int animationVersion = ++_mediaBackgroundAnimationVersion;
+        var opacityAnim = new DoubleAnimation(0, TimeSpan.FromMilliseconds(400))
+        {
+            EasingFunction = _easePowerIn2
+        };
+
+        opacityAnim.Completed += (s, e) =>
+        {
+            if (animationVersion != _mediaBackgroundAnimationVersion)
+            {
+                return;
+            }
+
+            if (MediaBackground.Opacity <= 0.001)
+            {
+                MediaBackground.Visibility = Visibility.Collapsed;
+                MediaBackground2.Visibility = Visibility.Collapsed;
+            }
+        };
+
+        MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
+        MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
     }
 
     private void ShowMediaBackground()
