@@ -263,6 +263,16 @@ public partial class MainWindow
             _pendingFlipThumbnail = newThumb;
             return;
         }
+        if (_isThumbnailSwitchActive && !force)
+        {
+            // A blur morph is already in progress for the same track (e.g. async thumbnail update) —
+            // just update the target thumbnail on the overlay layer instead of restarting.
+            VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
+                $"coalesced (blur morph already active, updating target) force={force}");
+            ThumbnailImageNext.Source = newThumb;
+            CompactThumbnailNext.Source = newThumb;
+            return;
+        }
         if (!force && newThumb != null && ReferenceEquals(ThumbnailImage.Source, newThumb))
         {
             VNotch.Services.RuntimeLog.Log("THUMB-ANIM", "skipped (same reference, no force)");
@@ -408,9 +418,10 @@ public partial class MainWindow
             CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
-            // Promote overlay → base.
-            ThumbnailImage.Source = newThumb;
-            CompactThumbnail.Source = newThumb;
+            // Promote overlay → base (use actual overlay source in case it was coalesced).
+            var finalThumb = ThumbnailImageNext.Source ?? newThumb;
+            ThumbnailImage.Source = finalThumb;
+            CompactThumbnail.Source = finalThumb;
             if (_isLyricsActive && LyricsBlurImage != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
