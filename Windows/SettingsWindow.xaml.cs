@@ -595,6 +595,7 @@ public event EventHandler? AnimatedClosing;
             Loc.SetLanguage(lang);
             _settingsService.Save(_settings);
             _originalSettings = _settings.Clone();
+            _cachedSearchItems = null; // Invalidate search cache on language change
             AnimateLocalizationChange();
             SettingsChanged?.Invoke(this, _settings);
         }
@@ -696,7 +697,7 @@ public event EventHandler? AnimatedClosing;
         const int fps = 30;
         const double slideDist = 3.0;
         int staggerMs = 0;
-        const int staggerStep = 20;
+        const int staggerStep = 12;
 
         // Collect all text elements that need animated update
         var textUpdates = new (FrameworkElement element, Action update)[]
@@ -830,53 +831,52 @@ public event EventHandler? AnimatedClosing;
         element.BeginAnimation(OpacityProperty, null);
         translate.BeginAnimation(TranslateTransform.XProperty, null);
 
-        // Phase 1: Blur out — fade + slide right + slight scale feel via X offset
+        // Phase 1: fade out + slide left
         var fadeOut = new DoubleAnimation
         {
             To = 0,
-            Duration = TimeSpan.FromMilliseconds(120),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+            Duration = TimeSpan.FromMilliseconds(100),
+            EasingFunction = easing,
             BeginTime = TimeSpan.FromMilliseconds(delayMs)
         };
-        Timeline.SetDesiredFrameRate(fadeOut, fps);
+        Timeline.SetDesiredFrameRate(fadeOut, 30);
 
         var slideOut = new DoubleAnimation
         {
-            To = -14,
-            Duration = TimeSpan.FromMilliseconds(120),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+            To = -10,
+            Duration = TimeSpan.FromMilliseconds(100),
+            EasingFunction = easing,
             BeginTime = TimeSpan.FromMilliseconds(delayMs)
         };
-        Timeline.SetDesiredFrameRate(slideOut, fps);
+        Timeline.SetDesiredFrameRate(slideOut, 30);
 
         fadeOut.Completed += (s, e) =>
         {
             updateText();
 
-            // Phase 2: Slide in from right with overshoot spring
-            translate.X = 18;
+            // Phase 2: Slide in from right
+            translate.X = 14;
 
             var fadeIn = new DoubleAnimation
             {
                 From = 0,
                 To = 1,
-                Duration = TimeSpan.FromMilliseconds(280),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                Duration = TimeSpan.FromMilliseconds(220),
+                EasingFunction = easing
             };
-            Timeline.SetDesiredFrameRate(fadeIn, fps);
+            Timeline.SetDesiredFrameRate(fadeIn, 30);
 
             var slideIn = new DoubleAnimation
             {
-                From = 18,
+                From = 14,
                 To = 0,
-                Duration = TimeSpan.FromMilliseconds(380),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                Duration = TimeSpan.FromMilliseconds(300),
+                EasingFunction = easing
             };
-            Timeline.SetDesiredFrameRate(slideIn, fps);
+            Timeline.SetDesiredFrameRate(slideIn, 30);
 
             slideIn.Completed += (s2, e2) =>
             {
-                // Clear animation and snap to final position to prevent residual offset
                 translate.BeginAnimation(TranslateTransform.XProperty, null);
                 translate.X = 0;
             };
@@ -930,7 +930,7 @@ private void PushLivePreview()
         {
             _livePreviewDebounce = new DispatcherTimer(DispatcherPriority.Normal)
             {
-                Interval = TimeSpan.FromMilliseconds(16)
+                Interval = TimeSpan.FromMilliseconds(32)
             };
             _livePreviewDebounce.Tick += (s, e) =>
             {
@@ -1665,10 +1665,10 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         // Deactivate old nav button
         if (_navButtons.TryGetValue(_activeNav, out var oldBtn))
         {
-            oldBtn.Background = new SolidColorBrush(Colors.Transparent);
+            oldBtn.Background = _transparentBrush;
             var oldStack = oldBtn.Child as StackPanel;
             if (oldStack != null && oldStack.Children.Count > 1 && oldStack.Children[1] is TextBlock oldText)
-                oldText.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+                oldText.Foreground = _navInactiveBrush;
         }
 
         _activeNav = section;
@@ -1683,7 +1683,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             newBtn.Background = (SolidColorBrush)FindResource("NavItemActiveBg");
             var newStack = newBtn.Child as StackPanel;
             if (newStack != null && newStack.Children.Count > 1 && newStack.Children[1] is TextBlock newText)
-                newText.Foreground = new SolidColorBrush(Colors.White);
+                newText.Foreground = _whiteBrush;
         }
 
         // Reset scroll position
@@ -1725,9 +1725,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         translate.Y = 12;
 
         var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350)) { EasingFunction = ease };
-        Timeline.SetDesiredFrameRate(fade, 144);
+        Timeline.SetDesiredFrameRate(fade, 60);
         var slide = new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(420)) { EasingFunction = ease };
-        Timeline.SetDesiredFrameRate(slide, 144);
+        Timeline.SetDesiredFrameRate(slide, 60);
 
         card.BeginAnimation(OpacityProperty, fade);
         translate.BeginAnimation(TranslateTransform.YProperty, slide);
@@ -1736,6 +1736,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     #endregion
 
     #region Search
+
+    private DispatcherTimer? _searchDebounce;
 
     private void SettingsSearchBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
@@ -1746,6 +1748,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
         if (string.IsNullOrEmpty(query))
         {
+            _searchDebounce?.Stop();
             // Restore normal nav view — show active panel
             ShowAllNavItems();
             foreach (var kvp in _navPanels)
@@ -1756,9 +1759,30 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             return;
         }
 
+        // Debounce search to avoid thrashing on fast typing
+        if (_searchDebounce == null)
+        {
+            _searchDebounce = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(150)
+            };
+            _searchDebounce.Tick += (s, _) =>
+            {
+                _searchDebounce.Stop();
+                ExecuteSearch(SettingsSearchBox.Text?.Trim() ?? "");
+            };
+        }
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
+    }
+
+    private void ExecuteSearch(string query)
+    {
+        if (string.IsNullOrEmpty(query)) return;
+
         // Search: show all panels that have matching content, hide others
-        var matchedSections = new List<string>();
-        var searchItems = GetSearchableItems();
+        var matchedSections = new List<string>(6);
+        var searchItems = _cachedSearchItems ??= BuildSearchableItems();
 
         foreach (var item in searchItems)
         {
@@ -1797,9 +1821,20 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
                 btn.Background = (SolidColorBrush)FindResource("NavItemActiveBg");
                 var stack = btn.Child as StackPanel;
                 if (stack?.Children.Count > 1 && stack.Children[1] is TextBlock txt)
-                    txt.Foreground = new SolidColorBrush(Colors.White);
+                    txt.Foreground = _whiteBrush;
             }
         }
+    }
+
+    private static readonly SolidColorBrush _whiteBrush = new(Colors.White);
+    private static readonly SolidColorBrush _navInactiveBrush = new(Color.FromRgb(0xAA, 0xAA, 0xAA));
+    private static readonly SolidColorBrush _transparentBrush = new(Colors.Transparent);
+
+    static SettingsWindow()
+    {
+        _whiteBrush.Freeze();
+        _navInactiveBrush.Freeze();
+        _transparentBrush.Freeze();
     }
 
     private void ShowAllNavItems()
@@ -1810,18 +1845,18 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             bool isActive = kvp.Key == _activeNav;
             kvp.Value.Background = isActive
                 ? (SolidColorBrush)FindResource("NavItemActiveBg")
-                : new SolidColorBrush(Colors.Transparent);
+                : _transparentBrush;
             var stack = kvp.Value.Child as StackPanel;
             if (stack?.Children.Count > 1 && stack.Children[1] is TextBlock txt)
-                txt.Foreground = isActive
-                    ? new SolidColorBrush(Colors.White)
-                    : new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+                txt.Foreground = isActive ? _whiteBrush : _navInactiveBrush;
         }
     }
 
     private record SearchItem(string Section, string Text);
 
-    private List<SearchItem> GetSearchableItems()
+    private List<SearchItem>? _cachedSearchItems;
+
+    private List<SearchItem> BuildSearchableItems()
     {
         return new List<SearchItem>
         {
@@ -1901,9 +1936,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     private double _scrollVelocity;
     private double _scrollTarget;
     private bool _isScrollAnimating;
-    private const double ScrollFriction = 0.85;
+    private const double ScrollFriction = 0.82;
     private const double ScrollSensitivity = 1.2;
-    private const double ScrollMinVelocity = 0.5;
+    private const double ScrollMinVelocity = 0.3;
 
     private bool IsAnyComboBoxDropDownOpen()
     {
@@ -1923,6 +1958,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         e.Handled = true;
 
         double delta = -e.Delta * ScrollSensitivity;
+        double maxScroll = SettingsScrollViewer.ScrollableHeight;
 
         if (!_isScrollAnimating)
         {
@@ -1931,11 +1967,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
         // Add velocity based on scroll direction
         _scrollVelocity += delta * 0.3;
-        _scrollTarget += delta;
-
-        // Clamp target to valid range
-        double maxScroll = SettingsScrollViewer.ScrollableHeight;
-        _scrollTarget = Math.Clamp(_scrollTarget, 0, maxScroll);
+        _scrollTarget = Math.Clamp(_scrollTarget + delta, 0, maxScroll);
 
         if (!_isScrollAnimating)
         {
@@ -1958,11 +1990,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _scrollVelocity *= ScrollFriction;
 
         // Lerp towards target
-        double step = diff * 0.15 + _scrollVelocity * 0.5;
-        double newOffset = current + step;
-
-        // Clamp
-        newOffset = Math.Clamp(newOffset, 0, SettingsScrollViewer.ScrollableHeight);
+        double step = diff * 0.18 + _scrollVelocity * 0.4;
+        double newOffset = Math.Clamp(current + step, 0, SettingsScrollViewer.ScrollableHeight);
         SettingsScrollViewer.ScrollToVerticalOffset(newOffset);
 
         // Stop when close enough and velocity is negligible

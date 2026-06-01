@@ -628,7 +628,12 @@
                                 <TranslateTransform x:Name="SocialWebsiteTranslate" Y="6"/>
                             </Button.RenderTransform>
                             <Viewbox Width="18" Height="18">
-                                <Path Fill="#8C959E" Data="M8 0a8 8 0 100 16A8 8 0 008 0zm5.292 5.333H11.2c-.212-.98-.534-1.867-.95-2.6a6.7 6.7 0 013.042 2.6zM8 1.333c.58.747 1.04 1.7 1.333 2.8H6.667c.293-1.1.753-2.053 1.333-2.8zM1.467 9.333a6.6 6.6 0 010-2.666h2.4A13.7 13.7 0 003.733 8c0 .46.047.907.134 1.333h-2.4zm.241 1.334H3.8c.212.98.534 1.867.95 2.6a6.7 6.7 0 01-3.042-2.6zM3.8 5.333H1.708a6.7 6.7 0 013.042-2.6c-.416.733-.738 1.62-.95 2.6zM8 14.667c-.58-.747-1.04-1.7-1.333-2.8h2.666c-.293 1.1-.753 2.053-1.333 2.8zm1.633-4.134H6.367A11.9 11.9 0 016.267 8c0-.46.04-.907.1-1.333h3.266c.06.426.1.873.1 1.333s-.04.907-.1 1.333zm.117 3.934c.416-.733.738-1.62.95-2.6h2.092a6.7 6.7 0 01-3.042 2.6zm1.217-3.934A13.7 13.7 0 0011.1 9.2v-.867-.333c0-.46-.047-.907-.134-1.333h2.4a6.6 6.6 0 010 2.666h-2.4z"/>
+                                <Canvas Width="16" Height="16">
+                                    <Path Stroke="#8C959E" StrokeThickness="1.2" Fill="Transparent" Data="M8,1 A7,7 0 1,0 8,15 A7,7 0 1,0 8,1 Z"/>
+                                    <Path Stroke="#8C959E" StrokeThickness="1.2" Fill="Transparent" Data="M8,1 C5.5,1 4,4.5 4,8 C4,11.5 5.5,15 8,15 C10.5,15 12,11.5 12,8 C12,4.5 10.5,1 8,1 Z"/>
+                                    <Path Stroke="#8C959E" StrokeThickness="1.2" Fill="Transparent" Data="M1.5,5.5 L14.5,5.5"/>
+                                    <Path Stroke="#8C959E" StrokeThickness="1.2" Fill="Transparent" Data="M1.5,10.5 L14.5,10.5"/>
+                                </Canvas>
                             </Viewbox>
                         </Button>
                         <Button x:Name="SocialGitHub" Width="34" Height="34" MinWidth="0" Padding="0"
@@ -791,9 +796,10 @@
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
                                   Padding="20,18,14,14"
+                                  CanContentScroll="False"
                                   PreviewMouseWheel="SettingsScrollViewer_PreviewMouseWheel"
                                   ScrollChanged="SettingsScrollViewer_ScrollChanged">
-                        <Grid x:Name="ContentHost">
+                        <Grid x:Name="ContentHost" CacheMode="BitmapCache">
 
                             <!-- ===== APPEARANCE PANEL ===== -->
                             <StackPanel x:Name="PanelAppearance" Visibility="Visible">
