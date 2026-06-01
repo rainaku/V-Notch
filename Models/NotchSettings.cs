@@ -10,6 +10,8 @@ public class NotchSettings
     
     public int SettingsVersion { get; set; } = 0;
 
+    public string LastRunVersion { get; set; } = "";
+
     public int Width { get; set; } = 230;
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 8;

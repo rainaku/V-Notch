@@ -92,6 +92,9 @@ public partial class App : Application
         var mainWindow = Services.GetRequiredService<MainWindow>();
         mainWindow.Show();
 
+        // Post-update: open release page if the app version changed since last run
+        CheckAndShowPostUpdateReleasePage(loadedSettings, earlySettings);
+
         base.OnStartup(e);
     }
 
@@ -157,6 +160,38 @@ public partial class App : Application
             return true;
 
         return false;
+    }
+
+    private static void CheckAndShowPostUpdateReleasePage(VNotch.Models.NotchSettings settings, SettingsService settingsService)
+    {
+        try
+        {
+            var currentVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            if (currentVersion == null) return;
+
+            var currentVersionStr = $"{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
+
+            if (!string.IsNullOrEmpty(settings.LastRunVersion) && settings.LastRunVersion != currentVersionStr)
+            {
+                // Version changed — user just updated. Open the release page.
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = $"https://github.com/rainaku/V-Notch/releases/tag/v{currentVersionStr}",
+                    UseShellExecute = true
+                });
+            }
+
+            // Always update the stored version
+            if (settings.LastRunVersion != currentVersionStr)
+            {
+                settings.LastRunVersion = currentVersionStr;
+                settingsService.Save(settings);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            RuntimeLog.Error("POST-UPDATE", ex, "Failed to check/show post-update release page");
+        }
     }
 
     private static string? TryGetArgumentValue(string[] args, string argumentName)
