@@ -34,15 +34,22 @@ public partial class MainWindow
 
         _dragCollapseTimer?.Stop();
 
+        bool wasExpanded = _isExpanded;
+
         bool handled = _dragDropController.HandleDragEnter(
             hasFiles: true,
             isExpanded: _isExpanded,
             isAnimating: _isAnimating,
             isSecondaryView: _isSecondaryView);
 
-        if (handled && _isExpanded && _isAnimating)
+        if (handled && !wasExpanded && _dragDropController.IsDragAutoExpanded)
         {
-            // Wait for animation to finish, then let controller decide next step
+            // We just triggered an expand — wait for it to finish, then switch to secondary
+            StartDragWaitForShelf();
+        }
+        else if (handled && _isExpanded && _isAnimating)
+        {
+            // Already expanded but still animating (e.g. switching views)
             StartDragWaitForShelf();
         }
     }
