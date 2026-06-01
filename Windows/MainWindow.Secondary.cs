@@ -182,14 +182,75 @@ public partial class MainWindow
 
     private void OnShelfLayoutRefreshRequested()
     {
-        RefreshShelfLayout(forceFullRebuild: _shelfPinDirty);
-        _shelfPinDirty = false;
+        if (_shelfPinDirty)
+        {
+            AnimatedPinReorder();
+            _shelfPinDirty = false;
+        }
+        else
+        {
+            RefreshShelfLayout();
+        }
     }
 
     private bool _shelfPinDirty = false;
     private void OnShelfPinStateChanged()
     {
         _shelfPinDirty = true;
+    }
+
+    private void AnimatedPinReorder()
+    {
+        // 1. Capture old positions of all items by their file path
+        var oldPositions = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
+        foreach (var child in ShelfItemsContainer.Children)
+        {
+            if (child is Border b && b.Tag is string path)
+            {
+                var pos = b.TranslatePoint(new Point(0, 0), ShelfItemsContainer);
+                oldPositions[path] = pos;
+            }
+        }
+
+        // 2. Rebuild layout (items jump to new positions)
+        RefreshShelfLayout(forceFullRebuild: true);
+
+        // 3. Force layout update so new positions are calculated
+        ShelfItemsContainer.UpdateLayout();
+
+        // 4. Animate each item from old position to new position
+        var dur = TimeSpan.FromMilliseconds(300);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        foreach (var child in ShelfItemsContainer.Children)
+        {
+            if (child is Border b && b.Tag is string path && oldPositions.TryGetValue(path, out var oldPos))
+            {
+                var newPos = b.TranslatePoint(new Point(0, 0), ShelfItemsContainer);
+                double dx = oldPos.X - newPos.X;
+                double dy = oldPos.Y - newPos.Y;
+
+                if (Math.Abs(dx) < 1 && Math.Abs(dy) < 1) continue;
+
+                var tt = new TranslateTransform(dx, dy);
+                b.RenderTransform = tt;
+
+                var animX = new DoubleAnimation { From = dx, To = 0, Duration = dur, EasingFunction = ease };
+                var animY = new DoubleAnimation { From = dy, To = 0, Duration = dur, EasingFunction = ease };
+                Timeline.SetDesiredFrameRate(animX, 120);
+                Timeline.SetDesiredFrameRate(animY, 120);
+
+                animX.Completed += (_, _) =>
+                {
+                    tt.BeginAnimation(TranslateTransform.XProperty, null);
+                    tt.BeginAnimation(TranslateTransform.YProperty, null);
+                    b.RenderTransform = new ScaleTransform(1, 1);
+                };
+
+                tt.BeginAnimation(TranslateTransform.XProperty, animX);
+                tt.BeginAnimation(TranslateTransform.YProperty, animY);
+            }
+        }
     }
 
     private void OnShelfFileExternallyRemoved(string filePath)
