@@ -199,9 +199,14 @@ public partial class MainWindow
         _shelfPinDirty = true;
     }
 
+    private string? _lastToggledPinPath = null;
+
     private void AnimatedPinReorder()
     {
-        // 1. Capture old positions of all items by their file path
+        string? toggledPath = _lastToggledPinPath;
+        _lastToggledPinPath = null;
+
+        // 1. Capture old positions of ALL items
         var oldPositions = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
         foreach (var child in ShelfItemsContainer.Children)
         {
@@ -212,15 +217,13 @@ public partial class MainWindow
             }
         }
 
-        // 2. Rebuild layout (items jump to new positions)
+        // 2. Rebuild layout at new positions
         RefreshShelfLayout(forceFullRebuild: true);
-
-        // 3. Force layout update so new positions are calculated
         ShelfItemsContainer.UpdateLayout();
 
-        // 4. Animate each item from old position to new position
+        // 3. Animate all items that moved from old → new position
         var dur = TimeSpan.FromMilliseconds(300);
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
 
         foreach (var child in ShelfItemsContainer.Children)
         {
@@ -230,13 +233,13 @@ public partial class MainWindow
                 double dx = oldPos.X - newPos.X;
                 double dy = oldPos.Y - newPos.Y;
 
-                if (Math.Abs(dx) < 1 && Math.Abs(dy) < 1) continue;
+                if (Math.Abs(dx) < 2 && Math.Abs(dy) < 2) continue;
 
                 var tt = new TranslateTransform(dx, dy);
                 b.RenderTransform = tt;
 
-                var animX = new DoubleAnimation { From = dx, To = 0, Duration = dur, EasingFunction = ease };
-                var animY = new DoubleAnimation { From = dy, To = 0, Duration = dur, EasingFunction = ease };
+                var animX = new DoubleAnimation(dx, 0, dur) { EasingFunction = ease };
+                var animY = new DoubleAnimation(dy, 0, dur) { EasingFunction = ease };
                 Timeline.SetDesiredFrameRate(animX, 120);
                 Timeline.SetDesiredFrameRate(animY, 120);
 
@@ -696,6 +699,7 @@ public partial class MainWindow
         // Right-click = toggle pin directly
         border.MouseRightButtonUp += (s, e) =>
         {
+            _lastToggledPinPath = filePath;
             _fileShelf.TogglePin(filePath);
             e.Handled = true;
         };
@@ -1244,12 +1248,20 @@ public partial class MainWindow
     {
         var dur = TimeSpan.FromMilliseconds(400);
 
+        // Cancel any existing rejection animation on this border
+        if (target.BorderBrush is SolidColorBrush existingBrush && !existingBrush.IsFrozen)
+            existingBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+
         // Flash red border
         var redBrush = new SolidColorBrush(Color.FromRgb(220, 60, 60));
         target.BorderBrush = redBrush;
         target.BorderThickness = new Thickness(1.5);
 
         // Shake animation (horizontal wiggle)
+        // Cancel any existing translate animation
+        if (target.RenderTransform is TranslateTransform oldTt)
+            oldTt.BeginAnimation(TranslateTransform.XProperty, null);
+
         var tt = new TranslateTransform(0, 0);
         target.RenderTransform = tt;
 
@@ -1267,9 +1279,18 @@ public partial class MainWindow
         shake.Completed += (_, _) =>
         {
             tt.BeginAnimation(TranslateTransform.XProperty, null);
-            target.RenderTransform = new ScaleTransform(1, 1);
+            tt.X = 0;
+            tt.Y = 0;
 
             // Fade border back to normal
+            var currentBrush = target.BorderBrush as SolidColorBrush;
+            if (currentBrush == null || currentBrush.IsFrozen)
+            {
+                target.BorderBrush = _brushShelfItemBorder;
+                target.BorderThickness = new Thickness(1);
+                return;
+            }
+
             var fadeBack = new ColorAnimation
             {
                 To = Color.FromArgb(40, 255, 255, 255),
@@ -1281,7 +1302,7 @@ public partial class MainWindow
                 target.BorderBrush = _brushShelfItemBorder;
                 target.BorderThickness = new Thickness(1);
             };
-            redBrush.BeginAnimation(SolidColorBrush.ColorProperty, fadeBack);
+            currentBrush.BeginAnimation(SolidColorBrush.ColorProperty, fadeBack);
         };
 
         tt.BeginAnimation(TranslateTransform.XProperty, shake);
