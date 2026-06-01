@@ -214,6 +214,8 @@ public static class Loc
             ["greeting.evening"] = "Good evening",
             ["greeting.enjoyDay"] = "Enjoy your day!",
             ["notch.camera"] = "Camera",
+            ["notch.camera.error"] = "Cannot detect camera device",
+            ["notch.camera.retry"] = "click to try again",
             ["clipboard.copied"] = "Copied",
 
             // ─── Bluetooth ───
@@ -407,6 +409,8 @@ public static class Loc
             ["greeting.evening"] = "Chào buổi tối",
             ["greeting.enjoyDay"] = "Chúc bạn một ngày tốt\u00A0lành!",
             ["notch.camera"] = "Máy ảnh",
+            ["notch.camera.error"] = "Không tìm thấy thiết bị camera",
+            ["notch.camera.retry"] = "nhấn để thử lại",
             ["clipboard.copied"] = "Đã sao chép",
 
             // ─── Bluetooth ───
