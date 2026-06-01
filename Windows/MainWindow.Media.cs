@@ -247,6 +247,15 @@ public partial class MainWindow
 
     private void AnimateThumbnailSwitchOnly(ImageSource newThumb, bool force = false)
     {
+        if (IsCountdownCompletionVisualActive)
+        {
+            ThumbnailImage.Source = newThumb;
+            CompactThumbnail.Source = newThumb;
+            SuppressCompactMediaChromeForCountdownCompletion();
+            VNotch.Services.RuntimeLog.Log("THUMB-ANIM", "skipped (countdown completion overlay active)");
+            return;
+        }
+
         if (_isAnimating)
         {
             // Queue the transition to run after the expand/collapse animation finishes
@@ -616,6 +625,20 @@ public partial class MainWindow
 
         _collapsedWidth = _settings.Width;
 
+        if (IsCountdownCompletionVisualActive)
+        {
+            _isMusicCompactMode = shouldBeCompact;
+
+            if (info?.Thumbnail != null)
+            {
+                ThumbnailImage.Source = info.Thumbnail;
+                CompactThumbnail.Source = info.Thumbnail;
+            }
+
+            SuppressCompactMediaChromeForCountdownCompletion();
+            return;
+        }
+
         if (shouldBeCompact == _isMusicCompactMode)
         {
             if (shouldBeCompact)
@@ -734,6 +757,12 @@ public partial class MainWindow
 
     private void PlayThumbnailRevealAnimation()
     {
+        if (IsCountdownCompletionVisualActive)
+        {
+            SuppressCompactMediaChromeForCountdownCompletion();
+            return;
+        }
+
         // Start from scale 0 and opacity 0
         CompactThumbnailScale.ScaleX = 0.0;
         CompactThumbnailScale.ScaleY = 0.0;
@@ -855,6 +884,12 @@ public partial class MainWindow
 
     private void ResetCompactThumbnailRestingState()
     {
+        if (IsCountdownCompletionVisualActive)
+        {
+            SuppressCompactMediaChromeForCountdownCompletion();
+            return;
+        }
+
         if (!_isThumbnailSwitchActive)
         {
             ResetCompactThumbnailNextLayer();

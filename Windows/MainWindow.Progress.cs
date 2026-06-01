@@ -147,19 +147,8 @@ public partial class MainWindow
             {
                 IntPtr hWndAtPoint = WindowFromPoint(new POINT { X = pt.x, Y = pt.y });
 
-                if (hWndAtPoint != _hwnd && !IsChildWindow(_hwnd, hWndAtPoint))
+                if (!IsScreenPointInsideNotchVisual(pt))
                 {
-                    if (_hwnd != IntPtr.Zero &&
-                        GetWindowRect(_hwnd, out var rc) &&
-                        pt.x >= rc.Left && pt.x <= rc.Right &&
-                        pt.y >= rc.Top && pt.y <= rc.Bottom)
-                    {
-                        RuntimeLog.Log("COLLAPSE-BLOCKED",
-                            $"Click inside window rect but WindowFromPoint missed: pt=({pt.x},{pt.y}) " +
-                            $"rect=({rc.Left},{rc.Top},{rc.Right},{rc.Bottom}) hWndAtPoint=0x{hWndAtPoint:X}");
-                        return;
-                    }
-
                     if (DateTime.UtcNow < _suppressOutsideClickUntilUtc)
                     {
                         RuntimeLog.Log("COLLAPSE-BLOCKED",
@@ -208,6 +197,35 @@ public partial class MainWindow
             current = GetParent(current);
         }
         return false;
+    }
+
+    private bool IsScreenPointInsideNotchVisual(InputMonitorService.POINT pt)
+    {
+        if (_hwnd == IntPtr.Zero || NotchWrapper == null || NotchWrapper.ActualWidth <= 0 || NotchWrapper.ActualHeight <= 0)
+            return false;
+
+        if (!GetWindowRect(_hwnd, out var windowRect))
+            return false;
+
+        try
+        {
+            var bounds = NotchWrapper.TransformToAncestor(this)
+                .TransformBounds(new Rect(0, 0, NotchWrapper.ActualWidth, NotchWrapper.ActualHeight));
+            var dpi = VisualTreeHelper.GetDpi(this);
+            double padX = 8 * dpi.DpiScaleX;
+            double padY = 8 * dpi.DpiScaleY;
+            double left = windowRect.Left + bounds.Left * dpi.DpiScaleX - padX;
+            double top = windowRect.Top + bounds.Top * dpi.DpiScaleY - padY;
+            double right = windowRect.Left + bounds.Right * dpi.DpiScaleX + padX;
+            double bottom = windowRect.Top + bounds.Bottom * dpi.DpiScaleY + padY;
+
+            return pt.x >= left && pt.x <= right &&
+                   pt.y >= top && pt.y <= bottom;
+        }
+        catch
+        {
+            return IsCursorInsideWindow();
+        }
     }
 
     private bool IsCursorInsideWindow()

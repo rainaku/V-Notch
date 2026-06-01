@@ -463,6 +463,10 @@ public partial class MainWindow
     private void CollapseNotch()
     {
         if (_isAnimating || !_isExpanded || _isGreetingActive) return;
+        if (_isSecondaryView)
+        {
+            StopCameraPreviewForViewExit();
+        }
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Collapsing);
         bool suppressCompactThumbnailMotion = IsCountdownCompletionVisualActive;

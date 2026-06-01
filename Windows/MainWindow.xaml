@@ -1179,6 +1179,17 @@
                                     </TransformGroup>
                                 </Border.RenderTransform>
                                 <StackPanel Orientation="Horizontal">
+                                    <Viewbox x:Name="LinkedDeviceBatteryIconView"
+                                             Width="13" Height="13"
+                                             Margin="0,1.5,4,0"
+                                             VerticalAlignment="Center"
+                                             Visibility="Collapsed">
+                                        <Canvas Width="24" Height="24">
+                                            <Path x:Name="LinkedDeviceBatteryIcon"
+                                                  Fill="#CCFFFFFF"
+                                                  Data="M17.71,7.71L12,2h-1v7.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L11,14.41V22h1l5.71-5.71L13.41,12L17.71,7.71z M13,5.83l1.88,1.88L13,9.59V5.83z M14.88,16.29L13,18.17v-3.76L14.88,16.29z"/>
+                                        </Canvas>
+                                    </Viewbox>
                                     <TextBlock x:Name="BatteryPercent" 
                                                Text="100%" 
                                                Style="{StaticResource SubtitleText}"
@@ -1339,8 +1350,8 @@
                                 </RadialGradientBrush>
                             </Border.OpacityMask>
                             <Grid>
-                                <Image x:Name="MediaBackgroundImageBack" Stretch="UniformToFill" Opacity="0"/>
-                                <Image x:Name="MediaBackgroundImage" Stretch="UniformToFill" Opacity="1.0"/>
+                                <Image x:Name="MediaBackgroundImageBack" Stretch="Fill" Opacity="0"/>
+                                <Image x:Name="MediaBackgroundImage" Stretch="Fill" Opacity="1.0"/>
                                 <Rectangle x:Name="BrightnessDimOverlay" Fill="Black" Opacity="0" IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
@@ -1362,8 +1373,8 @@
                                 </RadialGradientBrush>
                             </Border.OpacityMask>
                             <Grid>
-                                <Image x:Name="MediaBackgroundImageBack2" Stretch="UniformToFill" Opacity="0"/>
-                                <Image x:Name="MediaBackgroundImage2" Stretch="UniformToFill" Opacity="1.0"/>
+                                <Image x:Name="MediaBackgroundImageBack2" Stretch="Fill" Opacity="0"/>
+                                <Image x:Name="MediaBackgroundImage2" Stretch="Fill" Opacity="1.0"/>
                                 <Rectangle x:Name="BrightnessDimOverlay2" Fill="Black" Opacity="0" IsHitTestVisible="False"/>
                             </Grid>
                         </Border>

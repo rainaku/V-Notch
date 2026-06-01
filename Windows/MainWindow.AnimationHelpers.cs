@@ -617,9 +617,12 @@ public partial class MainWindow
         SettingsScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, null);
 
+        bool showBatterySection = show && ShouldRevealBatterySection();
+
         if (show)
         {
-            BatterySection.Visibility = Visibility.Visible;
+            BatterySection.Visibility = showBatterySection ? Visibility.Visible : Visibility.Collapsed;
+            BatterySection.IsHitTestVisible = showBatterySection;
             NavIconsPanel.Visibility = Visibility.Visible;
             UpdateNavIconsActiveState();
             if (_isSecondaryView)
@@ -632,7 +635,7 @@ public partial class MainWindow
 
         var batteryOpacityAnim = new DoubleAnimation
         {
-            To = show ? 1.0 : 0.0,
+            To = showBatterySection ? 1.0 : 0.0,
             Duration = dur,
             EasingFunction = easing
         };
@@ -640,7 +643,7 @@ public partial class MainWindow
 
         var batteryTranslateAnim = new DoubleAnimation
         {
-            To = show ? 0 : -6,
+            To = showBatterySection ? 0 : -6,
             Duration = dur,
             EasingFunction = easing
         };
@@ -1180,6 +1183,56 @@ public void PlaySettingsAbsorbAnimation()
                 Timeline.SetDesiredFrameRate(fadeAnim, fps);
                 CountdownMinusBtn.BeginAnimation(OpacityProperty, fadeAnim);
             }
+        }
+    }
+
+    /// <summary>
+    /// Restore timer/clock view element opacity when switching to timer view.
+    /// Ensures all countdown elements are visible and ready for animation.
+    /// </summary>
+    private void RestoreTimerContentOpacity()
+    {
+        // Restore all timer elements to full opacity
+        if (CountdownDisplay != null)
+        {
+            CountdownDisplay.BeginAnimation(OpacityProperty, null);
+            CountdownDisplay.Opacity = 1.0;
+        }
+
+        if (CountdownProgressFill != null)
+        {
+            CountdownProgressFill.BeginAnimation(OpacityProperty, null);
+            CountdownProgressFill.Opacity = 1.0;
+        }
+
+        if (CountdownDisplayPanel != null)
+        {
+            CountdownDisplayPanel.BeginAnimation(OpacityProperty, null);
+            CountdownDisplayPanel.Opacity = 1.0;
+        }
+
+        if (CountdownStartBtn != null)
+        {
+            CountdownStartBtn.BeginAnimation(OpacityProperty, null);
+            CountdownStartBtn.Opacity = 1.0;
+        }
+
+        if (CountdownResetBtn != null)
+        {
+            CountdownResetBtn.BeginAnimation(OpacityProperty, null);
+            CountdownResetBtn.Opacity = 1.0;
+        }
+
+        if (CountdownPlusBtn != null)
+        {
+            CountdownPlusBtn.BeginAnimation(OpacityProperty, null);
+            CountdownPlusBtn.Opacity = 1.0;
+        }
+
+        if (CountdownMinusBtn != null)
+        {
+            CountdownMinusBtn.BeginAnimation(OpacityProperty, null);
+            CountdownMinusBtn.Opacity = 1.0;
         }
     }
 

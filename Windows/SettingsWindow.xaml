@@ -1165,6 +1165,17 @@
                                     <ComboBox x:Name="CameraCombo" SelectionChanged="CameraCombo_SelectionChanged"/>
                                 </StackPanel>
                             </Border>
+                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <TextBlock x:Name="BatteryDeviceLabel" Text="Battery Device" Style="{StaticResource SettingTitleText}"/>
+                                    <TextBlock x:Name="BatteryDeviceHint" Text="Choose which battery appears in the expanded notch."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,6,0,0"/>
+                                    <ComboBox x:Name="BatteryDeviceCombo"
+                                              SelectionChanged="BatteryDeviceCombo_SelectionChanged"
+                                              DropDownOpened="BatteryDeviceCombo_DropDownOpened"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 

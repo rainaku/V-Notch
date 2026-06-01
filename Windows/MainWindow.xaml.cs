@@ -924,7 +924,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void OpenAppSettings()
     {
-        var settingsWindow = new SettingsWindow(_settings, _settingsService)
+        var settingsWindow = new SettingsWindow(_settings, _settingsService, _bluetoothModule)
         {
             Owner = this
         };
@@ -940,6 +940,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             _notchManager.UpdateSettings(_settings);
             _fileShelf.UpdateSettings(_settings);
             ApplySettings(sizeChanged);
+            UpdateBatteryInfo();
 
             // Sync subtitle language priority to the service and re-fetch if changed
             _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
@@ -1456,8 +1457,10 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         try
         {
-
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:batterysaver") { UseShellExecute = true });
+            var settingsUri = _batterySectionShowsLinkedDevice
+                ? "ms-settings:bluetooth"
+                : "ms-settings:batterysaver";
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(settingsUri) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
@@ -1622,17 +1625,43 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         if (notchLength <= 0) return;
 
         // Use two-thirds of notch length.
-        double primaryLength = notchLength * (2.0 / 3.0);        double secondaryLength = primaryLength * 0.84;
+        double primaryLength = notchLength * (2.0 / 3.0);
+        double secondaryLength = primaryLength * 0.84;
 
         double notchBreadth = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : NotchBorder.Height;
         double primaryBreadth = Math.Clamp(notchBreadth * 1.24, 140.0, 220.0);
         double secondaryBreadth = primaryBreadth * 0.82;
 
-        MediaBackground.Width = primaryLength;
-        MediaBackground.Height = primaryBreadth;
+        // Animate size changes to prevent jarring position shifts during blur crossfade.
+        // When the notch resizes (e.g., track title changes width), the blur container
+        // should smoothly transition rather than snapping to the new size.
+        var dur = TimeSpan.FromMilliseconds(350);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
 
-        MediaBackground2.Width = secondaryLength;
-        MediaBackground2.Height = secondaryBreadth;
+        AnimateDouble(MediaBackground, WidthProperty, primaryLength, dur, ease);
+        AnimateDouble(MediaBackground, HeightProperty, primaryBreadth, dur, ease);
+        AnimateDouble(MediaBackground2, WidthProperty, secondaryLength, dur, ease);
+        AnimateDouble(MediaBackground2, HeightProperty, secondaryBreadth, dur, ease);
+    }
+
+    private static void AnimateDouble(UIElement target, DependencyProperty prop, double to, TimeSpan duration, IEasingFunction ease)
+    {
+        var current = (double)((FrameworkElement)target).GetValue(prop);
+        if (double.IsNaN(current) || Math.Abs(current - to) < 0.5)
+        {
+            // No meaningful change or first time — set directly.
+            ((FrameworkElement)target).BeginAnimation(prop, null);
+            ((FrameworkElement)target).SetValue(prop, to);
+            return;
+        }
+
+        var anim = new DoubleAnimation
+        {
+            To = to,
+            Duration = duration,
+            EasingFunction = ease
+        };
+        ((FrameworkElement)target).BeginAnimation(prop, anim);
     }
 
     private void UpdateNotchClip()

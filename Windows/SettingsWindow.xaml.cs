@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using VNotch.Controls;
 using VNotch.Models;
+using VNotch.Modules;
 using VNotch.Services;
 
 namespace VNotch;
@@ -20,6 +21,7 @@ public partial class SettingsWindow : Window
     private readonly NotchSettings _settings;
     private NotchSettings _originalSettings;
     private readonly SettingsService _settingsService;
+    private readonly BluetoothModule? _bluetoothModule;
     private readonly IUpdateService _updateService;
     private UpdateInfo? _availableUpdate;
     private bool _isLoadingSettings = true;
@@ -28,13 +30,14 @@ public partial class SettingsWindow : Window
     public event EventHandler<NotchSettings>? SettingsChanged;
 public event EventHandler? AnimatedClosing;
 
-    public SettingsWindow(NotchSettings settings, SettingsService settingsService)
+    public SettingsWindow(NotchSettings settings, SettingsService settingsService, BluetoothModule? bluetoothModule = null)
     {
         InitializeComponent();
 
         _settings = settings.Clone();
         _originalSettings = settings.Clone();
         _settingsService = settingsService;
+        _bluetoothModule = bluetoothModule;
         _updateService = new UpdateService();
 
         LoadSettings();
@@ -121,6 +124,7 @@ public event EventHandler? AnimatedClosing;
 
         // Camera device combo
         LoadCameraDevices();
+        LoadBluetoothBatteryDevices();
 
         AutoStartCheck.IsChecked = StartupManager.IsAutoStartEnabled();
         HelloGreetingCheck.IsChecked = _settings.EnableHelloGreeting;
@@ -220,6 +224,11 @@ public event EventHandler? AnimatedClosing;
         // Display
         MonitorLabel.Text = Loc.Get("settings.activeMonitor");
         MonitorHint.Text = Loc.Get("settings.activeMonitor.hint");
+        CameraLabel.Text = Loc.Get("settings.camera");
+        CameraHint.Text = Loc.Get("settings.camera.hint");
+        BatteryDeviceLabel.Text = Loc.Get("settings.batteryDevice");
+        BatteryDeviceHint.Text = Loc.Get("settings.batteryDevice.hint");
+        LoadBluetoothBatteryDevices();
 
         // Footer buttons
         ResetButton.Content = Loc.Get("settings.btn.reset");
@@ -1100,6 +1109,8 @@ private void PushLivePreview()
         MusicNotifyCheck.IsChecked = defaults.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = defaults.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = defaults.IsShelfUploadLimitUnlocked;
+        _settings.BatteryDeviceId = defaults.BatteryDeviceId;
+        LoadBluetoothBatteryDevices();
         HideOnExclusiveFullscreenCheck.IsChecked = defaults.HideOnExclusiveFullscreen;
         HideOnWindowedFullscreenCheck.IsChecked = defaults.HideOnWindowedFullscreen;
         LanguageCombo.SelectedIndex = defaults.Language == "vi" ? 1 : 0;
@@ -1414,6 +1425,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.MonitorIndex = MonitorCombo.SelectedIndex;
         if (CameraCombo.SelectedItem is CameraDeviceItem selectedCamera)
             _settings.CameraDeviceId = selectedCamera.Id;
+        if (BatteryDeviceCombo.SelectedItem is BatteryDeviceItem selectedBatteryDevice)
+            _settings.BatteryDeviceId = selectedBatteryDevice.Id;
         _settings.AutoStart = AutoStartCheck.IsChecked ?? false;
         _settings.EnableHelloGreeting = HelloGreetingCheck.IsChecked ?? true;
         _settings.HideOnExclusiveFullscreen = HideOnExclusiveFullscreenCheck.IsChecked ?? true;
@@ -1558,7 +1571,10 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
     private bool IsAnyComboBoxDropDownOpen()
     {
-        return MonitorCombo.IsDropDownOpen || LanguageCombo.IsDropDownOpen || CameraCombo.IsDropDownOpen;
+        return MonitorCombo.IsDropDownOpen
+            || LanguageCombo.IsDropDownOpen
+            || CameraCombo.IsDropDownOpen
+            || BatteryDeviceCombo.IsDropDownOpen;
     }
 
     private void SettingsScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -1666,9 +1682,95 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     }
 
     #endregion
+
+    #region Bluetooth Battery Device
+
+    private void LoadBluetoothBatteryDevices()
+    {
+        bool wasLoading = _isLoadingSettings;
+        _isLoadingSettings = true;
+
+        try
+        {
+            string selectedId = _settings.BatteryDeviceId ?? NotchSettings.SystemBatteryDeviceId;
+            var items = new List<BatteryDeviceItem>
+            {
+                new()
+                {
+                    Id = NotchSettings.SystemBatteryDeviceId,
+                    Name = Loc.Get("settings.batteryDevice.system")
+                },
+                new()
+                {
+                    Id = NotchSettings.AutoBluetoothBatteryDeviceId,
+                    Name = Loc.Get("settings.batteryDevice.auto")
+                }
+            };
+
+            var devices = _bluetoothModule?.GetBatteryDevices() ?? Array.Empty<BluetoothDeviceInfo>();
+            foreach (var device in devices)
+            {
+                items.Add(new BatteryDeviceItem
+                {
+                    Id = device.Id,
+                    Name = $"{device.Name} ({device.BatteryPercentage}%)"
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(selectedId)
+                && selectedId != NotchSettings.AutoBluetoothBatteryDeviceId
+                && items.All(item => item.Id != selectedId))
+            {
+                items.Add(new BatteryDeviceItem
+                {
+                    Id = selectedId,
+                    Name = Loc.Get("settings.batteryDevice.unavailable", ShortenDeviceId(selectedId))
+                });
+            }
+
+            BatteryDeviceCombo.ItemsSource = items;
+            BatteryDeviceCombo.DisplayMemberPath = nameof(BatteryDeviceItem.Name);
+            BatteryDeviceCombo.SelectedIndex = Math.Max(0, items.FindIndex(item => item.Id == selectedId));
+        }
+        finally
+        {
+            _isLoadingSettings = wasLoading;
+        }
+    }
+
+    private static string ShortenDeviceId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return "";
+
+        var parts = id.Split('#', '\\');
+        var shortId = parts.Length > 1 ? parts[^1] : id;
+        return shortId.Length <= 24 ? shortId : $"{shortId[..21]}...";
+    }
+
+    private void BatteryDeviceCombo_DropDownOpened(object sender, EventArgs e)
+    {
+        LoadBluetoothBatteryDevices();
+    }
+
+    private void BatteryDeviceCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (BatteryDeviceCombo.SelectedItem is BatteryDeviceItem item)
+        {
+            _settings.BatteryDeviceId = item.Id;
+            PushLivePreview();
+        }
+    }
+
+    #endregion
 }
 
 public class CameraDeviceItem
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+}
+
+public class BatteryDeviceItem
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";

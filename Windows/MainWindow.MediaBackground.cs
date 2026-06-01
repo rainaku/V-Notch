@@ -120,8 +120,14 @@ public partial class MainWindow
 
         if (targetOpacity > 0)
         {
-            MediaBackground.BeginAnimation(OpacityProperty, null);
-            MediaBackground2.BeginAnimation(OpacityProperty, null);
+            // Only remove existing animation if container isn't already at a good opacity.
+            // During track transitions, the container is already visible — removing the
+            // animation would snap it and cause a flash.
+            if (MediaBackground.Opacity < 0.05)
+            {
+                MediaBackground.BeginAnimation(OpacityProperty, null);
+                MediaBackground2.BeginAnimation(OpacityProperty, null);
+            }
             MediaBackground.Visibility = Visibility.Visible;
             MediaBackground2.Visibility = Visibility.Visible;
         }
@@ -286,31 +292,52 @@ public partial class MainWindow
 
     private void FadeToBlackThenUpdate(MediaInfo info)
     {
-        int animationVersion = ++_mediaBackgroundAnimationVersion;
-        MediaBackground.BeginAnimation(OpacityProperty, null);
-        MediaBackground2.BeginAnimation(OpacityProperty, null);
-        MediaBackground.Visibility = Visibility.Visible;
-        MediaBackground2.Visibility = Visibility.Visible;
+        // ─── SYNC with thumbnail switch timing ───
+        // Thumbnail switch: old fades out over ~420ms, new fades in starting at 180ms.
+        // We sync the blur: fade out old blur over 400ms (matches thumbnail out),
+        // then when new blur arrives, it fades in quickly (via CrossfadeBlurredBackground).
+        _isFadingTrack = false;
+        _suppressNextBlurDissolve = false;
 
-        var fadeToBlack = new DoubleAnimation(0, TimeSpan.FromMilliseconds(300))
+        // Immediately start fading out the current blur layer — synced with thumbnail fade-out.
+        int version = ++_blurCrossfadeVersion;
+        var activeImg = _blurBackIsActive ? MediaBackgroundImageBack : MediaBackgroundImage;
+        var activeImg2 = _blurBackIsActive ? MediaBackgroundImageBack2 : MediaBackgroundImage2;
+
+        double currentOpacity = activeImg.Opacity;
+        activeImg.BeginAnimation(OpacityProperty, null);
+        activeImg2.BeginAnimation(OpacityProperty, null);
+        activeImg.Opacity = currentOpacity;
+        activeImg2.Opacity = currentOpacity;
+
+        // Fade out over 400ms — matches thumbnail out animation timing.
+        var fadeOut = new DoubleAnimation
         {
-            EasingFunction = _easeQuadOut
+            From = currentOpacity,
+            To = 0.0,
+            Duration = TimeSpan.FromMilliseconds(400),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+        Timeline.SetDesiredFrameRate(fadeOut, 90);
+
+        fadeOut.Completed += (_, _) =>
+        {
+            if (version != _blurCrossfadeVersion) return;
+            activeImg.BeginAnimation(OpacityProperty, null);
+            activeImg2.BeginAnimation(OpacityProperty, null);
+            activeImg.Opacity = 0.0;
+            activeImg2.Opacity = 0.0;
+            activeImg.Source = null;
+            activeImg2.Source = null;
         };
 
-        fadeToBlack.Completed += (s, e) =>
-        {
-            if (animationVersion != _mediaBackgroundAnimationVersion)
-            {
-                return;
-            }
+        activeImg.BeginAnimation(OpacityProperty, fadeOut);
+        activeImg2.BeginAnimation(OpacityProperty, fadeOut);
 
-            _isFadingTrack = false;
-            _suppressNextBlurDissolve = true;
-            UpdateMediaBackground(info, forceRefresh: true);
-        };
-
-        MediaBackground.BeginAnimation(OpacityProperty, fadeToBlack);
-        MediaBackground2.BeginAnimation(OpacityProperty, fadeToBlack);
+        // Force a blur update with the new thumbnail — when ready, CrossfadeBlurredBackground
+        // will fade in the new blur (the old is already fading out / gone by then).
+        _lastBlurThumbnailRef = null;
+        UpdateMediaBackground(info, forceRefresh: true);
     }
 
     private void HideMediaBackground()
@@ -472,6 +499,7 @@ public partial class MainWindow
     }
 
     private int _blurCrossfadeVersion = 0;
+    private int _blurTaskVersion = 0;
     private BitmapImage? _lastBlurThumbnailRef;
     private bool _suppressNextBlurDissolve = false;
     private DispatcherTimer? _blurDissolveDebounce;
@@ -485,7 +513,25 @@ public partial class MainWindow
             {
                 return;
             }
+
+            // Skip small/interim thumbnails — wait for the final high-res version.
+            // Small thumbnails (< 200px) are typically SMTC placeholders that will be
+            // replaced by a better fetch shortly. Generating blur from these causes a
+            // visible "position shift" when the real thumbnail arrives with different
+            // subject detection results.
+            bool hasExistingBlur = MediaBackgroundImage.Source != null || MediaBackgroundImageBack.Source != null;
+            if (hasExistingBlur && thumbnail.PixelWidth < 200 && thumbnail.PixelHeight < 200)
+            {
+                RuntimeLog.Log("BLUR-CROSSFADE", $"SKIP-SMALL thumb={thumbnail.PixelWidth}x{thumbnail.PixelHeight} (waiting for better)");
+                return;
+            }
+
             _lastBlurThumbnailRef = thumbnail;
+
+            // Version gate: discard stale results from previous async blur tasks.
+            int taskVersion = ++_blurTaskVersion;
+
+            RuntimeLog.Log("BLUR-CROSSFADE", $"START taskVer={taskVersion} thumb={thumbnail.PixelWidth}x{thumbnail.PixelHeight} subjectBlur={_settings.EnableSubjectBlur}");
 
             BitmapSource? blurredImage;
 
@@ -501,6 +547,15 @@ public partial class MainWindow
                     RuntimeLog.Log("MEDIA-BG-SUBJECT", ex.ToString());
                 }
 
+                // Check if a newer task was started while we were awaiting.
+                if (taskVersion != _blurTaskVersion)
+                {
+                    RuntimeLog.Log("BLUR-CROSSFADE", $"DISCARDED (stale after subject) taskVer={taskVersion} current={_blurTaskVersion}");
+                    return;
+                }
+
+                RuntimeLog.Log("BLUR-CROSSFADE", $"subject={subject?.CenterX:F2},{subject?.CenterY:F2} w={subject?.Width:F2} h={subject?.Height:F2}");
+
                 blurredImage = await SubjectAwareBlurService.GetSubjectBlurredAsync(thumbnail, subject);
             }
             else
@@ -508,17 +563,28 @@ public partial class MainWindow
                 blurredImage = await FastBlurService.GetBlurredImageAsync(thumbnail);
             }
 
+            // Discard result if a newer blur task was started during our await.
+            if (taskVersion != _blurTaskVersion)
+            {
+                RuntimeLog.Log("BLUR-CROSSFADE", $"DISCARDED (stale after blur) taskVer={taskVersion} current={_blurTaskVersion}");
+                return;
+            }
+
             if (blurredImage == null) return;
 
-            if (_suppressNextBlurDissolve || MediaBackgroundImage.Source == null)
+            RuntimeLog.Log("BLUR-CROSSFADE", $"RESULT taskVer={taskVersion} blurSize={blurredImage.PixelWidth}x{blurredImage.PixelHeight} suppress={_suppressNextBlurDissolve} frontNull={MediaBackgroundImage.Source == null} backNull={MediaBackgroundImageBack.Source == null}");
+
+            if (_suppressNextBlurDissolve || (MediaBackgroundImage.Source == null && MediaBackgroundImageBack.Source == null))
             {
                 _suppressNextBlurDissolve = false;
                 _pendingBlurResult = null;
                 _blurDissolveDebounce?.Stop();
+                RuntimeLog.Log("BLUR-CROSSFADE", $"APPLY-IMMEDIATE taskVer={taskVersion}");
                 ApplyBlurredBackgroundImmediate(blurredImage);
                 return;
             }
 
+            RuntimeLog.Log("BLUR-CROSSFADE", $"SCHEDULE-DISSOLVE taskVer={taskVersion}");
             ScheduleBlurredBackgroundDissolve(blurredImage);
         }
         catch (Exception ex)
@@ -536,6 +602,8 @@ public partial class MainWindow
         MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
 
+        // Always apply to front layer and reset back layer.
+        _blurBackIsActive = false;
         MediaBackgroundImage.Source = blurred;
         MediaBackgroundImage2.Source = blurred;
         MediaBackgroundImage.Opacity = 1.0;
@@ -551,9 +619,20 @@ public partial class MainWindow
         // Always keep the latest result; the timer below picks the freshest one when it fires.
         _pendingBlurResult = blurred;
 
+        // If old blur is already faded out, skip debounce and crossfade immediately.
+        var activeImg = _blurBackIsActive ? MediaBackgroundImageBack : MediaBackgroundImage;
+        if (activeImg.Opacity < 0.05 || activeImg.Source == null)
+        {
+            _pendingBlurResult = null;
+            _blurDissolveDebounce?.Stop();
+            RuntimeLog.Log("BLUR-CROSSFADE", $"CROSSFADE-START (immediate, old gone) blurSize={blurred.PixelWidth}x{blurred.PixelHeight} backIsActive={_blurBackIsActive}");
+            CrossfadeBlurredBackground(blurred);
+            return;
+        }
+
         if (_blurDissolveDebounce == null)
         {
-            _blurDissolveDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(160) };
+            _blurDissolveDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
             _blurDissolveDebounce.Tick += (_, _) =>
             {
                 _blurDissolveDebounce!.Stop();
@@ -561,6 +640,7 @@ public partial class MainWindow
                 _pendingBlurResult = null;
                 if (pending != null)
                 {
+                    RuntimeLog.Log("BLUR-CROSSFADE", $"CROSSFADE-START blurSize={pending.PixelWidth}x{pending.PixelHeight} backIsActive={_blurBackIsActive}");
                     CrossfadeBlurredBackground(pending);
                 }
             };
@@ -570,27 +650,47 @@ public partial class MainWindow
         _blurDissolveDebounce.Start();
     }
 
+    private bool _blurBackIsActive = false; // tracks which layer currently shows the active blur
+
     private void CrossfadeBlurredBackground(BitmapSource blurred)
     {
         int version = ++_blurCrossfadeVersion;
 
-        // Cancel any in-flight animations so swaps remain coherent.
+        // Determine which layer is currently active (showing the old image)
+        // and which is the target (will receive the new image).
+        var activeImg = _blurBackIsActive ? MediaBackgroundImageBack : MediaBackgroundImage;
+        var activeImg2 = _blurBackIsActive ? MediaBackgroundImageBack2 : MediaBackgroundImage2;
+        var targetImg = _blurBackIsActive ? MediaBackgroundImage : MediaBackgroundImageBack;
+        var targetImg2 = _blurBackIsActive ? MediaBackgroundImage2 : MediaBackgroundImageBack2;
+
+        // ─── Transform 1: Setup — capture state, stage new image ───
+        double activeOpacity = activeImg.Opacity;
+
+        // Cancel in-flight animations and restore captured values (no visual snap).
         MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
 
-        // Stage the new bitmap on the back layer for both halves.
-        MediaBackgroundImageBack.Source = blurred;
-        MediaBackgroundImageBack2.Source = blurred;
-        MediaBackgroundImageBack.Opacity = 0.0;
-        MediaBackgroundImageBack2.Opacity = 0.0;
+        activeImg.Opacity = activeOpacity;
+        activeImg2.Opacity = activeOpacity;
+        targetImg.Opacity = 0.0;
+        targetImg2.Opacity = 0.0;
 
-        var dur = TimeSpan.FromMilliseconds(620);
-        var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+        // Stage new image on target layer.
+        targetImg.Source = blurred;
+        targetImg2.Source = blurred;
 
-        var fadeIn  = new DoubleAnimation { To = 1.0, Duration = dur, EasingFunction = ease };
-        var fadeOut = new DoubleAnimation { To = 0.0, Duration = dur, EasingFunction = ease };
+        // ─── Transform 2: Dissolve animation ───
+        // If old blur is already gone (faded out by FadeToBlackThenUpdate), use a faster
+        // fade-in to sync with the thumbnail appearing (~440ms from overlap point).
+        // Otherwise use standard dissolve timing.
+        bool oldAlreadyGone = activeOpacity < 0.05 || activeImg.Source == null;
+        var dur = oldAlreadyGone ? TimeSpan.FromMilliseconds(380) : TimeSpan.FromMilliseconds(550);
+        var ease = new CubicEase { EasingMode = oldAlreadyGone ? EasingMode.EaseOut : EasingMode.EaseInOut };
+
+        var fadeIn = new DoubleAnimation { From = 0.0, To = 1.0, Duration = dur, EasingFunction = ease };
+        var fadeOut = new DoubleAnimation { From = activeOpacity, To = 0.0, Duration = dur, EasingFunction = ease };
 
         Timeline.SetDesiredFrameRate(fadeIn, 90);
         Timeline.SetDesiredFrameRate(fadeOut, 90);
@@ -599,25 +699,30 @@ public partial class MainWindow
         {
             if (version != _blurCrossfadeVersion) return;
 
+            // Set local values to match animation end BEFORE removing animations.
+            activeImg.Opacity = 0.0;
+            activeImg2.Opacity = 0.0;
+            targetImg.Opacity = 1.0;
+            targetImg2.Opacity = 1.0;
+
+            // Remove animations — no snap since local values match end state.
             MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
             MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
             MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
             MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
 
-            MediaBackgroundImage.Source = blurred;
-            MediaBackgroundImage2.Source = blurred;
-            MediaBackgroundImage.Opacity = 1.0;
-            MediaBackgroundImage2.Opacity = 1.0;
-            MediaBackgroundImageBack.Source = null;
-            MediaBackgroundImageBack2.Source = null;
-            MediaBackgroundImageBack.Opacity = 0.0;
-            MediaBackgroundImageBack2.Opacity = 0.0;
+            // Clear old layer — no source swap, no position shift.
+            activeImg.Source = null;
+            activeImg2.Source = null;
         };
 
-        MediaBackgroundImageBack.BeginAnimation(OpacityProperty, fadeIn);
-        MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, fadeIn);
-        MediaBackgroundImage.BeginAnimation(OpacityProperty, fadeOut);
-        MediaBackgroundImage2.BeginAnimation(OpacityProperty, fadeOut);
+        // Flip active layer for next crossfade.
+        _blurBackIsActive = !_blurBackIsActive;
+
+        targetImg.BeginAnimation(OpacityProperty, fadeIn);
+        targetImg2.BeginAnimation(OpacityProperty, fadeIn);
+        activeImg.BeginAnimation(OpacityProperty, fadeOut);
+        activeImg2.BeginAnimation(OpacityProperty, fadeOut);
     }
 
     #endregion
