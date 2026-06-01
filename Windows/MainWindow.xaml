@@ -2231,40 +2231,20 @@
                     <Grid x:Name="SecondaryContent" 
                           Opacity="0" 
                           Visibility="Collapsed"
-                          Margin="12,30,12,12"
+                          Margin="12,6,12,12"
                           MouseLeftButtonDown="SecondaryContent_Click"
                           RenderOptions.ClearTypeHint="Enabled">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="1*"/>
                             <ColumnDefinition Width="3*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border x:Name="ShelfCountBadge"
-                                Grid.ColumnSpan="2"
-                                Height="18"
-                                MinWidth="34"
-                                Margin="0,-25,0,0"
-                                Padding="7,2"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Top"
-                                Background="#22000000"
-                                BorderBrush="#2FFFFFFF"
-                                BorderThickness="1"
-                                CornerRadius="9"
-                                Visibility="Collapsed"
-                                IsHitTestVisible="False"
-                                Panel.ZIndex="50">
-                            <TextBlock x:Name="ShelfCountText"
-                                       Text="0/30"
-                                       Style="{StaticResource SmallText}"
-                                       FontSize="9.5"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
-                        </Border>
-
                         <Border x:Name="CameraSection"
+                                Grid.Row="1"
                                 Grid.Column="0" 
                                 Background="#1A1A1A" 
                                 CornerRadius="12" 
@@ -2314,6 +2294,8 @@
                         </Border>
 
                         <Border x:Name="FileShelf"
+                                Grid.Row="0"
+                                Grid.RowSpan="2"
                                 Grid.Column="1" 
                                 Background="#1A1A1A" 
                                 CornerRadius="16" 
@@ -2330,6 +2312,30 @@
                                   MouseLeftButtonUp="FileShelf_MouseUp"
                                   LostMouseCapture="FileShelfGrid_LostMouseCapture">
 
+                                <Border x:Name="ShelfCountBadge"
+                                        Height="18"
+                                        MinWidth="34"
+                                        Margin="0,6,8,0"
+                                        Padding="7,2"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Background="#22000000"
+                                        BorderBrush="#2FFFFFFF"
+                                        BorderThickness="1"
+                                        CornerRadius="9"
+                                        Visibility="Collapsed"
+                                        IsHitTestVisible="False"
+                                        Panel.ZIndex="50">
+                                    <TextBlock x:Name="ShelfCountText"
+                                               Text="0/30"
+                                               Style="{StaticResource SmallText}"
+                                               FontSize="9.5"
+                                               FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+
                                 <Rectangle x:Name="FileShelfDashedBorder"
                                            Stroke="#333333" 
                                            StrokeThickness="1.5" 
@@ -2345,8 +2351,8 @@
                                 <TextBlock x:Name="ShelfStatusText"
                                            Text="Shelf full"
                                            HorizontalAlignment="Center"
-                                           VerticalAlignment="Top"
-                                           Margin="16,10,16,0"
+                                           VerticalAlignment="Center"
+                                           Margin="16,0,16,0"
                                            Panel.ZIndex="10"
                                            TextAlignment="Center"
                                            TextWrapping="Wrap"

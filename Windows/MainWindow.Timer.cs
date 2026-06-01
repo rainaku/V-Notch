@@ -370,23 +370,20 @@ public partial class MainWindow
         ExpandedContent.Visibility = Visibility.Visible;
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
+        ExpandedContent.Width = _expandedWidth - 16;
+        ExpandedContent.Height = _expandedHeight - 2;
+        ExpandedContent.UpdateLayout();
 
         var primaryGroup = new TransformGroup();
-        var primaryScale = new ScaleTransform(0.93, 0.93);
         var primaryTranslate = new TranslateTransform(0, -26);
-        primaryGroup.Children.Add(primaryScale);
         primaryGroup.Children.Add(primaryTranslate);
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
         var fadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
         var springSlide = MakeAnim(-26, 0, durIn, _easeExpOut7, inDelay);
-        var springScaleX = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
-        var springScaleY = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
         Timeline.SetDesiredFrameRate(fadeIn, fps);
         Timeline.SetDesiredFrameRate(springSlide, fps);
-        Timeline.SetDesiredFrameRate(springScaleX, fps);
-        Timeline.SetDesiredFrameRate(springScaleY, fps);
 
         fadeIn.Completed += (s, ev) =>
         {
@@ -400,8 +397,6 @@ public partial class MainWindow
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeIn);
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
-        primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
-        primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
 
         // Restore notch height back to expanded
         double currentH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _timerViewHeight;

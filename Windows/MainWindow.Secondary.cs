@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -81,8 +82,10 @@ public partial class MainWindow
         _fileShelf = new FileShelfController(_settings, _settingsService);
 
         _fileShelf.FileReadyToAdd += OnShelfFileReadyToAdd;
+        _fileShelf.AddQueueDrained += OnShelfAddQueueDrained;
         _fileShelf.CapacityChanged += OnShelfCapacityChanged;
         _fileShelf.LayoutRefreshRequested += OnShelfLayoutRefreshRequested;
+        _fileShelf.PinStateChanged += OnShelfPinStateChanged;
         _fileShelf.FileExternallyRemoved += OnShelfFileExternallyRemoved;
         _fileShelf.FileExternallyRenamed += OnShelfFileExternallyRenamed;
 
@@ -143,9 +146,50 @@ public partial class MainWindow
         UpdateShelfCapacityIndicator();
     }
 
+    // Fired once a batch of dropped files finishes being added. When enabled, mirror the
+    // whole shelf onto the system clipboard so the user can paste every file into other apps.
+    private void OnShelfAddQueueDrained()
+    {
+        SyncShelfFilesToClipboard();
+    }
+
+    private void SyncShelfFilesToClipboard()
+    {
+        if (!_settings.CopyShelfFilesToClipboard)
+            return;
+
+        var files = _fileShelf.Files;
+        if (files.Count == 0)
+            return;
+
+        var paths = new StringCollection();
+        foreach (var file in files)
+            paths.Add(file);
+
+        try
+        {
+            var data = new DataObject();
+            data.SetFileDropList(paths);
+            // copy: true flushes the data so it survives after V-Notch exits / the source list changes.
+            Clipboard.SetDataObject(data, true);
+        }
+        catch (Exception ex)
+        {
+            // The clipboard can be transiently locked by another process — best-effort only.
+            RuntimeLog.Log("SHELF-CLIPBOARD", $"Failed to copy shelf files to clipboard: {ex.Message}");
+        }
+    }
+
     private void OnShelfLayoutRefreshRequested()
     {
-        RefreshShelfLayout();
+        RefreshShelfLayout(forceFullRebuild: _shelfPinDirty);
+        _shelfPinDirty = false;
+    }
+
+    private bool _shelfPinDirty = false;
+    private void OnShelfPinStateChanged()
+    {
+        _shelfPinDirty = true;
     }
 
     private void OnShelfFileExternallyRemoved(string filePath)
@@ -409,7 +453,7 @@ public partial class MainWindow
     // Reusable DispatcherTimer for sequential file processing (avoids allocation per file)
     private DispatcherTimer? _shelfProcessNextTimer;
 
-    private void RefreshShelfLayout()
+    private void RefreshShelfLayout(bool forceFullRebuild = false)
     {
         var files = _fileShelf.Files;
         int fileCount = files.Count;
@@ -419,7 +463,7 @@ public partial class MainWindow
         int existingCount = ShelfItemsContainer.Children.Count;
 
         // If size mode changed or item count differs significantly, rebuild
-        if (existingCount > 0 && fileCount > 0)
+        if (!forceFullRebuild && existingCount > 0 && fileCount > 0)
         {
             var firstExisting = ShelfItemsContainer.Children[0] as Border;
             double expectedWidth = useSmallSize ? 48 : 58;
@@ -532,7 +576,30 @@ public partial class MainWindow
             stack.Children.Add(text);
         }
 
-        border.Child = stack;
+        // Add pin indicator overlay if file is pinned
+        if (_fileShelf.IsPinned(filePath))
+        {
+            var wrapper = new Grid();
+            wrapper.Children.Add(stack);
+
+            var pinIcon = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse("M14.6358 3.90949C15.2888 3.47412 15.6153 3.25643 15.9711 3.29166C16.3269 3.32689 16.6044 3.60439 17.1594 4.15938L19.8406 6.84062C20.3956 7.39561 20.6731 7.67311 20.7083 8.02888C20.7436 8.38465 20.5259 8.71118 20.0905 9.36424L18.4419 11.8372C17.88 12.68 17.5991 13.1013 17.3749 13.5511C17.2086 13.8845 17.0659 14.2292 16.9476 14.5825C16.7882 15.0591 16.6889 15.5557 16.4902 16.5489L16.2992 17.5038C16.2986 17.5072 16.2982 17.5089 16.298 17.5101C16.1556 18.213 15.3414 18.5419 14.7508 18.1351L14.7455 18.1315C14.7322 18.1223 14.7255 18.1177 14.7189 18.1131C11.2692 15.7225 8.27754 12.7308 5.88691 9.28108L5.86851 9.25451C5.86655 9.25169 5.86558 9.25028 5.86486 9.24924C5.45815 8.65858 5.78704 7.84444 6.4899 7.70202L6.49618 7.70076L7.45114 7.50977C8.44433 7.31113 8.94092 7.21182 9.4175 7.05236C9.77083 6.93415 10.1155 6.79139 10.4489 6.62514C10.8987 6.40089 11.32 6.11998 12.1628 5.55815L14.6358 3.90949Z M5 19L9.5 14.5"),
+                Fill = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+                Stretch = Stretch.Uniform,
+                Width = 10,
+                Height = 10,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 3, 3, 0)
+            };
+            wrapper.Children.Add(pinIcon);
+            border.Child = wrapper;
+        }
+        else
+        {
+            border.Child = stack;
+        }
 
         AttachShelfItemEvents(border, filePath);
         return border;
@@ -565,11 +632,12 @@ public partial class MainWindow
                 AnimateButtonScale(st, 1.0);
         };
 
-        var menu = new ContextMenu();
-        var remove = new MenuItem { Header = "Remove from shelf" };
-        remove.Click += (s, e) => RemoveFileFromShelf(filePath, border);
-        menu.Items.Add(remove);
-        border.ContextMenu = menu;
+        // Right-click = toggle pin directly
+        border.MouseRightButtonUp += (s, e) =>
+        {
+            _fileShelf.TogglePin(filePath);
+            e.Handled = true;
+        };
 
         border.MouseLeftButtonDown += (s, e) =>
         {
@@ -896,12 +964,34 @@ public partial class MainWindow
             _isAnimating = true;
             var filesToRemove = _fileShelf.GetSelectedForDeletion();
 
-            AnimateFileDeletion(filesToRemove, () =>
+            // Shake pinned files with red border to indicate they can't be deleted
+            var pinnedSelected = _fileShelf.SelectedFiles
+                .Where(f => _fileShelf.IsPinned(f))
+                .ToList();
+            if (pinnedSelected.Count > 0)
             {
-                _fileShelf.RemoveFiles(filesToRemove);
-                RefreshShelfLayout();
+                foreach (var child in ShelfItemsContainer.Children)
+                {
+                    if (child is Border b && b.Tag is string path && pinnedSelected.Contains(path))
+                    {
+                        AnimatePinnedRejection(b);
+                    }
+                }
+            }
+
+            if (filesToRemove.Count > 0)
+            {
+                AnimateFileDeletion(filesToRemove, () =>
+                {
+                    _fileShelf.RemoveFiles(filesToRemove);
+                    RefreshShelfLayout();
+                    _isAnimating = false;
+                });
+            }
+            else
+            {
                 _isAnimating = false;
-            });
+            }
             e.Handled = true;
         }
     }
@@ -1083,6 +1173,57 @@ public partial class MainWindow
             if (found != null) return found;
         }
         return null;
+    }
+
+    #endregion
+
+    #region Pinned Rejection Animation
+
+    private void AnimatePinnedRejection(Border target)
+    {
+        var dur = TimeSpan.FromMilliseconds(400);
+
+        // Flash red border
+        var redBrush = new SolidColorBrush(Color.FromRgb(220, 60, 60));
+        target.BorderBrush = redBrush;
+        target.BorderThickness = new Thickness(1.5);
+
+        // Shake animation (horizontal wiggle)
+        var tt = new TranslateTransform(0, 0);
+        target.RenderTransform = tt;
+
+        var shake = new DoubleAnimationUsingKeyFrames { Duration = dur };
+        shake.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)));
+        shake.KeyFrames.Add(new LinearDoubleKeyFrame(-3, KeyTime.FromPercent(0.1)));
+        shake.KeyFrames.Add(new LinearDoubleKeyFrame(3, KeyTime.FromPercent(0.25)));
+        shake.KeyFrames.Add(new LinearDoubleKeyFrame(-2.5, KeyTime.FromPercent(0.4)));
+        shake.KeyFrames.Add(new LinearDoubleKeyFrame(2, KeyTime.FromPercent(0.55)));
+        shake.KeyFrames.Add(new LinearDoubleKeyFrame(-1, KeyTime.FromPercent(0.7)));
+        shake.KeyFrames.Add(new LinearDoubleKeyFrame(0.5, KeyTime.FromPercent(0.85)));
+        shake.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(1.0)));
+        Timeline.SetDesiredFrameRate(shake, 120);
+
+        shake.Completed += (_, _) =>
+        {
+            tt.BeginAnimation(TranslateTransform.XProperty, null);
+            target.RenderTransform = new ScaleTransform(1, 1);
+
+            // Fade border back to normal
+            var fadeBack = new ColorAnimation
+            {
+                To = Color.FromArgb(40, 255, 255, 255),
+                Duration = TimeSpan.FromMilliseconds(500),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            fadeBack.Completed += (_, _) =>
+            {
+                target.BorderBrush = _brushShelfItemBorder;
+                target.BorderThickness = new Thickness(1);
+            };
+            redBrush.BeginAnimation(SolidColorBrush.ColorProperty, fadeBack);
+        };
+
+        tt.BeginAnimation(TranslateTransform.XProperty, shake);
     }
 
     #endregion

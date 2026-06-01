@@ -120,14 +120,6 @@ public partial class MainWindow
 
         if (targetOpacity > 0)
         {
-            // Only remove existing animation if container isn't already at a good opacity.
-            // During track transitions, the container is already visible — removing the
-            // animation would snap it and cause a flash.
-            if (MediaBackground.Opacity < 0.05)
-            {
-                MediaBackground.BeginAnimation(OpacityProperty, null);
-                MediaBackground2.BeginAnimation(OpacityProperty, null);
-            }
             MediaBackground.Visibility = Visibility.Visible;
             MediaBackground2.Visibility = Visibility.Visible;
         }

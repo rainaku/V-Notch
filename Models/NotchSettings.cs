@@ -5,6 +5,8 @@ namespace VNotch.Models;
 
 public class NotchSettings
 {
+    public const string SystemBatteryDeviceId = "";
+    public const string AutoBluetoothBatteryDeviceId = "__auto_bluetooth__";
     
     public int SettingsVersion { get; set; } = 0;
 
@@ -18,6 +20,7 @@ public class NotchSettings
     public int MonitorIndex { get; set; } = 0; 
 
     public string CameraDeviceId { get; set; } = ""; // Empty = auto-detect first available
+    public string BatteryDeviceId { get; set; } = SystemBatteryDeviceId; // Empty = system battery
 
     public bool AutoStart { get; set; } = true;
     public bool EnableHoverExpand { get; set; } = false;
@@ -62,6 +65,8 @@ public class NotchSettings
     public bool EnableYouTubeSubtitles { get; set; } = true;
 
     public bool IsShelfUploadLimitUnlocked { get; set; } = true;
+
+    public bool CopyShelfFilesToClipboard { get; set; } = false;
 
     public bool EnableYouTubeApi { get; set; } = false;
     public string YouTubeApiKey { get; set; } = "";

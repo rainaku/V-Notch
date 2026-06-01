@@ -1457,10 +1457,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         try
         {
-            var settingsUri = _batterySectionShowsLinkedDevice
-                ? "ms-settings:bluetooth"
-                : "ms-settings:batterysaver";
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(settingsUri) { UseShellExecute = true });
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:batterysaver") { UseShellExecute = true });
         }
         catch (Exception ex)
         {

@@ -617,7 +617,7 @@ public partial class MainWindow
         SettingsScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, null);
 
-        bool showBatterySection = show && ShouldRevealBatterySection();
+        bool showBatterySection = show;
 
         if (show)
         {

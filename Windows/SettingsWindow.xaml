@@ -1165,17 +1165,6 @@
                                     <ComboBox x:Name="CameraCombo" SelectionChanged="CameraCombo_SelectionChanged"/>
                                 </StackPanel>
                             </Border>
-                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
-                                <StackPanel>
-                                    <TextBlock x:Name="BatteryDeviceLabel" Text="Battery Device" Style="{StaticResource SettingTitleText}"/>
-                                    <TextBlock x:Name="BatteryDeviceHint" Text="Choose which battery appears in the expanded notch."
-                                               Style="{StaticResource SettingHintText}"
-                                               Margin="0,6,0,0"/>
-                                    <ComboBox x:Name="BatteryDeviceCombo"
-                                              SelectionChanged="BatteryDeviceCombo_SelectionChanged"
-                                              DropDownOpened="BatteryDeviceCombo_DropDownOpened"/>
-                                </StackPanel>
-                            </Border>
                         </StackPanel>
                     </Border>
 
@@ -1244,6 +1233,16 @@
                                 <StackPanel>
                                     <CheckBox x:Name="ShelfUnlockCheck" x:Uid="shelfUnlock" Content="Unlock shelf upload limit"/>
                                     <TextBlock x:Name="ShelfUnlockHint" Text="Remove the 30-file safety limit on the shelf."
+                                               Style="{StaticResource SettingHintText}"
+                                               Margin="0,3,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <CheckBox x:Name="CopyShelfClipboardCheck" x:Uid="copyShelfClipboard" Content="Copy shelf files to clipboard"/>
+                                    <TextBlock x:Name="CopyShelfClipboardHint" Text="When files are added to the shelf, automatically copy all of them to the system clipboard so you can paste them into other apps."
                                                Style="{StaticResource SettingHintText}"
                                                Margin="0,3,0,0"
                                                TextWrapping="Wrap"/>

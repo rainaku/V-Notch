@@ -19,6 +19,7 @@ public sealed class FileShelfController : IDisposable
     private readonly HashSet<string> _filesSet = new(StringComparer.OrdinalIgnoreCase); // O(1) lookup
     private readonly HashSet<string> _selectedFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _pendingFiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _pinnedFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, FileSystemWatcher> _watchers = new(); // UI-thread only
     private readonly Queue<string> _addQueue = new();
     private readonly object _lock = new();
@@ -61,6 +62,7 @@ public sealed class FileShelfController : IDisposable
     public event Action? AddQueueDrained;
     public event Action? LayoutRefreshRequested;
     public event Action? CapacityChanged;
+    public event Action? PinStateChanged;
     public event Action<string>? FileExternallyRemoved;
     public event Action<string, string>? FileExternallyRenamed;
     public event Action<string, Exception>? FileWatchFailed;
@@ -321,6 +323,10 @@ public sealed class FileShelfController : IDisposable
     public void RemoveFiles(IEnumerable<string> filePaths)
     {
         var toRemove = new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
+        // Pinned files cannot be removed — filter them out.
+        lock (_lock) toRemove.ExceptWith(_pinnedFiles);
+        if (toRemove.Count == 0) return;
+
         lock (_lock)
         {
             _filesList.RemoveAll(f => toRemove.Contains(f));
@@ -337,6 +343,9 @@ public sealed class FileShelfController : IDisposable
     }
     public void RemoveFile(string filePath)
     {
+        // Pinned files cannot be removed.
+        lock (_lock) { if (_pinnedFiles.Contains(filePath)) return; }
+
         lock (_lock)
         {
             _filesList.Remove(filePath);
@@ -348,13 +357,17 @@ public sealed class FileShelfController : IDisposable
         FileIconProvider.Invalidate(filePath);
         CapacityChanged?.Invoke();
     }
-    public List<string> GetSelectedForDeletion() { lock (_lock) return _selectedFiles.ToList(); }
+    public List<string> GetSelectedForDeletion() { lock (_lock) return _selectedFiles.Where(f => !_pinnedFiles.Contains(f)).ToList(); }
 
     // ─── Drag Out ───
     public string[] GetDragFiles() { lock (_lock) return _selectedFiles.ToArray(); }
     public void HandleDragMoveOut(string[] draggedFiles)
     {
         var toRemove = new HashSet<string>(draggedFiles, StringComparer.OrdinalIgnoreCase);
+        // Pinned files cannot be dragged out.
+        lock (_lock) toRemove.ExceptWith(_pinnedFiles);
+        if (toRemove.Count == 0) return;
+
         lock (_lock)
         {
             _filesList.RemoveAll(f => toRemove.Contains(f));
@@ -366,6 +379,59 @@ public sealed class FileShelfController : IDisposable
             UnwatchDirectory(f);
         CapacityChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
+    }
+
+    // ─── Pin ───
+
+    public bool IsPinned(string path) { lock (_lock) return _pinnedFiles.Contains(path); }
+
+    public void TogglePin(string path)
+    {
+        lock (_lock)
+        {
+            if (_pinnedFiles.Contains(path))
+                _pinnedFiles.Remove(path);
+            else
+                _pinnedFiles.Add(path);
+        }
+        SortPinnedFirst();
+        // Force full rebuild by invalidating snapshot (pin icon needs re-render)
+        lock (_lock) InvalidateSnapshot();
+        PinStateChanged?.Invoke();
+        LayoutRefreshRequested?.Invoke();
+    }
+
+    public void PinFile(string path)
+    {
+        lock (_lock) _pinnedFiles.Add(path);
+        SortPinnedFirst();
+        lock (_lock) InvalidateSnapshot();
+        PinStateChanged?.Invoke();
+        LayoutRefreshRequested?.Invoke();
+    }
+
+    public void UnpinFile(string path)
+    {
+        lock (_lock) _pinnedFiles.Remove(path);
+        SortPinnedFirst();
+        lock (_lock) InvalidateSnapshot();
+        PinStateChanged?.Invoke();
+        LayoutRefreshRequested?.Invoke();
+    }
+
+    private void SortPinnedFirst()
+    {
+        lock (_lock)
+        {
+            _filesList.Sort((a, b) =>
+            {
+                bool aPinned = _pinnedFiles.Contains(a);
+                bool bPinned = _pinnedFiles.Contains(b);
+                if (aPinned == bPinned) return 0;
+                return aPinned ? -1 : 1;
+            });
+            InvalidateSnapshot();
+        }
     }
 
     // ─── Unlock ───
