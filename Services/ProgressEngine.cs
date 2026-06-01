@@ -133,8 +133,15 @@ public class ProgressEngine
                 bool isFalseZeroGlitch = effectiveSnapshotPosition.TotalSeconds < 1.0 &&
                     currentPredicted.TotalSeconds > 15.0 &&
                     _duration.TotalSeconds > 0;
-                
-                if (isFalseZeroGlitch)
+
+                // A zero report that arrives once the track has essentially reached its end is a
+                // genuine loop/replay (e.g. a single Spotify song on repeat), NOT an SMTC glitch.
+                // Without this carve-out the loop-to-zero snapshot is rejected, so the bar keeps
+                // predicting past the end and only snaps back seconds later (or never).
+                bool predictedAtTrackEnd = _duration > TimeSpan.Zero &&
+                    currentPredicted.TotalSeconds >= _duration.TotalSeconds - 2.0;
+
+                if (isFalseZeroGlitch && !predictedAtTrackEnd)
                 {
                     RuntimeLog.Log("PROGRESS-ENGINE-REJECT",
                         $"false-zero-glitch: predicted={currentPredicted.TotalSeconds:F2}s snapshot={snapshotPredicted.TotalSeconds:F2}s " +

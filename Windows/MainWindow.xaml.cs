@@ -1211,7 +1211,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         UpdateShelfCapacityIndicator();
         EventText.Text = Loc.Get("greeting.enjoyDay");
-        CameraLabel.Text = Loc.Get("notch.camera");
+        CameraErrorText.Text = Loc.Get("notch.camera.error");
+        CameraRetryText.Text = Loc.Get("notch.camera.retry");
         ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
         ShelfUnlockDismissText.Text = Loc.Get("shelf.unlockDismiss");
         ShelfUnlockSettingsHint.Text = Loc.Get("shelf.unlockSettingsHint");

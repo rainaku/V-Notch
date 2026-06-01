@@ -483,7 +483,7 @@
                                 </Border.Effect>
                                 <Viewbox Width="15" Height="15" Stretch="Uniform"
                                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Path Data="M34.133,145.067H460.8c4.71,0,8.533-3.814,8.533-8.533c0-23.526-19.14-42.667-42.667-42.667h-132.54L254.02,45.73c-1.621-1.937-4.019-3.063-6.554-3.063H59.733C40.909,42.667,25.6,57.975,25.6,76.8v59.733C25.6,141.252,29.423,145.067,34.133,145.067z M477.867,162.133H34.133C15.309,162.133,0,177.442,0,196.267V435.2c0,18.825,15.309,34.133,34.133,34.133h443.733c18.825,0,34.133-15.309,34.133-34.133V196.267C512,177.442,496.691,162.133,477.867,162.133z M162.133,264.533h-102.4c-4.71,0-8.533-3.814-8.533-8.533s3.823-8.533,8.533-8.533h102.4c4.71,0,8.533,3.814,8.533,8.533S166.844,264.533,162.133,264.533z M162.133,230.4h-102.4c-4.71,0-8.533-3.814-8.533-8.533s3.823-8.533,8.533-8.533h102.4c4.71,0,8.533,3.814,8.533,8.533S166.844,230.4,162.133,230.4z" 
+                                    <Path Data="M479.66,268.7l-32-151.81C441.48,83.77,417.68,64,384,64H128c-16.8,0-31,4.69-42.1,13.94s-18.37,22.31-21.58,38.89l-32,151.87A16.65,16.65,0,0,0,32,272V384a64,64,0,0,0,64,64H416a64,64,0,0,0,64-64V272A16.65,16.65,0,0,0,479.66,268.7Zm-384-145.4c0-.1,0-.19,0-.28,3.55-18.43,13.81-27,32.29-27H384c18.61,0,28.87,8.55,32.27,26.91,0,.13.05.26.07.39l26.93,127.88a4,4,0,0,1-3.92,4.82H320a15.92,15.92,0,0,0-16,15.82,48,48,0,1,1-96,0A15.92,15.92,0,0,0,192,256H72.65a4,4,0,0,1-3.92-4.82Z" 
                                           Fill="White"/>
                                 </Viewbox>
                             </Border>
@@ -2272,20 +2272,20 @@
                                 </Image>
 
                                 <Border x:Name="CameraOverlay" Background="#40000000">
-                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                        <Path Data="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" 
-                                              Fill="White" Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center"/>
-                                        <TextBlock x:Name="CameraLabel" Text="Camera" Style="{StaticResource SmallText}" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
-                                    </StackPanel>
+                                    <Viewbox Width="28" Height="28" Stretch="Uniform"
+                                             VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <Path Data="M256,208A64,64,0,1,0,320,272,64,64,0,0,0,256,208Z M432,144H373c-3,0-6.72-1.94-9.62-5L337.44,98.06a15.52,15.52,0,0,0-1.37-1.85C327.11,85.76,315,80,302,80H210c-13,0-25.11,5.76-34.07,16.21a15.52,15.52,0,0,0-1.37,1.85l-25.94,41c-2.22,2.42-5.34,5-8.62,5v-8a16,16,0,0,0-16-16H100a16,16,0,0,0-16,16v8H80a48.05,48.05,0,0,0-48,48V384a48.05,48.05,0,0,0,48,48H432a48.05,48.05,0,0,0,48-48V192A48.05,48.05,0,0,0,432,144ZM256,368a96,96,0,1,1,96-96A96.11,96.11,0,0,1,256,368Z" 
+                                              Fill="#555555"/>
+                                    </Viewbox>
                                 </Border>
 
                                 <Border x:Name="CameraErrorOverlay" Background="#60000000" Visibility="Collapsed">
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10">
                                         <Path Data="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 17c-.77 1.333.192 3 1.732 3z" 
                                               Stroke="White" StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="Cannot detect camera device" Style="{StaticResource SmallText}" FontSize="9"
+                                        <TextBlock Text="Cannot detect camera device" x:Name="CameraErrorText" Style="{StaticResource SmallText}" FontSize="9"
                                                    Foreground="White" HorizontalAlignment="Center" Margin="0,4,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
-                                        <TextBlock Text="click to try again" Style="{StaticResource SmallText}" FontSize="8"
+                                        <TextBlock Text="click to try again" x:Name="CameraRetryText" Style="{StaticResource SmallText}" FontSize="8"
                                                    Foreground="#99FFFFFF" HorizontalAlignment="Center" FontStyle="Italic"/>
                                     </StackPanel>
                                 </Border>
@@ -2342,11 +2342,19 @@
                                            StrokeDashArray="4 3" 
                                            RadiusX="16" RadiusY="16"/>
 
-                                <TextBlock x:Name="ShelfPlaceholder"
-                                           Text=""
-                                           HorizontalAlignment="Center" 
-                                           VerticalAlignment="Center"
-                                           Style="{StaticResource SubtitleText}"/>
+                                <StackPanel x:Name="ShelfPlaceholderPanel"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <Viewbox Width="28" Height="28" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,6">
+                                        <Path Data="M479.66,268.7l-32-151.81C441.48,83.77,417.68,64,384,64H128c-16.8,0-31,4.69-42.1,13.94s-18.37,22.31-21.58,38.89l-32,151.87A16.65,16.65,0,0,0,32,272V384a64,64,0,0,0,64,64H416a64,64,0,0,0,64-64V272A16.65,16.65,0,0,0,479.66,268.7Zm-384-145.4c0-.1,0-.19,0-.28,3.55-18.43,13.81-27,32.29-27H384c18.61,0,28.87,8.55,32.27,26.91,0,.13.05.26.07.39l26.93,127.88a4,4,0,0,1-3.92,4.82H320a15.92,15.92,0,0,0-16,15.82,48,48,0,1,1-96,0A15.92,15.92,0,0,0,192,256H72.65a4,4,0,0,1-3.92-4.82Z"
+                                              Fill="#555555"/>
+                                    </Viewbox>
+                                    <TextBlock x:Name="ShelfPlaceholder"
+                                               Text=""
+                                               HorizontalAlignment="Center" 
+                                               Foreground="#555555"
+                                               Style="{StaticResource SubtitleText}"/>
+                                </StackPanel>
 
                                 <TextBlock x:Name="ShelfStatusText"
                                            Text="Shelf full"

@@ -322,7 +322,9 @@ public partial class MainWindow
             return;
 
         ShelfPlaceholder.Text = Loc.Get("shelf.placeholder");
-        ShelfPlaceholder.Visibility = _fileShelf.FileCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var shelfEmpty = _fileShelf.FileCount == 0;
+        ShelfPlaceholder.Visibility = shelfEmpty ? Visibility.Visible : Visibility.Collapsed;
+        ShelfPlaceholderPanel.Visibility = shelfEmpty ? Visibility.Visible : Visibility.Collapsed;
 
         ShelfCountText.Text = _fileShelf.GetCountDisplayText();
         ShelfCountText.Foreground = _fileShelf.IsCountWarning ? _brushShelfStatusWarning : Brushes.White;
@@ -459,6 +461,7 @@ public partial class MainWindow
         ShelfUnlockBanner.Visibility = Visibility.Visible;
         ShelfCountBadge.Visibility = Visibility.Collapsed;
         ShelfPlaceholder.Visibility = Visibility.Collapsed;
+        ShelfPlaceholderPanel.Visibility = Visibility.Collapsed;
         ShelfUnlockMessageText.Text = Loc.Get("shelf.unlockMessage", fileCount);
         ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
         ShelfUnlockDismissText.Text = Loc.Get("shelf.unlockDismiss");
