@@ -115,7 +115,7 @@ public void Hook()
             {
                 RepeatBehavior = RepeatBehavior.Forever
             };
-            Timeline.SetDesiredFrameRate(_fpsBoostAnim, 144);
+            Timeline.SetDesiredFrameRate(_fpsBoostAnim, VNotch.Services.AnimationConfig.TargetFps);
             _fpsBoostAnim.Freeze();
         }
 

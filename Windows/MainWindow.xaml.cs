@@ -585,7 +585,7 @@ public partial class MainWindow : Window
         {
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(anim, 144);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
 
         if (onComplete != null)
         {
@@ -779,7 +779,7 @@ public partial class MainWindow : Window
             var thumbDur = new Duration(TimeSpan.FromMilliseconds(500));
             var thumbEase = _easeExpOut6;
             var thumbDelay = TimeSpan.FromMilliseconds(30);
-            int thumbFps = 144;
+            int thumbFps = VNotch.Services.AnimationConfig.TargetFps;
 
             if (_cachedThumbWidthExpand == null)
             {
@@ -1005,7 +1005,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             bounceAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
                 KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(600)),
                 _easeSoftSpring));
-            Timeline.SetDesiredFrameRate(bounceAnim, 144);
+            Timeline.SetDesiredFrameRate(bounceAnim, VNotch.Services.AnimationConfig.TargetFps);
 
             NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceAnim);
             NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceAnim);
@@ -1059,7 +1059,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
             // On first boot (ActualWidth is 0), set dimensions immediately without animation to ensure layout is measured correctly before any other animations run
             bool isFirstLayout = NotchBorder.ActualWidth <= 0 || NotchBorder.ActualHeight <= 0;
-            const int fps = 144;
+            int fps = VNotch.Services.AnimationConfig.TargetFps;
 
             if (isFirstLayout)
             {
@@ -1557,7 +1557,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         {
             EasingFunction = ease
         };
-        Timeline.SetDesiredFrameRate(anim, 144);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
 
         BatterySectionScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
         BatterySectionScale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
@@ -1593,7 +1593,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void AnimateSettingsHover(bool isEnter)
     {
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
         var dur = TimeSpan.FromMilliseconds(isEnter ? 360 : 300);
         var scaleDur = new Duration(dur);
         var rotateDur = new Duration(TimeSpan.FromMilliseconds(isEnter ? 520 : 360));

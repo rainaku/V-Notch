@@ -224,7 +224,7 @@ public class ElasticSlider : Slider
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };
-            Timeline.SetDesiredFrameRate(anim, 120);
+            Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
             _indicator.BeginAnimation(Canvas.LeftProperty, anim);
         }
         else
@@ -233,7 +233,7 @@ public class ElasticSlider : Slider
             {
                 EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 7 }
             };
-            Timeline.SetDesiredFrameRate(anim, 120);
+            Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
             _indicator.BeginAnimation(Canvas.LeftProperty, anim);
         }
     }
@@ -285,7 +285,7 @@ public class ElasticSlider : Slider
         {
             EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 7 }
         };
-        Timeline.SetDesiredFrameRate(anim, 120);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         _fillBorder.BeginAnimation(WidthProperty, anim);
     }
 
@@ -306,7 +306,7 @@ public class ElasticSlider : Slider
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };
-            Timeline.SetDesiredFrameRate(anim, 120);
+            Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
             _fillBorder.BeginAnimation(WidthProperty, anim);
         }
         else
@@ -510,8 +510,8 @@ public class ElasticSlider : Slider
         var ease = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 };
         var ax = new DoubleAnimation(1.0, dur) { EasingFunction = ease };
         var ay = new DoubleAnimation(1.0, dur) { EasingFunction = ease };
-        Timeline.SetDesiredFrameRate(ax, 120);
-        Timeline.SetDesiredFrameRate(ay, 120);
+        Timeline.SetDesiredFrameRate(ax, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(ay, VNotch.Services.AnimationConfig.TargetFps);
         _rootScale.BeginAnimation(ScaleTransform.ScaleXProperty, ax);
         _rootScale.BeginAnimation(ScaleTransform.ScaleYProperty, ay);
 

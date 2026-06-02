@@ -84,8 +84,9 @@ public sealed class NotchAnimationController
     }
 
     public (DoubleAnimation width, DoubleAnimation height, RectAnimation rect) GetOrCreateExpandThumbAnims(
-        Duration duration, IEasingFunction easing, TimeSpan? delay, int fps = 144)
+        Duration duration, IEasingFunction easing, TimeSpan? delay, int fps = 0)
     {
+        if (fps <= 0) fps = AnimationConfig.TargetFps;
         if (_cachedThumbWidthExpand == null || _cachedThumbWidthExpand.Duration != duration)
         {
             _cachedThumbWidthExpand = MakeAnim(22, 102, duration, easing, delay);
@@ -109,8 +110,9 @@ public sealed class NotchAnimationController
     }
 
     public (DoubleAnimation width, DoubleAnimation height, RectAnimation rect) GetOrCreateCollapseThumbAnims(
-        Duration duration, IEasingFunction easing, TimeSpan? delay, int fps = 144)
+        Duration duration, IEasingFunction easing, TimeSpan? delay, int fps = 0)
     {
+        if (fps <= 0) fps = AnimationConfig.TargetFps;
         if (_cachedThumbWidthCollapse == null || _cachedThumbWidthCollapse.Duration != duration)
         {
             _cachedThumbWidthCollapse = MakeAnim(102, 22, duration, easing, delay);

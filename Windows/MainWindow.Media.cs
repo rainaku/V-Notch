@@ -344,8 +344,8 @@ public partial class MainWindow
         var outScale        = new DoubleAnimation(1.0, 0.96, totalDur)           { EasingFunction = sineInOut };
         Timeline.SetDesiredFrameRate(outBlurExpanded, 60);
         Timeline.SetDesiredFrameRate(outBlurCompact, 60);
-        Timeline.SetDesiredFrameRate(outFade, 144);
-        Timeline.SetDesiredFrameRate(outScale, 144);
+        Timeline.SetDesiredFrameRate(outFade, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(outScale, VNotch.Services.AnimationConfig.TargetFps);
 
         DoubleAnimationUsingKeyFrames MakeInBlur(double peak)
         {
@@ -371,8 +371,8 @@ public partial class MainWindow
 
         Timeline.SetDesiredFrameRate(inBlurExpanded, 60);
         Timeline.SetDesiredFrameRate(inBlurCompact, 60);
-        Timeline.SetDesiredFrameRate(inFade, 144);
-        Timeline.SetDesiredFrameRate(inScale, 144);
+        Timeline.SetDesiredFrameRate(inFade, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(inScale, VNotch.Services.AnimationConfig.TargetFps);
 
         // ─── Apply to expanded view ───
         ThumbnailImage.BeginAnimation(OpacityProperty, outFade);
@@ -785,8 +785,8 @@ public partial class MainWindow
         // Scale animation: 0 → 1 with soft spring for a bouncy pop-in
         var scaleAnimX = MakeAnim(0.0, 1.0, dur, _easeSoftSpring);
         var scaleAnimY = MakeAnim(0.0, 1.0, dur, _easeSoftSpring);
-        Timeline.SetDesiredFrameRate(scaleAnimX, 120);
-        Timeline.SetDesiredFrameRate(scaleAnimY, 120);
+        Timeline.SetDesiredFrameRate(scaleAnimX, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(scaleAnimY, VNotch.Services.AnimationConfig.TargetFps);
 
         // Opacity animation: 0 → 1, slightly faster so it's visible early
         var opacityAnim = MakeAnim(0.0, 1.0, new Duration(TimeSpan.FromMilliseconds(250)), _easeQuadOut);
@@ -830,8 +830,8 @@ public partial class MainWindow
         var backIn = new BackEase { EasingMode = EasingMode.EaseIn, Amplitude = 0.3 };
         var scaleAnimX = MakeAnim(1.0, 0.0, dur, backIn);
         var scaleAnimY = MakeAnim(1.0, 0.0, dur, backIn);
-        Timeline.SetDesiredFrameRate(scaleAnimX, 120);
-        Timeline.SetDesiredFrameRate(scaleAnimY, 120);
+        Timeline.SetDesiredFrameRate(scaleAnimX, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(scaleAnimY, VNotch.Services.AnimationConfig.TargetFps);
 
         // Opacity 1 → 0, a touch faster so it's gone by the time scale finishes
         var opacityAnim = MakeAnim(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
@@ -861,14 +861,14 @@ public partial class MainWindow
             KeyTime.FromTimeSpan(squeezePeak), _easeQuadOut));
         squeezeX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
             KeyTime.FromTimeSpan(squeezeEnd), _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(squeezeX, 120);
+        Timeline.SetDesiredFrameRate(squeezeX, VNotch.Services.AnimationConfig.TargetFps);
 
         var squeezeY = new DoubleAnimationUsingKeyFrames();
         squeezeY.KeyFrames.Add(new EasingDoubleKeyFrame(1.02,
             KeyTime.FromTimeSpan(squeezePeak), _easeQuadOut));
         squeezeY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
             KeyTime.FromTimeSpan(squeezeEnd), _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(squeezeY, 120);
+        Timeline.SetDesiredFrameRate(squeezeY, VNotch.Services.AnimationConfig.TargetFps);
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, squeezeX);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, squeezeY);

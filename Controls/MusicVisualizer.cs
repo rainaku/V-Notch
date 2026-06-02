@@ -112,6 +112,9 @@ namespace VNotch.Controls
         private readonly double[] _sortedHeights = new double[BarCount];
         private readonly double[] _drawHeights = new double[BarCount];
         private readonly double[] _smoothedHeights = new double[BarCount];
+        // Reused each frame to avoid per-frame allocation in the render loop (UI thread only).
+        private readonly float[] _levelsBuffer = new float[BarCount];
+        private DpiScale? _cachedDpi;
         private double _currentOpacity = 0.2;
         private VisualizerState _state = VisualizerState.Idle;
 
@@ -555,6 +558,12 @@ namespace VNotch.Controls
             return _cachedBarGradient;
         }
 
+        protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+        {
+            base.OnDpiChanged(oldDpi, newDpi);
+            _cachedDpi = newDpi;
+        }
+
         protected override void OnRender(DrawingContext dc)
         {
             double width = ActualWidth;
@@ -562,7 +571,7 @@ namespace VNotch.Controls
 
             if (width < 1 || height < 1 || ActiveBrush == null) return;
 
-            DpiScale dpi = VisualTreeHelper.GetDpi(this);
+            DpiScale dpi = _cachedDpi ??= VisualTreeHelper.GetDpi(this);
             
             double barWidth = width * BarWidthRatio;
             double spacing = (width * BarSpacingRatio) + 0.2; 
@@ -1204,7 +1213,7 @@ namespace VNotch.Controls
             return sample;
         }
 
-        private static float[] GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent)
+        private float[] GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent)
         {
             lock (_lockObj)
             {
@@ -1213,14 +1222,8 @@ namespace VNotch.Controls
                     (DateTime.UtcNow.Ticks - ticks) <= TimeSpan.FromMilliseconds(FreshAudioTimeoutMs).Ticks;
                 beatAccent = _latestBeatAccent;
 
-                return new[]
-                {
-                    _displayTargets[0],
-                    _displayTargets[1],
-                    _displayTargets[2],
-                    _displayTargets[3],
-                    _displayTargets[4]
-                };
+                Array.Copy(_displayTargets, _levelsBuffer, BarCount);
+                return _levelsBuffer;
             }
         }
 

@@ -267,7 +267,7 @@ public partial class MainWindow
         AnimateStatusBarReveal(true);
 
         NotchBorder.IsHitTestVisible = false;
-        var animFps = 144;
+        int animFps = VNotch.Services.AnimationConfig.TargetFps;
 
         var widthAnim = MakeAnim(_expandedWidth, _dur600, _easeExpOut6, animFps);
         var heightAnim = MakeAnim(_expandedHeight, _dur600, _easeExpOut6, animFps);
@@ -324,7 +324,7 @@ public partial class MainWindow
                 var thumbDelay = TimeSpan.FromMilliseconds(40);
                 var thumbDur = _dur600;
                 var thumbEase = _easeThumbSpring;
-                var thumbFps = 144;
+                int thumbFps = VNotch.Services.AnimationConfig.TargetFps;
 
                 if (_cachedThumbWidthExpand == null || _cachedThumbWidthExpand.Duration != thumbDur)
                 {
@@ -542,8 +542,8 @@ public partial class MainWindow
             var secFadeOut = MakeAnim(1, 0, _dur200, _easeQuadIn);
             var secSlideDown = MakeAnim(0, 16, _dur250, _easeQuadIn);
             var secScaleDown = MakeAnim(1, 0.93, _dur250, _easeQuadIn);
-            Timeline.SetDesiredFrameRate(secSlideDown, 144);
-            Timeline.SetDesiredFrameRate(secScaleDown, 144);
+            Timeline.SetDesiredFrameRate(secSlideDown, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(secScaleDown, VNotch.Services.AnimationConfig.TargetFps);
 
             secFadeOut.Completed += (s, e) =>
             {
@@ -596,9 +596,9 @@ public partial class MainWindow
             var timerBlur = TimerContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
             TimerContent.Effect = timerBlur;
             var timerBlurOut = MakeAnim(timerBlur.Radius, 10, _dur200, _easeQuadIn, TimeSpan.FromMilliseconds(60));
-            Timeline.SetDesiredFrameRate(timerFadeOut, 144);
-            Timeline.SetDesiredFrameRate(timerSlideDown, 144);
-            Timeline.SetDesiredFrameRate(timerScaleDown, 144);
+            Timeline.SetDesiredFrameRate(timerFadeOut, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(timerSlideDown, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(timerScaleDown, VNotch.Services.AnimationConfig.TargetFps);
 
             timerFadeOut.Completed += (s, e) =>
             {
@@ -632,7 +632,7 @@ public partial class MainWindow
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
         NotchBorder.IsHitTestVisible = false;
-        var animFps = 144;
+        int animFps = VNotch.Services.AnimationConfig.TargetFps;
 
         var widthAnim = MakeAnim(_collapsedWidth, _dur500, _easeExpOut6, animFps);
         var heightAnim = MakeAnim(_collapsedHeight, _dur500, _easeExpOut6, animFps);
@@ -731,7 +731,7 @@ public partial class MainWindow
                 var thumbDelay = TimeSpan.FromMilliseconds(30);
                 var thumbDur = _dur500;
                 var thumbEase = _easeThumbSpring;
-                var thumbFps = 144;
+                int thumbFps = VNotch.Services.AnimationConfig.TargetFps;
 
                 if (_cachedThumbWidthCollapse == null || _cachedThumbWidthCollapse.Duration != thumbDur)
                 {

@@ -66,14 +66,14 @@ public partial class MainWindow
                 KeyTime.FromTimeSpan(peakTime), _easeQuadOut));
             bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
                 KeyTime.FromTimeSpan(endTime), _easeSoftSpring));
-            Timeline.SetDesiredFrameRate(bounceX, 144);
+            Timeline.SetDesiredFrameRate(bounceX, VNotch.Services.AnimationConfig.TargetFps);
 
             var bounceY = new DoubleAnimationUsingKeyFrames();
             bounceY.KeyFrames.Add(new EasingDoubleKeyFrame(0.95,
                 KeyTime.FromTimeSpan(peakTime), _easeQuadOut));
             bounceY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
                 KeyTime.FromTimeSpan(endTime), _easeSoftSpring));
-            Timeline.SetDesiredFrameRate(bounceY, 144);
+            Timeline.SetDesiredFrameRate(bounceY, VNotch.Services.AnimationConfig.TargetFps);
 
             NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceX);
             NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);
@@ -141,7 +141,7 @@ public partial class MainWindow
 
         var checkFadeIn = MakeAnim(0.0, 1.0, _dur250, _easeQuadOut);
         var checkScaleIn = MakeAnim(0.5, 1.0, _dur400, _easeSoftSpring);
-        Timeline.SetDesiredFrameRate(checkScaleIn, 144);
+        Timeline.SetDesiredFrameRate(checkScaleIn, VNotch.Services.AnimationConfig.TargetFps);
 
         ClipboardCheckIcon.BeginAnimation(OpacityProperty, checkFadeIn);
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, checkScaleIn);
@@ -156,7 +156,7 @@ public partial class MainWindow
 
         var textFadeIn = MakeAnim(0.0, 1.0, _dur250, _easeQuadOut);
         var textSlideIn = MakeAnim(-8.0, 0.0, _dur350, _easeExpOut6);
-        Timeline.SetDesiredFrameRate(textSlideIn, 144);
+        Timeline.SetDesiredFrameRate(textSlideIn, VNotch.Services.AnimationConfig.TargetFps);
 
         ClipboardCopiedText.BeginAnimation(OpacityProperty, textFadeIn);
         ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, textSlideIn);
@@ -191,7 +191,7 @@ public partial class MainWindow
 
         var checkFadeOut = MakeAnim(1.0, 0.0, _dur250, _easeQuadOut);
         var checkScaleOut = MakeAnim(1.0, 0.5, _dur400, _easeSoftSpring);
-        Timeline.SetDesiredFrameRate(checkScaleOut, 144);
+        Timeline.SetDesiredFrameRate(checkScaleOut, VNotch.Services.AnimationConfig.TargetFps);
 
         checkFadeOut.Completed += (s, e) =>
         {
@@ -209,7 +209,7 @@ public partial class MainWindow
 
         var textFadeOut = MakeAnim(1.0, 0.0, _dur250, _easeQuadOut);
         var textSlideOut = MakeAnim(0.0, -8.0, _dur350, _easeExpOut6);
-        Timeline.SetDesiredFrameRate(textSlideOut, 144);
+        Timeline.SetDesiredFrameRate(textSlideOut, VNotch.Services.AnimationConfig.TargetFps);
 
         textFadeOut.Completed += (s, e) =>
         {

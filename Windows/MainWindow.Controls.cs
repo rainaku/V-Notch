@@ -266,8 +266,8 @@ public partial class MainWindow
 
             var animX = new DoubleAnimation(transform.ScaleX, 1.18, _dur150) { EasingFunction = _easeQuadOut };
             var animY = new DoubleAnimation(transform.ScaleY, 1.18, _dur150) { EasingFunction = _easeQuadOut };
-            Timeline.SetDesiredFrameRate(animX, 120);
-            Timeline.SetDesiredFrameRate(animY, 120);
+            Timeline.SetDesiredFrameRate(animX, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(animY, VNotch.Services.AnimationConfig.TargetFps);
             transform.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
             transform.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
         }
@@ -279,8 +279,8 @@ public partial class MainWindow
         {
             var animX = new DoubleAnimation(transform.ScaleX, 1.0, _dur200) { EasingFunction = _easeQuadOut };
             var animY = new DoubleAnimation(transform.ScaleY, 1.0, _dur200) { EasingFunction = _easeQuadOut };
-            Timeline.SetDesiredFrameRate(animX, 120);
-            Timeline.SetDesiredFrameRate(animY, 120);
+            Timeline.SetDesiredFrameRate(animX, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(animY, VNotch.Services.AnimationConfig.TargetFps);
 
             // Clear bitmap cache after animation completes to save memory
             animX.Completed += (_, _) =>
@@ -444,11 +444,11 @@ public partial class MainWindow
                 // Animate notch size from hover → collapsed+20 (volume expanded size)
                 NotchBorder.BeginAnimation(HeightProperty, null);
                 AnimateCompactWidth(_collapsedWidth + 20, _dur400, _easeExpOut6, _volumeIndicatorToken);
-                var heightAnim = MakeAnim(_collapsedHeight, _dur400, _easeExpOut6, 144);
+                var heightAnim = MakeAnim(_collapsedHeight, _dur400, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
                 NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
                 // Animate thumbnail scale back to 1
-                var thumbScaleAnim = MakeAnim(1.0, _dur350, _easeExpOut6, 144);
+                var thumbScaleAnim = MakeAnim(1.0, _dur350, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, thumbScaleAnim);
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, thumbScaleAnim);
 

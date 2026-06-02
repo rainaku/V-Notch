@@ -46,7 +46,7 @@ internal static class AnimationPrimitives
 
     #region Animation Factories
 
-    public static DoubleAnimation MakeAnim(double? from, double to, Duration duration, IEasingFunction? easing = null, int fps = 120)
+    public static DoubleAnimation MakeAnim(double? from, double to, Duration duration, IEasingFunction? easing = null, int? fps = null)
     {
         var anim = new DoubleAnimation
         {
@@ -55,11 +55,11 @@ internal static class AnimationPrimitives
             Duration = duration,
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(anim, fps);
+        Timeline.SetDesiredFrameRate(anim, fps ?? AnimationConfig.TargetFps);
         return anim;
     }
 
-    public static DoubleAnimation MakeAnim(double to, Duration duration, IEasingFunction? easing = null, int fps = 120)
+    public static DoubleAnimation MakeAnim(double to, Duration duration, IEasingFunction? easing = null, int? fps = null)
     {
         var anim = new DoubleAnimation
         {
@@ -67,7 +67,7 @@ internal static class AnimationPrimitives
             Duration = duration,
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(anim, fps);
+        Timeline.SetDesiredFrameRate(anim, fps ?? AnimationConfig.TargetFps);
         return anim;
     }
 
@@ -83,7 +83,7 @@ internal static class AnimationPrimitives
 
         if (beginTime.HasValue)
             anim.BeginTime = beginTime.Value;
-        Timeline.SetDesiredFrameRate(anim, 120);
+        Timeline.SetDesiredFrameRate(anim, AnimationConfig.TargetFps);
         return anim;
     }
 

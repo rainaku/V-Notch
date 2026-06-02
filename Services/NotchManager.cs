@@ -71,6 +71,9 @@ public class NotchManager : INotchManager
         _currentScreen = GetTargetScreen();
         var workingArea = _currentScreen.Bounds;
 
+        // Cap animation frame rate to the refresh rate of the monitor the notch lives on.
+        AnimationConfig.Refresh(_currentScreen.DeviceName);
+
         double notchLeft = workingArea.Left + (workingArea.Width - _settings.Width) / 2;
         _hoverService.UpdateNotchBounds(notchLeft, workingArea.Top, _settings.Width, _settings.Height);
 

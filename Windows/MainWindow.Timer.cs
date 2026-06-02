@@ -86,7 +86,7 @@ public partial class MainWindow
             EasingFunction = _easePowerOut3,
             BeginTime = TimeSpan.FromMilliseconds(200)
         };
-        Timeline.SetDesiredFrameRate(navBgFadeIn, 120);
+        Timeline.SetDesiredFrameRate(navBgFadeIn, VNotch.Services.AnimationConfig.TargetFps);
         NavIconsBackground.BeginAnimation(OpacityProperty, navBgFadeIn);
 
         NotchBorder.IsHitTestVisible = false;
@@ -94,7 +94,7 @@ public partial class MainWindow
         var durOut = new Duration(TimeSpan.FromMilliseconds(180));
         var durIn = new Duration(TimeSpan.FromMilliseconds(480));
         var inDelay = TimeSpan.FromMilliseconds(50);
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         // Fade out primary content
         var primaryGroup = new TransformGroup();
@@ -219,7 +219,7 @@ public partial class MainWindow
         var durOut = new Duration(TimeSpan.FromMilliseconds(180));
         var durIn = new Duration(TimeSpan.FromMilliseconds(480));
         var inDelay = TimeSpan.FromMilliseconds(50);
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         // Fade out secondary content
         var secondaryGroup = new TransformGroup();
@@ -338,7 +338,7 @@ public partial class MainWindow
         var durScroll = new Duration(TimeSpan.FromMilliseconds(420));
         var durIn = new Duration(TimeSpan.FromMilliseconds(480));
         var inDelay = TimeSpan.FromMilliseconds(30);
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         // ─── Scroll animation: both views move DOWN together ───
         // Timer scrolls down and out, primary scrolls down into view from above.
@@ -475,7 +475,7 @@ public partial class MainWindow
         var durOut = new Duration(TimeSpan.FromMilliseconds(180));
         var durIn = new Duration(TimeSpan.FromMilliseconds(480));
         var inDelay = TimeSpan.FromMilliseconds(50);
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         // Fade out timer content
         var timerGroup = new TransformGroup();
@@ -606,8 +606,8 @@ public partial class MainWindow
 
         var animX = MakeAnim(scale.ScaleX, targetScale, _dur150, _easeQuadOut);
         var animY = MakeAnim(scale.ScaleY, targetScale, _dur150, _easeQuadOut);
-        Timeline.SetDesiredFrameRate(animX, 144);
-        Timeline.SetDesiredFrameRate(animY, 144);
+        Timeline.SetDesiredFrameRate(animX, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(animY, VNotch.Services.AnimationConfig.TargetFps);
 
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
@@ -631,8 +631,8 @@ public partial class MainWindow
         var upY = MakeAnim(1.0, targetScale, _dur80, _easeQuadOut, null);
         var settleX = new DoubleAnimation(targetScale, 1.0, _dur250) { EasingFunction = _easeSoftSpring };
         var settleY = new DoubleAnimation(targetScale, 1.0, _dur250) { EasingFunction = _easeSoftSpring };
-        Timeline.SetDesiredFrameRate(settleX, 144);
-        Timeline.SetDesiredFrameRate(settleY, 144);
+        Timeline.SetDesiredFrameRate(settleX, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(settleY, VNotch.Services.AnimationConfig.TargetFps);
 
         upX.Completed += (_, _) => scale.BeginAnimation(ScaleTransform.ScaleXProperty, settleX);
         upY.Completed += (_, _) => scale.BeginAnimation(ScaleTransform.ScaleYProperty, settleY);
@@ -699,7 +699,7 @@ public partial class MainWindow
         {
             var thumbFade = MakeAnim(CompactThumbnailBorder.Opacity, 0.0,
                 new Duration(TimeSpan.FromMilliseconds(180)), _easeQuadIn);
-            Timeline.SetDesiredFrameRate(thumbFade, 144);
+            Timeline.SetDesiredFrameRate(thumbFade, VNotch.Services.AnimationConfig.TargetFps);
             thumbFade.Completed += (_, _) =>
             {
                 if (!IsCountdownCompletionVisualActive) return;
@@ -720,7 +720,7 @@ public partial class MainWindow
         {
             var vizFade = MakeAnim(MusicViz.Opacity, 0.0,
                 new Duration(TimeSpan.FromMilliseconds(160)), _easeQuadIn);
-            Timeline.SetDesiredFrameRate(vizFade, 144);
+            Timeline.SetDesiredFrameRate(vizFade, VNotch.Services.AnimationConfig.TargetFps);
             vizFade.Completed += (_, _) =>
             {
                 if (!IsCountdownCompletionVisualActive) return;
@@ -838,8 +838,8 @@ public partial class MainWindow
 
         var widthAnim = MakeAnim(currentWidth, targetWidth, resizeDuration, _easeExpOut6);
         var heightAnim = MakeAnim(currentHeight, _timerViewHeight, resizeDuration, _easeExpOut6);
-        Timeline.SetDesiredFrameRate(widthAnim, 144);
-        Timeline.SetDesiredFrameRate(heightAnim, 144);
+        Timeline.SetDesiredFrameRate(widthAnim, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(heightAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         heightAnim.Completed += (_, _) =>
         {
@@ -877,9 +877,9 @@ public partial class MainWindow
         var fade = MakeAnim(element.Opacity, 0.0, duration, _easeQuadIn);
         var slide = MakeAnim(0.0, -14.0, duration, _easeQuadIn);
         var scaleAnim = MakeAnim(1.0, 0.96, duration, _easeQuadIn);
-        Timeline.SetDesiredFrameRate(fade, 144);
-        Timeline.SetDesiredFrameRate(slide, 144);
-        Timeline.SetDesiredFrameRate(scaleAnim, 144);
+        Timeline.SetDesiredFrameRate(fade, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(slide, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(scaleAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         fade.Completed += (_, _) =>
         {
@@ -904,8 +904,8 @@ public partial class MainWindow
 
             var navFade = MakeAnim(NavIconsPanel.Opacity, 0.0, duration, _easeQuadIn);
             var navSlide = MakeAnim(NavIconsTranslate.Y, -8.0, duration, _easeQuadIn);
-            Timeline.SetDesiredFrameRate(navFade, 144);
-            Timeline.SetDesiredFrameRate(navSlide, 144);
+            Timeline.SetDesiredFrameRate(navFade, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(navSlide, VNotch.Services.AnimationConfig.TargetFps);
             navFade.Completed += (_, _) =>
             {
                 NavIconsPanel.BeginAnimation(OpacityProperty, null);
@@ -922,7 +922,7 @@ public partial class MainWindow
         {
             NavIconsBackground.BeginAnimation(OpacityProperty, null);
             var navBgFade = MakeAnim(NavIconsBackground.Opacity, 0.0, duration, _easeQuadIn);
-            Timeline.SetDesiredFrameRate(navBgFade, 144);
+            Timeline.SetDesiredFrameRate(navBgFade, VNotch.Services.AnimationConfig.TargetFps);
             navBgFade.Completed += (_, _) =>
             {
                 NavIconsBackground.BeginAnimation(OpacityProperty, null);
@@ -965,8 +965,8 @@ public partial class MainWindow
         {
             EasingFunction = _easeExpOut6
         };
-        Timeline.SetDesiredFrameRate(overlayFade, 144);
-        Timeline.SetDesiredFrameRate(overlaySlide, 144);
+        Timeline.SetDesiredFrameRate(overlayFade, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(overlaySlide, VNotch.Services.AnimationConfig.TargetFps);
         CountdownCompleteOverlay.BeginAnimation(OpacityProperty, overlayFade);
         ((TranslateTransform)CountdownCompleteOverlay.RenderTransform).BeginAnimation(TranslateTransform.YProperty, overlaySlide);
 
@@ -981,7 +981,7 @@ public partial class MainWindow
         {
             EasingFunction = _easeQuadOut
         };
-        Timeline.SetDesiredFrameRate(surfaceFade, 144);
+        Timeline.SetDesiredFrameRate(surfaceFade, VNotch.Services.AnimationConfig.TargetFps);
         CountdownCompleteSurface.BeginAnimation(OpacityProperty, surfaceFade);
 
         AnimateCountdownCompleteElement(CountdownCompleteText, CountdownCompleteTextTranslate, TimeSpan.Zero,
@@ -1021,8 +1021,8 @@ public partial class MainWindow
             opacityAnim.Completed += completed;
         }
 
-        Timeline.SetDesiredFrameRate(opacityAnim, 144);
-        Timeline.SetDesiredFrameRate(translateAnim, 144);
+        Timeline.SetDesiredFrameRate(opacityAnim, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(translateAnim, VNotch.Services.AnimationConfig.TargetFps);
         element.BeginAnimation(OpacityProperty, opacityAnim);
         translate.BeginAnimation(TranslateTransform.YProperty, translateAnim);
     }
@@ -1057,10 +1057,10 @@ public partial class MainWindow
         var duration = new Duration(TimeSpan.FromMilliseconds(isHovered ? 160 : 220));
         var easing = isHovered ? (IEasingFunction)_easeQuadOut : _easeExpOut6;
 
-        var scaleX = MakeAnim(targetScale, duration, easing, 144);
-        var scaleY = MakeAnim(targetScale, duration, easing, 144);
-        var shadowScaleX = MakeAnim(targetShadowScale, duration, easing, 144);
-        var shadowScaleY = MakeAnim(targetShadowScale, duration, easing, 144);
+        var scaleX = MakeAnim(targetScale, duration, easing, VNotch.Services.AnimationConfig.TargetFps);
+        var scaleY = MakeAnim(targetScale, duration, easing, VNotch.Services.AnimationConfig.TargetFps);
+        var shadowScaleX = MakeAnim(targetShadowScale, duration, easing, VNotch.Services.AnimationConfig.TargetFps);
+        var shadowScaleY = MakeAnim(targetShadowScale, duration, easing, VNotch.Services.AnimationConfig.TargetFps);
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleX);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, shadowScaleX);
@@ -1143,7 +1143,7 @@ public partial class MainWindow
         var durOut = new Duration(TimeSpan.FromMilliseconds(220));
         var durIn = new Duration(TimeSpan.FromMilliseconds(430));
         var inDelay = TimeSpan.FromMilliseconds(70);
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         var overlayFade = MakeAnim(CountdownCompleteOverlay.Opacity, 0, durOut, _easeQuadIn);
         var overlaySlide = MakeAnim(0, 18, durOut, _easeQuadIn);
@@ -1263,8 +1263,8 @@ public partial class MainWindow
         // Collapse back to pill
         _isAnimating = true;
         var durCollapse = new Duration(TimeSpan.FromMilliseconds(400));
-        var widthAnim = MakeAnim(_collapsedWidth, durCollapse, _easeExpOut6, 144);
-        var heightAnim = MakeAnim(_collapsedHeight, durCollapse, _easeExpOut6, 144);
+        var widthAnim = MakeAnim(_collapsedWidth, durCollapse, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
+        var heightAnim = MakeAnim(_collapsedHeight, durCollapse, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
         AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(360));
 
         heightAnim.Completed += (s, ev) =>
@@ -1333,8 +1333,8 @@ public partial class MainWindow
         var overlayDelay = TimeSpan.FromMilliseconds(80); // Start after elements begin fading
         var fade = MakeAnim(CountdownCompleteOverlay.Opacity, 0.0, duration, _easeQuadIn, overlayDelay);
         var slide = MakeAnim(overlayTranslate.Y, 18.0, duration, _easeQuadIn, overlayDelay);
-        Timeline.SetDesiredFrameRate(fade, 144);
-        Timeline.SetDesiredFrameRate(slide, 144);
+        Timeline.SetDesiredFrameRate(fade, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(slide, VNotch.Services.AnimationConfig.TargetFps);
 
         fade.Completed += (_, _) =>
         {
@@ -1352,7 +1352,7 @@ public partial class MainWindow
     /// </summary>
     private void AnimateCountdownCompleteElementsFadeOut()
     {
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
         var baseDuration = new Duration(TimeSpan.FromMilliseconds(160));
         var easing = _easeQuadIn;
 
@@ -1453,9 +1453,9 @@ public partial class MainWindow
         var fade = MakeAnim(0.0, 1.0, duration, _easePowerOut3);
         var slide = MakeAnim(-6.0, 0.0, duration, _easeExpOut6);
         var scaleAnim = MakeAnim(0.88, 1.0, duration, _easeSoftSpring);
-        Timeline.SetDesiredFrameRate(fade, 144);
-        Timeline.SetDesiredFrameRate(slide, 144);
-        Timeline.SetDesiredFrameRate(scaleAnim, 144);
+        Timeline.SetDesiredFrameRate(fade, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(slide, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(scaleAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         fade.Completed += (_, _) =>
         {

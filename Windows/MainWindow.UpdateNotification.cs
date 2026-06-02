@@ -300,7 +300,7 @@ public partial class MainWindow
         if (isEnter)
             UpdateNotificationButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
 
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
         var scaleAnim = new DoubleAnimation
         {
             To = isEnter ? 1.10 : 1.0,

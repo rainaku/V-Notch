@@ -51,7 +51,7 @@ public partial class MainWindow
         
         var duration = isHovered ? _dur500 : _dur350;
         var easing = isHovered ? (IEasingFunction)_easeThumbSpring : _easeExpOut6;
-        var animFps = 144;
+        int animFps = VNotch.Services.AnimationConfig.TargetFps;
 
         var widthAnim = MakeAnim(notchWidth, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
         var heightAnim = MakeAnim(notchHeight, duration, isHovered ? _easeExpOut6 : _easeQuadOut, animFps);
@@ -236,7 +236,7 @@ public partial class MainWindow
             EasingFunction = _easeHapticBounce,
             BeginTime = TimeSpan.Zero
         };
-        Timeline.SetDesiredFrameRate(bounce, 120);
+        Timeline.SetDesiredFrameRate(bounce, VNotch.Services.AnimationConfig.TargetFps);
 
         squish.Completed += (s, e) =>
         {
@@ -639,7 +639,7 @@ public partial class MainWindow
         CurrentCornerRadius = startRadius;
 
         var anim = MakeAnim(startRadius, targetRadius, new Duration(duration), _easeExpOut6, null);
-        Timeline.SetDesiredFrameRate(anim, 144);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         this.BeginAnimation(CurrentCornerRadiusProperty, anim);
     }
 
@@ -662,12 +662,12 @@ public partial class MainWindow
         var bounceX = new DoubleAnimationUsingKeyFrames();
         bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.12, KeyTime.FromTimeSpan(durPeak), _easeQuadOut));
         bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(durEnd), _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(bounceX, 144);
+        Timeline.SetDesiredFrameRate(bounceX, VNotch.Services.AnimationConfig.TargetFps);
 
         var bounceY = new DoubleAnimationUsingKeyFrames();
         bounceY.KeyFrames.Add(new EasingDoubleKeyFrame(0.92, KeyTime.FromTimeSpan(durPeak), _easeQuadOut));
         bounceY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(durEnd), _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(bounceY, 144);
+        Timeline.SetDesiredFrameRate(bounceY, VNotch.Services.AnimationConfig.TargetFps);
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceX);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);
@@ -695,7 +695,7 @@ public partial class MainWindow
         var easing = (IEasingFunction)(isHovered
             ? new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut }
             : new CubicEase { EasingMode = EasingMode.EaseOut });
-        int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         // Progress bar — animate height directly (preserves corner radius proportions)
         ProgressBarContainer.BeginAnimation(MarginProperty, null);
@@ -770,7 +770,7 @@ public partial class MainWindow
         var dur = TimeSpan.FromMilliseconds(show ? 340 : 220);
         var easing = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
         var settingsEase = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.22 };
-        var animFps = 144;
+        int animFps = VNotch.Services.AnimationConfig.TargetFps;
 
         BatterySection.BeginAnimation(OpacityProperty, null);
         BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, null);
@@ -946,7 +946,7 @@ public void PlaySettingsEjectAnimation()
     {
         if (_isExpanded || _isAnimating) return;
 
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -1003,7 +1003,7 @@ public void PlaySettingsAbsorbAnimation()
     {
         if (_isExpanded || _isAnimating) return;
 
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         // Cancel any in-progress animations on the notch
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -1086,7 +1086,7 @@ public void PlaySettingsAbsorbAnimation()
         // Safety: Only run if we're actually in expanded state with visible content
         if (!_isExpanded || ExpandedContent.Visibility != Visibility.Visible) return;
 
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         // Apple-style timing: fast fade with slight stagger
         var baseDuration = new Duration(TimeSpan.FromMilliseconds(180));
@@ -1272,7 +1272,7 @@ public void PlaySettingsAbsorbAnimation()
         // Safety: Only run if timer content is actually visible
         if (TimerContent == null || TimerContent.Visibility != Visibility.Visible) return;
 
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
         var baseDuration = new Duration(TimeSpan.FromMilliseconds(160));
         var easing = _easeQuadIn;
 

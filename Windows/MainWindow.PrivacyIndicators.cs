@@ -170,7 +170,7 @@ public partial class MainWindow
         popIn.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
         popIn.KeyFrames.Add(new EasingDoubleKeyFrame(1.2, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(180)), _easeExpOut7));
         popIn.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(400)), _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(popIn, 120);
+        Timeline.SetDesiredFrameRate(popIn, VNotch.Services.AnimationConfig.TargetFps);
 
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, popIn);
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, popIn);

@@ -234,7 +234,7 @@ public partial class MainWindow
             {
                 EasingFunction = easing
             };
-            Timeline.SetDesiredFrameRate(marginAnim, 120);
+            Timeline.SetDesiredFrameRate(marginAnim, VNotch.Services.AnimationConfig.TargetFps);
 
             var shelfFadeOut = MakeAnim(FileShelf.Opacity, 0.0, new Duration(TimeSpan.FromMilliseconds(220)), _easeQuadOut, null);
 
@@ -242,13 +242,13 @@ public partial class MainWindow
             squashX.KeyFrames.Add(new EasingDoubleKeyFrame(CameraSectionScale.ScaleX, KeyTime.FromPercent(0.0)));
             squashX.KeyFrames.Add(new EasingDoubleKeyFrame(0.985, KeyTime.FromPercent(0.34), _easeSineInOut));
             squashX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-            Timeline.SetDesiredFrameRate(squashX, 120);
+            Timeline.SetDesiredFrameRate(squashX, VNotch.Services.AnimationConfig.TargetFps);
 
             var squashY = new DoubleAnimationUsingKeyFrames { Duration = duration };
             squashY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraSectionScale.ScaleY, KeyTime.FromPercent(0.0)));
             squashY.KeyFrames.Add(new EasingDoubleKeyFrame(0.96, KeyTime.FromPercent(0.34), _easeSineInOut));
             squashY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-            Timeline.SetDesiredFrameRate(squashY, 120);
+            Timeline.SetDesiredFrameRate(squashY, VNotch.Services.AnimationConfig.TargetFps);
 
             widthAnim.Completed += (s, e) =>
             {
@@ -335,7 +335,7 @@ public partial class MainWindow
         {
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(marginCollapseAnim, 120);
+        Timeline.SetDesiredFrameRate(marginCollapseAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         var shelfFadeIn = MakeAnim(FileShelf.Opacity, 1.0, new Duration(TimeSpan.FromMilliseconds(260)), _easePowerOut3, null);
 
@@ -343,13 +343,13 @@ public partial class MainWindow
         settleX.KeyFrames.Add(new EasingDoubleKeyFrame(CameraSectionScale.ScaleX, KeyTime.FromPercent(0.0)));
         settleX.KeyFrames.Add(new EasingDoubleKeyFrame(0.99, KeyTime.FromPercent(0.36), _easeSineInOut));
         settleX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-        Timeline.SetDesiredFrameRate(settleX, 120);
+        Timeline.SetDesiredFrameRate(settleX, VNotch.Services.AnimationConfig.TargetFps);
 
         var settleY = new DoubleAnimationUsingKeyFrames { Duration = duration };
         settleY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraSectionScale.ScaleY, KeyTime.FromPercent(0.0)));
         settleY.KeyFrames.Add(new EasingDoubleKeyFrame(0.94, KeyTime.FromPercent(0.36), _easeSineInOut));
         settleY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-        Timeline.SetDesiredFrameRate(settleY, 120);
+        Timeline.SetDesiredFrameRate(settleY, VNotch.Services.AnimationConfig.TargetFps);
 
         widthCollapseAnim.Completed += (s, e) =>
         {
@@ -785,7 +785,7 @@ public partial class MainWindow
         previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(previewFrom, KeyTime.FromPercent(0.0)));
         previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(previewFrom, KeyTime.FromPercent(0.72), _easeSineInOut));
         previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(previewFadeOut, 120);
+        Timeline.SetDesiredFrameRate(previewFadeOut, VNotch.Services.AnimationConfig.TargetFps);
 
         var overlayFadeIn = new DoubleAnimationUsingKeyFrames
         {
@@ -794,7 +794,7 @@ public partial class MainWindow
         overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(0.0)));
         overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(0.66), _easeSineInOut));
         overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(overlayFadeIn, 120);
+        Timeline.SetDesiredFrameRate(overlayFadeIn, VNotch.Services.AnimationConfig.TargetFps);
 
         var previewScaleOutX = new DoubleAnimationUsingKeyFrames
         {
@@ -803,7 +803,7 @@ public partial class MainWindow
         previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleX, KeyTime.FromPercent(0.0)));
         previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleX, KeyTime.FromPercent(0.72), _easeSineInOut));
         previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(1.04, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(previewScaleOutX, 120);
+        Timeline.SetDesiredFrameRate(previewScaleOutX, VNotch.Services.AnimationConfig.TargetFps);
 
         var previewScaleOutY = new DoubleAnimationUsingKeyFrames
         {
@@ -812,7 +812,7 @@ public partial class MainWindow
         previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleY, KeyTime.FromPercent(0.0)));
         previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleY, KeyTime.FromPercent(0.72), _easeSineInOut));
         previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(1.04, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(previewScaleOutY, 120);
+        Timeline.SetDesiredFrameRate(previewScaleOutY, VNotch.Services.AnimationConfig.TargetFps);
 
         var previewBlurOut = new DoubleAnimationUsingKeyFrames
         {
@@ -821,7 +821,7 @@ public partial class MainWindow
         previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewBlur.Radius, KeyTime.FromPercent(0.0)));
         previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewBlur.Radius, KeyTime.FromPercent(0.70), _easeSineInOut));
         previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(16.0, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(previewBlurOut, 120);
+        Timeline.SetDesiredFrameRate(previewBlurOut, VNotch.Services.AnimationConfig.TargetFps);
 
         previewFadeOut.Completed += (s, e) =>
         {

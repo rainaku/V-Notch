@@ -222,7 +222,7 @@ public partial class MainWindow
             Duration = duration,
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(moveAnim, 120);
+        Timeline.SetDesiredFrameRate(moveAnim, VNotch.Services.AnimationConfig.TargetFps);
         CalendarHighlightTranslate.BeginAnimation(TranslateTransform.XProperty, moveAnim, HandoffBehavior.SnapshotAndReplace);
 
         if (!pulse)
@@ -238,14 +238,14 @@ public partial class MainWindow
         squashX.KeyFrames.Add(new EasingDoubleKeyFrame(1.085, KeyTime.FromPercent(0.28), _easeSineInOut));
         squashX.KeyFrames.Add(new EasingDoubleKeyFrame(0.975, KeyTime.FromPercent(0.62), _easeSineInOut));
         squashX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-        Timeline.SetDesiredFrameRate(squashX, 120);
+        Timeline.SetDesiredFrameRate(squashX, VNotch.Services.AnimationConfig.TargetFps);
 
         var squashY = new DoubleAnimationUsingKeyFrames { Duration = duration };
         squashY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(0.0)));
         squashY.KeyFrames.Add(new EasingDoubleKeyFrame(0.93, KeyTime.FromPercent(0.28), _easeSineInOut));
         squashY.KeyFrames.Add(new EasingDoubleKeyFrame(1.02, KeyTime.FromPercent(0.62), _easeSineInOut));
         squashY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-        Timeline.SetDesiredFrameRate(squashY, 120);
+        Timeline.SetDesiredFrameRate(squashY, VNotch.Services.AnimationConfig.TargetFps);
 
         CalendarHighlightTranslate.Y = 0.0;
         CalendarHighlightScale.BeginAnimation(ScaleTransform.ScaleXProperty, squashX, HandoffBehavior.SnapshotAndReplace);
@@ -334,9 +334,9 @@ public partial class MainWindow
             liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0), _easeSineInOut));
         }
 
-        Timeline.SetDesiredFrameRate(scaleXAnim, 120);
-        Timeline.SetDesiredFrameRate(scaleYAnim, 120);
-        Timeline.SetDesiredFrameRate(liftAnim, 120);
+        Timeline.SetDesiredFrameRate(scaleXAnim, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(scaleYAnim, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(liftAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim, HandoffBehavior.SnapshotAndReplace);
         CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim, HandoffBehavior.SnapshotAndReplace);
@@ -363,7 +363,7 @@ public partial class MainWindow
             Duration = duration,
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(anim, 120);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         element.BeginAnimation(UIElement.OpacityProperty, anim, HandoffBehavior.SnapshotAndReplace);
     }
 
@@ -376,7 +376,7 @@ public partial class MainWindow
             Duration = duration,
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(anim, 120);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         effect.BeginAnimation(BlurEffect.RadiusProperty, anim, HandoffBehavior.SnapshotAndReplace);
     }
 
@@ -458,7 +458,7 @@ public partial class MainWindow
             Duration = duration,
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(scrollAnim, 120);
+        Timeline.SetDesiredFrameRate(scrollAnim, VNotch.Services.AnimationConfig.TargetFps);
         CalendarStripTranslate.BeginAnimation(TranslateTransform.XProperty, scrollAnim, HandoffBehavior.SnapshotAndReplace);
 
         ApplyCalendarCenterVisualState(_currentCalendarCenterIdx);
@@ -490,7 +490,7 @@ public partial class MainWindow
             Duration = duration,
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(scrollAnim, 120);
+        Timeline.SetDesiredFrameRate(scrollAnim, VNotch.Services.AnimationConfig.TargetFps);
         CalendarStripTranslate.BeginAnimation(TranslateTransform.XProperty, scrollAnim, HandoffBehavior.SnapshotAndReplace);
 
         ApplyCalendarCenterVisualState(_currentCalendarCenterIdx);

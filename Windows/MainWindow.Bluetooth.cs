@@ -207,12 +207,12 @@ public partial class MainWindow
         var bounceX = new DoubleAnimationUsingKeyFrames();
         bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.08, KeyTime.FromTimeSpan(durPeak), _easeQuadOut));
         bounceX.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(durEnd), _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(bounceX, 144);
+        Timeline.SetDesiredFrameRate(bounceX, VNotch.Services.AnimationConfig.TargetFps);
 
         var bounceY = new DoubleAnimationUsingKeyFrames();
         bounceY.KeyFrames.Add(new EasingDoubleKeyFrame(0.94, KeyTime.FromTimeSpan(durPeak), _easeQuadOut));
         bounceY.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(durEnd), _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(bounceY, 144);
+        Timeline.SetDesiredFrameRate(bounceY, VNotch.Services.AnimationConfig.TargetFps);
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounceX);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);

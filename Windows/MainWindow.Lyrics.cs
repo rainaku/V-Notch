@@ -210,8 +210,8 @@ public partial class MainWindow
 
         var fadeIn = new DoubleAnimation(0, 1, dur) { EasingFunction = ease };
         var slideIn = new DoubleAnimation(6, 0, dur) { EasingFunction = ease };
-        Timeline.SetDesiredFrameRate(fadeIn, 120);
-        Timeline.SetDesiredFrameRate(slideIn, 120);
+        Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(slideIn, VNotch.Services.AnimationConfig.TargetFps);
 
         LyricsPlaceholderPanel.BeginAnimation(OpacityProperty, fadeIn);
         LyricsPlaceholderTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
@@ -226,8 +226,8 @@ public partial class MainWindow
 
         var fadeOut = new DoubleAnimation(LyricsPlaceholderPanel.Opacity, 0, dur) { EasingFunction = ease };
         var slideOut = new DoubleAnimation(0, -6, dur) { EasingFunction = ease };
-        Timeline.SetDesiredFrameRate(fadeOut, 120);
-        Timeline.SetDesiredFrameRate(slideOut, 120);
+        Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(slideOut, VNotch.Services.AnimationConfig.TargetFps);
 
         fadeOut.Completed += (s, e) =>
         {
@@ -360,7 +360,7 @@ public partial class MainWindow
         incoming.Opacity = 0;
         inTransform.Y = 14;
 
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
         var outDur = new Duration(TimeSpan.FromMilliseconds(300));
         var inDur = new Duration(TimeSpan.FromMilliseconds(450));
         var inDelay = TimeSpan.FromMilliseconds(80);

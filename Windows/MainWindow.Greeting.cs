@@ -86,8 +86,8 @@ public partial class MainWindow
         NotchBorder.Width = _collapsedWidth;
         NotchBorder.Height = _collapsedHeight;
 
-        var widthAnim = MakeAnim(_expandedWidth, _dur600, _easeExpOut6, 144);
-        var heightAnim = MakeAnim(_expandedHeight, _dur600, _easeExpOut6, 144);
+        var widthAnim = MakeAnim(_expandedWidth, _dur600, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
+        var heightAnim = MakeAnim(_expandedHeight, _dur600, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
 
         // Animate corner radius to expanded
         AnimateCornerRadius(_cornerRadiusExpanded, TimeSpan.FromMilliseconds(400));
@@ -325,8 +325,8 @@ public partial class MainWindow
 
     private void CollapseAfterGreeting()
     {
-        var widthAnim = MakeAnim(_collapsedWidth, _dur500, _easeExpOut6, 144);
-        var heightAnim = MakeAnim(_collapsedHeight, _dur500, _easeExpOut6, 144);
+        var widthAnim = MakeAnim(_collapsedWidth, _dur500, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
+        var heightAnim = MakeAnim(_collapsedHeight, _dur500, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
 
         // Animate corner radius back to collapsed
         AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(350));

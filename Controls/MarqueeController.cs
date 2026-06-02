@@ -97,7 +97,7 @@ public static void StartMarqueeAnimation(TranslateTransform transform, double di
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
-        Timeline.SetDesiredFrameRate(keyAnim, 120);
+        Timeline.SetDesiredFrameRate(keyAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, t0));
         keyAnim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, t1));
@@ -180,7 +180,7 @@ public static void StartMarqueeAnimation(TranslateTransform transform, double di
         next.Text = newText;
 
         var dur = _dur600;
-        const int animFps = 144;
+        int animFps = VNotch.Services.AnimationConfig.TargetFps;
         var easeOut = _easeExpOut6;
 
         currentMorph.BeginAnimation(TranslateTransform.XProperty, null);

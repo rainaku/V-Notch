@@ -110,8 +110,8 @@ public partial class MainWindow
 
                 var fadeIn = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(200))) { EasingFunction = _easeExpOut6 };
                 var scaleIn = new DoubleAnimation(0.75, 1, new Duration(TimeSpan.FromMilliseconds(280))) { EasingFunction = _easeMenuSpring };
-                Timeline.SetDesiredFrameRate(fadeIn, 120);
-                Timeline.SetDesiredFrameRate(scaleIn, 120);
+                Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
+                Timeline.SetDesiredFrameRate(scaleIn, VNotch.Services.AnimationConfig.TargetFps);
 
                 fadeIn.Completed += (s2, e2) =>
                 {
@@ -240,8 +240,8 @@ public partial class MainWindow
 
                 var animX = new DoubleAnimation(dx, 0, dur) { EasingFunction = ease };
                 var animY = new DoubleAnimation(dy, 0, dur) { EasingFunction = ease };
-                Timeline.SetDesiredFrameRate(animX, 120);
-                Timeline.SetDesiredFrameRate(animY, 120);
+                Timeline.SetDesiredFrameRate(animX, VNotch.Services.AnimationConfig.TargetFps);
+                Timeline.SetDesiredFrameRate(animY, VNotch.Services.AnimationConfig.TargetFps);
 
                 animX.Completed += (_, _) =>
                 {
@@ -1111,9 +1111,9 @@ public partial class MainWindow
             var scaleDown = new DoubleAnimation(1, 0, dur) { EasingFunction = easeBack };
             var slideUp = new DoubleAnimation(0, -25, dur) { EasingFunction = _easeExpOut6 };
 
-            Timeline.SetDesiredFrameRate(fadeOut, 144);
-            Timeline.SetDesiredFrameRate(scaleDown, 144);
-            Timeline.SetDesiredFrameRate(slideUp, 144);
+            Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(scaleDown, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(slideUp, VNotch.Services.AnimationConfig.TargetFps);
 
             scaleDown.Completed += (s, e) =>
             {
@@ -1168,7 +1168,7 @@ public partial class MainWindow
             {
                 EasingFunction = _easeExpOut6
             };
-            Timeline.SetDesiredFrameRate(grow, 120);
+            Timeline.SetDesiredFrameRate(grow, VNotch.Services.AnimationConfig.TargetFps);
             grow.Completed += (_, _) =>
             {
                 var fade = new DoubleAnimation(1, 0, new Duration(TimeSpan.FromMilliseconds(280)))
@@ -1277,7 +1277,7 @@ public partial class MainWindow
         shake.KeyFrames.Add(new LinearDoubleKeyFrame(-1, KeyTime.FromPercent(0.7)));
         shake.KeyFrames.Add(new LinearDoubleKeyFrame(0.5, KeyTime.FromPercent(0.85)));
         shake.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(1.0)));
-        Timeline.SetDesiredFrameRate(shake, 120);
+        Timeline.SetDesiredFrameRate(shake, VNotch.Services.AnimationConfig.TargetFps);
 
         shake.Completed += (_, _) =>
         {

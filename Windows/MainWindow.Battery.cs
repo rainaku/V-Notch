@@ -253,7 +253,7 @@ public partial class MainWindow
     {
         if (_isExpanded || _isAnimating) return;
 
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         double extra = ChargingWattText.Visibility == Visibility.Visible ? 56 : 28;
         double targetWidth = _collapsedWidth + extra;

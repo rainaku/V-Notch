@@ -155,7 +155,7 @@ public partial class MainWindow
             EasingFunction = _easePowerOut3,
             BeginTime = TimeSpan.FromMilliseconds(200)
         };
-        Timeline.SetDesiredFrameRate(navBgFadeIn, 120);
+        Timeline.SetDesiredFrameRate(navBgFadeIn, VNotch.Services.AnimationConfig.TargetFps);
         NavIconsBackground.BeginAnimation(OpacityProperty, navBgFadeIn);
 
         NotchBorder.IsHitTestVisible = false;
@@ -163,7 +163,7 @@ public partial class MainWindow
         var durOut  = new Duration(TimeSpan.FromMilliseconds(180));
         var durIn   = new Duration(TimeSpan.FromMilliseconds(480));
         var inDelay = TimeSpan.FromMilliseconds(50);
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
@@ -276,7 +276,7 @@ public partial class MainWindow
         var durOut  = new Duration(TimeSpan.FromMilliseconds(180));
         var durIn   = new Duration(TimeSpan.FromMilliseconds(480));
         var inDelay = TimeSpan.FromMilliseconds(50);
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         var secondaryGroup     = new TransformGroup();
         var secondaryScale     = new ScaleTransform(1, 1);

@@ -1060,7 +1060,7 @@ public partial class MainWindow
             EasingFunction = _easeExpOut6,
             FillBehavior = FillBehavior.Stop
         };
-        Timeline.SetDesiredFrameRate(anim, 144);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
 
         anim.Completed += (s, e) =>
         {
@@ -1327,7 +1327,7 @@ public partial class MainWindow
             EasingFunction = _easeExpOut6,
             FillBehavior = FillBehavior.Stop
         };
-        Timeline.SetDesiredFrameRate(catchUpAnim, 144);
+        Timeline.SetDesiredFrameRate(catchUpAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         // Capture sequence so Completed handler becomes a no-op if track changed mid-animation
         long seqAtStart = _trackChangeSequence;
@@ -1380,7 +1380,7 @@ public partial class MainWindow
             EasingFunction = _easeExpOut6,
             FillBehavior = FillBehavior.Stop
         };
-        Timeline.SetDesiredFrameRate(anim, 144);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
 
         anim.Completed += (s, e) =>
         {
@@ -1457,7 +1457,7 @@ public partial class MainWindow
             EasingFunction = _easeExpOut6,
             FillBehavior = FillBehavior.Stop
         };
-        Timeline.SetDesiredFrameRate(anim, 144);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
 
         // Capture sequence so Completed handler becomes a no-op if track changed mid-animation
         long seqAtStart = _trackChangeSequence;

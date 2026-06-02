@@ -64,7 +64,7 @@ public partial class MainWindow
             EasingFunction = ease,
             FillBehavior = FillBehavior.Stop
         };
-        Timeline.SetDesiredFrameRate(anim, 144);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
 
         anim.Completed += (_, _) =>
         {

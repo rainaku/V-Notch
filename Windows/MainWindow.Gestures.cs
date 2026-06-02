@@ -259,7 +259,7 @@ public partial class MainWindow
         {
             EasingFunction = _easeSoftSpring
         };
-        Timeline.SetDesiredFrameRate(snapBack, 144);
+        Timeline.SetDesiredFrameRate(snapBack, VNotch.Services.AnimationConfig.TargetFps);
         snapBack.Completed += (s, e) =>
         {
             _gestureTranslate.BeginAnimation(TranslateTransform.XProperty, null);
@@ -290,7 +290,7 @@ public partial class MainWindow
         flick.KeyFrames.Add(new EasingDoubleKeyFrame(0,
             KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(400)),
             _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(flick, 144);
+        Timeline.SetDesiredFrameRate(flick, VNotch.Services.AnimationConfig.TargetFps);
 
         flick.Completed += (s, e) =>
         {
@@ -308,7 +308,7 @@ public partial class MainWindow
         pulse.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
             KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(350)),
             _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(pulse, 144);
+        Timeline.SetDesiredFrameRate(pulse, VNotch.Services.AnimationConfig.TargetFps);
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
@@ -325,7 +325,7 @@ public partial class MainWindow
         pullDown.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
             KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(400)),
             _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(pullDown, 144);
+        Timeline.SetDesiredFrameRate(pullDown, VNotch.Services.AnimationConfig.TargetFps);
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, pullDown);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, pullDown);
@@ -343,7 +343,7 @@ public partial class MainWindow
         bounce.KeyFrames.Add(new EasingDoubleKeyFrame(1.0,
             KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(450)),
             _easeSoftSpring));
-        Timeline.SetDesiredFrameRate(bounce, 144);
+        Timeline.SetDesiredFrameRate(bounce, VNotch.Services.AnimationConfig.TargetFps);
 
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, bounce);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounce);

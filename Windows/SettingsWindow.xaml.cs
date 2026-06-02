@@ -978,7 +978,7 @@ private void PushLivePreview()
         var easeOut = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 };
         var easeOutStrong = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 7 };
         var itemEase = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 };
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         var totalDur = TimeSpan.FromMilliseconds(650);
 
@@ -1123,7 +1123,7 @@ private void PushLivePreview()
             EasingFunction = easing
         };
 
-        Timeline.SetDesiredFrameRate(animation, 144);
+        Timeline.SetDesiredFrameRate(animation, VNotch.Services.AnimationConfig.TargetFps);
         return animation;
     }
 
@@ -1307,7 +1307,7 @@ private void CloseWithAnimation()
         var easeIn = new ExponentialEase { EasingMode = EasingMode.EaseIn, Exponent = 6 };
         var easeInStrong = new ExponentialEase { EasingMode = EasingMode.EaseIn, Exponent = 7 };
         var itemEase = new ExponentialEase { EasingMode = EasingMode.EaseIn, Exponent = 5 };
-        const int fps = 144;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         var totalDur = TimeSpan.FromMilliseconds(650);
 
