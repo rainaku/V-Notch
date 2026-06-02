@@ -185,9 +185,9 @@ public partial class MainWindow : Window
         _privacyModule = privacyIndicatorModule;
         _privacyModule.StateChanged += PrivacyModule_StateChanged;
 
-        _collapsedWidth = _settings.Width;
-        _collapsedHeight = _settings.Height;
-        _cornerRadiusCollapsed = _settings.CornerRadius;
+        _collapsedWidth = GetCollapsedWidth();
+        _collapsedHeight = GetCollapsedHeight();
+        _cornerRadiusCollapsed = GetCollapsedCornerRadius();
 
         _updateTimer = new DispatcherTimer
         {
@@ -1031,9 +1031,9 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
         }
 
-        _collapsedWidth = _settings.Width;
-        _collapsedHeight = _settings.Height;
-        _cornerRadiusCollapsed = _settings.CornerRadius;
+        _collapsedWidth = GetCollapsedWidth();
+        _collapsedHeight = GetCollapsedHeight();
+        _cornerRadiusCollapsed = GetCollapsedCornerRadius();
         _cachedThumbnailExpandTarget = null;
 
         ApplyDynamicIslandLayout();
@@ -1052,10 +1052,10 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
             if (isFirstLayout)
             {
-                NotchBorder.Width = _settings.Width;
-                NotchBorder.Height = _settings.Height;
+                NotchBorder.Width = _collapsedWidth;
+                NotchBorder.Height = _collapsedHeight;
 
-                var cr = MakeNotchCornerRadius(_settings.CornerRadius);
+                var cr = MakeNotchCornerRadius(_cornerRadiusCollapsed);
                 NotchBorder.CornerRadius = cr;
                 InnerClipBorder.CornerRadius = cr;
                 NotchBackground.CornerRadius = cr;
@@ -1069,7 +1069,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             var dur = _dur200;
             var easing = _easeExpOut6;
 
-            var widthAnim = new DoubleAnimation(NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _settings.Width, _settings.Width, dur)
+            var widthAnim = new DoubleAnimation(NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth, _collapsedWidth, dur)
             {
                 EasingFunction = easing,
                 FillBehavior = FillBehavior.Stop
@@ -1078,10 +1078,10 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             widthAnim.Completed += (s, e) =>
             {
                 NotchBorder.BeginAnimation(WidthProperty, null);
-                NotchBorder.Width = _settings.Width;
+                NotchBorder.Width = _collapsedWidth;
             };
 
-            var heightAnim = new DoubleAnimation(NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _settings.Height, _settings.Height, dur)
+            var heightAnim = new DoubleAnimation(NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight, _collapsedHeight, dur)
             {
                 EasingFunction = easing,
                 FillBehavior = FillBehavior.Stop
@@ -1090,7 +1090,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             heightAnim.Completed += (s, e) =>
             {
                 NotchBorder.BeginAnimation(HeightProperty, null);
-                NotchBorder.Height = _settings.Height;
+                NotchBorder.Height = _collapsedHeight;
             };
 
             NotchBorder.BeginAnimation(WidthProperty, widthAnim);
@@ -1098,7 +1098,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
             // Animate corner radius via the dependency property (updates all related borders)
             double currentRadius = NotchBorder.CornerRadius.BottomLeft;
-            double targetRadius = _settings.CornerRadius;
+            double targetRadius = _cornerRadiusCollapsed;
             if (Math.Abs(targetRadius - currentRadius) > 0.5)
             {
                 CurrentCornerRadius = currentRadius;
@@ -1111,7 +1111,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
             else
             {
-                var cr = MakeNotchCornerRadius(_settings.CornerRadius);
+                var cr = MakeNotchCornerRadius(_cornerRadiusCollapsed);
                 NotchBorder.CornerRadius = cr;
                 InnerClipBorder.CornerRadius = cr;
                 NotchBackground.CornerRadius = cr;
@@ -1219,6 +1219,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     }
 
     private const double DynamicIslandTopMargin = 8.0;
+    private const double DynamicIslandCollapsedScale = 1.12;
 
     private void ApplyDynamicIslandLayout()
     {
@@ -1239,6 +1240,48 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         if (RightEar != null) RightEar.Visibility = earVisibility;
         if (LeftShadowEar != null) LeftShadowEar.Visibility = earVisibility;
         if (RightShadowEar != null) RightShadowEar.Visibility = earVisibility;
+
+        ApplyDynamicIslandContentAlignment(islandMode);
+    }
+
+    private void ApplyDynamicIslandContentAlignment(bool islandMode)
+    {
+        if (MusicCompactContent != null)
+        {
+            MusicCompactContent.VerticalAlignment = islandMode ? VerticalAlignment.Center : VerticalAlignment.Top;
+            MusicCompactContent.Margin = islandMode ? new Thickness(8, 0, 8, 0) : new Thickness(8, 4, 8, 4);
+        }
+
+        if (MusicViz != null)
+        {
+            MusicViz.VerticalAlignment = islandMode ? VerticalAlignment.Center : VerticalAlignment.Top;
+            MusicViz.Margin = islandMode ? new Thickness(0, 0, -4, 0) : new Thickness(0, 2.5, -4, 0);
+        }
+
+        if (ClipboardCheckIcon != null)
+        {
+            ClipboardCheckIcon.Margin = islandMode ? new Thickness(2, 0, -2, 0) : new Thickness(2, 4, -2, 0);
+        }
+
+        if (ClipboardCopiedText != null)
+        {
+            ClipboardCopiedText.Margin = islandMode ? new Thickness(0) : new Thickness(0, 4, 0, 0);
+        }
+
+        if (BluetoothNotification?.Children.Count > 0 && BluetoothNotification.Children[0] is FrameworkElement bluetoothContent)
+        {
+            bluetoothContent.Margin = islandMode ? new Thickness(0) : new Thickness(0, 0, 0, 6);
+        }
+
+        if (BluetoothDisconnectNotification?.Children.Count > 0 && BluetoothDisconnectNotification.Children[0] is FrameworkElement bluetoothDisconnectContent)
+        {
+            bluetoothDisconnectContent.Margin = islandMode ? new Thickness(0) : new Thickness(0, 0, 0, 6);
+        }
+
+        if (ChargingNotification?.Children.Count > 0 && ChargingNotification.Children[0] is FrameworkElement chargingContent)
+        {
+            chargingContent.Margin = islandMode ? new Thickness(0) : new Thickness(0, 0, 0, 4);
+        }
     }
 
     #endregion

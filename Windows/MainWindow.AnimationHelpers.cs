@@ -85,7 +85,9 @@ public partial class MainWindow
         }
         CompactHoverInfo.BeginAnimation(OpacityProperty, fadeAnim);
 
-        double radius = isHovered ? 24 : _cornerRadiusCollapsed;
+        double radius = isHovered
+            ? (_settings.EnableDynamicIslandMode ? notchHeight / 2.0 : 24)
+            : _cornerRadiusCollapsed;
         AnimateCornerRadius(radius, duration.TimeSpan);
 
         // Animate compact thumbnail corner radius - reduce when scaled up to avoid looking too round
@@ -421,6 +423,27 @@ public partial class MainWindow
         return _settings.EnableDynamicIslandMode
             ? new CornerRadius(radius, radius, radius, radius)
             : new CornerRadius(0, 0, radius, radius);
+    }
+
+    private double GetCollapsedWidth()
+    {
+        return _settings.EnableDynamicIslandMode
+            ? Math.Round(_settings.Width * DynamicIslandCollapsedScale)
+            : _settings.Width;
+    }
+
+    private double GetCollapsedHeight()
+    {
+        return _settings.EnableDynamicIslandMode
+            ? Math.Round(_settings.Height * DynamicIslandCollapsedScale)
+            : _settings.Height;
+    }
+
+    private double GetCollapsedCornerRadius()
+    {
+        return _settings.EnableDynamicIslandMode
+            ? Math.Max(0, _collapsedHeight / 2.0)
+            : _settings.CornerRadius;
     }
 
     private static void OnCurrentThumbnailAnimationRadiusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
