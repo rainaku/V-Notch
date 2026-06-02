@@ -122,6 +122,7 @@ public event EventHandler? AnimatedClosing;
         LoadSubtitlePriority();
 
         DynamicIslandModeCheck.IsChecked = _settings.EnableDynamicIslandMode;
+        UpdateDynamicIslandDependentControls(_settings.EnableDynamicIslandMode);
 
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
@@ -553,8 +554,19 @@ public event EventHandler? AnimatedClosing;
 
     private void DynamicIslandModeCheck_Changed(object sender, RoutedEventArgs e)
     {
+        UpdateDynamicIslandDependentControls(DynamicIslandModeCheck.IsChecked ?? false);
         if (_isLoadingSettings) return;
         PushLivePreview();
+    }
+
+    private void UpdateDynamicIslandDependentControls(bool islandEnabled)
+    {
+        // Lock the length slider when Dynamic Island mode is off — it only affects the floating pill.
+        if (DynamicIslandWidthSlider == null) return;
+
+        double targetOpacity = islandEnabled ? 1.0 : 0.4;
+        DynamicIslandWidthSlider.IsEnabled = islandEnabled;
+        DynamicIslandWidthSlider.Opacity = targetOpacity;
     }
 
     private void UpdateLyricsDependentControls(bool lyricsEnabled)
@@ -1147,6 +1159,7 @@ private void PushLivePreview()
         LoadSubtitlePriority();
 
         DynamicIslandModeCheck.IsChecked = defaults.EnableDynamicIslandMode;
+        UpdateDynamicIslandDependentControls(defaults.EnableDynamicIslandMode);
 
         HoverExpandCheck.IsChecked = defaults.EnableHoverExpand;
         HoverDelaySlider.Value = defaults.HoverExpandDelay;

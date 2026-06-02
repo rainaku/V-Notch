@@ -425,6 +425,151 @@ public partial class MainWindow
             : new CornerRadius(0, 0, radius, radius);
     }
 
+    // ─── Notch <-> Dynamic Island transition ───
+    // A single eased parameter (0 = notch attached to the top edge, 1 = floating island)
+    // drives width, height, top/bottom corner radius, the detach margin and the ear fade
+    // together so the two states morph into each other instead of snapping.
+
+    private bool _isModeTransitioning;
+    private double _mtNotchW, _mtNotchH, _mtNotchBottomR;
+    private double _mtIslandW, _mtIslandH, _mtIslandR;
+
+    public static readonly DependencyProperty ModeTransitionTProperty =
+        DependencyProperty.Register("ModeTransitionT", typeof(double), typeof(MainWindow),
+            new PropertyMetadata(0.0, OnModeTransitionTChanged));
+
+    public double ModeTransitionT
+    {
+        get => (double)GetValue(ModeTransitionTProperty);
+        set => SetValue(ModeTransitionTProperty, value);
+    }
+
+    private static void OnModeTransitionTChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not MainWindow w) return;
+        double t = (double)e.NewValue;
+
+        double width = w._mtNotchW + (w._mtIslandW - w._mtNotchW) * t;
+        double height = w._mtNotchH + (w._mtIslandH - w._mtNotchH) * t;
+        double topRadius = w._mtIslandR * t;                                  // 0 (notch) -> islandR
+        double bottomRadius = w._mtNotchBottomR + (w._mtIslandR - w._mtNotchBottomR) * t;
+        double marginTop = DynamicIslandTopMargin * t;                        // 0 -> detached
+        double earOpacity = 1.0 - t;                                          // ears fade out toward island
+
+        w.ApplyModeTransitionFrame(width, height, topRadius, bottomRadius, marginTop, earOpacity);
+    }
+
+    private void AnimateModeTransition(int fps)
+    {
+        bool toIsland = _settings.EnableDynamicIslandMode;
+
+        // Endpoints are independent of the current mode (both derived from the base settings).
+        _mtNotchW = _settings.Width;
+        _mtNotchH = _settings.Height;
+        _mtNotchBottomR = _settings.CornerRadius;
+
+        _mtIslandH = Math.Round(_settings.Height * DynamicIslandCollapsedScale);
+        _mtIslandW = _settings.DynamicIslandWidth;
+        _mtIslandR = Math.Max(0, _mtIslandH / 2.0);
+
+        _isModeTransitioning = true;
+
+        // Ears must be present to fade; opacity is driven by the animation frame.
+        if (LeftEar != null) LeftEar.Visibility = Visibility.Visible;
+        if (RightEar != null) RightEar.Visibility = Visibility.Visible;
+        if (LeftShadowEar != null) LeftShadowEar.Visibility = Visibility.Visible;
+        if (RightShadowEar != null) RightShadowEar.Visibility = Visibility.Visible;
+
+        // Clear any held size/corner animations so our per-frame writes take effect.
+        NotchBorder.BeginAnimation(WidthProperty, null);
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        this.BeginAnimation(CurrentCornerRadiusProperty, null);
+
+        double from = toIsland ? 0.0 : 1.0;
+        double to = toIsland ? 1.0 : 0.0;
+        // Base value = destination so that when the animation stops (FillBehavior.Stop) the
+        // property reverts to the end state, not the start — the explicit From/To still starts
+        // the visible animation at `from`, and no render happens before BeginAnimation overrides it.
+        ModeTransitionT = to;
+
+        var anim = new DoubleAnimation(from, to, _dur450)
+        {
+            EasingFunction = _easeExpOut6,
+            FillBehavior = FillBehavior.Stop
+        };
+        Timeline.SetDesiredFrameRate(anim, fps);
+        anim.Completed += (s, e) =>
+        {
+            this.BeginAnimation(ModeTransitionTProperty, null);
+            FinalizeModeTransition(toIsland);
+        };
+        this.BeginAnimation(ModeTransitionTProperty, anim);
+    }
+
+    private void ApplyModeTransitionFrame(double width, double height, double topRadius, double bottomRadius, double marginTop, double earOpacity)
+    {
+        NotchBorder.Width = width;
+        NotchBorder.Height = height;
+
+        var cr = new CornerRadius(topRadius, topRadius, bottomRadius, bottomRadius);
+        NotchBorder.CornerRadius = cr;
+        InnerClipBorder.CornerRadius = cr;
+        NotchBackground.CornerRadius = cr;
+        MediaBackground.CornerRadius = cr;
+        MediaBackground2.CornerRadius = cr;
+        NotchBorderShadow.CornerRadius = cr;
+
+        if (NotchContainer != null)
+        {
+            var m = NotchContainer.Margin;
+            if (Math.Abs(m.Top - marginTop) > 0.001)
+            {
+                NotchContainer.Margin = new Thickness(m.Left, marginTop, m.Right, m.Bottom);
+            }
+        }
+
+        if (LeftEar != null) LeftEar.Opacity = earOpacity;
+        if (RightEar != null) RightEar.Opacity = earOpacity;
+        if (LeftShadowEar != null) LeftShadowEar.Opacity = earOpacity;
+        if (RightShadowEar != null) RightShadowEar.Opacity = earOpacity;
+
+        UpdateNotchClip();
+    }
+
+    private void FinalizeModeTransition(bool toIsland)
+    {
+        _isModeTransitioning = false;
+
+        // Snap to the exact destination values so subsequent expand/collapse uses correct geometry.
+        NotchBorder.Width = _collapsedWidth;
+        NotchBorder.Height = _collapsedHeight;
+
+        var cr = MakeNotchCornerRadius(_cornerRadiusCollapsed);
+        NotchBorder.CornerRadius = cr;
+        InnerClipBorder.CornerRadius = cr;
+        NotchBackground.CornerRadius = cr;
+        MediaBackground.CornerRadius = cr;
+        MediaBackground2.CornerRadius = cr;
+        NotchBorderShadow.CornerRadius = cr;
+        CurrentCornerRadius = _cornerRadiusCollapsed;
+
+        if (NotchContainer != null)
+        {
+            var m = NotchContainer.Margin;
+            NotchContainer.Margin = new Thickness(m.Left, toIsland ? DynamicIslandTopMargin : 0, m.Right, m.Bottom);
+        }
+
+        // Reset ear opacity and snap visibility to the destination state.
+        var earVis = toIsland ? Visibility.Collapsed : Visibility.Visible;
+        if (LeftEar != null) { LeftEar.Opacity = 1; LeftEar.Visibility = earVis; }
+        if (RightEar != null) { RightEar.Opacity = 1; RightEar.Visibility = earVis; }
+        if (LeftShadowEar != null) { LeftShadowEar.Opacity = 1; LeftShadowEar.Visibility = earVis; }
+        if (RightShadowEar != null) { RightShadowEar.Opacity = 1; RightShadowEar.Visibility = earVis; }
+
+        UpdateNotchClip();
+        UpdateMediaBackgroundFootprint();
+    }
+
     private double GetCollapsedWidth()
     {
         return _settings.EnableDynamicIslandMode

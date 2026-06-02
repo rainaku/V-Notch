@@ -84,6 +84,7 @@ public partial class MainWindow : Window
     private bool _pendingStartupClickToggle = false;
     private double _collapsedWidth;
     private double _collapsedHeight;
+    private bool _modeTransitionPending;
     private double _expandedWidth = 480;
     private double _expandedHeight = 146;
     private double _cornerRadiusCollapsed;
@@ -936,6 +937,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
             bool languageChanged = newSettings.Language != _settings.Language;
+            // Detect a notch <-> Dynamic Island switch so ApplySettings can animate the transition.
+            _modeTransitionPending = newSettings.EnableDynamicIslandMode != _settings.EnableDynamicIslandMode;
             string oldSubtitlePriority = _settings.SubtitlePriority ?? "";
             _settings = newSettings.Clone();
             _notchManager.UpdateSettings(_settings);
@@ -1037,7 +1040,14 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         _cornerRadiusCollapsed = GetCollapsedCornerRadius();
         _cachedThumbnailExpandTarget = null;
 
-        ApplyDynamicIslandLayout();
+        // A notch <-> Dynamic Island switch is animated only when collapsed and already laid out.
+        bool willModeTransition = _modeTransitionPending
+                                  && !_isExpanded && !_isAnimating
+                                  && NotchBorder.ActualWidth > 0 && NotchBorder.ActualHeight > 0;
+        _modeTransitionPending = false;
+
+        // When transitioning, the margin/ears are animated by AnimateModeTransition rather than snapped.
+        ApplyDynamicIslandLayout(animateTransition: willModeTransition);
 
         // Only update visual dimensions when collapsed to avoid a 1-frame glitch
         if (!_isExpanded && !_isAnimating)
@@ -1063,6 +1073,14 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                 NotchBorderShadow.CornerRadius = cr;
                 MediaBackground.CornerRadius = cr;
                 MediaBackground2.CornerRadius = cr;
+            }
+            else if (willModeTransition)
+            {
+                AnimateModeTransition(fps);
+            }
+            else if (_isModeTransitioning)
+            {
+                // A mode transition is already in flight; let it own the geometry until it finalizes.
             }
             else
             {
@@ -1222,25 +1240,30 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     private const double DynamicIslandTopMargin = 8.0;
     private const double DynamicIslandCollapsedScale = 1.12;
 
-    private void ApplyDynamicIslandLayout()
+    private void ApplyDynamicIslandLayout(bool animateTransition = false)
     {
         bool islandMode = _settings.EnableDynamicIslandMode;
 
-        if (NotchContainer != null)
+        // During a notch <-> island switch the top margin and ears are driven by AnimateModeTransition,
+        // so skip the instant snap here and let the animation own them until it finalizes.
+        if (!animateTransition)
         {
-            var current = NotchContainer.Margin;
-            double targetTop = islandMode ? DynamicIslandTopMargin : 0;
-            if (Math.Abs(current.Top - targetTop) > 0.01)
+            if (NotchContainer != null)
             {
-                NotchContainer.Margin = new Thickness(current.Left, targetTop, current.Right, current.Bottom);
+                var current = NotchContainer.Margin;
+                double targetTop = islandMode ? DynamicIslandTopMargin : 0;
+                if (Math.Abs(current.Top - targetTop) > 0.01)
+                {
+                    NotchContainer.Margin = new Thickness(current.Left, targetTop, current.Right, current.Bottom);
+                }
             }
-        }
 
-        var earVisibility = islandMode ? Visibility.Collapsed : Visibility.Visible;
-        if (LeftEar != null) LeftEar.Visibility = earVisibility;
-        if (RightEar != null) RightEar.Visibility = earVisibility;
-        if (LeftShadowEar != null) LeftShadowEar.Visibility = earVisibility;
-        if (RightShadowEar != null) RightShadowEar.Visibility = earVisibility;
+            var earVisibility = islandMode ? Visibility.Collapsed : Visibility.Visible;
+            if (LeftEar != null) LeftEar.Visibility = earVisibility;
+            if (RightEar != null) RightEar.Visibility = earVisibility;
+            if (LeftShadowEar != null) LeftShadowEar.Visibility = earVisibility;
+            if (RightShadowEar != null) RightShadowEar.Visibility = earVisibility;
+        }
 
         ApplyDynamicIslandContentAlignment(islandMode);
     }
