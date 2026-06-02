@@ -7,29 +7,35 @@ namespace VNotch.Services;
 /// <summary>
 /// Central source for the animation frame rate. Animations across the app cap their
 /// <see cref="System.Windows.Media.Animation.Timeline.DesiredFrameRateProperty"/> to
-/// <see cref="TargetFps"/> so the WPF render thread never produces more frames than the
-/// active display can show. On a 60 Hz panel this roughly halves render/GPU load versus
-/// the previous hardcoded 120/144; on high-refresh panels behavior is unchanged.
+/// <see cref="TargetFps"/> so users can trade motion smoothness for lower render/GPU load.
 /// </summary>
 internal static class AnimationConfig
 {
     // Floor keeps motion smooth if a panel reports an odd low rate; ceiling matches the
     // previous hardcoded maximum so high-refresh users see no change.
-    private const int MinFps = 60;
-    private const int MaxFps = 144;
+    public const int MinFps = 60;
+    public const int MaxFps = 144;
     private const int FallbackFps = 144;
 
     private static int _targetFps = FallbackFps;
+    private static int _configuredFps = FallbackFps;
     private static string? _deviceName;
     private static bool _hooked;
 
-    /// <summary>Frame rate cap all animations should use, derived from the active monitor.</summary>
+    /// <summary>Frame rate cap all animations should use.</summary>
     public static int TargetFps => _targetFps;
 
+    /// <summary>Apply the user-selected animation frame cap.</summary>
+    public static void Configure(int animationFps)
+    {
+        _configuredFps = Math.Clamp(animationFps, MinFps, MaxFps);
+        Recompute();
+    }
+
     /// <summary>
-    /// Recompute <see cref="TargetFps"/> from the given monitor's refresh rate.
-    /// Pass the WinForms <c>Screen.DeviceName</c> of the monitor the notch lives on
-    /// (null uses the primary display). Also subscribes to display-setting changes once.
+    /// Recompute <see cref="TargetFps"/> and subscribe to display-setting changes once.
+    /// The device name is kept so older call sites can still notify this config when the
+    /// notch monitor changes.
     /// </summary>
     public static void Refresh(string? deviceName = null)
     {
@@ -46,9 +52,7 @@ internal static class AnimationConfig
 
     private static void Recompute()
     {
-        _targetFps = DetectRefreshHz(_deviceName) is int hz && hz > 0
-            ? Math.Clamp(hz, MinFps, MaxFps)
-            : FallbackFps;
+        _targetFps = Math.Clamp(_configuredFps, MinFps, MaxFps);
     }
 
     private static int? DetectRefreshHz(string? deviceName)

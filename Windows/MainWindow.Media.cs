@@ -185,13 +185,14 @@ public partial class MainWindow
                     }
                     else
                     {
-                        var transitionBlur = new DoubleAnimation(0, 12, TimeSpan.FromMilliseconds(300))
+                        double transitionBlurRadius = _settings.EnableBlurEffects ? 12 : 0;
+                        var transitionBlur = new DoubleAnimation(0, transitionBlurRadius, TimeSpan.FromMilliseconds(300))
                         {
                             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
                         };
                         ThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, transitionBlur);
                         CompactThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty,
-                            new DoubleAnimation(0, 6, TimeSpan.FromMilliseconds(300))
+                            new DoubleAnimation(0, _settings.EnableBlurEffects ? 6 : 0, TimeSpan.FromMilliseconds(300))
                             {
                                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
                             });
@@ -300,8 +301,8 @@ public partial class MainWindow
         var overlap    = TimeSpan.FromMilliseconds(180); // when the new layer starts
         var totalDur   = overlap + inDur;
 
-        const double expandedPeakBlur = 18.0;
-        const double compactPeakBlur  = 6.0;
+        double expandedPeakBlur = _settings.EnableBlurEffects ? 18.0 : 0.0;
+        double compactPeakBlur  = _settings.EnableBlurEffects ? 6.0 : 0.0;
 
         var quintOut  = new QuinticEase  { EasingMode = EasingMode.EaseOut };
         var cubicOut  = new CubicEase    { EasingMode = EasingMode.EaseOut };

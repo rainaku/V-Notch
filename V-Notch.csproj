@@ -79,6 +79,7 @@
     <Resource Include="Assets\pause-button.svg" />
     <Resource Include="Assets\play-button.svg" />
     <Resource Include="Assets\play-and-pause.svg" />
+    <Resource Include="Assets\QR.PNG" />
     <Resource Include="Assets\update-button.svg" />
   </ItemGroup>
 

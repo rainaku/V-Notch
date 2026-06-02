@@ -1018,6 +1018,9 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void ApplySettings(bool animatePulse = false)
     {
+        VNotch.Services.AnimationConfig.Configure(_settings.AnimationFps);
+        ApplyPerformanceSettings();
+
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
         _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
 
@@ -1224,6 +1227,81 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         {
             SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
         }
+    }
+
+    private void ApplyPerformanceSettings()
+    {
+        if (_settings.EnableBlurEffects)
+        {
+            return;
+        }
+
+        DisableBlurEffectsImmediate();
+    }
+
+    private void DisableBlurEffectsImmediate()
+    {
+        _blurDissolveDebounce?.Stop();
+        _pendingBlurResult = null;
+        _lastBlurThumbnailRef = null;
+        _blurTaskVersion++;
+        _blurCrossfadeVersion++;
+
+        ResetBlur(ExpandedContentBlur);
+        ResetBlur(CollapsedContentBlur);
+        ResetBlur(MusicCompactContentBlur);
+        ResetBlur(CompactThumbnailOutBlur);
+        ResetBlur(CompactThumbnailNextBlur);
+        ResetBlur(ThumbnailOutBlur);
+        ResetBlur(ThumbnailNextBlur);
+        ResetBlur(CalendarGreetingContextBlur);
+        ResetBlur(CameraPreviewBlur);
+        ResetBlur(_mediaControlsHoverBlur);
+
+        MediaControls.Effect = null;
+        TimerContent.Effect = null;
+        ExpandedContent.Effect = null;
+        SecondaryContent.Effect = null;
+
+        MediaBackground.BeginAnimation(OpacityProperty, null);
+        MediaBackground2.BeginAnimation(OpacityProperty, null);
+        MediaBackground.Opacity = 0;
+        MediaBackground2.Opacity = 0;
+        MediaBackground.Visibility = Visibility.Collapsed;
+        MediaBackground2.Visibility = Visibility.Collapsed;
+
+        MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
+        MediaBackgroundImage.Source = null;
+        MediaBackgroundImage2.Source = null;
+        MediaBackgroundImageBack.Source = null;
+        MediaBackgroundImageBack2.Source = null;
+        MediaBackgroundImage.Opacity = 0;
+        MediaBackgroundImage2.Opacity = 0;
+        MediaBackgroundImageBack.Opacity = 0;
+        MediaBackgroundImageBack2.Opacity = 0;
+
+        BrightnessDimOverlay.BeginAnimation(OpacityProperty, null);
+        BrightnessDimOverlay2.BeginAnimation(OpacityProperty, null);
+        BrightnessDimOverlay.Opacity = 0;
+        BrightnessDimOverlay2.Opacity = 0;
+
+        if (LyricsBlurBackground != null)
+        {
+            LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
+            LyricsBlurBackground.Opacity = 0;
+            LyricsBlurBackground.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private static void ResetBlur(BlurEffect? effect)
+    {
+        if (effect == null) return;
+
+        effect.BeginAnimation(BlurEffect.RadiusProperty, null);
+        effect.Radius = 0;
     }
 
     private void RefreshNotchLocalization()

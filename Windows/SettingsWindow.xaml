@@ -758,6 +758,16 @@
                                            Foreground="#AAAAAA" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
+                        <!-- Performance -->
+                        <Border x:Name="NavPerformance" Style="{StaticResource NavButton}"
+                                MouseLeftButtonDown="Nav_Click" Tag="Performance">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE950;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                           Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="NavPerformanceText" Text="Performance" FontSize="13" FontWeight="Bold"
+                                           Foreground="#AAAAAA" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
                         <!-- Updates -->
                         <Border x:Name="NavUpdates" Style="{StaticResource NavButton}"
                                 MouseLeftButtonDown="Nav_Click" Tag="Updates">
@@ -765,6 +775,20 @@
                                 <TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                            Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <TextBlock x:Name="NavUpdatesText" Text="Updates" FontSize="13" FontWeight="Bold"
+                                           Foreground="#AAAAAA" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <!-- Donating -->
+                        <Border x:Name="NavDonating" Style="{StaticResource NavButton}"
+                                MouseLeftButtonDown="Nav_Click" Tag="Donating">
+                            <StackPanel Orientation="Horizontal">
+                                <Viewbox Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <Canvas Width="512" Height="512">
+                                        <Path Fill="#AAAAAA" Data="M432,64H96A16,16,0,0,0,80,80V272a96.11,96.11,0,0,0,96,96H288a96.11,96.11,0,0,0,96-96V192h18a62.07,62.07,0,0,0,62-62V96A32,32,0,0,0,432,64Zm0,66a30,30,0,0,1-30,30H384V96h48Z"/>
+                                        <Path Fill="#AAAAAA" Data="M400,400H64a16,16,0,0,0,0,32H400a16,16,0,0,0,0-32Z"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock x:Name="NavDonatingText" Text="Donating" FontSize="13" FontWeight="Bold"
                                            Foreground="#AAAAAA" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
@@ -1314,6 +1338,149 @@
                                                            Margin="0,6,0,0"/>
                                             </StackPanel>
                                         </Border>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ===== PERFORMANCE PANEL ===== -->
+                            <StackPanel x:Name="PanelPerformance" Visibility="Collapsed">
+                                <Border x:Name="PerformanceCard" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,6" Opacity="0">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="PerformanceCardTranslate" Y="12"/>
+                                    </Border.RenderTransform>
+                                    <StackPanel>
+                                        <TextBlock x:Name="PerformanceHeader" Text="PERFORMANCE" Style="{StaticResource SectionHeader}"/>
+
+                                        <Border Style="{StaticResource SettingRowBorder}">
+                                            <StackPanel>
+                                                <TextBlock x:Name="AnimationFpsLabel" Text="Animation FPS" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                                <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                                    <Run x:Name="AnimationFpsValue" Text="144"/><Run Text=" FPS"/>
+                                                </TextBlock>
+                                                <TextBlock x:Name="AnimationFpsHint" Visibility="Collapsed"/>
+                                                <controls:ElasticSlider x:Name="AnimationFpsSlider"
+                                                        Label="Animation FPS" Unit=" FPS"
+                                                        Description="Cap UI animation frame rate. Lower values reduce render/GPU load."
+                                                        Minimum="60"
+                                                        Maximum="144"
+                                                        Value="144"
+                                                        TickFrequency="12"
+                                                        IsSnapToTickEnabled="False"
+                                                        ValueChanged="AnimationFpsSlider_ValueChanged"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,4,0,4">
+                                            <StackPanel>
+                                                <CheckBox x:Name="EnableBlurEffectsCheck"
+                                                          Content="Enable blur effects"
+                                                          Checked="PerformanceSetting_Changed"
+                                                          Unchecked="PerformanceSetting_Changed"/>
+                                                <TextBlock x:Name="EnableBlurEffectsHint"
+                                                           Text="Use media background blur, content transition blur, and other visual blur effects."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border x:Name="SubjectBlurRow" Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <CheckBox x:Name="EnableSubjectBlurCheck"
+                                                          Content="Subject-aware media blur"
+                                                          Checked="PerformanceSetting_Changed"
+                                                          Unchecked="PerformanceSetting_Changed"/>
+                                                <TextBlock x:Name="EnableSubjectBlurHint"
+                                                           Text="Keeps media subjects clearer inside the blurred background. Disable it for a cheaper blur pass."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <CheckBox x:Name="EnableSmartCropCheck"
+                                                          Content="Smart thumbnail crop"
+                                                          Checked="PerformanceSetting_Changed"
+                                                          Unchecked="PerformanceSetting_Changed"/>
+                                                <TextBlock x:Name="EnableSmartCropHint"
+                                                           Text="Use the ONNX model to find better thumbnail crops. Disable it to avoid the heavier image-analysis path."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ===== DONATING PANEL ===== -->
+                            <StackPanel x:Name="PanelDonating" Visibility="Collapsed">
+                                <Border x:Name="DonatingCard" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,6" Opacity="0">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="DonatingCardTranslate" Y="12"/>
+                                    </Border.RenderTransform>
+                                    <StackPanel>
+                                        <TextBlock x:Name="DonatingHeader" Text="DONATING" Style="{StaticResource SectionHeader}"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="196"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" Margin="0,0,22,0">
+                                                <TextBlock x:Name="DonatingTitle"
+                                                           Text="Thank you for supporting V-Notch"
+                                                           Style="{StaticResource SettingTitleText}"
+                                                           FontSize="16"
+                                                           TextWrapping="Wrap"/>
+                                                <TextBlock x:Name="DonatingDescription"
+                                                           Text="V-Notch is 100% non-profit. Donations help cover the costs that let me stay focused and keep maintaining this product."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           FontSize="12.5"
+                                                           LineHeight="18"
+                                                           Margin="0,8,0,0"/>
+
+                                                <Button x:Name="DonatePaypalButton"
+                                                        Content="Support via PayPal"
+                                                        Style="{StaticResource PrimaryButton}"
+                                                        Click="DonatePaypal_Click"
+                                                        HorizontalAlignment="Left"
+                                                        MinWidth="174"
+                                                        Height="40"
+                                                        Margin="0,18,0,0"/>
+
+                                                <TextBlock x:Name="DonatePaypalLinkText"
+                                                           Text="https://www.paypal.com/paypalme/PhuocLe678"
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Foreground="#A8B3C3"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,8,0,0"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                                <TextBlock x:Name="DonatingBankTitle"
+                                                           Text="Domestic MB Bank QR"
+                                                           Style="{StaticResource SettingTitleText}"
+                                                           TextAlignment="Center"
+                                                           HorizontalAlignment="Center"/>
+                                                <Border Width="176"
+                                                        Height="176"
+                                                        Background="White"
+                                                        CornerRadius="12"
+                                                        Padding="8"
+                                                        Margin="0,10,0,0">
+                                                    <Image Source="pack://application:,,,/Assets/QR.PNG"
+                                                           Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Border>
+                                                <TextBlock x:Name="DonatingBankHint"
+                                                           Text="Scan this QR for domestic bank support."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Width="176"
+                                                           TextAlignment="Center"
+                                                           Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

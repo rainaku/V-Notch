@@ -46,4 +46,21 @@ public class SettingsMigratorTests
 
         Assert.Equal(260, settings.DynamicIslandWidth);
     }
+
+    [Fact]
+    public void Migrate_Version4_AddsPerformanceDefaults()
+    {
+        const string rawJson = """
+            {
+              "SettingsVersion": 4
+            }
+            """;
+
+        var (settings, migrated) = SettingsMigrator.Migrate(rawJson);
+
+        Assert.True(migrated);
+        Assert.Equal(SettingsMigrator.CurrentVersion, settings.SettingsVersion);
+        Assert.True(settings.EnableBlurEffects);
+        Assert.Equal(144, settings.AnimationFps);
+    }
 }

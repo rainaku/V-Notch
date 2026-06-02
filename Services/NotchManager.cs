@@ -51,6 +51,7 @@ public class NotchManager : INotchManager
         _settings = settings;
         _originalWidth = settings.Width;
         _originalHeight = settings.Height;
+        AnimationConfig.Configure(settings.AnimationFps);
 
         if (settings.EnableHoverExpand && !oldHoverEnabled)
         {

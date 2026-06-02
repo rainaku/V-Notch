@@ -49,6 +49,7 @@ public partial class App : Application
         var earlySettings = new SettingsService();
         var loadedSettings = earlySettings.Load();
         Loc.SetLanguage(loadedSettings.Language);
+        AnimationConfig.Configure(loadedSettings.AnimationFps);
 
         // ─── Global Error Handlers ───
         DispatcherUnhandledException += (s, args) =>

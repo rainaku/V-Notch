@@ -115,7 +115,7 @@ public partial class MainWindow
 
         var expandedBlur = ExpandedContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         ExpandedContent.Effect = expandedBlur;
-        var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
+        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 10 : 0, durOut, _easeQuadIn);
 
         fadeOut.Completed += (s, ev) =>
         {
@@ -240,7 +240,7 @@ public partial class MainWindow
 
         var secondaryBlur = SecondaryContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         SecondaryContent.Effect = secondaryBlur;
-        var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
+        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 10 : 0, durOut, _easeQuadIn);
 
         fadeOut.Completed += (s, ev) =>
         {
@@ -411,7 +411,7 @@ public partial class MainWindow
             // Restore blur background and lyrics background
             ShowMediaBackground();
 
-            if (_isLyricsActive && LyricsBlurBackground != null)
+            if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;
@@ -496,7 +496,7 @@ public partial class MainWindow
 
         var timerBlur = TimerContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         TimerContent.Effect = timerBlur;
-        var blurOutAnim = MakeAnim(0, 10, durOut, _easeQuadIn);
+        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 10 : 0, durOut, _easeQuadIn);
 
         fadeOut.Completed += (s, ev) =>
         {

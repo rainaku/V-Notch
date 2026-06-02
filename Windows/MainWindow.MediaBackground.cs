@@ -29,6 +29,12 @@ public partial class MainWindow
 
     private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
+        if (!_settings.EnableBlurEffects)
+        {
+            HideMediaBackground();
+            return;
+        }
+
         if (info == null || !info.IsAnyMediaPlaying)
         {
             HideMediaBackground();
@@ -433,6 +439,7 @@ public partial class MainWindow
 
     private void ShowMediaBackground()
     {
+        if (!_settings.EnableBlurEffects) return;
         if (!_isExpanded || _isAnimating || _currentMediaInfo == null) return;
 
         MediaBackground.BeginAnimation(OpacityProperty, null);
@@ -470,6 +477,11 @@ public partial class MainWindow
 
     private void EnsureMediaBackgroundVisible(int recoveryVersion)
     {
+        if (!_settings.EnableBlurEffects)
+        {
+            return;
+        }
+
         if (recoveryVersion != _mediaBackgroundRecoveryVersion)
         {
             return;
@@ -515,6 +527,11 @@ public partial class MainWindow
     {
         try
         {
+            if (!_settings.EnableBlurEffects)
+            {
+                return;
+            }
+
             if (ReferenceEquals(thumbnail, _lastBlurThumbnailRef))
             {
                 return;

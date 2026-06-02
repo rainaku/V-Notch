@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
     
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
@@ -56,6 +56,18 @@ public static class SettingsMigrator
                     }
 
                     root[nameof(NotchSettings.DynamicIslandWidth)] = (int)Math.Round(width * 1.12 / 10.0) * 10;
+                }
+                return root;
+            },
+            [4] = root =>
+            {
+                if (!root.ContainsKey(nameof(NotchSettings.EnableBlurEffects)))
+                {
+                    root[nameof(NotchSettings.EnableBlurEffects)] = true;
+                }
+                if (!root.ContainsKey(nameof(NotchSettings.AnimationFps)))
+                {
+                    root[nameof(NotchSettings.AnimationFps)] = 144;
                 }
                 return root;
             },

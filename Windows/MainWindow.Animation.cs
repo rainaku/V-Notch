@@ -284,9 +284,10 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0.15, _dur200);
 
-        var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
-        var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
-        ExpandedContentBlur.Radius = 24;
+        double contentBlurRadius = _settings.EnableBlurEffects ? 24 : 0;
+        var blurOutAnim = MakeAnim(0, contentBlurRadius, _dur350, _easeQuadIn);
+        var blurInAnim = MakeAnim(contentBlurRadius, 0, _dur500, _easePowerOut3);
+        ExpandedContentBlur.Radius = contentBlurRadius;
 
         if (_isMusicCompactMode && CompactThumbnail.Source != null && !suppressCompactThumbnailMotion)
         {
@@ -383,7 +384,7 @@ public partial class MainWindow
             ShowMediaBackground();
 
             // Show lyrics blur now that layout is stable
-            if (_isLyricsActive && LyricsBlurBackground != null)
+            if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;
@@ -689,11 +690,12 @@ public partial class MainWindow
 
         var glowAnim = MakeAnim(0, _dur150);
 
-        var blurOutAnim = MakeAnim(0, 24, _dur350, _easeQuadIn);
-        var blurInAnim = MakeAnim(24, 0, _dur500, _easePowerOut3);
+        double contentBlurRadius = _settings.EnableBlurEffects ? 24 : 0;
+        var blurOutAnim = MakeAnim(0, contentBlurRadius, _dur350, _easeQuadIn);
+        var blurInAnim = MakeAnim(contentBlurRadius, 0, _dur500, _easePowerOut3);
         
-        CollapsedContentBlur.Radius = 24;
-        MusicCompactContentBlur.Radius = 24;
+        CollapsedContentBlur.Radius = contentBlurRadius;
+        MusicCompactContentBlur.Radius = contentBlurRadius;
 
         if (_isMusicCompactMode && ThumbnailImage.Source != null && !suppressCompactThumbnailMotion)
         {

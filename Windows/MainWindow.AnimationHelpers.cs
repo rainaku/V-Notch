@@ -686,7 +686,7 @@ public partial class MainWindow
     private void AnimateProgressBarHover(bool isHovered)
     {
         double scaleX = isHovered ? 1.04 : 1.0;
-        double blurRadius = isHovered ? 4.0 : 0.0;
+        double blurRadius = _settings.EnableBlurEffects && isHovered ? 4.0 : 0.0;
         double surroundOpacity = isHovered ? 0.45 : 1.0;
         double timeScale = isHovered ? 1.22 : 1.0;
         double timeTranslateY = isHovered ? 3.0 : 0.0;
@@ -755,9 +755,17 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(blurAnim, fps);
         Timeline.SetDesiredFrameRate(dimAnim, fps);
 
-        _mediaControlsHoverBlur ??= new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
-        MediaControls.Effect = _mediaControlsHoverBlur;
-        _mediaControlsHoverBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+        if (_settings.EnableBlurEffects)
+        {
+            _mediaControlsHoverBlur ??= new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+            MediaControls.Effect = _mediaControlsHoverBlur;
+            _mediaControlsHoverBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
+        }
+        else
+        {
+            _mediaControlsHoverBlur?.BeginAnimation(BlurEffect.RadiusProperty, null);
+            MediaControls.Effect = null;
+        }
         MediaControls.BeginAnimation(OpacityProperty, dimAnim);
     }
 

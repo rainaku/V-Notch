@@ -91,7 +91,8 @@ public event EventHandler? AnimatedClosing;
                 // Nav sidebar items are clickable Borders with a Tag
                 if (fe is Border border && border.Tag is string tag &&
                     (tag == "Appearance" || tag == "Behavior" || tag == "Devices" ||
-                     tag == "System" || tag == "Advanced" || tag == "Updates"))
+                     tag == "System" || tag == "Advanced" || tag == "Performance" ||
+                     tag == "Donating" || tag == "Updates"))
                 {
                     return true;
                 }
@@ -114,6 +115,11 @@ public event EventHandler? AnimatedClosing;
         OpacitySlider.Value = _settings.Opacity * 100;
         BlurBrightnessSlider.Value = _settings.MediaBlurBrightnessBoost * 100;
         BlurDarkOverlaySlider.Value = _settings.MediaBlurDarkOverlay * 100;
+        AnimationFpsSlider.Value = _settings.AnimationFps;
+        EnableBlurEffectsCheck.IsChecked = _settings.EnableBlurEffects;
+        EnableSubjectBlurCheck.IsChecked = _settings.EnableSubjectBlur;
+        EnableSmartCropCheck.IsChecked = _settings.EnableSmartCrop;
+        UpdatePerformanceDependentControls(_settings.EnableBlurEffects);
         EnableSpotifyLyricsCheck.IsChecked = _settings.EnableSpotifyLyrics;
         UpdateLyricsDependentControls(_settings.EnableSpotifyLyrics);
         EnableYouTubeSubtitlesCheck.IsChecked = _settings.EnableYouTubeSubtitles;
@@ -181,6 +187,8 @@ public event EventHandler? AnimatedClosing;
         AppearanceHeader.Text = Loc.Get("settings.appearance");
         BehaviorHeader.Text = Loc.Get("settings.behavior");
         UpdatesHeader.Text = Loc.Get("settings.updates");
+        DonatingHeader.Text = Loc.Get("settings.donating");
+        PerformanceHeader.Text = Loc.Get("settings.performance");
         DisplayHeader.Text = Loc.Get("settings.display");
         SystemHeader.Text = Loc.Get("settings.system");
 
@@ -190,6 +198,8 @@ public event EventHandler? AnimatedClosing;
         NavDevicesText.Text = Loc.Get("settings.nav.devices");
         NavSystemText.Text = Loc.Get("settings.nav.system");
         NavAdvancedText.Text = Loc.Get("settings.nav.advanced");
+        NavPerformanceText.Text = Loc.Get("settings.nav.performance");
+        NavDonatingText.Text = Loc.Get("settings.nav.donating");
         NavUpdatesText.Text = Loc.Get("settings.nav.updates");
 
         // Appearance labels & hints
@@ -285,6 +295,24 @@ public event EventHandler? AnimatedClosing;
         YouTubeApiHint.Text = Loc.Get("settings.youtubeApi.hint");
         YouTubeApiKeyLabel.Text = Loc.Get("settings.youtubeApiKey");
         YouTubeApiKeyHint.Text = Loc.Get("settings.youtubeApiKey.hint");
+
+        // Performance
+        AnimationFpsLabel.Text = Loc.Get("settings.animationFps");
+        AnimationFpsSlider.Label = Loc.Get("settings.animationFps");
+        AnimationFpsSlider.Description = Loc.Get("settings.animationFps.hint");
+        EnableBlurEffectsCheck.Content = Loc.Get("settings.enableBlurEffects");
+        EnableBlurEffectsHint.Text = Loc.Get("settings.enableBlurEffects.hint");
+        EnableSubjectBlurCheck.Content = Loc.Get("settings.enableSubjectBlur");
+        EnableSubjectBlurHint.Text = Loc.Get("settings.enableSubjectBlur.hint");
+        EnableSmartCropCheck.Content = Loc.Get("settings.enableSmartCrop");
+        EnableSmartCropHint.Text = Loc.Get("settings.enableSmartCrop.hint");
+
+        // Donating
+        DonatingTitle.Text = Loc.Get("settings.donating.title");
+        DonatingDescription.Text = Loc.Get("settings.donating.description");
+        DonatePaypalButton.Content = Loc.Get("settings.donating.paypal");
+        DonatingBankTitle.Text = Loc.Get("settings.donating.bank");
+        DonatingBankHint.Text = Loc.Get("settings.donating.bank.hint");
     }
 
     #region Slider Value Changed Handlers
@@ -335,6 +363,13 @@ public event EventHandler? AnimatedClosing;
     {
         if (BlurDarkOverlayValue != null)
             BlurDarkOverlayValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
+    }
+
+    private void AnimationFpsSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (AnimationFpsValue != null)
+            AnimationFpsValue.Text = ((int)Math.Round(e.NewValue)).ToString();
         PushLivePreview();
     }
 
@@ -594,6 +629,29 @@ public event EventHandler? AnimatedClosing;
         SubtitlePriorityRow.IsEnabled = subtitlesEnabled;
     }
 
+    private void PerformanceSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        bool blurEnabled = EnableBlurEffectsCheck.IsChecked ?? true;
+        UpdatePerformanceDependentControls(blurEnabled);
+        if (_isLoadingSettings) return;
+        PushLivePreview();
+    }
+
+    private void UpdatePerformanceDependentControls(bool blurEnabled)
+    {
+        if (SubjectBlurRow == null) return;
+
+        SubjectBlurRow.Opacity = blurEnabled ? 1.0 : 0.45;
+        SubjectBlurRow.IsEnabled = blurEnabled;
+
+        double blurSliderOpacity = blurEnabled ? 1.0 : 0.45;
+        if (BlurBrightnessSlider != null)
+        {
+            BlurBrightnessSlider.Opacity = blurSliderOpacity;
+            BlurBrightnessSlider.IsEnabled = blurEnabled;
+        }
+    }
+
     private void HoverDelaySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (HoverDelayValue != null)
@@ -735,6 +793,8 @@ public event EventHandler? AnimatedClosing;
             (AppearanceHeader, () => AppearanceHeader.Text = Loc.Get("settings.appearance")),
             (BehaviorHeader, () => BehaviorHeader.Text = Loc.Get("settings.behavior")),
             (UpdatesHeader, () => UpdatesHeader.Text = Loc.Get("settings.updates")),
+            (DonatingHeader, () => DonatingHeader.Text = Loc.Get("settings.donating")),
+            (PerformanceHeader, () => PerformanceHeader.Text = Loc.Get("settings.performance")),
             (DisplayHeader, () => DisplayHeader.Text = Loc.Get("settings.display")),
             (SystemHeader, () => SystemHeader.Text = Loc.Get("settings.system")),
 
@@ -744,6 +804,8 @@ public event EventHandler? AnimatedClosing;
             (NavDevicesText, () => NavDevicesText.Text = Loc.Get("settings.nav.devices")),
             (NavSystemText, () => NavSystemText.Text = Loc.Get("settings.nav.system")),
             (NavAdvancedText, () => NavAdvancedText.Text = Loc.Get("settings.nav.advanced")),
+            (NavPerformanceText, () => NavPerformanceText.Text = Loc.Get("settings.nav.performance")),
+            (NavDonatingText, () => NavDonatingText.Text = Loc.Get("settings.nav.donating")),
             (NavUpdatesText, () => NavUpdatesText.Text = Loc.Get("settings.nav.updates")),
 
             // Appearance
@@ -795,10 +857,24 @@ public event EventHandler? AnimatedClosing;
             (YouTubeApiHint, () => YouTubeApiHint.Text = Loc.Get("settings.youtubeApi.hint")),
             (YouTubeApiKeyLabel, () => YouTubeApiKeyLabel.Text = Loc.Get("settings.youtubeApiKey")),
             (YouTubeApiKeyHint, () => YouTubeApiKeyHint.Text = Loc.Get("settings.youtubeApiKey.hint")),
+
+            // Performance
+            (AnimationFpsLabel, () => { AnimationFpsLabel.Text = Loc.Get("settings.animationFps"); AnimationFpsSlider.Label = Loc.Get("settings.animationFps"); AnimationFpsSlider.Description = Loc.Get("settings.animationFps.hint"); }),
+            (EnableBlurEffectsHint, () => EnableBlurEffectsHint.Text = Loc.Get("settings.enableBlurEffects.hint")),
+            (EnableSubjectBlurHint, () => EnableSubjectBlurHint.Text = Loc.Get("settings.enableSubjectBlur.hint")),
+            (EnableSmartCropHint, () => EnableSmartCropHint.Text = Loc.Get("settings.enableSmartCrop.hint")),
+
+            // Donating
+            (DonatingTitle, () => DonatingTitle.Text = Loc.Get("settings.donating.title")),
+            (DonatingDescription, () => DonatingDescription.Text = Loc.Get("settings.donating.description")),
+            (DonatingBankTitle, () => DonatingBankTitle.Text = Loc.Get("settings.donating.bank")),
+            (DonatingBankHint, () => DonatingBankHint.Text = Loc.Get("settings.donating.bank.hint")),
         };
 
         // Also update buttons (ContentControl-based, animate parent)
         AnimateContentChange(CheckUpdateButton, () => CheckUpdateButton.Content = Loc.Get("settings.checkUpdate"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(DonatePaypalButton, () => DonatePaypalButton.Content = Loc.Get("settings.donating.paypal"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(ResetButton, () => ResetButton.Content = Loc.Get("settings.btn.reset"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
@@ -835,6 +911,12 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(EnableSpotifyLyricsCheck, () => EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(EnableYouTubeSubtitlesCheck, () => EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(EnableBlurEffectsCheck, () => EnableBlurEffectsCheck.Content = Loc.Get("settings.enableBlurEffects"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(EnableSubjectBlurCheck, () => EnableSubjectBlurCheck.Content = Loc.Get("settings.enableSubjectBlur"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(EnableSmartCropCheck, () => EnableSmartCropCheck.Content = Loc.Get("settings.enableSmartCrop"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
 
         foreach (var (element, update) in textUpdates)
@@ -1150,6 +1232,11 @@ private void PushLivePreview()
         OpacitySlider.Value = defaults.Opacity * 100;
         BlurBrightnessSlider.Value = defaults.MediaBlurBrightnessBoost * 100;
         BlurDarkOverlaySlider.Value = defaults.MediaBlurDarkOverlay * 100;
+        AnimationFpsSlider.Value = defaults.AnimationFps;
+        EnableBlurEffectsCheck.IsChecked = defaults.EnableBlurEffects;
+        EnableSubjectBlurCheck.IsChecked = defaults.EnableSubjectBlur;
+        EnableSmartCropCheck.IsChecked = defaults.EnableSmartCrop;
+        UpdatePerformanceDependentControls(defaults.EnableBlurEffects);
         EnableSpotifyLyricsCheck.IsChecked = defaults.EnableSpotifyLyrics;
         EnableYouTubeSubtitlesCheck.IsChecked = defaults.EnableYouTubeSubtitles;
         UpdateLyricsDependentControls(defaults.EnableSpotifyLyrics);
@@ -1221,6 +1308,15 @@ private void RevertLivePreviewIfNeeded()
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = "https://www.facebook.com/rain.107/",
+            UseShellExecute = true
+        });
+    }
+
+    private void DonatePaypal_Click(object sender, RoutedEventArgs e)
+    {
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "https://www.paypal.com/paypalme/PhuocLe678",
             UseShellExecute = true
         });
     }
@@ -1364,6 +1460,8 @@ private void CloseWithAnimation()
             "Devices" => DisplayCard,
             "System" => SystemCard,
             "Advanced" => AdvancedCard,
+            "Performance" => PerformanceCard,
+            "Donating" => DonatingCard,
             "Updates" => UpdatesCard,
             _ => null
         };
@@ -1374,6 +1472,8 @@ private void CloseWithAnimation()
             "Devices" => DisplayCardTranslate,
             "System" => SystemCardTranslate,
             "Advanced" => AdvancedCardTranslate,
+            "Performance" => PerformanceCardTranslate,
+            "Donating" => DonatingCardTranslate,
             "Updates" => UpdatesCardTranslate,
             _ => null
         };
@@ -1502,6 +1602,10 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.Opacity = OpacitySlider.Value / 100.0;
         _settings.MediaBlurBrightnessBoost = BlurBrightnessSlider.Value / 100.0;
         _settings.MediaBlurDarkOverlay = BlurDarkOverlaySlider.Value / 100.0;
+        _settings.AnimationFps = (int)Math.Round(AnimationFpsSlider.Value);
+        _settings.EnableBlurEffects = EnableBlurEffectsCheck.IsChecked ?? true;
+        _settings.EnableSubjectBlur = EnableSubjectBlurCheck.IsChecked ?? true;
+        _settings.EnableSmartCrop = EnableSmartCropCheck.IsChecked ?? true;
         _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
         _settings.EnableYouTubeSubtitles = EnableYouTubeSubtitlesCheck.IsChecked ?? true;
 
@@ -1665,6 +1769,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _navPanels["Devices"] = PanelDevices;
         _navPanels["System"] = PanelSystem;
         _navPanels["Advanced"] = PanelAdvanced;
+        _navPanels["Performance"] = PanelPerformance;
+        _navPanels["Donating"] = PanelDonating;
         _navPanels["Updates"] = PanelUpdates;
 
         _navButtons["Appearance"] = NavAppearance;
@@ -1672,6 +1778,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _navButtons["Devices"] = NavDevices;
         _navButtons["System"] = NavSystem;
         _navButtons["Advanced"] = NavAdvanced;
+        _navButtons["Performance"] = NavPerformance;
+        _navButtons["Donating"] = NavDonating;
         _navButtons["Updates"] = NavUpdates;
     }
 
@@ -1733,6 +1841,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             "Devices" => DisplayCard,
             "System" => SystemCard,
             "Advanced" => AdvancedCard,
+            "Performance" => PerformanceCard,
+            "Donating" => DonatingCard,
             "Updates" => UpdatesCard,
             _ => null
         };
@@ -1744,6 +1854,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             "Devices" => DisplayCardTranslate,
             "System" => SystemCardTranslate,
             "Advanced" => AdvancedCardTranslate,
+            "Performance" => PerformanceCardTranslate,
+            "Donating" => DonatingCardTranslate,
             "Updates" => UpdatesCardTranslate,
             _ => null
         };
@@ -1810,7 +1922,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         if (string.IsNullOrEmpty(query)) return;
 
         // Search: show all panels that have matching content, hide others
-        var matchedSections = new List<string>(6);
+        var matchedSections = new List<string>(8);
         var searchItems = _cachedSearchItems ??= BuildSearchableItems();
 
         foreach (var item in searchItems)
@@ -1947,6 +2059,32 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             new("Advanced", "lyrics"),
             new("Advanced", "subtitle"),
             new("Advanced", "API"),
+
+            // Performance
+            new("Performance", Loc.Get("settings.nav.performance")),
+            new("Performance", Loc.Get("settings.performance")),
+            new("Performance", Loc.Get("settings.animationFps")),
+            new("Performance", Loc.Get("settings.enableBlurEffects")),
+            new("Performance", Loc.Get("settings.enableSubjectBlur")),
+            new("Performance", Loc.Get("settings.enableSmartCrop")),
+            new("Performance", "performance"),
+            new("Performance", "FPS"),
+            new("Performance", "GPU"),
+            new("Performance", "blur"),
+            new("Performance", "smart crop"),
+            new("Performance", "hiệu năng"),
+
+            // Donating
+            new("Donating", Loc.Get("settings.nav.donating")),
+            new("Donating", Loc.Get("settings.donating.title")),
+            new("Donating", Loc.Get("settings.donating.description")),
+            new("Donating", Loc.Get("settings.donating.paypal")),
+            new("Donating", Loc.Get("settings.donating.bank")),
+            new("Donating", "donate"),
+            new("Donating", "donating"),
+            new("Donating", "PayPal"),
+            new("Donating", "MB Bank"),
+            new("Donating", "ủng hộ"),
 
             // Updates
             new("Updates", Loc.Get("settings.nav.updates")),

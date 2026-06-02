@@ -93,7 +93,7 @@ public partial class MainWindow
         CameraPreviewImage.Opacity = 0.0;
         CameraPreviewScale.ScaleX = 1.06;
         CameraPreviewScale.ScaleY = 1.06;
-        CameraPreviewBlur.Radius = 16.0;
+        CameraPreviewBlur.Radius = _settings.EnableBlurEffects ? 16.0 : 0.0;
 
         CameraOverlay.Visibility = Visibility.Visible;
         CameraOverlay.Opacity = 1.0;
@@ -420,7 +420,7 @@ public partial class MainWindow
             CameraPreviewImage.Source = null;
             CameraPreviewScale.ScaleX = 1.06;
             CameraPreviewScale.ScaleY = 1.06;
-            CameraPreviewBlur.Radius = 16.0;
+            CameraPreviewBlur.Radius = _settings.EnableBlurEffects ? 16.0 : 0.0;
             CameraOverlay.Visibility = Visibility.Visible;
             CameraOverlay.Opacity = 1.0;
             CameraErrorOverlay.Visibility = Visibility.Collapsed;
@@ -658,7 +658,7 @@ public partial class MainWindow
         CameraPreviewImage.Source = null;
         CameraPreviewScale.ScaleX = 1.06;
         CameraPreviewScale.ScaleY = 1.06;
-        CameraPreviewBlur.Radius = 16.0;
+        CameraPreviewBlur.Radius = _settings.EnableBlurEffects ? 16.0 : 0.0;
         CameraOverlay.Opacity = 0;
         CameraOverlay.Visibility = Visibility.Collapsed;
         CameraErrorOverlay.Visibility = Visibility.Collapsed;
@@ -820,7 +820,7 @@ public partial class MainWindow
         };
         previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewBlur.Radius, KeyTime.FromPercent(0.0)));
         previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewBlur.Radius, KeyTime.FromPercent(0.70), _easeSineInOut));
-        previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(16.0, KeyTime.FromPercent(1.0), _easeExpOut6));
+        previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(_settings.EnableBlurEffects ? 16.0 : 0.0, KeyTime.FromPercent(1.0), _easeExpOut6));
         Timeline.SetDesiredFrameRate(previewBlurOut, VNotch.Services.AnimationConfig.TargetFps);
 
         previewFadeOut.Completed += (s, e) =>
@@ -833,7 +833,7 @@ public partial class MainWindow
             CameraPreviewScale.ScaleX = 1.06;
             CameraPreviewScale.ScaleY = 1.06;
             CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-            CameraPreviewBlur.Radius = 16.0;
+            CameraPreviewBlur.Radius = _settings.EnableBlurEffects ? 16.0 : 0.0;
             CameraPreviewImage.Source = null;
             _cameraWriteableBitmap = null; // ← FIX: Ensure bitmap is cleared after animation
         };

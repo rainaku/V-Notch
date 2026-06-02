@@ -431,13 +431,19 @@ public partial class MainWindow
             LyricsWidget.BeginAnimation(OpacityProperty, fadeIn);
 
             // Show lyrics blur background
-            if (LyricsBlurBackground != null)
+            if (_settings.EnableBlurEffects && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
                 LyricsBlurBackground.Visibility = Visibility.Visible;
                 LyricsBlurBackground.Opacity = 0.55;
+            }
+            else if (LyricsBlurBackground != null)
+            {
+                LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
+                LyricsBlurBackground.Opacity = 0;
+                LyricsBlurBackground.Visibility = Visibility.Collapsed;
             }
         });
     }

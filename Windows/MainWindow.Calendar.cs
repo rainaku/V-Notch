@@ -351,7 +351,7 @@ public partial class MainWindow
         AnimateOpacity(BatterySection, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateOpacity(SettingsButton, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateOpacity(GreetingSection, isFocused ? 0.62 : 1.0, duration, easing);
-        AnimateBlurRadius(CalendarGreetingContextBlur, isFocused ? 4.0 : 0.0, duration, easing);
+        AnimateBlurRadius(CalendarGreetingContextBlur, _settings.EnableBlurEffects && isFocused ? 4.0 : 0.0, duration, easing);
     }
 
     private static void AnimateOpacity(UIElement element, double to, Duration duration, IEasingFunction easing)
