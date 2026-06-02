@@ -60,9 +60,9 @@
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="Introduction/Bluetooth.gif" alt="Bluetooth"><br>
-      <b>Bluetooth</b><br>
-      See Bluetooth device connections and status directly on the notch.
+      <img src="Introduction/DI.gif" alt="Dynamic Island mode"><br>
+      <b>Say hello to Dynamic Island</b><br>
+      Experience the signature Apple-style Dynamic Island on your Windows desktop. Enjoy smooth, fluid animations that seamlessly blend with your workflow, bringing notifications and media controls to life.
     </td>
     <td align="center" width="50%">
       <img src="Introduction/privacy.gif" alt="Privacy Indicators"><br>
