@@ -831,6 +831,25 @@
 
                                         <Border Style="{StaticResource SettingRowBorder}">
                                             <StackPanel>
+                                                <TextBlock x:Name="DynamicIslandWidthLabel" Text="Dynamic Island Length" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                                <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                                    <Run x:Name="DynamicIslandWidthValue" Text="260"/><Run Text=" px"/>
+                                                </TextBlock>
+                                                <TextBlock x:Name="DynamicIslandWidthHint" Visibility="Collapsed"/>
+                                                <controls:ElasticSlider x:Name="DynamicIslandWidthSlider"
+                                                        Label="Dynamic Island Length" Unit=" px"
+                                                        Description="Adjust the floating pill length used by Dynamic Island mode."
+                                                        Minimum="100"
+                                                        Maximum="520"
+                                                        Value="260"
+                                                        TickFrequency="10"
+                                                        IsSnapToTickEnabled="True"
+                                                        ValueChanged="DynamicIslandWidthSlider_ValueChanged"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}">
+                                            <StackPanel>
                                                 <TextBlock x:Name="HeightLabel" Text="Height" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
                                                 <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
                                                     <Run x:Name="HeightValue" Text="32"/><Run Text=" px"/>
@@ -1282,19 +1301,13 @@
                                         </Border>
 
                                         <Border Style="{StaticResource SettingRowBorder}">
-                                            <StackPanel Opacity="0.4" IsHitTestVisible="False">
+                                            <StackPanel>
                                                 <CheckBox x:Name="DynamicIslandModeCheck"
                                                           x:Uid="dynamicIslandMode"
-                                                          IsEnabled="False"
-                                                          Margin="0,0,0,0">
-                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="Dynamic Island mode" VerticalAlignment="Center"/>
-                                                        <Border Background="#C8C8C8" CornerRadius="4" Padding="8,3" Margin="8,0,0,0" VerticalAlignment="Center">
-                                                            <TextBlock Text="WIP" FontSize="11" FontWeight="Bold"
-                                                                       Foreground="#1A1A1A" FontFamily="{StaticResource SFProDisplay}"/>
-                                                        </Border>
-                                                    </StackPanel>
-                                                </CheckBox>
+                                                          Content="Dynamic Island mode"
+                                                          Checked="DynamicIslandModeCheck_Changed"
+                                                          Unchecked="DynamicIslandModeCheck_Changed"
+                                                          Margin="0,0,0,0"/>
                                                 <TextBlock x:Name="DynamicIslandModeHint"
                                                            Text="Detach the notch from the top edge so it floats as a fully rounded pill."
                                                            Style="{StaticResource SettingHintText}"

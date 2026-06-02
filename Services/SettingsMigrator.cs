@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
     
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
@@ -40,6 +40,22 @@ public static class SettingsMigrator
                 if (!root.ContainsKey(nameof(NotchSettings.MediaBlurBrightnessBoost)))
                 {
                     root[nameof(NotchSettings.MediaBlurBrightnessBoost)] = 1.4;
+                }
+                return root;
+            },
+            [3] = root =>
+            {
+                if (!root.ContainsKey(nameof(NotchSettings.DynamicIslandWidth)))
+                {
+                    int width = 230;
+                    if (root.TryGetPropertyValue(nameof(NotchSettings.Width), out var widthNode)
+                        && widthNode is JsonValue widthValue
+                        && widthValue.TryGetValue(out int parsedWidth))
+                    {
+                        width = parsedWidth;
+                    }
+
+                    root[nameof(NotchSettings.DynamicIslandWidth)] = (int)Math.Round(width * 1.12 / 10.0) * 10;
                 }
                 return root;
             },

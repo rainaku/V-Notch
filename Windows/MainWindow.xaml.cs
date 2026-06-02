@@ -932,6 +932,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         settingsWindow.SettingsChanged += (s, newSettings) =>
         {
             bool sizeChanged = newSettings.Width != _settings.Width
+                            || newSettings.DynamicIslandWidth != _settings.DynamicIslandWidth
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
             bool languageChanged = newSettings.Language != _settings.Language;

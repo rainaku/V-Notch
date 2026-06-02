@@ -13,6 +13,7 @@ public class NotchSettings
     public string LastRunVersion { get; set; } = "";
 
     public int Width { get; set; } = 230;
+    public int DynamicIslandWidth { get; set; } = 260;
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 8;
     public double Opacity { get; set; } = 1.0;

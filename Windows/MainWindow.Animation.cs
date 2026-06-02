@@ -28,6 +28,10 @@ public partial class MainWindow
 
             var thumbPos = ThumbnailBorder.TransformToAncestor(InnerClipBorder).Transform(new Point(0, 0));
 
+            // The overlay's layout slot is fixed at the top-left of InnerClipBorder (Margin 8,4).
+            // Keeping it fixed makes the translate math stable while the notch height animates.
+            // The compact resting position (which is vertically centered in Dynamic Island mode)
+            // is handled separately via GetCompactThumbnailRestOffsetY at the compact end.
             double targetX = thumbPos.X - 8;
             double targetY = thumbPos.Y - 4;
             if (double.IsNaN(targetX) || double.IsInfinity(targetX) ||
@@ -45,6 +49,19 @@ public partial class MainWindow
         {
             return false;
         }
+    }
+
+    // Vertical translate that moves the animation overlay from its fixed layout slot (top, Margin 8,4)
+    // onto the real compact thumbnail. In default mode the thumbnail also rests at the top (offset 0);
+    // in Dynamic Island mode it is vertically centered in the taller pill, so the overlay must travel
+    // the extra distance to meet it — otherwise the thumbnail snaps at the compact end of expand/collapse.
+    private double GetCompactThumbnailRestOffsetY()
+    {
+        if (!_settings.EnableDynamicIslandMode) return 0;
+        const double compactThumbSize = 22;
+        const double overlayRestTop = 4;
+        double centeredTop = Math.Max(0, (_collapsedHeight - compactThumbSize) / 2.0);
+        return centeredTop - overlayRestTop;
     }
 
     private void ResetAnimationThumbnailOverlay(bool clearSource = true)
@@ -298,8 +315,9 @@ public partial class MainWindow
                 AnimationThumbnailBorder.Width = 22;
                 AnimationThumbnailBorder.Height = 22;
                 AnimationThumbnailClip.Rect = new Rect(0, 0, 22, 22);
+                double compactRestY = GetCompactThumbnailRestOffsetY();
                 AnimationThumbnailTranslate.X = 0;
-                AnimationThumbnailTranslate.Y = 0;
+                AnimationThumbnailTranslate.Y = compactRestY;
 
                 var (targetX, targetY) = cachedExpandTarget.Value;
 
@@ -328,7 +346,7 @@ public partial class MainWindow
                 }
 
                 var thumbTranslateXAnim = MakeAnim(0, targetX, thumbDur, thumbEase, thumbDelay);
-                var thumbTranslateYAnim = MakeAnim(0, targetY, thumbDur, thumbEase, thumbDelay);
+                var thumbTranslateYAnim = MakeAnim(compactRestY, targetY, thumbDur, thumbEase, thumbDelay);
                 Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
                 Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
 
@@ -734,8 +752,9 @@ public partial class MainWindow
                     _cachedThumbRectCollapse.Freeze();
                 }
 
+                double compactRestY = GetCompactThumbnailRestOffsetY();
                 var thumbTranslateXAnim = MakeAnim(startX, 0, thumbDur, thumbEase, thumbDelay);
-                var thumbTranslateYAnim = MakeAnim(startY, 0, thumbDur, thumbEase, thumbDelay);
+                var thumbTranslateYAnim = MakeAnim(startY, compactRestY, thumbDur, thumbEase, thumbDelay);
                 Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
                 Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
 

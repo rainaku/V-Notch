@@ -634,7 +634,7 @@ public partial class MainWindow
     {
         bool shouldBeCompact = _mediaDisplayController.ShouldBeCompactMode(info);
 
-        _collapsedWidth = _settings.Width;
+        _collapsedWidth = GetCollapsedWidth();
 
         if (IsCountdownCompletionVisualActive)
         {

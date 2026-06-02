@@ -108,6 +108,7 @@ public event EventHandler? AnimatedClosing;
         _isLoadingSettings = true;
 
         WidthSlider.Value = _settings.Width;
+        DynamicIslandWidthSlider.Value = _settings.DynamicIslandWidth;
         HeightSlider.Value = _settings.Height;
         RadiusSlider.Value = _settings.CornerRadius;
         OpacitySlider.Value = _settings.Opacity * 100;
@@ -194,6 +195,9 @@ public event EventHandler? AnimatedClosing;
         WidthLabel.Text = Loc.Get("settings.width");
         WidthSlider.Label = Loc.Get("settings.width");
         WidthSlider.Description = Loc.Get("settings.width.hint");
+        DynamicIslandWidthLabel.Text = Loc.Get("settings.dynamicIslandWidth");
+        DynamicIslandWidthSlider.Label = Loc.Get("settings.dynamicIslandWidth");
+        DynamicIslandWidthSlider.Description = Loc.Get("settings.dynamicIslandWidth.hint");
         HeightLabel.Text = Loc.Get("settings.height");
         HeightSlider.Label = Loc.Get("settings.height");
         HeightSlider.Description = Loc.Get("settings.height.hint");
@@ -218,6 +222,7 @@ public event EventHandler? AnimatedClosing;
         SubtitlePriorityHint.Text = Loc.Get("settings.subtitlePriority.hint");
         LoadSubtitlePriority(); // Refresh display names for new language
 
+        DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode");
         DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint");
 
         // Behavior labels & hints
@@ -287,6 +292,13 @@ public event EventHandler? AnimatedClosing;
     {
         if (WidthValue != null)
             WidthValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
+    }
+
+    private void DynamicIslandWidthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (DynamicIslandWidthValue != null)
+            DynamicIslandWidthValue.Text = ((int)e.NewValue).ToString();
         PushLivePreview();
     }
 
@@ -724,6 +736,7 @@ public event EventHandler? AnimatedClosing;
 
             // Appearance
             (WidthLabel, () => { WidthLabel.Text = Loc.Get("settings.width"); WidthSlider.Label = Loc.Get("settings.width"); WidthSlider.Description = Loc.Get("settings.width.hint"); }),
+            (DynamicIslandWidthLabel, () => { DynamicIslandWidthLabel.Text = Loc.Get("settings.dynamicIslandWidth"); DynamicIslandWidthSlider.Label = Loc.Get("settings.dynamicIslandWidth"); DynamicIslandWidthSlider.Description = Loc.Get("settings.dynamicIslandWidth.hint"); }),
             (HeightLabel, () => { HeightLabel.Text = Loc.Get("settings.height"); HeightSlider.Label = Loc.Get("settings.height"); HeightSlider.Description = Loc.Get("settings.height.hint"); }),
             (RadiusLabel, () => { RadiusLabel.Text = Loc.Get("settings.cornerRadius"); RadiusSlider.Label = Loc.Get("settings.cornerRadius"); RadiusSlider.Description = Loc.Get("settings.cornerRadius.hint"); }),
             (OpacityLabel, () => { OpacityLabel.Text = Loc.Get("settings.opacity"); OpacitySlider.Label = Loc.Get("settings.opacity"); OpacitySlider.Description = Loc.Get("settings.opacity.hint"); }),
@@ -731,6 +744,7 @@ public event EventHandler? AnimatedClosing;
             (DarkOverlayLabel, () => { DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay"); BlurDarkOverlaySlider.Label = Loc.Get("settings.lyricsDarkOverlay"); BlurDarkOverlaySlider.Description = Loc.Get("settings.lyricsDarkOverlay.hint"); }),
             (EnableSpotifyLyricsHint, () => EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint")),
             (EnableYouTubeSubtitlesHint, () => EnableYouTubeSubtitlesHint.Text = Loc.Get("settings.enableYouTubeSubtitles.hint")),
+            (DynamicIslandModeCheck, () => DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode")),
             (DynamicIslandModeHint, () => DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint")),
 
             // Behavior
@@ -1118,6 +1132,7 @@ private void PushLivePreview()
         var defaults = new NotchSettings();
 
         WidthSlider.Value = defaults.Width;
+        DynamicIslandWidthSlider.Value = defaults.DynamicIslandWidth;
         HeightSlider.Value = defaults.Height;
         RadiusSlider.Value = defaults.CornerRadius;
         OpacitySlider.Value = defaults.Opacity * 100;
@@ -1468,6 +1483,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     private void ApplySettingsFromUi(bool persist = true)
     {
         _settings.Width = (int)WidthSlider.Value;
+        _settings.DynamicIslandWidth = (int)DynamicIslandWidthSlider.Value;
         _settings.Height = (int)HeightSlider.Value;
         _settings.CornerRadius = (int)RadiusSlider.Value;
         _settings.Opacity = OpacitySlider.Value / 100.0;
@@ -1863,6 +1879,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             // Appearance
             new("Appearance", Loc.Get("settings.nav.appearance")),
             new("Appearance", Loc.Get("settings.width")),
+            new("Appearance", Loc.Get("settings.dynamicIslandWidth")),
             new("Appearance", Loc.Get("settings.height")),
             new("Appearance", Loc.Get("settings.cornerRadius")),
             new("Appearance", Loc.Get("settings.opacity")),

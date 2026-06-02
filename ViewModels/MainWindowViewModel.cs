@@ -165,7 +165,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _dispatcher = dispatcher;
 
         _settings = _settingsService.Load();
-        _collapsedWidth = _settings.Width;
+        _collapsedWidth = GetCollapsedWidth(_settings);
         _collapsedHeight = _settings.Height;
         _cornerRadiusCollapsed = _settings.CornerRadius;
 
@@ -256,7 +256,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
             if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
-            CollapsedWidth = Settings.Width;
+            CollapsedWidth = GetCollapsedWidth(Settings);
             IsMusicCompactMode = shouldBeCompact;
 
             MediaInfoUpdated?.Invoke(this, info!);
@@ -613,10 +613,17 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         Settings = newSettings;
         _settingsService.Save(newSettings);
-        CollapsedWidth = newSettings.Width;
+        CollapsedWidth = GetCollapsedWidth(newSettings);
         CollapsedHeight = newSettings.Height;
         CornerRadiusCollapsed = newSettings.CornerRadius;
         SettingsApplied?.Invoke(this, newSettings);
+    }
+
+    private static double GetCollapsedWidth(NotchSettings settings)
+    {
+        return settings.EnableDynamicIslandMode
+            ? settings.DynamicIslandWidth
+            : settings.Width;
     }
 
     public NotchSettings LoadSettings() => _settingsService.Load();

@@ -428,7 +428,7 @@ public partial class MainWindow
     private double GetCollapsedWidth()
     {
         return _settings.EnableDynamicIslandMode
-            ? Math.Round(_settings.Width * DynamicIslandCollapsedScale)
+            ? _settings.DynamicIslandWidth
             : _settings.Width;
     }
 
