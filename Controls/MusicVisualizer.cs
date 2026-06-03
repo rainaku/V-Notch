@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using NAudio.CoreAudioApi;
 using NAudio.Dmo;
 using NAudio.Wave;
 using NAudio.Dsp;
@@ -617,6 +618,7 @@ namespace VNotch.Controls
         
         private static WasapiLoopbackCapture? _capture;
         private static readonly object _lockObj = new object();
+        private static string _audioDeviceId = string.Empty;
         private const int FftLength = 512;
         private const int FftM = 9;
         private const double MinDb = -90.0;
@@ -681,6 +683,28 @@ namespace VNotch.Controls
         private static double _beatAccent;
         private static float _latestBeatAccent;
 
+        public static void ConfigureAudioDevice(string? deviceId)
+        {
+            deviceId ??= string.Empty;
+            bool shouldRestart;
+
+            lock (_lockObj)
+            {
+                if (string.Equals(_audioDeviceId, deviceId, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _audioDeviceId = deviceId;
+                shouldRestart = _capture != null;
+            }
+
+            if (shouldRestart)
+            {
+                StopAudioCapture();
+            }
+        }
+
         private static void StartAudioCapture()
         {
             lock (_lockObj)
@@ -689,7 +713,10 @@ namespace VNotch.Controls
 
                 try
                 {
-                    _capture = new WasapiLoopbackCapture();
+                    var device = ResolveLoopbackDevice(_audioDeviceId);
+                    _capture = device != null
+                        ? new WasapiLoopbackCapture(device)
+                        : new WasapiLoopbackCapture();
                     _sampleRate = _capture.WaveFormat.SampleRate;
                     _rmsWindowSamples = Math.Max(64, (int)(_sampleRate * RmsWindowSeconds));
                     _capture.DataAvailable += OnAudioDataAvailable;
@@ -701,6 +728,25 @@ namespace VNotch.Controls
                     Debug.WriteLine("Failed to initialize audio capture: " + ex.Message);
                     _capture = null;
                 }
+            }
+        }
+
+        private static MMDevice? ResolveLoopbackDevice(string deviceId)
+        {
+            if (string.IsNullOrWhiteSpace(deviceId))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var enumerator = new MMDeviceEnumerator();
+                return enumerator.GetDevice(deviceId);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("Failed to resolve visualizer audio device: " + ex.Message);
+                return null;
             }
         }
 

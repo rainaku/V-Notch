@@ -25,6 +25,7 @@ public class NotchSettings
     public int MonitorIndex { get; set; } = 0; 
 
     public string CameraDeviceId { get; set; } = ""; // Empty = auto-detect first available
+    public string VisualizerAudioDeviceId { get; set; } = ""; // Empty = default render endpoint
     public string BatteryDeviceId { get; set; } = SystemBatteryDeviceId; // Empty = system battery
 
     public bool AutoStart { get; set; } = true;

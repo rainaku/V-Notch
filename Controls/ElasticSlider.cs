@@ -217,10 +217,17 @@ public class ElasticSlider : Slider
         double fraction = (Value - Minimum) / (Maximum - Minimum);
         double x = leftPad + fraction * usableWidth;
         double targetLeft = x - _indicator.Width / 2;
+        double currentLeft = Canvas.GetLeft(_indicator);
+        if (double.IsNaN(currentLeft) || double.IsInfinity(currentLeft))
+        {
+            _indicator.BeginAnimation(Canvas.LeftProperty, null);
+            Canvas.SetLeft(_indicator, targetLeft);
+            return;
+        }
 
         if (_isDragging)
         {
-            var anim = new DoubleAnimation(targetLeft, TimeSpan.FromMilliseconds(50))
+            var anim = new DoubleAnimation(currentLeft, targetLeft, TimeSpan.FromMilliseconds(50))
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };
@@ -229,7 +236,7 @@ public class ElasticSlider : Slider
         }
         else
         {
-            var anim = new DoubleAnimation(targetLeft, TimeSpan.FromMilliseconds(300))
+            var anim = new DoubleAnimation(currentLeft, targetLeft, TimeSpan.FromMilliseconds(300))
             {
                 EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 7 }
             };
@@ -280,8 +287,19 @@ public class ElasticSlider : Slider
 
         double fraction = (Value - Minimum) / (Maximum - Minimum);
         double targetWidth = width * Math.Max(0, Math.Min(1, fraction));
+        double currentWidth = _fillBorder.Width;
+        if (double.IsNaN(currentWidth) || double.IsInfinity(currentWidth))
+        {
+            currentWidth = _fillBorder.ActualWidth;
+        }
+        if (double.IsNaN(currentWidth) || double.IsInfinity(currentWidth))
+        {
+            _fillBorder.BeginAnimation(WidthProperty, null);
+            _fillBorder.Width = targetWidth;
+            return;
+        }
 
-        var anim = new DoubleAnimation(targetWidth, TimeSpan.FromMilliseconds(300))
+        var anim = new DoubleAnimation(currentWidth, targetWidth, TimeSpan.FromMilliseconds(300))
         {
             EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 7 }
         };
@@ -299,10 +317,21 @@ public class ElasticSlider : Slider
 
         double fraction = (Value - Minimum) / (Maximum - Minimum);
         double targetWidth = width * Math.Max(0, Math.Min(1, fraction));
+        double currentWidth = _fillBorder.Width;
+        if (double.IsNaN(currentWidth) || double.IsInfinity(currentWidth))
+        {
+            currentWidth = _fillBorder.ActualWidth;
+        }
+        if (double.IsNaN(currentWidth) || double.IsInfinity(currentWidth))
+        {
+            _fillBorder.BeginAnimation(WidthProperty, null);
+            _fillBorder.Width = targetWidth;
+            return;
+        }
 
         if (_isDragging)
         {
-            var anim = new DoubleAnimation(targetWidth, TimeSpan.FromMilliseconds(50))
+            var anim = new DoubleAnimation(currentWidth, targetWidth, TimeSpan.FromMilliseconds(50))
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };

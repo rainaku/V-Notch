@@ -58,7 +58,6 @@
             <Setter Property="CornerRadius" Value="18"/>
             <Setter Property="Padding" Value="18,14"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
-            <Setter Property="CacheMode" Value="BitmapCache"/>
             <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
             <Setter Property="RenderTransform">
                 <Setter.Value>
@@ -552,11 +551,8 @@
                 <TranslateTransform x:Name="ShellTranslate" Y="8"/>
             </TransformGroup>
         </Border.RenderTransform>
-        <Border.Effect>
-            <DropShadowEffect Color="#000000" BlurRadius="30" ShadowDepth="0" Opacity="0.42"/>
-        </Border.Effect>
 
-        <Grid>
+        <Grid x:Name="ShellContent">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -703,6 +699,17 @@
                     </Border.RenderTransform>
                     <StackPanel>
                         <!-- Appearance -->
+                        <Border x:Name="NavSearching" Style="{StaticResource NavButton}"
+                                Visibility="Collapsed"
+                                Background="{StaticResource NavItemActiveBg}"
+                                MouseLeftButtonDown="Nav_Click" Tag="Searching">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                           Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="NavSearchingText" Text="Searching" FontSize="13" FontWeight="Bold"
+                                           Foreground="White" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
                         <Border x:Name="NavAppearance" Style="{StaticResource NavButton}" 
                                 Background="{StaticResource NavItemActiveBg}"
                                 MouseLeftButtonDown="Nav_Click" Tag="Appearance">
@@ -823,7 +830,24 @@
                                   CanContentScroll="False"
                                   PreviewMouseWheel="SettingsScrollViewer_PreviewMouseWheel"
                                   ScrollChanged="SettingsScrollViewer_ScrollChanged">
-                        <Grid x:Name="ContentHost" CacheMode="BitmapCache">
+                        <Grid x:Name="ContentHost">
+                            <!-- ===== SEARCHING PANEL ===== -->
+                            <StackPanel x:Name="PanelSearching" Visibility="Collapsed">
+                                <Border x:Name="SearchingCard" Style="{StaticResource CardBorderStyle}" Opacity="0">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="SearchingCardTranslate" Y="12"/>
+                                    </Border.RenderTransform>
+                                    <StackPanel>
+                                        <TextBlock x:Name="SearchingHeader" Text="SEARCHING" Style="{StaticResource SectionHeader}"/>
+                                        <TextBlock x:Name="SearchingEmptyText"
+                                                   Text="No matching settings."
+                                                   Style="{StaticResource SettingHintText}"
+                                                   Margin="0,2,0,10"
+                                                   Visibility="Collapsed"/>
+                                        <StackPanel x:Name="SearchResultsStack"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
 
                             <!-- ===== APPEARANCE PANEL ===== -->
                             <StackPanel x:Name="PanelAppearance" Visibility="Visible">
@@ -1042,6 +1066,15 @@
                                                            Style="{StaticResource SettingHintText}"
                                                            Margin="0,6,0,0"/>
                                                 <ComboBox x:Name="CameraCombo" SelectionChanged="CameraCombo_SelectionChanged"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <TextBlock x:Name="VisualizerAudioLabel" Text="Music Visualizer Speaker" Style="{StaticResource SettingTitleText}"/>
+                                                <TextBlock x:Name="VisualizerAudioHint" Text="Choose which speaker drives the music visualizer."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,6,0,0"/>
+                                                <ComboBox x:Name="VisualizerAudioCombo" SelectionChanged="VisualizerAudioCombo_SelectionChanged"/>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>

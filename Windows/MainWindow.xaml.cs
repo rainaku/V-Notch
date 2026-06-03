@@ -1019,6 +1019,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     private void ApplySettings(bool animatePulse = false)
     {
         VNotch.Services.AnimationConfig.Configure(_settings.AnimationFps);
+        VNotch.Controls.MusicVisualizer.ConfigureAudioDevice(_settings.VisualizerAudioDeviceId);
         ApplyPerformanceSettings();
 
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
