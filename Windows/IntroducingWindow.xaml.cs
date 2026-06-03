@@ -89,8 +89,7 @@ public partial class IntroducingWindow : Window
             {
                 var image = new BitmapImage();
                 image.BeginInit();
-                image.UriSource = new Uri(gifPath);
-                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.UriSource = new Uri(gifPath, UriKind.Absolute);
                 image.EndInit();
                 WpfAnimatedGif.ImageBehavior.SetAnimatedSource(IntroGif, image);
             }
