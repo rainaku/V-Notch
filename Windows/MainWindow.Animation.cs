@@ -205,7 +205,7 @@ public partial class MainWindow
             BluetoothDisconnectNotification.Visibility = Visibility.Collapsed;
             _isBluetoothNotificationVisible = false;
         }
-        _compactPillArbiter.ForceClear();
+        _compactPillCoordinator.ForceClear();
 
         bool wasHovered = _isCompactThumbnailHovered;
         if (_isCompactThumbnailHovered)
@@ -890,7 +890,7 @@ public partial class MainWindow
                 _isBluetoothNotificationVisible = false;
             }
             // Drop any compact-pill slot — the expanded view will repaint freshly.
-            _compactPillArbiter.ForceClear();
+            _compactPillCoordinator.ForceClear();
 
             // Safety: ensure nav icons are always hidden in collapsed state
             NavIconsPanel.BeginAnimation(OpacityProperty, null);
@@ -984,3 +984,4 @@ public partial class MainWindow
     #endregion
 
 }
+

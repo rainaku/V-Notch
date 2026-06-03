@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
 using NAudio.CoreAudioApi;
 
 namespace VNotch.Services;
@@ -12,11 +15,24 @@ public sealed class PrivacyIndicatorService : IDisposable
     private const string ConsentRoot =
         @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore";
 
+    // Fallback poll cadence — only used if the registry change-notification watch
+    // can't be established (older/locked-down systems). Normal operation is event-driven.
     private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(2);
 
-    private readonly DispatcherTimer _timer;
+    // Coalesce a burst of registry writes (an app opening a device writes several
+    // values) into a single scan.
+    private const int DebounceMs = 200;
+
+    private readonly Dispatcher _dispatcher;
+    private readonly DispatcherTimer _fallbackTimer;
     private bool _disposed;
     private bool _started;
+
+    // Registry-watch state (event-driven path).
+    private Thread? _watchThread;
+    private RegistryKey? _consentKey;
+    private AutoResetEvent? _changeEvent;
+    private ManualResetEvent? _stopEvent;
 
     public event EventHandler<PrivacyIndicatorState>? StateChanged;
 
@@ -24,11 +40,14 @@ public sealed class PrivacyIndicatorService : IDisposable
 
     public PrivacyIndicatorService(TimeSpan? pollInterval = null)
     {
-        _timer = new DispatcherTimer(DispatcherPriority.Background)
+        // Captured so the watch thread can marshal Poll() back to the thread that
+        // owns StateChanged consumers (the UI thread, as with the old timer).
+        _dispatcher = Dispatcher.CurrentDispatcher;
+        _fallbackTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = pollInterval ?? DefaultPollInterval
         };
-        _timer.Tick += (_, _) => Poll();
+        _fallbackTimer.Tick += (_, _) => Poll();
     }
 
     public void Start()
@@ -36,16 +55,25 @@ public sealed class PrivacyIndicatorService : IDisposable
         if (_disposed || _started) return;
         _started = true;
 
-        // Initial sample so consumers don't have to wait for the first tick.
+        // Initial sample so consumers don't have to wait for the first change.
         Poll();
-        _timer.Start();
+
+        // Prefer event-driven registry notifications; only poll if that fails to arm.
+        if (!TryStartRegistryWatch())
+        {
+            _fallbackTimer.Start();
+        }
     }
 
     public void Stop()
     {
         if (!_started) return;
         _started = false;
-        _timer.Stop();
+        _fallbackTimer.Stop();
+
+        _stopEvent?.Set();
+        _watchThread?.Join(TimeSpan.FromSeconds(1));
+        CleanupWatch();
     }
 
     public void Dispose()
@@ -53,6 +81,114 @@ public sealed class PrivacyIndicatorService : IDisposable
         if (_disposed) return;
         _disposed = true;
         Stop();
+    }
+
+    // ─── Registry change-notification watch ───
+
+    private bool TryStartRegistryWatch()
+    {
+        try
+        {
+            _consentKey = Registry.CurrentUser.OpenSubKey(ConsentRoot, writable: false);
+            if (_consentKey == null) return false;
+
+            _changeEvent = new AutoResetEvent(false);
+            _stopEvent = new ManualResetEvent(false);
+
+            _watchThread = new Thread(WatchLoop)
+            {
+                IsBackground = true,
+                Name = "PrivacyConsentStoreWatch"
+            };
+            _watchThread.Start();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("PRIVACY", ex, "Registry watch setup failed; falling back to polling");
+            CleanupWatch();
+            return false;
+        }
+    }
+
+    private void WatchLoop()
+    {
+        var handles = new WaitHandle[] { _stopEvent!, _changeEvent! };
+
+        if (!Arm()) { FallBackToPolling(); return; }
+
+        while (true)
+        {
+            int idx = WaitHandle.WaitAny(handles);
+            if (idx == 0) return; // stop signaled
+
+            // A change fired. Coalesce the rest of the burst (or exit early on stop).
+            // Scanning happens AFTER the debounce, so writes during the window are
+            // captured by the scan itself.
+            if (_stopEvent!.WaitOne(DebounceMs)) return;
+
+            // Re-arm BEFORE scanning: a change during the scan then re-signals us,
+            // closing the gap between consuming a notification and re-registering
+            // (the watch is one-shot). Without this a fast off-toggle could be missed.
+            if (!Arm()) { FallBackToPolling(); return; }
+
+            _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(Poll));
+        }
+    }
+
+    private bool Arm()
+    {
+        int rc = RegNotifyChangeKeyValue(
+            _consentKey!.Handle,
+            bWatchSubtree: true,
+            RegNotifyFilter.Name | RegNotifyFilter.LastSet,
+            _changeEvent!.SafeWaitHandle,
+            fAsynchronous: true);
+
+        if (rc != 0)
+        {
+            RuntimeLog.Error("PRIVACY", new System.ComponentModel.Win32Exception(rc),
+                "RegNotifyChangeKeyValue failed");
+            return false;
+        }
+        return true;
+    }
+
+    private void FallBackToPolling()
+        => _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(StartFallbackPolling));
+
+    private void StartFallbackPolling()
+    {
+        if (_disposed || !_started) return;
+        if (!_fallbackTimer.IsEnabled) _fallbackTimer.Start();
+    }
+
+    private void CleanupWatch()
+    {
+        try { _consentKey?.Dispose(); } catch { /* ignore */ }
+        _consentKey = null;
+        try { _changeEvent?.Dispose(); } catch { /* ignore */ }
+        _changeEvent = null;
+        try { _stopEvent?.Dispose(); } catch { /* ignore */ }
+        _stopEvent = null;
+        _watchThread = null;
+    }
+
+    [DllImport("advapi32.dll", SetLastError = false)]
+    private static extern int RegNotifyChangeKeyValue(
+        SafeRegistryHandle hKey,
+        bool bWatchSubtree,
+        RegNotifyFilter dwNotifyFilter,
+        SafeWaitHandle hEvent,
+        bool fAsynchronous);
+
+    [Flags]
+    private enum RegNotifyFilter : uint
+    {
+        Name = 0x1,       // REG_NOTIFY_CHANGE_NAME — subkeys added/removed (apps)
+        Attributes = 0x2,
+        LastSet = 0x4,    // REG_NOTIFY_CHANGE_LAST_SET — values changed (LastUsedTimeStop)
+        Security = 0x8,
     }
 
     private void Poll()

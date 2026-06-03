@@ -32,7 +32,7 @@ public partial class MainWindow
             PlayButtonPressAnimation(PlayPauseButton);
 
             // Immediately notify progress engine so bar stops/resumes without waiting for SMTC
-            _progressEngine.NotifyUserPlayPause(_isPlaying);
+            _mediaProgressController.NotifyUserPlayPause(_isPlaying);
 
             await _mediaService.PlayPauseAsync();
         }
@@ -125,7 +125,7 @@ public partial class MainWindow
             PlayButtonPressAnimation(InlinePlayPauseButton);
 
             // Immediately notify progress engine so bar stops/resumes without waiting for SMTC
-            _progressEngine.NotifyUserPlayPause(_isPlaying);
+            _mediaProgressController.NotifyUserPlayPause(_isPlaying);
 
             await _mediaService.PlayPauseAsync();
         }
@@ -195,7 +195,7 @@ public partial class MainWindow
         {
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
-            _progressEngine.NotifyUserSeek(TimeSpan.Zero);
+            _mediaProgressController.NotifyUserSeek(TimeSpan.Zero);
 
             // Animate the rewind so the user sees the bar slide back to 0 instead of snapping
             AnimateProgressRewindTo(0);
@@ -210,8 +210,8 @@ public partial class MainWindow
     {
         try
         {
-            var frame = _progressEngine.GetUiFrame();
-            _progressEngine.NotifyUserSeek(frame.Position);
+            var frame = _mediaProgressController.GetUiFrame();
+            _mediaProgressController.NotifyUserSeek(frame.Position);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
         }
         catch (Exception ex)
@@ -531,7 +531,7 @@ public partial class MainWindow
 
         _isVolumeIndicatorActive = false;
         _volumeSynced = false;
-        _compactPillArbiter.Release(token);
+        _compactPillCoordinator.Release(token);
         _volumeIndicatorToken = 0;
 
         // Restore privacy dot
@@ -585,7 +585,7 @@ public partial class MainWindow
         _isVolumeIndicatorActive = false;
         _volumeSynced = false;
         _isDraggingVolumeIndicator = false;
-        _compactPillArbiter.Release(token);
+        _compactPillCoordinator.Release(token);
         _volumeIndicatorToken = 0;
 
         if (VolumeIndicatorContainer != null)
@@ -778,3 +778,4 @@ public partial class MainWindow
 
     #endregion
 }
+

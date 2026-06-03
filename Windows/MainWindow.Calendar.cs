@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -499,3 +499,4 @@ public partial class MainWindow
 
     #endregion
 }
+

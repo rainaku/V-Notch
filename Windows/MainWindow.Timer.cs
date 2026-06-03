@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
+using VNotch.Controllers;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 using static VNotch.Services.Win32Interop;
@@ -22,9 +23,7 @@ public partial class MainWindow
     private double CountdownCompleteViewWidth => Math.Max(_collapsedWidth, _expandedWidth - _countdownCompleteWidthInset);
 
     // ─── Countdown State ───
-    private TimeSpan _countdownDuration = TimeSpan.FromMinutes(25);
-    private TimeSpan _countdownRemaining = TimeSpan.FromMinutes(25);
-    private bool _isCountdownRunning = false;
+    private readonly TimerWidgetController _timerWidgetController = new();
     private DispatcherTimer? _countdownTimer;
 
     // ─── Countdown Hold-to-Repeat ───
@@ -659,12 +658,8 @@ public partial class MainWindow
 
     private void CountdownTimer_Tick(object? sender, EventArgs e)
     {
-        _countdownRemaining = _countdownRemaining.Subtract(TimeSpan.FromMilliseconds(100));
-
-        if (_countdownRemaining <= TimeSpan.Zero)
+        if (_timerWidgetController.Tick(TimeSpan.FromMilliseconds(100)))
         {
-            _countdownRemaining = TimeSpan.Zero;
-            _isCountdownRunning = false;
             _countdownTimer?.Stop();
 
             // Play system notification sound
@@ -1073,8 +1068,8 @@ public partial class MainWindow
         if (_isAnimating) return;
 
         // Reset and start again in timer view
-        _countdownRemaining = _countdownDuration;
-        _isCountdownRunning = true;
+        _timerWidgetController.ResetToDuration();
+        _timerWidgetController.Start();
         if (_countdownTimer == null) InitializeCountdownTimer();
         _countdownTimer?.Start();
 
@@ -1255,7 +1250,7 @@ public partial class MainWindow
 
         // Reset timer state and collapse
         AnimateCountdownCompleteOverlayOut();
-        _countdownRemaining = _countdownDuration;
+        _timerWidgetController.ResetToDuration();
         _isTimerView = false;
         _isSecondaryView = false;
         BeginCountdownManualCollapseState();
@@ -1546,7 +1541,7 @@ public partial class MainWindow
     {
         e.Handled = true;
         PlayTimerButtonPress(CountdownMinusBtn);
-        if (_isCountdownRunning) return;
+        if (_timerWidgetController.IsRunning) return;
 
         ApplyCountdownStep(-1);
         StartCountdownRepeat(-1);
@@ -1556,7 +1551,7 @@ public partial class MainWindow
     {
         e.Handled = true;
         PlayTimerButtonPress(CountdownPlusBtn);
-        if (_isCountdownRunning) return;
+        if (_timerWidgetController.IsRunning) return;
 
         ApplyCountdownStep(+1);
         StartCountdownRepeat(+1);
@@ -1564,31 +1559,8 @@ public partial class MainWindow
 
     private void ApplyCountdownStep(int direction)
     {
-        // Determine step size based on current duration
-        TimeSpan step;
-        if (_countdownDuration.TotalDays >= 1)
-            step = TimeSpan.FromHours(1);
-        else if (_countdownDuration.TotalHours >= 1)
-            step = TimeSpan.FromMinutes(5);
-        else
-            step = TimeSpan.FromMinutes(1);
-
-        // Max 7 days
-        TimeSpan maxDuration = TimeSpan.FromDays(7);
-
-        if (direction > 0 && _countdownDuration < maxDuration)
+        if (_timerWidgetController.ApplyStep(direction))
         {
-            _countdownDuration = _countdownDuration.Add(step);
-            if (_countdownDuration > maxDuration) _countdownDuration = maxDuration;
-            _countdownRemaining = _countdownDuration;
-            UpdateTimerDisplay();
-            AnimateCountdownDisplayPulse(1.02);
-        }
-        else if (direction < 0 && _countdownDuration.TotalMinutes > 1)
-        {
-            _countdownDuration = _countdownDuration.Subtract(step);
-            if (_countdownDuration < TimeSpan.FromMinutes(1)) _countdownDuration = TimeSpan.FromMinutes(1);
-            _countdownRemaining = _countdownDuration;
             UpdateTimerDisplay();
             AnimateCountdownDisplayPulse(1.02);
         }
@@ -1609,7 +1581,7 @@ public partial class MainWindow
 
     private void CountdownRepeat_Tick(object? sender, EventArgs e)
     {
-        if (_isCountdownRunning)
+        if (_timerWidgetController.IsRunning)
         {
             StopCountdownRepeat();
             return;
@@ -1656,23 +1628,18 @@ public partial class MainWindow
         if (_countdownTimer == null)
             InitializeCountdownTimer();
 
-        if (_isCountdownRunning)
+        if (_timerWidgetController.IsRunning)
         {
             // Pause
-            _isCountdownRunning = false;
+            _timerWidgetController.Pause();
             _countdownTimer?.Stop();
             CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z");
             CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
         }
         else
         {
-            if (_countdownRemaining <= TimeSpan.Zero)
-            {
-                _countdownRemaining = _countdownDuration;
-            }
-
             // Start
-            _isCountdownRunning = true;
+            _timerWidgetController.Start();
             _countdownTimer?.Start();
             CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M224,320a16,16,0,0,1-32,0V192a16,16,0,0,1,32,0Zm96,0a16,16,0,0,1-32,0V192a16,16,0,0,1,32,0Z");
             CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xCC, 0x70, 0x00));
@@ -1683,9 +1650,8 @@ public partial class MainWindow
     {
         e.Handled = true;
         PlayTimerButtonPress(CountdownResetBtn);
-        _isCountdownRunning = false;
+        _timerWidgetController.ResetToDuration();
         _countdownTimer?.Stop();
-        _countdownRemaining = _countdownDuration;
         CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z");
         CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
         CountdownDisplay.BeginAnimation(OpacityProperty, null);
@@ -1696,33 +1662,13 @@ public partial class MainWindow
 
     private void UpdateTimerDisplay()
     {
-        var total = _countdownRemaining;
-        if (total.TotalDays >= 1)
-        {
-            int days = (int)total.TotalDays;
-            int hours = total.Hours;
-            CountdownDisplay.Text = $"{days}d {hours:D2}h";
-        }
-        else if (total.TotalHours >= 1)
-        {
-            int hours = (int)total.TotalHours;
-            int minutes = total.Minutes;
-            CountdownDisplay.Text = $"{hours:D2}:{minutes:D2}:{total.Seconds:D2}";
-        }
-        else
-        {
-            int minutes = (int)total.TotalMinutes;
-            int seconds = total.Seconds;
-            CountdownDisplay.Text = $"{minutes:D2}:{seconds:D2}";
-        }
+        CountdownDisplay.Text = _timerWidgetController.FormatRemaining();
         UpdateCountdownProgressFill();
     }
 
     private void UpdateCountdownProgressFill()
     {
-        double totalMs = Math.Max(1.0, _countdownDuration.TotalMilliseconds);
-        double remainingMs = Math.Clamp(_countdownRemaining.TotalMilliseconds, 0.0, totalMs);
-        double progress = 1.0 - (remainingMs / totalMs);
+        double progress = _timerWidgetController.Progress;
 
         double availableWidth = CountdownDisplayPanel.ActualWidth;
         if (availableWidth <= 0)
@@ -1736,3 +1682,7 @@ public partial class MainWindow
 
     #endregion
 }
+
+
+
+

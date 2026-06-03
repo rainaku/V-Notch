@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using VNotch.Controllers;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 using static VNotch.Services.Win32Interop;
@@ -14,10 +15,8 @@ public partial class MainWindow
     #region Clipboard Peek
 
     private bool _clipboardListenerRegistered = false;
-    private DateTime _lastClipboardFlashUtc = DateTime.MinValue;
-    private static readonly TimeSpan ClipboardFlashCooldown = TimeSpan.FromMilliseconds(400);
-    private bool _isClipboardPeekActive = false;
-    private int _clipboardPeekToken = 0;
+    private readonly ClipboardNotificationController _clipboardNotificationController = new();
+    private bool _isClipboardPeekActive => _clipboardNotificationController.IsActive;
     private DispatcherTimer? _clipboardRevertTimer;
 
     private void RegisterClipboardListener()
@@ -41,10 +40,7 @@ public partial class MainWindow
     private void HandleClipboardUpdate()
     {
         var now = DateTime.UtcNow;
-        if ((now - _lastClipboardFlashUtc) < ClipboardFlashCooldown) return;
-        _lastClipboardFlashUtc = now;
-
-        if (!IsEffectivelyNotchVisible) return;
+        if (!_clipboardNotificationController.TryAcceptUpdate(now, IsEffectivelyNotchVisible)) return;
 
         Dispatcher.BeginInvoke(new Action(PlayClipboardPeek));
     }
@@ -89,11 +85,10 @@ public partial class MainWindow
     }
     private void ShowClipboardCopiedState()
     {
-        if (!TryAcquireCompactSlot(VNotch.Controllers.CompactPillSlot.Clipboard, out int token))
+        if (!_clipboardNotificationController.TryBegin(_compactPillCoordinator))
             return;
 
-        _clipboardPeekToken = token;
-        _isClipboardPeekActive = true;
+        int token = _clipboardNotificationController.Token;
 
         // Hide privacy dot during clipboard notification
         SuppressPrivacyDot();
@@ -176,10 +171,7 @@ public partial class MainWindow
     }
     private void RevertClipboardCopiedState()
     {
-        int token = _clipboardPeekToken;
-        _isClipboardPeekActive = false;
-        _compactPillArbiter.Release(token);
-        _clipboardPeekToken = 0;
+        int token = _clipboardNotificationController.Complete(_compactPillCoordinator);
 
         // Restore privacy dot
         RestorePrivacyDotVisibility();
@@ -240,8 +232,7 @@ public partial class MainWindow
         if (!_isClipboardPeekActive) return;
 
         _clipboardRevertTimer?.Stop();
-        _isClipboardPeekActive = false;
-        _clipboardPeekToken = 0;
+        _clipboardNotificationController.CancelPreempted();
 
         ClipboardCheckIcon.BeginAnimation(OpacityProperty, null);
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -259,3 +250,6 @@ public partial class MainWindow
 
     #endregion
 }
+
+
+

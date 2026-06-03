@@ -7,6 +7,7 @@ using System.Windows.Media.Animation;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using VNotch.Models;
+using VNotch.Controllers;
 using VNotch.Services;
 using static VNotch.Services.Win32Interop;
 using POINT = VNotch.Services.Win32Interop.POINT;
@@ -20,8 +21,8 @@ public partial class MainWindow
     private int _lastDisplayedSecond = -1;
     private TimeSpan _dragSeekPosition = TimeSpan.Zero; 
     
-    private readonly ProgressEngine _progressEngine = new ProgressEngine();
-    private long _progressSnapshotSequence = 0;  
+    private readonly MediaProgressController _mediaProgressController = new();
+    // Progress sequencing is owned by MediaProgressController
 
     private double _progressDisplayRatio = 0;   
     private double _progressTargetRatio = 0;    
@@ -301,7 +302,7 @@ public partial class MainWindow
                 // Increment sequence FIRST so any in-flight animation Completed handlers become stale
                 _trackChangeSequence++;
                 
-                _progressEngine.Reset();
+                _mediaProgressController.Reset();
                 StopCatchUpAnimation();
                 StopRewindTextAnimation();
 
@@ -315,7 +316,7 @@ public partial class MainWindow
                 _lastRenderTime = DateTime.MinValue;
                 _lastRenderedDuration = TimeSpan.Zero;
                 _lastDisplayedSecond = -1;
-                _progressSnapshotSequence = 0;
+                /* sequence reset handled by MediaProgressController */
                 _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
                 StopSpringRenderLoop();
 
@@ -400,21 +401,7 @@ public partial class MainWindow
                 }
             }
 
-            var snapshot = new ProgressSnapshot
-            {
-                Position = info.Position,
-                Duration = info.Duration,
-                IsPlaying = info.IsPlaying,
-                
-                IsYouTube = IsLikelyBrowserProgressSource(info),
-                PlaybackRate = info.PlaybackRate,
-                IsSeekEnabled = info.IsSeekEnabled,
-                IsIndeterminate = info.IsIndeterminate,
-                Timestamp = info.LastUpdated.UtcDateTime,
-                SequenceNumber = System.Threading.Interlocked.Increment(ref _progressSnapshotSequence)
-            };
-            
-            _progressEngine.OnMediaSnapshot(snapshot);
+            _mediaProgressController.PublishMediaSnapshot(info, IsLikelyBrowserProgressSource(info), info.IsSeekEnabled);
             if (info.LastUpdated > _lastProgressTimelineUpdated)
             {
                 _lastProgressTimelineUpdated = info.LastUpdated;
@@ -451,7 +438,7 @@ public partial class MainWindow
             ProgressBar.Visibility = Visibility.Visible;
             ProgressBarContainer.Cursor = Cursors.Arrow;
 
-            _progressEngine.Reset();
+            _mediaProgressController.Reset();
             _lastProgressTimelineKey = "";
             _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
             _lastRenderedDuration = TimeSpan.Zero;
@@ -524,7 +511,7 @@ public partial class MainWindow
         // While the rewind animation is running, the WPF DoubleAnimation owns ProgressBarScale
         if (_isRewindAnimating) return;
 
-        var frame = _progressEngine.GetUiFrame();
+        var frame = _mediaProgressController.GetUiFrame();
 
         if (frame.Duration.TotalSeconds <= 0 && !frame.ShowIndeterminate)
         {
@@ -867,7 +854,7 @@ public partial class MainWindow
         _mouseDownPoint = e.GetPosition(ProgressBarContainer);
         ProgressBarContainer.CaptureMouse();
 
-        var duration = _progressEngine.GetUiFrame().Duration;
+        var duration = _mediaProgressController.GetUiFrame().Duration;
         if (duration.TotalSeconds <= 0) return;
 
         double ratio = _mouseDownPoint.X / ProgressBarContainer.ActualWidth;
@@ -952,14 +939,14 @@ public partial class MainWindow
         {
             if (wasClickSeek && !wasDragging)
             {
-                var duration2 = _progressEngine.GetUiFrame().Duration;
+                var duration2 = _mediaProgressController.GetUiFrame().Duration;
                 _dragSeekPosition = ClampSeekTarget(_dragSeekPosition, duration2);
 
                 _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
                 _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
                 _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
                 _protectSpringTargetUntil = DateTime.UtcNow.AddSeconds(1.5);
-                _progressEngine.NotifyUserSeek(_dragSeekPosition);
+                _mediaProgressController.NotifyUserSeek(_dragSeekPosition);
 
                 _lastDisplayedSecond = (int)_dragSeekPosition.TotalSeconds;
                 CurrentTimeText.Text = FormatTime(_dragSeekPosition);
@@ -976,7 +963,7 @@ public partial class MainWindow
 
     private void UpdateProgressFromMouse(MouseEventArgs e)
     {
-        var duration = _progressEngine.GetUiFrame().Duration;
+        var duration = _mediaProgressController.GetUiFrame().Duration;
         if (duration.TotalSeconds <= 0) return;
 
         var position = e.GetPosition(ProgressBarContainer);
@@ -1129,14 +1116,14 @@ public partial class MainWindow
 
     private TimeSpan GetPositionForRatio(double ratio)
     {
-        var duration = _progressEngine.GetUiFrame().Duration;
+        var duration = _mediaProgressController.GetUiFrame().Duration;
         if (duration.TotalSeconds <= 0) return TimeSpan.Zero;
         return TimeSpan.FromSeconds(Math.Clamp(ratio, 0, 1) * duration.TotalSeconds);
     }
 
     private async Task SeekToPosition(TimeSpan newPos)
     {
-        var duration = _progressEngine.GetUiFrame().Duration;
+        var duration = _mediaProgressController.GetUiFrame().Duration;
         if (duration.TotalSeconds <= 0) return;
 
         newPos = ClampSeekTarget(newPos, duration);
@@ -1146,7 +1133,7 @@ public partial class MainWindow
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
             _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
-            _progressEngine.NotifyUserSeek(newPos);
+            _mediaProgressController.NotifyUserSeek(newPos);
 
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
@@ -1167,7 +1154,7 @@ public partial class MainWindow
 
     private async Task SeekRelative(double seconds)
     {
-        var frame = _progressEngine.GetUiFrame();
+        var frame = _mediaProgressController.GetUiFrame();
         var duration = frame.Duration;
         if (duration.TotalSeconds <= 0) return;
 
@@ -1181,7 +1168,7 @@ public partial class MainWindow
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
             _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
-            _progressEngine.NotifyUserSeek(newPos);
+            _mediaProgressController.NotifyUserSeek(newPos);
 
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
@@ -1276,7 +1263,7 @@ public partial class MainWindow
     {
         if (_currentMediaInfo == null) return;
 
-        var frame = _progressEngine.GetUiFrame();
+        var frame = _mediaProgressController.GetUiFrame();
         if (frame.Duration.TotalSeconds <= 0) return;
 
         double targetRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
@@ -1524,4 +1511,7 @@ public partial class MainWindow
 
     #endregion
 }
+
+
+
 

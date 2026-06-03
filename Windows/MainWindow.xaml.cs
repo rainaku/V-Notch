@@ -102,7 +102,7 @@ public partial class MainWindow : Window
     private const double CompactThumbnailHoverExitMargin = 22.0;
     private DateTime _lastMediaActionTime = DateTime.MinValue;
 
-    private readonly VNotch.Controllers.CompactPillArbiter _compactPillArbiter = new();
+    private readonly VNotch.Controllers.ICompactPillCoordinator _compactPillCoordinator = new VNotch.Controllers.CompactPillCoordinator();
 
     private readonly DispatcherTimer _progressTimer;
 
@@ -1021,6 +1021,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         VNotch.Services.AnimationConfig.Configure(_settings.AnimationFps);
         VNotch.Controls.MusicVisualizer.ConfigureAudioDevice(_settings.VisualizerAudioDeviceId);
+        ApplyShadowSettings();
+        ApplyVisualizerSettings();
         ApplyPerformanceSettings();
 
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
@@ -1232,6 +1234,46 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         }
     }
 
+    private void ApplyShadowSettings()
+    {
+        if (NotchShadowWrapper == null) return;
+
+        NotchShadowWrapper.BeginAnimation(OpacityProperty, null);
+        if (_settings.EnableShadow)
+        {
+            NotchShadowWrapper.Visibility = Visibility.Visible;
+            NotchShadowWrapper.Effect = Resources["NotchShadow"] as Effect;
+        }
+        else
+        {
+            NotchShadowWrapper.Effect = null;
+            NotchShadowWrapper.Visibility = Visibility.Collapsed;
+            NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            NotchShadowScale.ScaleX = 1.0;
+            NotchShadowScale.ScaleY = 1.0;
+        }
+    }
+
+    private void ApplyVisualizerSettings()
+    {
+        if (MusicViz == null) return;
+
+        MusicViz.IsVisualizerEnabled = _settings.EnableMusicVisualizer;
+        if (_settings.EnableMusicVisualizer)
+        {
+            MusicViz.Effect ??= new BlurEffect { Radius = 1.6, RenderingBias = RenderingBias.Performance };
+        }
+        else
+        {
+            MusicViz.BeginAnimation(OpacityProperty, null);
+            MusicViz.Opacity = 0;
+            MusicViz.Visibility = Visibility.Collapsed;
+            MusicViz.IsPlaying = false;
+            MusicViz.TrackId = string.Empty;
+            MusicViz.Effect = null;
+        }
+    }
     private void ApplyPerformanceSettings()
     {
         if (_settings.EnableBlurEffects)
@@ -1983,3 +2025,4 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     #endregion
 
 }
+

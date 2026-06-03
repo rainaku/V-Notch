@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 
 namespace VNotch.Services;
@@ -54,7 +54,33 @@ public void SetBoth(string fullIdentity, string trackOnlyIdentity, string source
             if (changed) _isDirty = true;
         }
     }
-public bool HasSource(string fullIdentity, string trackOnlyIdentity, string expectedSource)
+public void Set(string key, string source)
+    {
+        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(source)) return;
+
+        lock (_lock)
+        {
+            if (!_cache.TryGetValue(key, out var existing) ||
+                !string.Equals(existing, source, StringComparison.Ordinal))
+            {
+                _cache[key] = source;
+                _isDirty = true;
+            }
+        }
+    }
+public string? Get(string key)
+    {
+        return TryGet(key, out var value) ? value : null;
+    }
+public void ForceSave()
+    {
+        lock (_lock)
+        {
+            _isDirty = true;
+        }
+
+        Save();
+    }public bool HasSource(string fullIdentity, string trackOnlyIdentity, string expectedSource)
     {
         lock (_lock)
         {
@@ -134,3 +160,4 @@ public void Clear()
         }
     }
 }
+

@@ -608,6 +608,16 @@ public partial class MainWindow
 
     private void ShowMusicVisualizer(bool animate = true, Duration? duration = null)
     {
+        if (!_settings.EnableMusicVisualizer)
+        {
+            MusicViz.BeginAnimation(OpacityProperty, null);
+            MusicViz.Opacity = 0;
+            MusicViz.Visibility = Visibility.Collapsed;
+            MusicViz.IsPlaying = false;
+            MusicViz.TrackId = string.Empty;
+            return;
+        }
+
         double currentOpacity = Math.Clamp(MusicViz.Opacity, 0.0, 1.0);
 
         // Promote the current animated value before clearing the animation. Otherwise WPF
@@ -655,6 +665,7 @@ public partial class MainWindow
         {
             if (shouldBeCompact)
             {
+                MusicViz.IsVisualizerEnabled = _settings.EnableMusicVisualizer;
                 if (info?.Thumbnail != null)
                 {
                     if (_mediaDisplayController.ShouldAnimateCompactThumbnail(info))
@@ -677,7 +688,7 @@ public partial class MainWindow
                         MusicViz.IsPlaying = info.IsPlaying;
                         MusicViz.TrackId = info.GetSignature();
 
-                        if (info.IsPlaying && !_isVolumeIndicatorActive)
+                        if (_settings.EnableMusicVisualizer && info.IsPlaying && !_isVolumeIndicatorActive)
                         {
                             ShowMusicVisualizer(duration: _dur200);
                         }
@@ -1019,3 +1030,4 @@ public partial class MainWindow
 
     #endregion
 }
+

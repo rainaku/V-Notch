@@ -221,7 +221,7 @@ public partial class MainWindow
             _isPlaying = !_isPlaying;
             Dispatcher.Invoke(() => UpdatePlayPauseIcon());
 
-            _progressEngine.NotifyUserPlayPause(_isPlaying);
+            _mediaProgressController.NotifyUserPlayPause(_isPlaying);
             await _mediaService.PlayPauseAsync();
         }
         catch (Exception ex)
@@ -364,3 +364,4 @@ public partial class MainWindow
 
     #endregion
 }
+

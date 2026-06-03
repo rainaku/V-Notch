@@ -1,4 +1,4 @@
-﻿using System.Windows.Media.Imaging;
+using System.Windows.Media.Imaging;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -21,6 +21,8 @@ public class MediaTimelineSimulator
 
     // ─── Public properties ───
     public bool IsThrottled => _isThrottled;
+    public TimeSpan LastObservedPosition => _lastObservedPosition;
+    public DateTime LastPositionChangeTime => _lastPositionChangeTime;
     public TimeSpan RecoveredDuration
     {
         get => _recoveredDuration;
@@ -136,3 +138,4 @@ public bool TryExitThrottleIfStalled(TimeSpan stallThreshold)
         return false;
     }
 }
+

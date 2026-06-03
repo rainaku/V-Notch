@@ -209,7 +209,7 @@ public partial class MainWindow
 
             ChargingNotification.Visibility = Visibility.Collapsed;
             _isChargingNotificationVisible = false;
-            _compactPillArbiter.Release(token);
+            _compactPillCoordinator.Release(token);
             _chargingGlanceToken = 0;
 
             // Restore previous content
@@ -376,3 +376,4 @@ public partial class MainWindow
         // Reserved: explicit poke point if we ever need to force a refresh outside the BatteryModule's own event cadence.
     }
 }
+

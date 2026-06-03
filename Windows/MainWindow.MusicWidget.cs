@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -385,4 +385,5 @@ public partial class MainWindow
 
     #endregion
 }
+
 

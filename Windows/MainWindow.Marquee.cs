@@ -1,4 +1,4 @@
-﻿using VNotch.Controls;
+using VNotch.Controls;
 
 namespace VNotch;
 
@@ -18,3 +18,4 @@ public partial class MainWindow
     private void UpdateTitleText(string newText) => Marquee.UpdateTitleText(newText);
     private void UpdateArtistText(string newText) => Marquee.UpdateArtistText(newText);
 }
+

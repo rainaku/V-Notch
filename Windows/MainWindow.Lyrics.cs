@@ -170,7 +170,7 @@ public partial class MainWindow
         if (_currentMediaInfo.IsPlaying && _currentMediaInfo.Duration.TotalSeconds > 0)
         {
             // Use ProgressEngine for accurate position without a hard elapsed-time cap
-            var frame = _progressEngine.GetUiFrame();
+            var frame = _mediaProgressController.GetUiFrame();
             if (frame.Duration.TotalSeconds > 0 && frame.State == ProgressState.Playing)
             {
                 position = frame.Position;
@@ -248,7 +248,7 @@ public partial class MainWindow
         TimeSpan position;
         if (_currentMediaInfo != null && _currentMediaInfo.IsPlaying && _currentMediaInfo.Duration.TotalSeconds > 0)
         {
-            var frame = _progressEngine.GetUiFrame();
+            var frame = _mediaProgressController.GetUiFrame();
             if (frame.Duration.TotalSeconds > 0 && frame.State == ProgressState.Playing)
             {
                 // ProgressEngine predicts position continuously without a time cap
@@ -270,7 +270,7 @@ public partial class MainWindow
         }
         else
         {
-            var frame = _progressEngine.GetUiFrame();
+            var frame = _mediaProgressController.GetUiFrame();
             if (frame.Duration.TotalSeconds <= 0) return;
             position = frame.Position;
         }
@@ -529,3 +529,4 @@ public partial class MainWindow
         HideLyricsWidget();
     }
 }
+

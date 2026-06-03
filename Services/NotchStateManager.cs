@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -26,6 +26,7 @@ public class NotchStateManager
     public bool IsMusicExpanded => CurrentState == NotchState.MusicExpanded;
     public bool IsSecondaryView => CurrentState == NotchState.SecondaryView;
     public bool IsTransitioning => CurrentState is NotchState.Expanding or NotchState.Collapsing or NotchState.MusicExpanding or NotchState.MusicCollapsing;
+    public bool IsAnimating => IsTransitioning;
 
     public bool CanTransitionTo(NotchState target)
     {
@@ -35,10 +36,10 @@ public class NotchStateManager
             NotchState.Expanding => current == NotchState.Collapsed,
             NotchState.Expanded => current == NotchState.Expanding || current == NotchState.SecondaryView || current == NotchState.CameraExpanded,
             NotchState.Collapsing => current == NotchState.Expanded || current == NotchState.SecondaryView || current == NotchState.CameraExpanded,
-            NotchState.Collapsed => current == NotchState.Collapsing || current == NotchState.MusicCollapsing,
+            NotchState.Collapsed => current == NotchState.Collapsing || current == NotchState.MusicCollapsing || current == NotchState.Hidden,
             NotchState.SecondaryView => current == NotchState.Expanded,
             NotchState.CameraExpanded => current == NotchState.SecondaryView,
-            NotchState.MusicExpanding => current == NotchState.Collapsed,
+            NotchState.MusicExpanding => current == NotchState.Collapsed || current == NotchState.Expanded,
             NotchState.MusicExpanded => current == NotchState.MusicExpanding,
             NotchState.MusicCollapsing => current == NotchState.MusicExpanded || current == NotchState.MusicExpanding,
             NotchState.Hidden => true,
@@ -159,3 +160,4 @@ public class NotchStateChangedEventArgs : EventArgs
         NewState = newState;
     }
 }
+

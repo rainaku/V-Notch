@@ -15,14 +15,20 @@ public class HoverDetectionService : IDisposable
 
     private DateTime _hoverEnterTime;
     private DateTime _hoverLeaveTime;
-    private readonly TimeSpan _enterDelay = TimeSpan.FromMilliseconds(150); 
-    private readonly TimeSpan _leaveDelay = TimeSpan.FromMilliseconds(400); 
+    private readonly TimeSpan _enterDelay = TimeSpan.FromMilliseconds(150);
+    private readonly TimeSpan _leaveDelay = TimeSpan.FromMilliseconds(400);
     private bool _pendingEnter;
     private bool _pendingLeave;
 
+    // Adaptive polling: only poll at 30Hz when the cursor is near the notch.
+    // When the cursor is far away (the common idle case) we slow the timer down
+    // so the UI thread isn't woken 30×/sec for nothing — saves idle CPU / battery.
+    private static readonly TimeSpan _fastInterval = TimeSpan.FromMilliseconds(33);
+    private static readonly TimeSpan _slowInterval = TimeSpan.FromMilliseconds(120);
+    private const double ApproachMargin = 250; // px around the hover zone that counts as "near"
+
     public event EventHandler? HoverEnter;
     public event EventHandler? HoverLeave;
-    public event EventHandler<Point>? MousePositionChanged;
 
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT lpPoint);
@@ -41,7 +47,7 @@ public class HoverDetectionService : IDisposable
         _hoverZoneMargin = hoverZoneMargin;
         _pollTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(33) 
+            Interval = _fastInterval
         };
         _pollTimer.Tick += PollTimer_Tick;
     }
@@ -76,10 +82,11 @@ public class HoverDetectionService : IDisposable
         if (!GetCursorPos(out POINT point)) return;
 
         var mousePoint = new Point(point.X, point.Y);
-        MousePositionChanged?.Invoke(this, mousePoint);
 
         bool isInZone = _hoverZone.Contains(mousePoint);
         var now = DateTime.Now;
+
+        AdjustPollRate(mousePoint, isInZone);
 
         if (isInZone)
         {
@@ -124,6 +131,28 @@ public class HoverDetectionService : IDisposable
                     HoverLeave?.Invoke(this, EventArgs.Empty);
                 }
             }
+        }
+    }
+
+    // Switch the timer between 30Hz (near the notch / mid-interaction) and a slower
+    // rate when the cursor is far away, so idle polling doesn't keep the UI thread hot.
+    private void AdjustPollRate(Point mousePoint, bool isInZone)
+    {
+        // Stay responsive while actively hovering or while an enter/leave is settling.
+        bool needsFast = isInZone || _isHovering || _pendingEnter || _pendingLeave;
+
+        if (!needsFast)
+        {
+            // "Near" = within ApproachMargin of the hover zone. Use an inflated copy
+            // rather than a distance calc so corners behave consistently.
+            var approachZone = Rect.Inflate(_hoverZone, ApproachMargin, ApproachMargin);
+            needsFast = approachZone.Contains(mousePoint);
+        }
+
+        var desired = needsFast ? _fastInterval : _slowInterval;
+        if (_pollTimer.Interval != desired)
+        {
+            _pollTimer.Interval = desired;
         }
     }
 

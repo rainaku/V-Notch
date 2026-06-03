@@ -13,7 +13,7 @@ public partial class MainWindow
 
     private bool TryAcquireCompactSlot(CompactPillSlot slot, out int token)
     {
-        var result = _compactPillArbiter.TryAcquire(slot);
+        var result = _compactPillCoordinator.TryAcquire(slot);
         token = result.Token;
         if (!result.Won)
         {
@@ -69,7 +69,7 @@ public partial class MainWindow
         anim.Completed += (_, _) =>
         {
             if (version != _compactWidthAnimationVersion) return;
-            if (token != 0 && !_compactPillArbiter.IsTokenCurrent(token)) return;
+            if (token != 0 && !_compactPillCoordinator.IsTokenCurrent(token)) return;
 
             NotchBorder.BeginAnimation(WidthProperty, null);
             NotchBorder.Width = targetWidth;
@@ -78,5 +78,6 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(WidthProperty, anim);
     }
 
-    private bool IsCompactSlotStale(int token) => !_compactPillArbiter.IsTokenCurrent(token);
+    private bool IsCompactSlotStale(int token) => !_compactPillCoordinator.IsTokenCurrent(token);
 }
+

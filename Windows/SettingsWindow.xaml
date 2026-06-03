@@ -1388,6 +1388,17 @@
                                     <StackPanel>
                                         <TextBlock x:Name="PerformanceHeader" Text="PERFORMANCE" Style="{StaticResource SectionHeader}"/>
 
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <TextBlock x:Name="PerformancePresetLabel" Text="Performance Mode" Style="{StaticResource SettingTitleText}"/>
+                                                <TextBlock x:Name="PerformancePresetHint"
+                                                           Text="Choose a preset that maps to animation FPS and heavier visual effects."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,6,0,0"/>
+                                                <ComboBox x:Name="PerformancePresetCombo" SelectionChanged="PerformancePresetCombo_SelectionChanged"/>
+                                            </StackPanel>
+                                        </Border>
+
                                         <Border Style="{StaticResource SettingRowBorder}">
                                             <StackPanel>
                                                 <TextBlock x:Name="AnimationFpsLabel" Text="Animation FPS" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
@@ -1415,6 +1426,32 @@
                                                           Unchecked="PerformanceSetting_Changed"/>
                                                 <TextBlock x:Name="EnableBlurEffectsHint"
                                                            Text="Use media background blur, content transition blur, and other visual blur effects."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <CheckBox x:Name="EnableShadowCheck"
+                                                          Content="Notch shadow"
+                                                          Checked="PerformanceSetting_Changed"
+                                                          Unchecked="PerformanceSetting_Changed"/>
+                                                <TextBlock x:Name="EnableShadowHint"
+                                                           Text="Draw the notch drop shadow. Disable it to skip the shadow shader pass."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <CheckBox x:Name="EnableMusicVisualizerCheck"
+                                                          Content="Music visualizer"
+                                                          Checked="PerformanceSetting_Changed"
+                                                          Unchecked="PerformanceSetting_Changed"/>
+                                                <TextBlock x:Name="EnableMusicVisualizerHint"
+                                                           Text="Show the compact music bars and capture loopback audio for them. Disable it to stop that continuous render path."
                                                            Style="{StaticResource SettingHintText}"
                                                            Margin="0,3,0,0"/>
                                             </StackPanel>
@@ -1703,3 +1740,4 @@
         </Grid>
     </Border>
 </Window>
+

@@ -13,12 +13,13 @@ public class NotchSettings
     public string LastRunVersion { get; set; } = "";
 
     public int Width { get; set; } = 230;
-    public int DynamicIslandWidth { get; set; } = 210;
+    public int DynamicIslandWidth { get; set; } = 260;
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 8;
     public double Opacity { get; set; } = 1.0;
     public double MediaBlurBrightnessBoost { get; set; } = 2.0;
     public double MediaBlurDarkOverlay { get; set; } = 0.0;
+    public string PerformancePreset { get; set; } = "quality";
     public bool EnableBlurEffects { get; set; } = true;
     public int AnimationFps { get; set; } = 144;
 
@@ -26,6 +27,7 @@ public class NotchSettings
 
     public string CameraDeviceId { get; set; } = ""; // Empty = auto-detect first available
     public string VisualizerAudioDeviceId { get; set; } = ""; // Empty = default render endpoint
+    public bool EnableMusicVisualizer { get; set; } = true;
     public string BatteryDeviceId { get; set; } = SystemBatteryDeviceId; // Empty = system battery
 
     public bool AutoStart { get; set; } = true;
@@ -104,3 +106,5 @@ public class NotchSettings
         return clone;
     }
 }
+
+

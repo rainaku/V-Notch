@@ -150,7 +150,7 @@ public partial class MainWindow
             activeGrid.Visibility = Visibility.Collapsed;
             _isBluetoothNotificationVisible = false;
             _bluetoothController.MarkDismissed();
-            _compactPillArbiter.Release(token);
+            _compactPillCoordinator.Release(token);
             _bluetoothNotificationToken = 0;
 
             // Restore privacy dot
@@ -222,3 +222,4 @@ public partial class MainWindow
 
     #endregion
 }
+

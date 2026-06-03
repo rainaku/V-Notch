@@ -27,7 +27,16 @@ public partial class SettingsWindow : Window
     private UpdateInfo? _availableUpdate;
     private bool _isLoadingSettings = true;
     private DispatcherTimer? _livePreviewDebounce;
+    private bool _isApplyingPerformancePreset;
     private const int SettingsAnimationFps = 60;
+
+    private class PerformancePresetItem
+    {
+        public string Key { get; set; } = "";
+        public string Name { get; set; } = "";
+
+        public override string ToString() => Name;
+    }
 
     public event EventHandler<NotchSettings>? SettingsChanged;
 public event EventHandler? AnimatedClosing;
@@ -118,8 +127,11 @@ public event EventHandler? AnimatedClosing;
         OpacitySlider.Value = _settings.Opacity * 100;
         BlurBrightnessSlider.Value = _settings.MediaBlurBrightnessBoost * 100;
         BlurDarkOverlaySlider.Value = _settings.MediaBlurDarkOverlay * 100;
+        LoadPerformancePresets();
         AnimationFpsSlider.Value = _settings.AnimationFps;
         EnableBlurEffectsCheck.IsChecked = _settings.EnableBlurEffects;
+        EnableShadowCheck.IsChecked = _settings.EnableShadow;
+        EnableMusicVisualizerCheck.IsChecked = _settings.EnableMusicVisualizer;
         EnableSubjectBlurCheck.IsChecked = _settings.EnableSubjectBlur;
         EnableSmartCropCheck.IsChecked = _settings.EnableSmartCrop;
         UpdatePerformanceDependentControls(_settings.EnableBlurEffects);
@@ -317,8 +329,15 @@ public event EventHandler? AnimatedClosing;
         AnimationFpsLabel.Text = Loc.Get("settings.animationFps");
         AnimationFpsSlider.Label = Loc.Get("settings.animationFps");
         AnimationFpsSlider.Description = Loc.Get("settings.animationFps.hint");
+        PerformancePresetLabel.Text = Loc.Get("settings.performancePreset");
+        PerformancePresetHint.Text = Loc.Get("settings.performancePreset.hint");
+        LoadPerformancePresets();
         EnableBlurEffectsCheck.Content = Loc.Get("settings.enableBlurEffects");
         EnableBlurEffectsHint.Text = Loc.Get("settings.enableBlurEffects.hint");
+        EnableShadowCheck.Content = Loc.Get("settings.enableShadow");
+        EnableShadowHint.Text = Loc.Get("settings.enableShadow.hint");
+        EnableMusicVisualizerCheck.Content = Loc.Get("settings.enableMusicVisualizer");
+        EnableMusicVisualizerHint.Text = Loc.Get("settings.enableMusicVisualizer.hint");
         EnableSubjectBlurCheck.Content = Loc.Get("settings.enableSubjectBlur");
         EnableSubjectBlurHint.Text = Loc.Get("settings.enableSubjectBlur.hint");
         EnableSmartCropCheck.Content = Loc.Get("settings.enableSmartCrop");
@@ -387,6 +406,8 @@ public event EventHandler? AnimatedClosing;
     {
         if (AnimationFpsValue != null)
             AnimationFpsValue.Text = ((int)Math.Round(e.NewValue)).ToString();
+        if (_isLoadingSettings || _isApplyingPerformancePreset) return;
+        SelectCustomPerformancePreset();
         PushLivePreview();
     }
 
@@ -646,11 +667,100 @@ public event EventHandler? AnimatedClosing;
         SubtitlePriorityRow.IsEnabled = subtitlesEnabled;
     }
 
+
+    private void LoadPerformancePresets()
+    {
+        if (PerformancePresetCombo == null) return;
+
+        var selectedKey = _settings.PerformancePreset;
+        if (PerformancePresetCombo.SelectedItem is PerformancePresetItem selectedItem)
+            selectedKey = selectedItem.Key;
+
+        var presets = new List<PerformancePresetItem>
+        {
+            new() { Key = "quality", Name = Loc.Get("settings.performancePreset.quality") },
+            new() { Key = "balanced", Name = Loc.Get("settings.performancePreset.balanced") },
+            new() { Key = "batterySaver", Name = Loc.Get("settings.performancePreset.batterySaver") },
+            new() { Key = "custom", Name = Loc.Get("settings.performancePreset.custom") }
+        };
+
+        PerformancePresetCombo.SelectionChanged -= PerformancePresetCombo_SelectionChanged;
+        PerformancePresetCombo.ItemsSource = presets;
+        PerformancePresetCombo.DisplayMemberPath = "Name";
+        PerformancePresetCombo.SelectedValuePath = "Key";
+        var selectedIdx = presets.FindIndex(p => string.Equals(p.Key, selectedKey, StringComparison.Ordinal));
+        PerformancePresetCombo.SelectedIndex = selectedIdx >= 0 ? selectedIdx : 0;
+        PerformancePresetCombo.SelectionChanged += PerformancePresetCombo_SelectionChanged;
+    }
+
+
+    private void SelectCustomPerformancePreset()
+    {
+        if (PerformancePresetCombo?.ItemsSource is not IEnumerable<PerformancePresetItem> presets) return;
+        var custom = presets.FirstOrDefault(p => p.Key == "custom");
+        if (custom == null || ReferenceEquals(PerformancePresetCombo.SelectedItem, custom)) return;
+
+        PerformancePresetCombo.SelectionChanged -= PerformancePresetCombo_SelectionChanged;
+        PerformancePresetCombo.SelectedItem = custom;
+        PerformancePresetCombo.SelectionChanged += PerformancePresetCombo_SelectionChanged;
+        _settings.PerformancePreset = "custom";
+    }
+    private void ApplyPerformancePresetToControls(string preset)
+    {
+        _isApplyingPerformancePreset = true;
+        try
+        {
+            switch (preset)
+            {
+                case "batterySaver":
+                    AnimationFpsSlider.Value = 60;
+                    EnableBlurEffectsCheck.IsChecked = false;
+                    EnableMusicVisualizerCheck.IsChecked = false;
+                    EnableSmartCropCheck.IsChecked = false;
+                    EnableSubjectBlurCheck.IsChecked = false;
+                    break;
+                case "balanced":
+                    AnimationFpsSlider.Value = 90;
+                    EnableBlurEffectsCheck.IsChecked = true;
+                    EnableMusicVisualizerCheck.IsChecked = false;
+                    EnableSmartCropCheck.IsChecked = false;
+                    EnableSubjectBlurCheck.IsChecked = false;
+                    break;
+                case "quality":
+                default:
+                    AnimationFpsSlider.Value = 144;
+                    EnableBlurEffectsCheck.IsChecked = true;
+                    EnableMusicVisualizerCheck.IsChecked = true;
+                    EnableSmartCropCheck.IsChecked = true;
+                    EnableSubjectBlurCheck.IsChecked = true;
+                    break;
+            }
+
+            UpdatePerformanceDependentControls(EnableBlurEffectsCheck.IsChecked ?? true);
+        }
+        finally
+        {
+            _isApplyingPerformancePreset = false;
+        }
+    }
+
+    private void PerformancePresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        if (PerformancePresetCombo.SelectedItem is not PerformancePresetItem preset) return;
+
+        _settings.PerformancePreset = preset.Key;
+        if (preset.Key != "custom")
+            ApplyPerformancePresetToControls(preset.Key);
+        PushLivePreview();
+    }
+
     private void PerformanceSetting_Changed(object sender, RoutedEventArgs e)
     {
         bool blurEnabled = EnableBlurEffectsCheck.IsChecked ?? true;
         UpdatePerformanceDependentControls(blurEnabled);
-        if (_isLoadingSettings) return;
+        if (_isLoadingSettings || _isApplyingPerformancePreset) return;
+        SelectCustomPerformancePreset();
         PushLivePreview();
     }
 
@@ -886,8 +996,12 @@ public event EventHandler? AnimatedClosing;
             (YouTubeApiKeyHint, () => YouTubeApiKeyHint.Text = Loc.Get("settings.youtubeApiKey.hint")),
 
             // Performance
+            (PerformancePresetLabel, () => PerformancePresetLabel.Text = Loc.Get("settings.performancePreset")),
+            (PerformancePresetHint, () => { PerformancePresetHint.Text = Loc.Get("settings.performancePreset.hint"); LoadPerformancePresets(); }),
             (AnimationFpsLabel, () => { AnimationFpsLabel.Text = Loc.Get("settings.animationFps"); AnimationFpsSlider.Label = Loc.Get("settings.animationFps"); AnimationFpsSlider.Description = Loc.Get("settings.animationFps.hint"); }),
             (EnableBlurEffectsHint, () => EnableBlurEffectsHint.Text = Loc.Get("settings.enableBlurEffects.hint")),
+            (EnableShadowHint, () => EnableShadowHint.Text = Loc.Get("settings.enableShadow.hint")),
+            (EnableMusicVisualizerHint, () => EnableMusicVisualizerHint.Text = Loc.Get("settings.enableMusicVisualizer.hint")),
             (EnableSubjectBlurHint, () => EnableSubjectBlurHint.Text = Loc.Get("settings.enableSubjectBlur.hint")),
             (EnableSmartCropHint, () => EnableSmartCropHint.Text = Loc.Get("settings.enableSmartCrop.hint")),
 
@@ -940,6 +1054,10 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(EnableYouTubeSubtitlesCheck, () => EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(EnableBlurEffectsCheck, () => EnableBlurEffectsCheck.Content = Loc.Get("settings.enableBlurEffects"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(EnableShadowCheck, () => EnableShadowCheck.Content = Loc.Get("settings.enableShadow"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(EnableMusicVisualizerCheck, () => EnableMusicVisualizerCheck.Content = Loc.Get("settings.enableMusicVisualizer"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(EnableSubjectBlurCheck, () => EnableSubjectBlurCheck.Content = Loc.Get("settings.enableSubjectBlur"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
@@ -1292,6 +1410,8 @@ private void PushLivePreview()
         BlurDarkOverlaySlider.Value = defaults.MediaBlurDarkOverlay * 100;
         AnimationFpsSlider.Value = defaults.AnimationFps;
         EnableBlurEffectsCheck.IsChecked = defaults.EnableBlurEffects;
+        EnableShadowCheck.IsChecked = defaults.EnableShadow;
+        EnableMusicVisualizerCheck.IsChecked = defaults.EnableMusicVisualizer;
         EnableSubjectBlurCheck.IsChecked = defaults.EnableSubjectBlur;
         EnableSmartCropCheck.IsChecked = defaults.EnableSmartCrop;
         UpdatePerformanceDependentControls(defaults.EnableBlurEffects);
@@ -1662,8 +1782,12 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.Opacity = OpacitySlider.Value / 100.0;
         _settings.MediaBlurBrightnessBoost = BlurBrightnessSlider.Value / 100.0;
         _settings.MediaBlurDarkOverlay = BlurDarkOverlaySlider.Value / 100.0;
+        if (PerformancePresetCombo.SelectedItem is PerformancePresetItem performancePreset)
+            _settings.PerformancePreset = performancePreset.Key;
         _settings.AnimationFps = (int)Math.Round(AnimationFpsSlider.Value);
         _settings.EnableBlurEffects = EnableBlurEffectsCheck.IsChecked ?? true;
+        _settings.EnableShadow = EnableShadowCheck.IsChecked ?? true;
+        _settings.EnableMusicVisualizer = EnableMusicVisualizerCheck.IsChecked ?? true;
         _settings.EnableSubjectBlur = EnableSubjectBlurCheck.IsChecked ?? true;
         _settings.EnableSmartCrop = EnableSmartCropCheck.IsChecked ?? true;
         _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
@@ -2375,14 +2499,16 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         return MonitorCombo.IsDropDownOpen
             || LanguageCombo.IsDropDownOpen
             || CameraCombo.IsDropDownOpen
-            || VisualizerAudioCombo.IsDropDownOpen;
+            || VisualizerAudioCombo.IsDropDownOpen
+            || PerformancePresetCombo.IsDropDownOpen;
     }
 
     private void SettingsScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        // If a ComboBox dropdown is open, don't intercept scroll - let the dropdown handle it
+        // Keep the settings page pinned while a ComboBox dropdown is open.
         if (IsAnyComboBoxDropDownOpen())
         {
+            e.Handled = true;
             return;
         }
 
@@ -2569,3 +2695,11 @@ public class AudioDeviceItem
 
     public override string ToString() => Name;
 }
+
+
+
+
+
+
+
+

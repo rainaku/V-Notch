@@ -38,6 +38,10 @@ namespace VNotch.Controls
             DependencyProperty.Register(nameof(ActiveBrush), typeof(Brush), typeof(MusicVisualizer),
                 new FrameworkPropertyMetadata(Brushes.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
+        public static readonly DependencyProperty IsVisualizerEnabledProperty =
+            DependencyProperty.Register(nameof(IsVisualizerEnabled), typeof(bool), typeof(MusicVisualizer),
+                new PropertyMetadata(true, OnVisualizerEnabledChanged));
+
         public bool IsPlaying
         {
             get => (bool)GetValue(IsPlayingProperty);
@@ -60,6 +64,12 @@ namespace VNotch.Controls
         {
             get => (Brush)GetValue(ActiveBrushProperty);
             set => SetValue(ActiveBrushProperty, value);
+        }
+
+        public bool IsVisualizerEnabled
+        {
+            get => (bool)GetValue(IsVisualizerEnabledProperty);
+            set => SetValue(IsVisualizerEnabledProperty, value);
         }
 
         #endregion
@@ -144,11 +154,21 @@ namespace VNotch.Controls
             }
         }
 
+        private static void OnVisualizerEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is MusicVisualizer viz)
+            {
+                viz.UpdateInternalState();
+            }
+        }
+
         private void UpdateInternalState()
         {
             var oldState = _state;
 
-            if (string.IsNullOrEmpty(TrackId))
+            if (!IsVisualizerEnabled)
+                _state = VisualizerState.Idle;
+            else if (string.IsNullOrEmpty(TrackId))
                 _state = VisualizerState.Idle;
             else if (IsBuffering)
                 _state = VisualizerState.Seeking;
@@ -174,7 +194,7 @@ namespace VNotch.Controls
 
         private void UpdateRenderingState()
         {
-            if (!IsVisible || _state == VisualizerState.Idle)
+            if (!IsVisualizerEnabled || !IsVisible || _state == VisualizerState.Idle)
             {
                 StopRendering();
                 return;
@@ -202,6 +222,13 @@ namespace VNotch.Controls
 
         private void OnRendering(object? sender, EventArgs e)
         {
+            if (!IsVisualizerEnabled)
+            {
+                StopRendering();
+                StopAudioCapture();
+                return;
+            }
+
             EnsureAudioCaptureStarted();
 
             double totalSec = _stopwatch.Elapsed.TotalSeconds;
@@ -467,7 +494,7 @@ namespace VNotch.Controls
 
         private void EnsureAudioCaptureStarted(bool force = false)
         {
-            if (_state == VisualizerState.Idle) return;
+            if (!IsVisualizerEnabled || _state == VisualizerState.Idle) return;
             if (_capture != null) return;
 
             var now = DateTime.UtcNow;
@@ -1276,3 +1303,4 @@ namespace VNotch.Controls
         #endregion
     }
 }
+
