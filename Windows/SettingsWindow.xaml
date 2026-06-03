@@ -992,6 +992,25 @@
                                                         ValueChanged="DynamicIslandWidthSlider_ValueChanged"/>
                                             </StackPanel>
                                         </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <TextBlock x:Name="DynamicIslandHeightLabel" Text="Dynamic Island Width" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
+                                                <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
+                                                    <Run x:Name="DynamicIslandHeightValue" Text="36"/><Run Text=" px"/>
+                                                </TextBlock>
+                                                <TextBlock x:Name="DynamicIslandHeightHint" Visibility="Collapsed"/>
+                                                <controls:ElasticSlider x:Name="DynamicIslandHeightSlider"
+                                                        Label="Dynamic Island Width" Unit=" px"
+                                                        Description="Adjust the floating pill thickness used by Dynamic Island mode."
+                                                        Minimum="24"
+                                                        Maximum="72"
+                                                        Value="36"
+                                                        TickFrequency="2"
+                                                        IsSnapToTickEnabled="True"
+                                                        ValueChanged="DynamicIslandHeightSlider_ValueChanged"/>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -1740,4 +1759,6 @@
         </Grid>
     </Border>
 </Window>
+
+
 

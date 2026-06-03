@@ -10,9 +10,10 @@ namespace VNotch.Services;
 public interface IMediaArtworkService
 {
     Task<BitmapImage?> DownloadImageAsync(string url, CancellationToken ct = default);
-    BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false);
+    BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false, CancellationToken ct = default);
     Task<BitmapImage?> ConvertToWpfBitmapAsync(IRandomAccessStreamWithContentType stream, CancellationToken ct = default);
     void ConfigureSmartCrop(bool enabled);
+    void UnloadOnnxSession();
 
     SubjectBounds? GetDominantSubjectBounds(BitmapImage source);
 }
@@ -47,7 +48,14 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
             // Just check if model file exists — no model loading here
             InitializeSmartCrop();
         }
+        else if (!enabled)
+        {
+            // Release the ONNX session immediately when Smart Crop is disabled by preset/settings.
+            _smartCrop.Unload();
+        }
     }
+
+    public void UnloadOnnxSession() => _smartCrop.Unload();
 
     public SubjectBounds? GetDominantSubjectBounds(BitmapImage source)
     {
@@ -107,10 +115,11 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
         }
     }
 
-    public BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false)
+    public BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false, CancellationToken ct = default)
     {
         try
         {
+            if (ct.IsCancellationRequested) return null;
             int width = source.PixelWidth;
             int height = source.PixelHeight;
 
@@ -146,7 +155,7 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
             Int32Rect rect;
 
             // Try smart crop first if enabled and available
-            if (EnableSmartCrop && _smartCropAvailable && aspect > 1.4 && !forceCenterCrop)
+            if (EnableSmartCrop && _smartCropAvailable && aspect > 1.4 && !forceCenterCrop && !ct.IsCancellationRequested)
             {
                 BitmapImage? workingBitmap = workingSource as BitmapImage;
                 if (workingBitmap == null)
@@ -157,7 +166,9 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
 
                 if (workingBitmap != null)
                 {
+                    if (ct.IsCancellationRequested) return null;
                     var smartRect = _smartCrop.GetSmartCropRect(workingBitmap, squareSize);
+                    if (ct.IsCancellationRequested) return null;
                     if (smartRect.HasValue)
                     {
                         rect = smartRect.Value;
@@ -455,3 +466,5 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
         _smartCrop.Dispose();
     }
 }
+
+

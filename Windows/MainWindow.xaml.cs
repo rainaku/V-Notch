@@ -935,6 +935,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         {
             bool sizeChanged = newSettings.Width != _settings.Width
                             || newSettings.DynamicIslandWidth != _settings.DynamicIslandWidth
+                            || newSettings.DynamicIslandHeight != _settings.DynamicIslandHeight
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
             bool languageChanged = newSettings.Language != _settings.Language;
@@ -1227,6 +1228,10 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         // Configure smart thumbnail cropping (ONNX/YOLOv8n)
         _mediaService.ArtworkService.ConfigureSmartCrop(_settings.EnableSmartCrop);
+        if (!_settings.EnableSmartCrop && !_settings.EnableSubjectBlur)
+        {
+            _mediaService.ArtworkService.UnloadOnnxSession();
+        }
 
         if (_hwnd != IntPtr.Zero)
         {
@@ -1262,7 +1267,9 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         MusicViz.IsVisualizerEnabled = _settings.EnableMusicVisualizer;
         if (_settings.EnableMusicVisualizer)
         {
-            MusicViz.Effect ??= new BlurEffect { Radius = 1.6, RenderingBias = RenderingBias.Performance };
+            MusicViz.Effect = _settings.EnableBlurEffects
+                ? new BlurEffect { Radius = 1.6, RenderingBias = RenderingBias.Performance }
+                : null;
         }
         else
         {
@@ -2025,4 +2032,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     #endregion
 
 }
+
+
+
 

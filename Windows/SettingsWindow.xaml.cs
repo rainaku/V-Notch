@@ -122,6 +122,7 @@ public event EventHandler? AnimatedClosing;
 
         WidthSlider.Value = _settings.Width;
         DynamicIslandWidthSlider.Value = _settings.DynamicIslandWidth;
+        DynamicIslandHeightSlider.Value = _settings.DynamicIslandHeight;
         HeightSlider.Value = _settings.Height;
         RadiusSlider.Value = _settings.CornerRadius;
         OpacitySlider.Value = _settings.Opacity * 100;
@@ -228,6 +229,9 @@ public event EventHandler? AnimatedClosing;
         DynamicIslandWidthLabel.Text = Loc.Get("settings.dynamicIslandWidth");
         DynamicIslandWidthSlider.Label = Loc.Get("settings.dynamicIslandWidth");
         DynamicIslandWidthSlider.Description = Loc.Get("settings.dynamicIslandWidth.hint");
+        DynamicIslandHeightLabel.Text = Loc.Get("settings.dynamicIslandHeight");
+        DynamicIslandHeightSlider.Label = Loc.Get("settings.dynamicIslandHeight");
+        DynamicIslandHeightSlider.Description = Loc.Get("settings.dynamicIslandHeight.hint");
         HeightLabel.Text = Loc.Get("settings.height");
         HeightSlider.Label = Loc.Get("settings.height");
         HeightSlider.Description = Loc.Get("settings.height.hint");
@@ -364,6 +368,13 @@ public event EventHandler? AnimatedClosing;
     {
         if (DynamicIslandWidthValue != null)
             DynamicIslandWidthValue.Text = ((int)e.NewValue).ToString();
+        PushLivePreview();
+    }
+
+    private void DynamicIslandHeightSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (DynamicIslandHeightValue != null)
+            DynamicIslandHeightValue.Text = ((int)e.NewValue).ToString();
         PushLivePreview();
     }
 
@@ -634,12 +645,14 @@ public event EventHandler? AnimatedClosing;
 
     private void UpdateDynamicIslandDependentControls(bool islandEnabled)
     {
-        // Lock the length slider when Dynamic Island mode is off — it only affects the floating pill.
-        if (DynamicIslandWidthSlider == null) return;
+        // Lock Dynamic Island-only size sliders when the mode is off.
+        if (DynamicIslandWidthSlider == null || DynamicIslandHeightSlider == null) return;
 
         double targetOpacity = islandEnabled ? 1.0 : 0.4;
         DynamicIslandWidthSlider.IsEnabled = islandEnabled;
         DynamicIslandWidthSlider.Opacity = targetOpacity;
+        DynamicIslandHeightSlider.IsEnabled = islandEnabled;
+        DynamicIslandHeightSlider.Opacity = targetOpacity;
     }
 
     private void UpdateLyricsDependentControls(bool lyricsEnabled)
@@ -940,6 +953,7 @@ public event EventHandler? AnimatedClosing;
             // Appearance
             (WidthLabel, () => { WidthLabel.Text = Loc.Get("settings.width"); WidthSlider.Label = Loc.Get("settings.width"); WidthSlider.Description = Loc.Get("settings.width.hint"); }),
             (DynamicIslandWidthLabel, () => { DynamicIslandWidthLabel.Text = Loc.Get("settings.dynamicIslandWidth"); DynamicIslandWidthSlider.Label = Loc.Get("settings.dynamicIslandWidth"); DynamicIslandWidthSlider.Description = Loc.Get("settings.dynamicIslandWidth.hint"); }),
+            (DynamicIslandHeightLabel, () => { DynamicIslandHeightLabel.Text = Loc.Get("settings.dynamicIslandHeight"); DynamicIslandHeightSlider.Label = Loc.Get("settings.dynamicIslandHeight"); DynamicIslandHeightSlider.Description = Loc.Get("settings.dynamicIslandHeight.hint"); }),
             (HeightLabel, () => { HeightLabel.Text = Loc.Get("settings.height"); HeightSlider.Label = Loc.Get("settings.height"); HeightSlider.Description = Loc.Get("settings.height.hint"); }),
             (RadiusLabel, () => { RadiusLabel.Text = Loc.Get("settings.cornerRadius"); RadiusSlider.Label = Loc.Get("settings.cornerRadius"); RadiusSlider.Description = Loc.Get("settings.cornerRadius.hint"); }),
             (OpacityLabel, () => { OpacityLabel.Text = Loc.Get("settings.opacity"); OpacitySlider.Label = Loc.Get("settings.opacity"); OpacitySlider.Description = Loc.Get("settings.opacity.hint"); }),
@@ -1403,6 +1417,7 @@ private void PushLivePreview()
 
         WidthSlider.Value = defaults.Width;
         DynamicIslandWidthSlider.Value = defaults.DynamicIslandWidth;
+        DynamicIslandHeightSlider.Value = defaults.DynamicIslandHeight;
         HeightSlider.Value = defaults.Height;
         RadiusSlider.Value = defaults.CornerRadius;
         OpacitySlider.Value = defaults.Opacity * 100;
@@ -1777,6 +1792,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     {
         _settings.Width = (int)WidthSlider.Value;
         _settings.DynamicIslandWidth = (int)DynamicIslandWidthSlider.Value;
+        _settings.DynamicIslandHeight = (int)DynamicIslandHeightSlider.Value;
         _settings.Height = (int)HeightSlider.Value;
         _settings.CornerRadius = (int)RadiusSlider.Value;
         _settings.Opacity = OpacitySlider.Value / 100.0;
@@ -2695,6 +2711,7 @@ public class AudioDeviceItem
 
     public override string ToString() => Name;
 }
+
 
 
 

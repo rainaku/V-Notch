@@ -127,6 +127,8 @@ public static class Loc
             ["settings.width.hint"] = "How wide the compact notch should sit on screen.",
             ["settings.dynamicIslandWidth"] = "Dynamic Island Length",
             ["settings.dynamicIslandWidth.hint"] = "Adjust the floating pill length used by Dynamic Island mode.",
+            ["settings.dynamicIslandHeight"] = "Dynamic Island Width",
+            ["settings.dynamicIslandHeight.hint"] = "Adjust the floating pill thickness used by Dynamic Island mode.",
             ["settings.height"] = "Height",
             ["settings.height.hint"] = "Controls the compact profile thickness.",
             ["settings.cornerRadius"] = "Corner Radius",
@@ -372,6 +374,8 @@ public static class Loc
             ["settings.width.hint"] = "Độ rộng của notch ở chế độ thu gọn.",
             ["settings.dynamicIslandWidth"] = "Độ dài Dynamic Island",
             ["settings.dynamicIslandWidth.hint"] = "Tùy chỉnh chiều dài viên thuốc nổi khi dùng chế độ Dynamic Island.",
+            ["settings.dynamicIslandHeight"] = "Độ rộng Dynamic Island",
+            ["settings.dynamicIslandHeight.hint"] = "Tùy chỉnh độ dày/độ rộng của viên thuốc nổi khi dùng chế độ Dynamic Island.",
             ["settings.height"] = "Chiều cao",
             ["settings.height.hint"] = "Độ dày của notch ở chế độ thu gọn.",
             ["settings.cornerRadius"] = "Bo góc",
@@ -565,5 +569,6 @@ public static class Loc
         };
     }
 }
+
 
 

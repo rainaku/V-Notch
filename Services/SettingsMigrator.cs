@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
     
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
@@ -71,6 +71,22 @@ public static class SettingsMigrator
                 }
                 return root;
             },
+            [5] = root =>
+            {
+                if (!root.ContainsKey(nameof(NotchSettings.DynamicIslandHeight)))
+                {
+                    int height = 32;
+                    if (root.TryGetPropertyValue(nameof(NotchSettings.Height), out var heightNode)
+                        && heightNode is JsonValue heightValue
+                        && heightValue.TryGetValue(out int parsedHeight))
+                    {
+                        height = parsedHeight;
+                    }
+
+                    root[nameof(NotchSettings.DynamicIslandHeight)] = (int)Math.Round(height * 1.12);
+                }
+                return root;
+            },
         };
 
     public static (NotchSettings settings, bool migrated) Migrate(string rawJson)
@@ -122,3 +138,4 @@ public static class SettingsMigrator
         return (settings, migrated);
     }
 }
+

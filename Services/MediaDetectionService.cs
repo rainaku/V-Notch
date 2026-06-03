@@ -1202,7 +1202,7 @@ public class MediaDetectionService : IMediaDetectionService
                                             RuntimeLog.Log("MEDIA-THUMB-CROP",
                                                 $"path=youtube-fetch track='{info.CurrentTrack}' artist='{info.CurrentArtist}' " +
                                                 $"thumb={frameBitmap.PixelWidth}x{frameBitmap.PixelHeight} isTopicChannel={isYtFetchTopicChannel}");
-                                            frameBitmap = CropToSquare(frameBitmap, "YouTube", forceCenterCrop: isYtFetchTopicChannel) ?? frameBitmap;
+                                            frameBitmap = CropToSquare(frameBitmap, "YouTube", forceCenterCrop: isYtFetchTopicChannel, ct: token) ?? frameBitmap;
                                             _timelineSimulator.RecoveredThumbnail = frameBitmap;
                                             _cachedThumbnail = frameBitmap;
                                             _cachedThumbnailSource = "YouTube";
@@ -1462,7 +1462,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 return;
                             }
 
-                            frameBitmap = CropToSquare(frameBitmap, "SoundCloud") ?? frameBitmap;
+                            frameBitmap = CropToSquare(frameBitmap, "SoundCloud", ct: token) ?? frameBitmap;
                             _timelineSimulator.RecoveredThumbnail = frameBitmap;
                             _cachedThumbnail = frameBitmap;
                             _cachedThumbnailSource = "SoundCloud";
@@ -3076,8 +3076,8 @@ public class MediaDetectionService : IMediaDetectionService
     private Task<BitmapImage?> DownloadImageAsync(string url, CancellationToken ct = default)
         => _artworkService.DownloadImageAsync(url, ct);
 
-    private BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false)
-        => _artworkService.CropToSquare(source, mediaSource, forceCenterCrop);
+    private BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false, CancellationToken ct = default)
+        => _artworkService.CropToSquare(source, mediaSource, forceCenterCrop, ct);
 
     private Task<BitmapImage?> ConvertToWpfBitmapAsync(Windows.Storage.Streams.IRandomAccessStreamWithContentType stream, CancellationToken ct = default)
         => _artworkService.ConvertToWpfBitmapAsync(stream, ct);
@@ -3530,4 +3530,7 @@ public enum DetectionMode
     EventDriven,
     ThrottledMedia
 }
+
+
+
 
