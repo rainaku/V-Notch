@@ -10,7 +10,8 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        Loaded="Window_Loaded">
+        Loaded="Window_Loaded"
+        FocusManager.FocusedElement="{Binding ElementName=MainShell}">
 
     <Window.Resources>
         <FontFamily x:Key="SettingsFont">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
@@ -543,6 +544,7 @@
             BorderThickness="1"
             SnapsToDevicePixels="True"
             Opacity="0"
+            Focusable="True"
             PreviewMouseLeftButtonDown="WindowSurface_PreviewMouseLeftButtonDown"
             RenderTransformOrigin="0.5,0.5">
         <Border.RenderTransform>
@@ -601,7 +603,9 @@
                                          FontFamily="{StaticResource SettingsFont}"
                                          VerticalContentAlignment="Center"
                                          CaretBrush="White"
-                                         TextChanged="SettingsSearchBox_TextChanged"/>
+                                         TextChanged="SettingsSearchBox_TextChanged"
+                                         GotFocus="SettingsSearchBox_GotFocus"
+                                         LostFocus="SettingsSearchBox_LostFocus"/>
                                 <TextBlock x:Name="SearchPlaceholder" Grid.Column="1"
                                            Text="Search settings..."
                                            FontSize="13" FontWeight="Bold"

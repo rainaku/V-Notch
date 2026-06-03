@@ -1958,7 +1958,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         string query = SettingsSearchBox.Text?.Trim() ?? "";
 
         // Toggle placeholder visibility
-        SearchPlaceholder.Visibility = string.IsNullOrEmpty(query) ? Visibility.Visible : Visibility.Collapsed;
+        UpdateSearchPlaceholderVisibility();
 
         if (string.IsNullOrEmpty(query))
         {
@@ -1982,6 +1982,29 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         }
         _searchDebounce.Stop();
         _searchDebounce.Start();
+    }
+
+    private void SettingsSearchBox_GotFocus(object sender, RoutedEventArgs e)
+    {
+        UpdateSearchPlaceholderVisibility();
+    }
+
+    private void SettingsSearchBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        UpdateSearchPlaceholderVisibility();
+    }
+
+    private void UpdateSearchPlaceholderVisibility()
+    {
+        string query = SettingsSearchBox.Text?.Trim() ?? "";
+        if (SettingsSearchBox.IsFocused || !string.IsNullOrEmpty(query))
+        {
+            SearchPlaceholder.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            SearchPlaceholder.Visibility = Visibility.Visible;
+        }
     }
 
     private static string NormalizeSearchString(string input)
@@ -2224,23 +2247,37 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         return string.Join(" ", parts);
     }
 
+    private void AddAllTranslations(string text, List<string> parts)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        var translations = Loc.GetAllTranslations(text);
+        if (translations.Count > 0)
+        {
+            parts.AddRange(translations);
+        }
+        else
+        {
+            parts.Add(text);
+        }
+    }
+
     private void CollectSearchText(DependencyObject current, List<string> parts)
     {
         switch (current)
         {
             case TextBlock textBlock when !string.IsNullOrWhiteSpace(textBlock.Text):
-                parts.Add(textBlock.Text);
+                AddAllTranslations(textBlock.Text, parts);
                 break;
             case CheckBox checkBox when checkBox.Content is string checkText:
-                parts.Add(checkText);
+                AddAllTranslations(checkText, parts);
                 break;
             case ContentControl contentControl when contentControl.Content is string contentText:
-                parts.Add(contentText);
+                AddAllTranslations(contentText, parts);
                 break;
             case ElasticSlider slider:
-                parts.Add(slider.Label);
-                parts.Add(slider.Description);
-                parts.Add(slider.Unit);
+                AddAllTranslations(slider.Label, parts);
+                AddAllTranslations(slider.Description, parts);
+                AddAllTranslations(slider.Unit, parts);
                 break;
         }
 

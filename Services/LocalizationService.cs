@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace VNotch.Services;
@@ -30,6 +30,43 @@ public static class Loc
         var template = Get(key);
         try { return string.Format(template, args); }
         catch { return template; }
+    }
+
+    public static List<string> GetAllTranslations(string text)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(text)) return result;
+
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var langDict in _strings.Values)
+        {
+            foreach (var kvp in langDict)
+            {
+                if (string.Equals(kvp.Value, text, StringComparison.OrdinalIgnoreCase))
+                {
+                    keys.Add(kvp.Key);
+                }
+            }
+        }
+
+        var uniqueTranslations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in keys)
+        {
+            foreach (var langDict in _strings.Values)
+            {
+                if (langDict.TryGetValue(key, out var val) && !string.IsNullOrWhiteSpace(val))
+                {
+                    uniqueTranslations.Add(val);
+                }
+            }
+        }
+
+        if (uniqueTranslations.Count == 0)
+        {
+            uniqueTranslations.Add(text);
+        }
+
+        return new List<string>(uniqueTranslations);
     }
 
     static Loc()
