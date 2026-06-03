@@ -258,7 +258,7 @@ public partial class MainWindow : Window
             {
                 ExpandNotch();
             }
-            else if (!_settings.EnableHoverExpand && CompactThumbnailBorder.IsMouseOver)
+            else if (!_settings.EnableHoverExpand && IsCursorInsideCompactThumbnailExitZone())
             {
                 SetCompactThumbnailHover(true);
             }
@@ -1353,8 +1353,19 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         if (MusicCompactContent != null)
         {
-            MusicCompactContent.VerticalAlignment = islandMode ? VerticalAlignment.Center : VerticalAlignment.Top;
-            MusicCompactContent.Margin = islandMode ? new Thickness(8, 0, 8, 0) : new Thickness(8, 4, 8, 4);
+            double islandTop = Math.Max(0, (GetCollapsedHeight() - 22) / 2.0);
+            MusicCompactContent.VerticalAlignment = VerticalAlignment.Top;
+            MusicCompactContent.Margin = islandMode ? new Thickness(12, islandTop, 12, 0) : new Thickness(8, 4, 8, 4);
+        }
+
+        if (CompactHoverInfo != null)
+        {
+            CompactHoverInfo.Margin = islandMode ? new Thickness(0, 8, 0, 8) : new Thickness(-6, 14, -6, 8);
+        }
+
+        if (CompactThumbnailBorder != null)
+        {
+            CompactThumbnailBorder.RenderTransformOrigin = islandMode ? new Point(0.5, 0.5) : new Point(0, 0);
         }
 
         if (MusicViz != null)
@@ -1588,14 +1599,50 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private bool IsCursorInsideCompactThumbnailExitZone()
     {
-        var p = Mouse.GetPosition(CompactThumbnailBorder);
-        double width = CompactThumbnailBorder.ActualWidth;
-        double height = CompactThumbnailBorder.ActualHeight;
+        if (CompactThumbnailBorder == null || NotchBorder == null) return false;
 
-        return p.X >= -CompactThumbnailHoverExitMargin &&
-               p.Y >= -CompactThumbnailHoverExitMargin &&
-               p.X <= width + CompactThumbnailHoverExitMargin &&
-               p.Y <= height + CompactThumbnailHoverExitMargin;
+        Point cursor = Mouse.GetPosition(NotchBorder);
+
+        Rect thumbnailBounds;
+        try
+        {
+            thumbnailBounds = CompactThumbnailBorder
+                .TransformToVisual(NotchBorder)
+                .TransformBounds(new Rect(0, 0, CompactThumbnailBorder.ActualWidth, CompactThumbnailBorder.ActualHeight));
+        }
+        catch
+        {
+            return false;
+        }
+
+        Rect exitBounds = thumbnailBounds;
+
+        if (_settings.EnableDynamicIslandMode && _isCompactThumbnailHovered)
+        {
+            double notchWidth = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : NotchBorder.Width;
+            double notchHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : NotchBorder.Height;
+            if (double.IsFinite(notchWidth) && double.IsFinite(notchHeight) && notchWidth > 0 && notchHeight > 0)
+            {
+                exitBounds.Union(new Rect(0, 0, notchWidth, notchHeight));
+            }
+        }
+        else if (CompactHoverInfo?.Visibility == Visibility.Visible)
+        {
+            try
+            {
+                var hoverBounds = CompactHoverInfo
+                    .TransformToVisual(NotchBorder)
+                    .TransformBounds(new Rect(0, 0, CompactHoverInfo.ActualWidth, CompactHoverInfo.ActualHeight));
+                exitBounds.Union(hoverBounds);
+            }
+            catch
+            {
+                // Keep thumbnail bounds if hover info is between layouts.
+            }
+        }
+
+        exitBounds.Inflate(CompactThumbnailHoverExitMargin, CompactThumbnailHoverExitMargin);
+        return exitBounds.Contains(cursor);
     }
 
     #endregion

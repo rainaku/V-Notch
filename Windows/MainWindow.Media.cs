@@ -821,6 +821,9 @@ public partial class MainWindow
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+        CompactThumbnailBorder.RenderTransformOrigin = _settings.EnableDynamicIslandMode
+            ? new Point(0.5, 0.5)
+            : new Point(0, 0);
         CompactThumbnailScale.ScaleX = 1.0;
         CompactThumbnailScale.ScaleY = 1.0;
         CompactThumbnailBorder.Opacity = 1.0;

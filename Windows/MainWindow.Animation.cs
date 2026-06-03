@@ -53,17 +53,18 @@ public partial class MainWindow
 
             var thumbPos = ThumbnailBorder.TransformToAncestor(InnerClipBorder).Transform(new Point(0, 0));
 
-            // The overlay's layout slot is fixed at the top-left of InnerClipBorder (Margin 8,4).
+            ConfigureAnimationThumbnailRestSlot();
+
+            // The overlay's layout slot is aligned with the real compact thumbnail rest slot.
             // Keeping it fixed makes the translate math stable while the notch height animates.
-            // The compact resting position (which is vertically centered in Dynamic Island mode)
-            // is handled separately via GetCompactThumbnailRestOffsetY at the compact end.
-            double targetX = thumbPos.X - 8;
+            var overlayMargin = AnimationThumbnailBorder.Margin;
+            double targetX = thumbPos.X - overlayMargin.Left;
             
             // Adjust the Y-coordinate to align with the final static expanded state (which is shifted by target translation)
             // regardless of the current rendering transform of ExpandedContent during measurement.
             double currentTranslationY = GetCurrentExpandedContentTranslationY();
             double contentTargetY = _settings.EnableDynamicIslandMode ? 5 : 0;
-            double targetY = (thumbPos.Y - currentTranslationY) + contentTargetY - 4;
+            double targetY = (thumbPos.Y - currentTranslationY) + contentTargetY - overlayMargin.Top;
 
             if (double.IsNaN(targetX) || double.IsInfinity(targetX) ||
                 double.IsNaN(targetY) || double.IsInfinity(targetY))
@@ -82,17 +83,38 @@ public partial class MainWindow
         }
     }
 
-    // Vertical translate that moves the animation overlay from its fixed layout slot (top, Margin 8,4)
-    // onto the real compact thumbnail. In default mode the thumbnail also rests at the top (offset 0);
-    // in Dynamic Island mode it is vertically centered in the taller pill, so the overlay must travel
-    // the extra distance to meet it — otherwise the thumbnail snaps at the compact end of expand/collapse.
+    private void ConfigureAnimationThumbnailRestSlot()
+    {
+        double left = _settings.EnableDynamicIslandMode ? 12 : 8;
+        double top = 4;
+
+        if (_settings.EnableDynamicIslandMode)
+        {
+            const double compactThumbSize = 22;
+            top = Math.Max(0, (GetCollapsedHeight() - compactThumbSize) / 2.0);
+        }
+
+        AnimationThumbnailBorder.Margin = new Thickness(left, top, 0, 0);
+    }
+
     private double GetCompactThumbnailRestOffsetY()
     {
-        if (!_settings.EnableDynamicIslandMode) return 0;
+        ConfigureAnimationThumbnailRestSlot();
+        return 0;
+    }
+
+    private double GetCompactThumbnailRestOffsetX()
+    {
+        ConfigureAnimationThumbnailRestSlot();
+        return 0;
+    }
+
+    private double GetCompactThumbnailCenteredTop()
+    {
+        if (!_settings.EnableDynamicIslandMode) return 4;
         const double compactThumbSize = 22;
-        const double overlayRestTop = 4;
-        double centeredTop = Math.Max(0, (_collapsedHeight - compactThumbSize) / 2.0);
-        return centeredTop - overlayRestTop;
+        double collapsedHeight = GetCollapsedHeight();
+        return Math.Max(0, (collapsedHeight - compactThumbSize) / 2.0);
     }
 
     private void ResetAnimationThumbnailOverlay(bool clearSource = true)
@@ -199,6 +221,7 @@ public partial class MainWindow
         // Reset compact thumbnail corner radius from hover state
         this.BeginAnimation(CurrentCompactThumbnailRadiusProperty, null);
         CurrentCompactThumbnailRadius = 6;
+        ResetCompactThumbnailRestingState();
 
         UpdateZOrderTimerInterval();
         EnsureTopmost();
@@ -374,8 +397,9 @@ public partial class MainWindow
                 AnimationThumbnailBorder.Width = 22;
                 AnimationThumbnailBorder.Height = 22;
                 AnimationThumbnailClip.Rect = new Rect(0, 0, 22, 22);
+                double compactRestX = GetCompactThumbnailRestOffsetX();
                 double compactRestY = GetCompactThumbnailRestOffsetY();
-                AnimationThumbnailTranslate.X = 0;
+                AnimationThumbnailTranslate.X = compactRestX;
                 AnimationThumbnailTranslate.Y = compactRestY;
 
                 var (targetX, targetY) = cachedExpandTarget.Value;
@@ -404,7 +428,7 @@ public partial class MainWindow
                     _cachedThumbRectExpand.Freeze();
                 }
 
-                var thumbTranslateXAnim = MakeAnim(0, targetX, thumbDur, thumbEase, thumbDelay);
+                var thumbTranslateXAnim = MakeAnim(compactRestX, targetX, thumbDur, thumbEase, thumbDelay);
                 var thumbTranslateYAnim = MakeAnim(compactRestY, targetY, thumbDur, thumbEase, thumbDelay);
                 Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
                 Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
@@ -738,14 +762,15 @@ public partial class MainWindow
         contentToHide.Visibility = Visibility.Collapsed;
         contentToHide.Opacity = 0;
 
+        bool useCompactIslandReturn = _settings.EnableDynamicIslandMode && _isMusicCompactMode;
         var showGroup = new TransformGroup();
-        var showScale = new ScaleTransform(0.8, 0.8);
+        var showScale = new ScaleTransform(useCompactIslandReturn ? 1.0 : 0.8, useCompactIslandReturn ? 1.0 : 0.8);
         showGroup.Children.Add(showScale);
         contentToShow.RenderTransform = showGroup;
         contentToShow.RenderTransformOrigin = new Point(0.5, 0.5);
 
         var fadeInAnim = MakeAnim(1, _dur400, _easePowerOut3);
-        var springShow = MakeAnim(0.8, 1, _dur400, _easeMenuSpring);
+        var springShow = MakeAnim(useCompactIslandReturn ? 1.0 : 0.8, 1, _dur400, _easeMenuSpring);
 
         var glowAnim = MakeAnim(0, _dur150);
 
@@ -813,8 +838,14 @@ public partial class MainWindow
                     _cachedThumbRectCollapse.Freeze();
                 }
 
+                ApplyDynamicIslandContentAlignment(_settings.EnableDynamicIslandMode);
+                MusicCompactContent.InvalidateMeasure();
+                MusicCompactContent.InvalidateArrange();
+                MusicCompactContent.UpdateLayout();
+
+                double compactRestX = GetCompactThumbnailRestOffsetX();
                 double compactRestY = GetCompactThumbnailRestOffsetY();
-                var thumbTranslateXAnim = MakeAnim(startX, 0, thumbDur, thumbEase, thumbDelay);
+                var thumbTranslateXAnim = MakeAnim(startX, compactRestX, thumbDur, thumbEase, thumbDelay);
                 var thumbTranslateYAnim = MakeAnim(startY, compactRestY, thumbDur, thumbEase, thumbDelay);
                 Timeline.SetDesiredFrameRate(thumbTranslateXAnim, thumbFps);
                 Timeline.SetDesiredFrameRate(thumbTranslateYAnim, thumbFps);
@@ -883,10 +914,7 @@ public partial class MainWindow
 
                 ResetAnimationThumbnailOverlay();
 
-                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-                CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-                CompactThumbnailScale.ScaleX = 1.0;
-                CompactThumbnailScale.ScaleY = 1.0;
+                ResetCompactThumbnailRestingState();
                 CompactHoverInfo.BeginAnimation(OpacityProperty, null);
                 CompactHoverInfo.Opacity = 0;
                 CompactHoverInfo.Visibility = Visibility.Collapsed;

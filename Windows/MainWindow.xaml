@@ -1,4 +1,4 @@
-﻿<Window x:Class="VNotch.MainWindow"
+<Window x:Class="VNotch.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:tb="http://www.hardcodet.net/taskbar"
@@ -1063,7 +1063,7 @@
                                     <GradientStop Color="Transparent" Offset="1"/>
                                 </LinearGradientBrush>
                             </Grid.OpacityMask>
-                            <Canvas x:Name="CompactTitleScrollContainer" Height="18" HorizontalAlignment="Stretch" ClipToBounds="True" Margin="0,5,0,0">
+                            <Canvas x:Name="CompactTitleScrollContainer" Height="22" HorizontalAlignment="Stretch" ClipToBounds="True" Margin="0,2,0,0">
                                 <TextBlock x:Name="CompactTitleMarquee" 
                                            Text="Title" 
                                            Style="{StaticResource TitleText}" 
@@ -1071,7 +1071,8 @@
                                            FontWeight="Bold"
                                            Foreground="#EEFFFFFF"
                                            TextOptions.TextFormattingMode="Ideal"
-                                           VerticalAlignment="Center">
+                                           VerticalAlignment="Top"
+                                           Canvas.Top="-1">
                                     <TextBlock.RenderTransform>
                                         <TranslateTransform x:Name="CompactTitleMarqueeTranslate" X="0"/>
                                     </TextBlock.RenderTransform>

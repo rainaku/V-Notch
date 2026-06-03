@@ -14,6 +14,8 @@ public partial class MainWindow
 {
     #region Hover Animations
 
+    private bool _compactMarqueeRefreshQueued;
+
     private void AnimateNotchHover(bool isHovered)
     {
         if (_isExpanded || _isAnimating || _isGreetingActive) return;
@@ -44,9 +46,16 @@ public partial class MainWindow
             ResetCompactThumbnailNextLayer();
         }
 
-        double thumbScale = isHovered ? 1.5 : 1.0;
-        double notchWidth = isHovered ? _collapsedWidth + 32 : _collapsedWidth;
-        double notchHeight = isHovered ? _collapsedHeight + 36 : _collapsedHeight;
+        bool islandMode = _settings.EnableDynamicIslandMode;
+        double thumbScale = isHovered
+            ? (islandMode ? 1.28 : 1.5)
+            : 1.0;
+        double notchWidth = isHovered
+            ? _collapsedWidth + (islandMode ? 24 : 32)
+            : _collapsedWidth;
+        double notchHeight = isHovered
+            ? _collapsedHeight + (islandMode ? 22 : 36)
+            : _collapsedHeight;
         double infoOpacity = isHovered ? 1 : 0;
         
         var duration = isHovered ? _dur500 : _dur350;
@@ -59,6 +68,14 @@ public partial class MainWindow
             $"AnimateNotchHover -> {notchWidth} (hover={isHovered}, _isExpanded={_isExpanded}, _isAnimating={_isAnimating})");
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+        if (isHovered)
+        {
+            ApplyCompactTitleContainerWidth(notchWidth);
+        }
+
+        CompactThumbnailBorder.RenderTransformOrigin = islandMode
+            ? new Point(0.5, 0)
+            : new Point(0, 0);
 
         var thumbScaleAnimX = MakeAnim(thumbScale, duration, easing, animFps);
         var thumbScaleAnimY = MakeAnim(thumbScale, duration, easing, animFps);
@@ -78,10 +95,19 @@ public partial class MainWindow
             };
         }
 
-        var fadeAnim = MakeAnim(infoOpacity, isHovered ? _dur200 : _dur100, _easeQuadOut);
+        var fadeAnim = MakeAnim(
+            infoOpacity,
+            isHovered ? _dur200 : TimeSpan.FromMilliseconds(240),
+            isHovered ? _easeQuadOut : _easePowerOut3);
         if (!isHovered)
         {
-            fadeAnim.Completed += (s, e) => { if (CompactHoverInfo.Opacity < 0.1) CompactHoverInfo.Visibility = Visibility.Collapsed; };
+            fadeAnim.Completed += (s, e) =>
+            {
+                if (_isCompactThumbnailHovered || CompactHoverInfo.Opacity >= 0.1) return;
+
+                CompactHoverInfo.Visibility = Visibility.Collapsed;
+                CompactHoverInfo.OpacityMask = null;
+            };
         }
         CompactHoverInfo.BeginAnimation(OpacityProperty, fadeAnim);
 
@@ -90,8 +116,9 @@ public partial class MainWindow
             : _cornerRadiusCollapsed;
         AnimateCornerRadius(radius, duration.TimeSpan);
 
-        // Animate compact thumbnail corner radius - reduce when scaled up to avoid looking too round
-        double thumbRadius = isHovered ? 2.5 : 6;
+        // Dynamic Island scales from the top edge, so add radius as the artwork grows
+        // instead of leaving the enlarged thumbnail looking squared-off.
+        double thumbRadius = isHovered && islandMode ? 8 : 6;
         double startThumbRadius = CompactThumbnailBorder.CornerRadius.TopLeft;
         if (Math.Abs(thumbRadius - startThumbRadius) > 0.1)
         {
@@ -106,11 +133,19 @@ public partial class MainWindow
         if (_currentMediaInfo == null) return;
         
         CompactTitleMarquee.Text = _currentMediaInfo.CurrentTrack;
+        CompactTitleMarqueeTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         CompactTitleMarquee.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         
         double textWidth = CompactTitleMarquee.DesiredSize.Width;
 
-        double containerWidth = Math.Max(0, ((NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : NotchBorder.Width) + 32) - 12);
+        double containerWidth = GetCompactTitleContainerWidth();
+        if (containerWidth <= 0)
+        {
+            CompactHoverInfo.OpacityMask = null;
+            CompactTitleMarqueeTranslate.X = 0;
+            QueueCompactMarqueeRefresh();
+            return;
+        }
 
         const double marqueeTriggerOverflow = 10.0;
 
@@ -128,6 +163,64 @@ public partial class MainWindow
             CompactTitleMarqueeTranslate.BeginAnimation(TranslateTransform.XProperty, null);
             CompactTitleMarqueeTranslate.X = Math.Max(0, (containerWidth - textWidth) / 2);
         }
+    }
+
+    private void QueueCompactMarqueeRefresh()
+    {
+        if (_compactMarqueeRefreshQueued) return;
+        _compactMarqueeRefreshQueued = true;
+
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _compactMarqueeRefreshQueued = false;
+            if (!_isExpanded && !_isAnimating && _isMusicCompactMode && CompactHoverInfo.Visibility == Visibility.Visible)
+            {
+                UpdateCompactMarquee();
+            }
+        }), DispatcherPriority.Loaded);
+    }
+
+    private double GetCompactTitleContainerWidth()
+    {
+        double explicitWidth = CompactTitleScrollContainer.Width;
+        if (double.IsFinite(explicitWidth) && explicitWidth > 0)
+        {
+            return explicitWidth;
+        }
+
+        double width = CompactTitleScrollContainer.ActualWidth;
+        if (double.IsFinite(width) && width > 0)
+        {
+            return width;
+        }
+
+        try
+        {
+            CompactHoverInfo.UpdateLayout();
+            width = CompactTitleScrollContainer.ActualWidth;
+            if (double.IsFinite(width) && width > 0)
+            {
+                return width;
+            }
+        }
+        catch
+        {
+            return 0;
+        }
+
+        return 0;
+    }
+
+    private void ApplyCompactTitleContainerWidth(double notchWidth)
+    {
+        if (!double.IsFinite(notchWidth) || notchWidth <= 0)
+        {
+            notchWidth = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
+        }
+
+        double horizontalInset = MusicCompactContent.Margin.Left + MusicCompactContent.Margin.Right;
+        double titleWidth = Math.Max(0, notchWidth - horizontalInset);
+        CompactTitleScrollContainer.Width = titleWidth;
     }
 
     #endregion
