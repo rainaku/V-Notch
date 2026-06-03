@@ -114,13 +114,29 @@ public partial class MainWindow
         double radius = isHovered
             ? (_settings.EnableDynamicIslandMode ? notchHeight / 2.0 : 24)
             : _cornerRadiusCollapsed;
-        AnimateCornerRadius(radius, duration.TimeSpan);
+
+        // In Dynamic Island mode, hover leave should restore normal corners immediately.
+        // Radius animation during shrink makes the pill/thumb corners visibly morph.
+        if (islandMode && !isHovered)
+        {
+            this.BeginAnimation(CurrentCornerRadiusProperty, null);
+            CurrentCornerRadius = radius;
+        }
+        else
+        {
+            AnimateCornerRadius(radius, duration.TimeSpan);
+        }
 
         // Dynamic Island scales from the top edge, so add radius as the artwork grows
-        // instead of leaving the enlarged thumbnail looking squared-off.
+        // instead of leaving the enlarged thumbnail looking squared-off. Snap back on leave.
         double thumbRadius = isHovered && islandMode ? 8 : 6;
         double startThumbRadius = CompactThumbnailBorder.CornerRadius.TopLeft;
-        if (Math.Abs(thumbRadius - startThumbRadius) > 0.1)
+        if (islandMode && !isHovered)
+        {
+            this.BeginAnimation(CurrentCompactThumbnailRadiusProperty, null);
+            CurrentCompactThumbnailRadius = thumbRadius;
+        }
+        else if (Math.Abs(thumbRadius - startThumbRadius) > 0.1)
         {
             CurrentCompactThumbnailRadius = startThumbRadius;
             var thumbRadiusAnim = MakeAnim(startThumbRadius, thumbRadius, duration, easing);
@@ -1522,6 +1538,7 @@ public void PlaySettingsAbsorbAnimation()
 
     #endregion
 }
+
 
 
 

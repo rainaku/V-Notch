@@ -128,9 +128,13 @@ namespace VNotch.Controls
         private DpiScale? _cachedDpi;
         private double _currentOpacity = 0.2;
         private VisualizerState _state = VisualizerState.Idle;
+        private bool _lastFrameHadFreshAudio;
+        private static readonly object _instancesLock = new();
+        private static readonly List<WeakReference<MusicVisualizer>> _instances = new();
 
         public MusicVisualizer()
         {
+            lock (_instancesLock) _instances.Add(new WeakReference<MusicVisualizer>(this));
             Loaded += (s, e) => UpdateRenderingState();
             Unloaded += (s, e) =>
             {
@@ -249,6 +253,11 @@ namespace VNotch.Controls
             }
 
             InvalidateVisual();
+
+            if (!_lastFrameHadFreshAudio && (_state == VisualizerState.Playing || _state == VisualizerState.Seeking))
+            {
+                StopRendering();
+            }
         }
 
         private bool UpdateAnimation(double dt, double totalSec)
@@ -269,6 +278,7 @@ namespace VNotch.Controls
             string sid = TrackId ?? "";
 
             float[] levels = GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent);
+            _lastFrameHadFreshAudio = hasFreshAudio;
             double audioEnergy = 0;
             for (int i = 0; i < BarCount; i++) audioEnergy += Math.Clamp(levels[i], 0f, 1f);
             audioEnergy = Math.Clamp(Math.Pow(audioEnergy / BarCount, 0.85), 0.0, 1.0);
@@ -710,6 +720,38 @@ namespace VNotch.Controls
         private static double _beatAccent;
         private static float _latestBeatAccent;
 
+
+        private static void WakeVisibleInstancesForAudio()
+        {
+            List<MusicVisualizer> live = new();
+            lock (_instancesLock)
+            {
+                for (int i = _instances.Count - 1; i >= 0; i--)
+                {
+                    if (_instances[i].TryGetTarget(out var viz))
+                    {
+                        live.Add(viz);
+                    }
+                    else
+                    {
+                        _instances.RemoveAt(i);
+                    }
+                }
+            }
+
+            foreach (var viz in live)
+            {
+                var dispatcher = viz.Dispatcher;
+                if (dispatcher == null || dispatcher.HasShutdownStarted) continue;
+                dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (viz.IsVisualizerEnabled && viz.IsVisible && viz._state != VisualizerState.Idle)
+                    {
+                        viz.StartRendering();
+                    }
+                }));
+            }
+        }
         public static void ConfigureAudioDevice(string? deviceId)
         {
             deviceId ??= string.Empty;
@@ -884,6 +926,7 @@ namespace VNotch.Controls
                 }
 
                 _lastAudioFrameUtcTicks = DateTime.UtcNow.Ticks;
+                WakeVisibleInstancesForAudio();
             }
         }
 
@@ -1303,4 +1346,5 @@ namespace VNotch.Controls
         #endregion
     }
 }
+
 

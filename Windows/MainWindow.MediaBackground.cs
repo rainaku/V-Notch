@@ -29,6 +29,12 @@ public partial class MainWindow
 
     private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
+        if (!IsEffectivelyNotchVisible)
+        {
+            HideMediaBackground();
+            return;
+        }
+
         if (!_settings.EnableBlurEffects)
         {
             HideMediaBackground();
@@ -63,7 +69,7 @@ public partial class MainWindow
             return;
         }
 
-        UpdateBlurredBackgroundAsync(info.Thumbnail).SafeFireAndForget("MEDIA-BG-BLUR");
+        QueueBlurredBackgroundUpdate(info.Thumbnail, forceRefresh);
 
         // Detect overly bright thumbnails and apply dimming overlay
         double brightnessDimOpacity = DynamicIslandColorExtractor.GetBrightnessDimOverlay(info.Thumbnail);
@@ -338,6 +344,21 @@ public partial class MainWindow
         UpdateMediaBackground(info, forceRefresh: true);
     }
 
+    private void ResetMediaBackgroundRefreshState()
+    {
+        _lastDominantColor = Colors.Transparent;
+        _lastSubColor = Colors.White;
+        _lastTrackId = null;
+        _lastBlurThumbnailRef = null;
+        _pendingBlurThumbnail = null;
+        _pendingBlurForceRefresh = false;
+        _pendingBlurResult = null;
+        _blurGenerateDebounce?.Stop();
+        _blurDissolveDebounce?.Stop();
+        _blurTaskVersion++;
+        _mediaBackgroundRecoveryVersion++;
+    }
+
     private void HideMediaBackground()
     {
         HideMediaBackgroundOverlay();
@@ -439,7 +460,7 @@ public partial class MainWindow
 
     private void ShowMediaBackground()
     {
-        if (!_settings.EnableBlurEffects) return;
+        if (!_settings.EnableBlurEffects || !IsEffectivelyNotchVisible) return;
         if (!_isExpanded || _isAnimating || _currentMediaInfo == null) return;
 
         MediaBackground.BeginAnimation(OpacityProperty, null);
@@ -477,7 +498,7 @@ public partial class MainWindow
 
     private void EnsureMediaBackgroundVisible(int recoveryVersion)
     {
-        if (!_settings.EnableBlurEffects)
+        if (!_settings.EnableBlurEffects || !IsEffectivelyNotchVisible)
         {
             return;
         }
@@ -522,17 +543,52 @@ public partial class MainWindow
     private bool _suppressNextBlurDissolve = false;
     private DispatcherTimer? _blurDissolveDebounce;
     private BitmapSource? _pendingBlurResult;
+    private DispatcherTimer? _blurGenerateDebounce;
+    private BitmapImage? _pendingBlurThumbnail;
+    private bool _pendingBlurForceRefresh;
 
-    private async Task UpdateBlurredBackgroundAsync(BitmapImage thumbnail)
+    private void QueueBlurredBackgroundUpdate(BitmapImage thumbnail, bool forceRefresh = false)
+    {
+        if (!_settings.EnableBlurEffects || !IsEffectivelyNotchVisible) return;
+
+        _pendingBlurThumbnail = thumbnail;
+        _pendingBlurForceRefresh |= forceRefresh;
+        _blurTaskVersion++;
+
+        _blurGenerateDebounce ??= new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(140)
+        };
+
+        _blurGenerateDebounce.Tick -= BlurGenerateDebounce_Tick;
+        _blurGenerateDebounce.Tick += BlurGenerateDebounce_Tick;
+        _blurGenerateDebounce.Stop();
+        _blurGenerateDebounce.Start();
+    }
+
+    private void BlurGenerateDebounce_Tick(object? sender, EventArgs e)
+    {
+        _blurGenerateDebounce?.Stop();
+
+        var thumbnail = _pendingBlurThumbnail;
+        bool forceRefresh = _pendingBlurForceRefresh;
+        _pendingBlurThumbnail = null;
+        _pendingBlurForceRefresh = false;
+        if (thumbnail == null || !_settings.EnableBlurEffects || !IsEffectivelyNotchVisible) return;
+
+        UpdateBlurredBackgroundAsync(thumbnail, forceRefresh).SafeFireAndForget("MEDIA-BG-BLUR");
+    }
+
+    private async Task UpdateBlurredBackgroundAsync(BitmapImage thumbnail, bool forceRefresh = false)
     {
         try
         {
-            if (!_settings.EnableBlurEffects)
+            if (!_settings.EnableBlurEffects || !IsEffectivelyNotchVisible)
             {
                 return;
             }
 
-            if (ReferenceEquals(thumbnail, _lastBlurThumbnailRef))
+            if (!forceRefresh && ReferenceEquals(thumbnail, _lastBlurThumbnailRef))
             {
                 return;
             }
@@ -901,4 +957,7 @@ public partial class MainWindow
 
     #endregion
 }
+
+
+
 

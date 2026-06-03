@@ -601,6 +601,38 @@ public partial class MainWindow : Window
         _fullscreenController.Evaluate(foregroundHwnd, force);
     }
 
+
+    private void PauseFullscreenHiddenWork()
+    {
+        if (MusicViz != null)
+        {
+            MusicViz.IsVisualizerEnabled = false;
+        }
+
+        ResetMediaBackgroundRefreshState();
+        HideMediaBackground();
+    }
+
+    private void ResumeFullscreenHiddenWork()
+    {
+        ApplyVisualizerSettings();
+
+        if (_settings.EnableMusicVisualizer && _isMusicCompactMode && _currentMediaInfo != null && !_isClipboardPeekActive)
+        {
+            MusicViz.IsPlaying = _currentMediaInfo.IsPlaying;
+            MusicViz.TrackId = _currentMediaInfo.GetSignature();
+            if (_currentMediaInfo.IsPlaying && !_isVolumeIndicatorActive)
+            {
+                ShowMusicVisualizer(duration: _dur200);
+            }
+        }
+
+        if (_settings.EnableBlurEffects && _isExpanded && _currentMediaInfo?.Thumbnail != null && _currentMediaInfo.IsAnyMediaPlaying)
+        {
+            ResetMediaBackgroundRefreshState();
+            UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
+        }
+    }
     private void FullscreenController_HideStateChanged(bool shouldHide)
     {
         _isHiddenByFullscreen = shouldHide;
@@ -616,12 +648,14 @@ public partial class MainWindow : Window
 
             _hoverCollapseTimer.Stop();
             _hoverThumbnailDelayTimer.Stop();
+            PauseFullscreenHiddenWork();
         }
 
         ApplyNotchVisibilityState();
 
         if (!_isHiddenByFullscreen && _isNotchVisible)
         {
+            ResumeFullscreenHiddenWork();
             TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
             EnsureTopmost(force: true);
         }
@@ -1294,6 +1328,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     private void DisableBlurEffectsImmediate()
     {
         _blurDissolveDebounce?.Stop();
+        _blurGenerateDebounce?.Stop();
+        _pendingBlurThumbnail = null;
         _pendingBlurResult = null;
         _lastBlurThumbnailRef = null;
         _blurTaskVersion++;
@@ -1453,8 +1489,22 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     #region Click & Hover Handling
 
+    private void WakeFromLowPowerPolicy()
+    {
+        if (!IsEffectivelyNotchVisible) return;
+
+        ApplyVisualizerSettings();
+
+        if (_settings.EnableBlurEffects && _isExpanded && _currentMediaInfo?.Thumbnail != null && _currentMediaInfo.IsAnyMediaPlaying)
+        {
+            ResetMediaBackgroundRefreshState();
+            UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
+        }
+    }
+
     private void NotchBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        WakeFromLowPowerPolicy();
         if (_isAnimating)
         {
             e.Handled = true;
@@ -1532,6 +1582,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void NotchWrapper_MouseEnter(object sender, MouseEventArgs e)
     {
+        WakeFromLowPowerPolicy();
         _hoverCollapseTimer.Stop();
         AnimateNotchHover(true);
         QueueHoverExpand();
@@ -2032,6 +2083,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     #endregion
 
 }
+
+
 
 
 
