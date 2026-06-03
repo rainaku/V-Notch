@@ -20,8 +20,9 @@
 </p>
 
 <p align="center">
-  V-Notch brings the Dynamic Island experience from Apple devices to your Windows PC.<br>
-  A smart, interactive notch that displays media controls, system info, and notifications with smooth animations.
+  V-Notch brings the macOS's notch experience from Apple devices to your Windows PC.<br>
+  A smart, interactive notch that displays media controls, system info, and notifications with smooth animations.<br>
+  Of course, V-Notch is compatible with MyDockFinder !
 </p>
 
 <p align="center">
