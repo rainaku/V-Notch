@@ -301,6 +301,12 @@ public static class Loc
             // ─── Privacy Indicators ───
             ["privacy.mic.inUse"] = "Microphone in use",
             ["privacy.cam.inUse"] = "Camera in use",
+
+            // ─── Introducing Window ───
+            ["intro.title"] = "INTRODUCING",
+            ["intro.headline"] = "Dynamic Island Mode",
+            ["intro.body"] = "A new floating pill style notch. Enjoy standard status indicators, music player notifications, and beautiful transitions in a detached floating Apple-style design.",
+            ["intro.close"] = "Got it",
         };
     }
 
@@ -530,6 +536,12 @@ public static class Loc
             // ─── Privacy Indicators ───
             ["privacy.mic.inUse"] = "Đang dùng micro",
             ["privacy.cam.inUse"] = "Đang dùng camera",
+
+            // ─── Introducing Window ───
+            ["intro.title"] = "GIỚI THIỆU",
+            ["intro.headline"] = "Chế độ Dynamic Island",
+            ["intro.body"] = "Thiết kế notch dạng viên thuốc nổi mới, bo tròn cả 4 góc và tách khỏi mép màn hình. Tận hưởng hiển thị pin, trình phát nhạc cùng các chuyển động mượt mà mang phong cách Apple.",
+            ["intro.close"] = "Đã hiểu",
         };
     }
 }

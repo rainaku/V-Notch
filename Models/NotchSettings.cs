@@ -13,7 +13,7 @@ public class NotchSettings
     public string LastRunVersion { get; set; } = "";
 
     public int Width { get; set; } = 230;
-    public int DynamicIslandWidth { get; set; } = 260;
+    public int DynamicIslandWidth { get; set; } = 210;
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 8;
     public double Opacity { get; set; } = 1.0;
@@ -32,12 +32,12 @@ public class NotchSettings
     public bool EnableHoverExpand { get; set; } = false;
     public bool EnableCursorBypass { get; set; } = false;
     public bool EnableAnimations { get; set; } = true;
-    public bool DisableMouseLeaveAutoClose { get; set; } = true;
+    public bool DisableMouseLeaveAutoClose { get; set; } = false;
 
     public double AnimationSpeed { get; set; } = 2.0;
     public bool EnableBounceEffect { get; set; } = true;
 
-    public int HoverExpandDelay { get; set; } = 0; 
+    public int HoverExpandDelay { get; set; } = 500; 
     public int HoverCollapseDelay { get; set; } = 500; 
     public int HoverZoneMargin { get; set; } = 60; 
 
@@ -70,9 +70,9 @@ public class NotchSettings
 
     public bool EnableSpotifyLyrics { get; set; } = true;
 
-    public bool EnableYouTubeSubtitles { get; set; } = true;
+    public bool EnableYouTubeSubtitles { get; set; } = false;
 
-    public bool IsShelfUploadLimitUnlocked { get; set; } = true;
+    public bool IsShelfUploadLimitUnlocked { get; set; } = false;
 
     public bool CopyShelfFilesToClipboard { get; set; } = false;
 
@@ -82,6 +82,8 @@ public class NotchSettings
     public string SubtitlePriority { get; set; } = "native,english,auto";
 
     public string Language { get; set; } = "en"; // "en" or "vi"
+
+    public bool HasSeenDynamicIslandIntro { get; set; } = false;
 
     [JsonIgnore]
     public bool IsDirty { get; set; } = false;

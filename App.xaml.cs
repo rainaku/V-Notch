@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using VNotch.Services;
@@ -177,9 +177,30 @@ public partial class App : Application
                 // Version changed — user just updated. Open the release page.
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = $"https://github.com/rainaku/V-Notch/releases/tag/v{currentVersionStr}",
+                    FileName = $"https://github.com/rainaku/V-Notch/releases/tag/{currentVersionStr}",
                     UseShellExecute = true
                 });
+
+                // Show Introducing Window for new Dynamic Island feature once
+                if (!settings.HasSeenDynamicIslandIntro)
+                {
+                    Current.Dispatcher.BeginInvoke(new System.Action(() =>
+                    {
+                        try
+                        {
+                            var introWindow = new IntroducingWindow();
+                            introWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                            introWindow.ShowDialog();
+                        }
+                        catch (System.Exception introEx)
+                        {
+                            RuntimeLog.Error("INTRO-WINDOW", introEx, "Failed to show introducing window");
+                        }
+                    }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                    settings.HasSeenDynamicIslandIntro = true;
+                    settingsService.Save(settings);
+                }
             }
 
             // Always update the stored version

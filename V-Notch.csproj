@@ -46,11 +46,17 @@
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
     <PackageReference Include="YoutubeExplode" Version="6.6.0" />
+    <PackageReference Include="WpfAnimatedGif" Version="2.0.2" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="artifacts\**\*.cs" />
     <Compile Remove="Tests\**\*.cs" />
+  </ItemGroup>
+
+  <!-- Copy Introduction Gifs to Output Directory -->
+  <ItemGroup>
+    <None Include="Introduction\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- YOLOv8n ONNX model for smart thumbnail cropping (optional, copy if present) -->

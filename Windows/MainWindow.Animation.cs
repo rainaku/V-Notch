@@ -324,10 +324,36 @@ public partial class MainWindow
         if (_isMusicCompactMode && CompactThumbnail.Source != null && !suppressCompactThumbnailMotion)
         {
             var cachedExpandTarget = _cachedThumbnailExpandTarget;
-            if (!cachedExpandTarget.HasValue && TryComputeThumbnailExpandTarget(out var computedTarget))
+            if (!cachedExpandTarget.HasValue)
             {
-                _cachedThumbnailExpandTarget = computedTarget;
-                cachedExpandTarget = computedTarget;
+                // Temporarily resize NotchBorder and ExpandedContent so that layout computations (TransformToAncestor) yield correct target coordinates
+                double prevNotchWidth = NotchBorder.Width;
+                double prevNotchHeight = NotchBorder.Height;
+                double prevExpandedWidth = ExpandedContent.Width;
+                double prevExpandedHeight = ExpandedContent.Height;
+
+                NotchBorder.Width = _expandedWidth;
+                NotchBorder.Height = _expandedHeight;
+                ExpandedContent.Width = _expandedWidth - 16;
+                ExpandedContent.Height = _expandedHeight - 2;
+
+                // Force layout update synchronously to measure exact dimensions of children
+                UpdateLayout();
+
+                if (TryComputeThumbnailExpandTarget(out var computedTarget))
+                {
+                    _cachedThumbnailExpandTarget = computedTarget;
+                    cachedExpandTarget = computedTarget;
+                }
+
+                // Restore original sizes so that start values for animations are correct
+                NotchBorder.Width = prevNotchWidth;
+                NotchBorder.Height = prevNotchHeight;
+                ExpandedContent.Width = prevExpandedWidth;
+                ExpandedContent.Height = prevExpandedHeight;
+                
+                // Update layout again to restore the collapsed state geometry for the animations to start from
+                UpdateLayout();
             }
 
             if (!cachedExpandTarget.HasValue)
