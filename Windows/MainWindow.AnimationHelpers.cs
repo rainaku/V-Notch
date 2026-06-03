@@ -792,6 +792,7 @@ public partial class MainWindow
         SettingsRotate.BeginAnimation(RotateTransform.AngleProperty, null);
 
         bool showBatterySection = show && _settings.ShowBatteryIndicator;
+        double iconTargetY = _settings.EnableDynamicIslandMode ? 5 : 0;
 
         if (show)
         {
@@ -817,7 +818,7 @@ public partial class MainWindow
 
         var batteryTranslateAnim = new DoubleAnimation
         {
-            To = showBatterySection ? 0 : -6,
+            To = showBatterySection ? iconTargetY : -6,
             Duration = dur,
             EasingFunction = easing
         };
@@ -835,7 +836,7 @@ public partial class MainWindow
 
         var settingsTranslateAnim = new DoubleAnimation
         {
-            To = show ? 0 : -6,
+            To = show ? iconTargetY : -6,
             Duration = dur,
             EasingFunction = settingsEase,
             BeginTime = settingsDelay
@@ -874,7 +875,7 @@ public partial class MainWindow
 
             var updateTranslateAnim = new DoubleAnimation
             {
-                To = show ? 0 : -4,
+                To = show ? iconTargetY : -4,
                 Duration = dur,
                 EasingFunction = easing,
                 BeginTime = show ? TimeSpan.FromMilliseconds(30) : TimeSpan.Zero
@@ -918,7 +919,7 @@ public partial class MainWindow
 
         var navTranslateAnim = new DoubleAnimation
         {
-            To = show ? 0 : -6,
+            To = show ? iconTargetY : -6,
             Duration = dur,
             EasingFunction = easing
         };

@@ -188,6 +188,7 @@ public partial class MainWindow : Window
 
         _collapsedWidth = GetCollapsedWidth();
         _collapsedHeight = GetCollapsedHeight();
+        _expandedHeight = _settings.EnableDynamicIslandMode ? 154 : 146;
         _cornerRadiusCollapsed = GetCollapsedCornerRadius();
 
         _updateTimer = new DispatcherTimer
@@ -1041,6 +1042,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         _collapsedWidth = GetCollapsedWidth();
         _collapsedHeight = GetCollapsedHeight();
+        _expandedHeight = _settings.EnableDynamicIslandMode ? 154 : 146;
         _cornerRadiusCollapsed = GetCollapsedCornerRadius();
         _cachedThumbnailExpandTarget = null;
 

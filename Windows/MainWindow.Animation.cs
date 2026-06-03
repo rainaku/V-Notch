@@ -16,6 +16,31 @@ public partial class MainWindow
 
     #region Notch Expand/Collapse
 
+    private double GetCurrentExpandedContentTranslationY()
+    {
+        if (ExpandedContent == null) return 0;
+        var transform = ExpandedContent.RenderTransform;
+        if (transform == null || transform == Transform.Identity) return 0;
+
+        if (transform is TranslateTransform tt)
+        {
+            return tt.Y;
+        }
+
+        if (transform is TransformGroup tg)
+        {
+            foreach (var child in tg.Children)
+            {
+                if (child is TranslateTransform ctt)
+                {
+                    return ctt.Y;
+                }
+            }
+        }
+
+        return 0;
+    }
+
     private bool TryComputeThumbnailExpandTarget(out (double X, double Y) target)
     {
         target = default;
@@ -33,7 +58,13 @@ public partial class MainWindow
             // The compact resting position (which is vertically centered in Dynamic Island mode)
             // is handled separately via GetCompactThumbnailRestOffsetY at the compact end.
             double targetX = thumbPos.X - 8;
-            double targetY = thumbPos.Y - 4;
+            
+            // Adjust the Y-coordinate to align with the final static expanded state (which is shifted by target translation)
+            // regardless of the current rendering transform of ExpandedContent during measurement.
+            double currentTranslationY = GetCurrentExpandedContentTranslationY();
+            double contentTargetY = _settings.EnableDynamicIslandMode ? 5 : 0;
+            double targetY = (thumbPos.Y - currentTranslationY) + contentTargetY - 4;
+
             if (double.IsNaN(targetX) || double.IsInfinity(targetX) ||
                 double.IsNaN(targetY) || double.IsInfinity(targetY))
             {
@@ -280,7 +311,8 @@ public partial class MainWindow
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
 
         var fadeInAnim = MakeAnim(0d, 1d, _dur400, _easePowerOut3);
-        var springSlide = MakeAnim(10, 0, _dur400, _easeExpOut6);
+        double contentTargetY = _settings.EnableDynamicIslandMode ? 5 : 0;
+        var springSlide = MakeAnim(10, contentTargetY, _dur400, _easeExpOut6);
 
         var glowAnim = MakeAnim(0.15, _dur200);
 
@@ -645,7 +677,8 @@ public partial class MainWindow
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
 
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
-        var slideOutAnim = MakeAnim(0, -10, _dur400, _easeExpOut6);
+        double currentY = _settings.EnableDynamicIslandMode ? 5 : 0;
+        var slideOutAnim = MakeAnim(currentY, -10, _dur400, _easeExpOut6);
 
         fadeOutAnim.Completed += (s, e) =>
         {
