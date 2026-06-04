@@ -17,6 +17,7 @@ public sealed class MediaDisplayController
     private string _lastColorTrackSignature = "";
     private string _lastRenderedMediaSource = "";
     private ImageSource? _lastAnimatedThumbnail;
+    private ImageSource? _lastBackgroundThumbnail;
     private bool _thumbnailShownForCurrentTrack = false;
     private bool _trackChangeBounceNeeded = false;
     private int _thumbnailSwitchGeneration = 0;
@@ -108,10 +109,12 @@ public sealed class MediaDisplayController
                     result.ThumbnailAction = ResolveSameTrackThumbnailAction(info);
                 }
 
-                // Background color update
-                if (isNewTrack || _lastColorTrackSignature != trackIdentity)
+                // YouTube can upgrade the thumbnail asynchronously for the same track.
+                // Keep the expanded blur/palette keyed to artwork too, not just track id.
+                if (isNewTrack || _lastColorTrackSignature != trackIdentity || !ReferenceEquals(info.Thumbnail, _lastBackgroundThumbnail))
                 {
                     _lastColorTrackSignature = trackIdentity;
+                    _lastBackgroundThumbnail = info.Thumbnail;
                     result.NeedsBackgroundUpdate = true;
                 }
             }
@@ -186,6 +189,7 @@ public sealed class MediaDisplayController
         _lastColorTrackSignature = "";
         _lastRenderedMediaSource = "";
         _lastAnimatedThumbnail = null;
+        _lastBackgroundThumbnail = null;
         _thumbnailShownForCurrentTrack = false;
         _trackChangeBounceNeeded = false;
         _thumbnailSwitchGeneration++;

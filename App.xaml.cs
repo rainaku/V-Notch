@@ -17,7 +17,8 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         var setupSource = TryGetArgumentValue(e.Args, "--setup-source");
-        var launchSetup = e.Args.Contains("--setup") || !string.IsNullOrWhiteSpace(setupSource);
+        var exeName = System.IO.Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "");
+        var launchSetup = e.Args.Contains("--setup") || !string.IsNullOrWhiteSpace(setupSource) || exeName.Contains("Setup", StringComparison.OrdinalIgnoreCase);
         if (launchSetup)
         {
             var setupWindow = new SetupWindow(setupSource);
@@ -133,6 +134,12 @@ public partial class App : Application
         services.AddSingleton<MainWindow>();
     }
 
+    private static string FormatVersion(Version v)
+    {
+        return v.Revision > 0
+            ? $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}"
+            : $"{v.Major}.{v.Minor}.{v.Build}";
+    }
     protected override void OnExit(ExitEventArgs e)
     {
         RuntimeLog.Log("SYSTEM", "Application exit");
@@ -170,7 +177,7 @@ public partial class App : Application
             var currentVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
             if (currentVersion == null) return;
 
-            var currentVersionStr = $"{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
+            var currentVersionStr = FormatVersion(currentVersion);
 
             if (!string.IsNullOrEmpty(settings.LastRunVersion) && settings.LastRunVersion != currentVersionStr)
             {

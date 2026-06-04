@@ -174,6 +174,10 @@ public partial class MainWindow
                     if (result.NeedsBackgroundUpdate)
                     {
                         UpdateMediaBackground(info);
+                        if (_isExpanded)
+                        {
+                            ScheduleMediaBackgroundRecovery();
+                        }
                     }
                 }
                 else if (result.IsNewTrack)

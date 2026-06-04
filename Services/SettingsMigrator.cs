@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
     
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
@@ -68,6 +68,14 @@ public static class SettingsMigrator
                 if (!root.ContainsKey(nameof(NotchSettings.AnimationFps)))
                 {
                     root[nameof(NotchSettings.AnimationFps)] = 144;
+                }
+                return root;
+            },
+            [5] = root =>
+            {
+                if (!root.ContainsKey(nameof(NotchSettings.DynamicIslandHeight)))
+                {
+                    root[nameof(NotchSettings.DynamicIslandHeight)] = 40;
                 }
                 return root;
             },

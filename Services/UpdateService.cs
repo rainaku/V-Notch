@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
@@ -23,7 +23,7 @@ public class UpdateService : IUpdateService
 
     public string CurrentVersion =>
         System.Reflection.Assembly.GetExecutingAssembly().GetName().Version is { } v
-            ? $"{v.Major}.{v.Minor}.{v.Build}"
+            ? (v.Revision > 0 ? $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}" : $"{v.Major}.{v.Minor}.{v.Build}")
             : "1.7.0";
 
     static UpdateService()
@@ -159,12 +159,13 @@ public class UpdateService : IUpdateService
                 progress?.Report(100);
             }
 
-            // Run installer
+            // Run the user-level bootstrapper. Do not elevate here: elevation can make the
+            // downloaded setup appear disconnected from the current desktop session.
             var startInfo = new ProcessStartInfo
             {
                 FileName = tempPath,
                 UseShellExecute = true,
-                Verb = "runas" // Run as administrator
+                WorkingDirectory = Path.GetDirectoryName(tempPath) ?? Path.GetTempPath()
             };
 
             var installerProcess = Process.Start(startInfo);

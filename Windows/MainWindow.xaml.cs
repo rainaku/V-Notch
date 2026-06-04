@@ -935,6 +935,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         {
             bool sizeChanged = newSettings.Width != _settings.Width
                             || newSettings.DynamicIslandWidth != _settings.DynamicIslandWidth
+                            || newSettings.DynamicIslandHeight != _settings.DynamicIslandHeight
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
             bool languageChanged = newSettings.Language != _settings.Language;
@@ -1319,7 +1320,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     }
 
     private const double DynamicIslandTopMargin = 8.0;
-    private const double DynamicIslandCollapsedScale = 1.12;
 
     private void ApplyDynamicIslandLayout(bool animateTransition = false)
     {

@@ -14,6 +14,7 @@ public class NotchSettings
 
     public int Width { get; set; } = 230;
     public int DynamicIslandWidth { get; set; } = 210;
+    public int DynamicIslandHeight { get; set; } = 40;
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 8;
     public double Opacity { get; set; } = 1.0;

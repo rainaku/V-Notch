@@ -17,10 +17,10 @@
     <DebugSymbols>false</DebugSymbols>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     
-    <Version>1.7.6</Version>
-    <AssemblyVersion>1.7.6.0</AssemblyVersion>
-    <FileVersion>1.7.6.0</FileVersion>
-    <InformationalVersion>1.7.6 Stable release</InformationalVersion>
+    <Version>1.7.6.1</Version>
+    <AssemblyVersion>1.7.6.1</AssemblyVersion>
+    <FileVersion>1.7.6.1</FileVersion>
+    <InformationalVersion>1.7.6.1 Stability patch</InformationalVersion>
     <Authors>rainaku</Authors>
     <Company>V-Notch</Company>
     <Product>V-Notch</Product>

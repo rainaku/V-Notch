@@ -63,7 +63,7 @@ public partial class MainWindow
             return;
         }
 
-        UpdateBlurredBackgroundAsync(info.Thumbnail).SafeFireAndForget("MEDIA-BG-BLUR");
+        UpdateBlurredBackgroundAsync(info.Thumbnail, allowInterimThumbnail: forceRefresh || isNewTrack).SafeFireAndForget("MEDIA-BG-BLUR");
 
         // Detect overly bright thumbnails and apply dimming overlay
         double brightnessDimOpacity = DynamicIslandColorExtractor.GetBrightnessDimOverlay(info.Thumbnail);
@@ -523,7 +523,7 @@ public partial class MainWindow
     private DispatcherTimer? _blurDissolveDebounce;
     private BitmapSource? _pendingBlurResult;
 
-    private async Task UpdateBlurredBackgroundAsync(BitmapImage thumbnail)
+    private async Task UpdateBlurredBackgroundAsync(BitmapImage thumbnail, bool allowInterimThumbnail = false)
     {
         try
         {
@@ -543,7 +543,7 @@ public partial class MainWindow
             // visible "position shift" when the real thumbnail arrives with different
             // subject detection results.
             bool hasExistingBlur = MediaBackgroundImage.Source != null || MediaBackgroundImageBack.Source != null;
-            if (hasExistingBlur && thumbnail.PixelWidth < 200 && thumbnail.PixelHeight < 200)
+            if (!allowInterimThumbnail && hasExistingBlur && thumbnail.PixelWidth < 200 && thumbnail.PixelHeight < 200)
             {
                 RuntimeLog.Log("BLUR-CROSSFADE", $"SKIP-SMALL thumb={thumbnail.PixelWidth}x{thumbnail.PixelHeight} (waiting for better)");
                 return;

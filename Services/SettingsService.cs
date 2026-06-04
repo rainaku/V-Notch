@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text.Json;
 using VNotch.Models;
@@ -48,12 +48,13 @@ public class SettingsService : ISettingsService
         try
         {
             var (settings, migrated) = SettingsMigrator.Migrate(raw);
+            bool normalized = NormalizeSettings(settings);
 
-            if (migrated)
+            if (migrated || normalized)
             {
                 RuntimeLog.Log(
                     "SETTINGS-LOAD",
-                    $"Migrated settings to version {SettingsMigrator.CurrentVersion}");
+                    $"Migrated/normalized settings to version {SettingsMigrator.CurrentVersion}");
                 Save(settings);
             }
 
@@ -109,6 +110,25 @@ public class SettingsService : ISettingsService
         }
     }
 
+
+    private static bool NormalizeSettings(NotchSettings settings)
+    {
+        bool changed = false;
+
+        if (settings.DynamicIslandWidth < 100)
+        {
+            settings.DynamicIslandWidth = (int)Math.Round(settings.Width * 1.12 / 10.0) * 10;
+            changed = true;
+        }
+
+        if (settings.DynamicIslandHeight < 24)
+        {
+            settings.DynamicIslandHeight = 40;
+            changed = true;
+        }
+
+        return changed;
+    }
     private string QuarantineCorruptFile(string rawContents, Exception reason)
     {
         try

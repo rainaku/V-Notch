@@ -561,7 +561,7 @@ public partial class MainWindow
         _mtNotchH = _settings.Height;
         _mtNotchBottomR = _settings.CornerRadius;
 
-        _mtIslandH = Math.Round(_settings.Height * DynamicIslandCollapsedScale);
+        _mtIslandH = _settings.DynamicIslandHeight;
         _mtIslandW = _settings.DynamicIslandWidth;
         _mtIslandR = Math.Max(0, _mtIslandH / 2.0);
 
@@ -673,7 +673,7 @@ public partial class MainWindow
     private double GetCollapsedHeight()
     {
         return _settings.EnableDynamicIslandMode
-            ? Math.Round(_settings.Height * DynamicIslandCollapsedScale)
+            ? _settings.DynamicIslandHeight
             : _settings.Height;
     }
 
@@ -1522,4 +1522,3 @@ public void PlaySettingsAbsorbAnimation()
 
     #endregion
 }
-
