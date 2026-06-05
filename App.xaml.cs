@@ -180,9 +180,27 @@ public partial class App : Application
             var currentVersionStr = FormatVersion(currentVersion);
             bool needSave = false;
 
+            // Always update the stored version first
+            if (settings.LastRunVersion != currentVersionStr)
+            {
+                settings.LastRunVersion = currentVersionStr;
+                needSave = true;
+            }
+
             // Show Introducing Window for new Dynamic Island feature once
+            // Check this AFTER updating version to ensure it's saved immediately
             if (!settings.HasSeenDynamicIslandIntro)
             {
+                settings.HasSeenDynamicIslandIntro = true;
+                needSave = true;
+                
+                // Save immediately BEFORE showing the dialog to prevent re-showing on crash/force-close
+                if (needSave)
+                {
+                    settingsService.Save(settings);
+                    needSave = false; // Already saved
+                }
+
                 Current.Dispatcher.BeginInvoke(new System.Action(() =>
                 {
                     try
@@ -196,16 +214,6 @@ public partial class App : Application
                         RuntimeLog.Error("INTRO-WINDOW", introEx, "Failed to show introducing window");
                     }
                 }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-
-                settings.HasSeenDynamicIslandIntro = true;
-                needSave = true;
-            }
-
-            // Always update the stored version
-            if (settings.LastRunVersion != currentVersionStr)
-            {
-                settings.LastRunVersion = currentVersionStr;
-                needSave = true;
             }
 
             if (needSave)
