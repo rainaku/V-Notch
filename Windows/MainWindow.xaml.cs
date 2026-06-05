@@ -293,6 +293,7 @@ public partial class MainWindow : Window
         InitializeGestureController();
         _bluetoothController = new BluetoothNotificationController();
         InitializeBluetoothNotificationController();
+        InitializeIdleAutoHide();
     }
 
     #region Window Lifecycle
@@ -478,6 +479,7 @@ public partial class MainWindow : Window
         _hoverCollapseTimer?.Stop();
         _hoverThumbnailDelayTimer?.Stop();
         _compactThumbnailHoverLeaveTimer?.Stop();
+        _idleHideTimer?.Stop();
         _moduleHost?.Dispose();
         _cameraController?.Dispose();
         _timerManager?.Dispose();
@@ -529,7 +531,7 @@ public partial class MainWindow : Window
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
     }
 
-    private bool IsEffectivelyNotchVisible => _isNotchVisible && !_isHiddenByFullscreen;
+    private bool IsEffectivelyNotchVisible => _isNotchVisible && !_isHiddenByFullscreen && !_isHiddenByIdle;
 
     private bool _fullscreenSlideVisible = true;
     private bool _isFullscreenSlideAnimating = false;
@@ -1041,6 +1043,9 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
         _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
+
+        // Start/stop the empty-notch auto-hide watcher per the current setting.
+        ApplyIdleAutoHideSettings();
 
         // Sync subtitle mode to the service
         _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
