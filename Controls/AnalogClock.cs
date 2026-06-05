@@ -27,6 +27,40 @@ public class AnalogClock : FrameworkElement
     private readonly DispatcherTimer _timer;
     private bool _isRunning;
 
+    /// <summary>
+    /// When true (default) the 3 o'clock hour marker is replaced by the day-of-month
+    /// date complication. Set to false to show a plain face with all 12 hour markers
+    /// and no date (used by the clock view, while the widget keeps its date).
+    /// </summary>
+    public static readonly DependencyProperty ShowDateProperty =
+        DependencyProperty.Register(
+            nameof(ShowDate),
+            typeof(bool),
+            typeof(AnalogClock),
+            new FrameworkPropertyMetadata(true, OnShowDateChanged));
+
+    public bool ShowDate
+    {
+        get => (bool)GetValue(ShowDateProperty);
+        set => SetValue(ShowDateProperty, value);
+    }
+
+    private static void OnShowDateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is AnalogClock clock)
+        {
+            clock._staticFace = null; // drop the cached face so it rebuilds with/without the date
+            clock.InvalidateVisual();
+        }
+    }
+
+    // Cached, frozen "static" layer (ticks + hour markers + date) so the per-frame
+    // render only has to draw the three moving hands + hub. Rebuilt only when the
+    // size, center, day, or DPI actually changes — not 30× per second.
+    private DrawingGroup? _staticFace;
+    private double _cachedR = -1, _cachedCx = -1, _cachedCy = -1, _cachedPpd = -1;
+    private int _cachedDay = -1;
+
     static AnalogClock()
     {
         HandBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF7));
@@ -37,7 +71,10 @@ public class AnalogClock : FrameworkElement
 
         MinorTickPen = new Pen(MinorTickBrush, 1.0) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
         MajorRulerPen = new Pen(MajorTickBrush, 1.4) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-        DateTypeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+        // Match the rest of the clock view: SF Pro Display Bold (embedded app font).
+        DateTypeface = new Typeface(
+            new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
+            FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
         HandBrush.Freeze();
         MajorTickBrush.Freeze();
@@ -50,6 +87,11 @@ public class AnalogClock : FrameworkElement
 
     public AnalogClock()
     {
+        // Crisp, smooth glyphs for the date complication on the black notch.
+        TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
+        TextOptions.SetTextRenderingMode(this, TextRenderingMode.Grayscale);
+        TextOptions.SetTextHintingMode(this, TextHintingMode.Animated);
+
         _timer = new DispatcherTimer(DispatcherPriority.Render)
         {
             // ~30 fps for a smooth sweeping second hand
@@ -97,11 +139,42 @@ public class AnalogClock : FrameworkElement
 
         DateTime now = DateTime.Now; // local system time zone (PC default)
 
-        DrawTicks(dc, center, r);
-        DrawHourMarkers(dc, center, r);
-        DrawDate(dc, center, r, now.Day);
+        // Only the hands move every frame. The tick ruler, hour markers and date
+        // complication are static for the whole minute/day, so cache them as a frozen
+        // drawing and just blit it — avoids 60 trig+line ops and a FormattedText
+        // allocation on every one of the ~30 frames per second.
+        double ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        if (_staticFace == null || _cachedR != r || _cachedCx != center.X ||
+            _cachedCy != center.Y || _cachedDay != now.Day || _cachedPpd != ppd)
+        {
+            _staticFace = BuildStaticFace(center, r, now.Day, ppd);
+            _cachedR = r;
+            _cachedCx = center.X;
+            _cachedCy = center.Y;
+            _cachedDay = now.Day;
+            _cachedPpd = ppd;
+        }
+
+        dc.DrawDrawing(_staticFace);
         DrawHands(dc, center, r, now);
         DrawCenterHub(dc, center, r);
+    }
+
+    private DrawingGroup BuildStaticFace(Point center, double r, int day, double pixelsPerDip)
+    {
+        bool showDate = ShowDate;
+        var group = new DrawingGroup();
+        using (var dc = group.Open())
+        {
+            DrawTicks(dc, center, r);
+            // When the date is hidden, draw all 12 hour markers; otherwise the 3 o'clock
+            // marker is skipped to make room for the date complication.
+            DrawHourMarkers(dc, center, r, skipThree: showDate);
+            if (showDate)
+                DrawDate(dc, center, r, day, pixelsPerDip);
+        }
+        group.Freeze();
+        return group;
     }
 
     private static void DrawTicks(DrawingContext dc, Point center, double r)
@@ -123,7 +196,7 @@ public class AnalogClock : FrameworkElement
         }
     }
 
-    private static void DrawHourMarkers(DrawingContext dc, Point center, double r)
+    private static void DrawHourMarkers(DrawingContext dc, Point center, double r, bool skipThree)
     {
         double markerLen = r * 0.18;
         double thickness = Math.Max(2.0, r * 0.075);
@@ -131,8 +204,8 @@ public class AnalogClock : FrameworkElement
 
         for (int h = 0; h < 12; h++)
         {
-            // The 3 o'clock marker is replaced by the date complication.
-            if (h == 3) continue;
+            // The 3 o'clock marker is replaced by the date complication (when shown).
+            if (skipThree && h == 3) continue;
 
             double angle = h * 30.0;
             dc.PushTransform(new RotateTransform(angle, center.X, center.Y));
@@ -146,7 +219,7 @@ public class AnalogClock : FrameworkElement
         }
     }
 
-    private void DrawDate(DrawingContext dc, Point center, double r, int day)
+    private static void DrawDate(DrawingContext dc, Point center, double r, int day, double pixelsPerDip)
     {
         double fontSize = r * 0.30;
         var text = new FormattedText(
@@ -156,7 +229,7 @@ public class AnalogClock : FrameworkElement
             DateTypeface,
             fontSize,
             AccentBrush,
-            VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            pixelsPerDip);
 
         // Centered on the 3 o'clock position.
         double cx = center.X + r * 0.56;

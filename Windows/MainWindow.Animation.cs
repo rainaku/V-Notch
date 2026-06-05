@@ -868,6 +868,13 @@ public partial class MainWindow
             NotchBorder.IsHitTestVisible = true;
             UpdateProgressTimerState();
 
+            // Collapsing straight out of the widened clock view: shrink the host window
+            // back to its standard footprint now that the notch is compact again.
+            if (wasTimer)
+            {
+                RestoreExpandedWindowSize();
+            }
+
             contentToShow.RenderTransform = null;
 
             if (_isChargingNotificationVisible)

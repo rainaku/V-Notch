@@ -339,6 +339,13 @@ public partial class MainWindow : Window
             PlayAppearAnimation();
         }
 
+        // Pre-build the clock-view month grid off the critical path so the first time
+        // the user opens the clock view there is no element-creation hitch.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            BuildClockViewCalendar();
+        }));
+
         // Start media service after layout is fully measured to avoid zero ActualWidth/Height on first update.
         Dispatcher.BeginInvoke(new Action(() =>
         {
@@ -871,7 +878,13 @@ public partial class MainWindow : Window
         // Window dimensions in DIPs (for WPF layout)
         // The shadow wrapper includes 11px ears on each side and a 20px blur. Keep
         // enough transparent window surface so the side shadow is not clipped.
-        double windowWidthDip = _expandedWidth + NotchWindowHorizontalPadding;
+        //
+        // Size the window for the WIDEST surface we ever show (the clock view). The window
+        // is then never resized/moved horizontally at runtime — resizing a centered,
+        // transparent window mid-animation makes the notch visibly snap sideways and back.
+        // The extra width is just transparent, click-through margin around the notch.
+        double notchSurfaceWidth = Math.Max(_expandedWidth, _clockViewWidth);
+        double windowWidthDip = notchSurfaceWidth + NotchWindowHorizontalPadding;
         double windowHeightDip = _expandedHeight + 80;
 
         // Physical pixel dimensions for SetWindowPos
@@ -1319,6 +1332,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
         ShelfUnlockDismissText.Text = Loc.Get("shelf.unlockDismiss");
         ShelfUnlockSettingsHint.Text = Loc.Get("shelf.unlockSettingsHint");
+        RefreshClockViewLocale();
     }
 
     private const double DynamicIslandTopMargin = 8.0;
@@ -1813,6 +1827,12 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     private void UpdateMediaBackgroundFootprint()
     {
         if (MediaBackground == null || MediaBackground2 == null || NotchBorder == null) return;
+
+        // The media-background blur is hidden in the clock/timer view, so there is no
+        // point recomputing (and re-animating) its footprint on every frame while the
+        // notch resizes — doing so spawns a storm of competing animations and makes the
+        // clock-view enter transition stutter.
+        if (_isTimerView) return;
 
         double notchLength = NotchContent?.ActualWidth > 0
             ? NotchContent.ActualWidth

@@ -2304,8 +2304,10 @@
                         </Border>
 
                         <Border x:Name="FileShelf"
-                                Grid.Row="1"
+                                Grid.Row="0"
+                                Grid.RowSpan="2"
                                 Grid.Column="1" 
+                                Margin="0,6,0,0"
                                 Background="#1A1A1A" 
                                 CornerRadius="16" 
                                 AllowDrop="True"
@@ -2511,14 +2513,71 @@
                         </Border>
                     </Grid>
 
-                    <!-- Timer View (Pomodoro surface + compact controls) -->
+                    <!-- Clock View (analog clock + month calendar, stacked above the Pomodoro timer) -->
                     <Grid x:Name="TimerContent"
                           Opacity="0"
                           Visibility="Collapsed"
-                          Margin="14,30,14,10"
+                          Margin="20,34,20,14"
                           MouseLeftButtonDown="SecondaryContent_Click"
                           RenderOptions.ClearTypeHint="Enabled">
-                        <Grid VerticalAlignment="Center">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Clock + Calendar header (Apple-style), sits on top of the timer -->
+                        <Grid x:Name="ClockViewHeader" Grid.Row="0" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="26"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ctrl:AnalogClock x:Name="ClockViewClock"
+                                              Grid.Column="0"
+                                              Width="150" Height="150"
+                                              ShowDate="False"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Center"/>
+
+                            <Grid Grid.Column="2" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Left margin is set in code (AlignMonthLabelToFirstColumn)
+                                     so the month label lines up exactly with the first
+                                     weekday header ("Sun"/"T2") for any language. -->
+                                <TextBlock x:Name="ClockViewMonthText"
+                                           Grid.Row="0"
+                                           Text="APRIL"
+                                           FontFamily="{StaticResource MainSystemFont}"
+                                           FontSize="15"
+                                           FontWeight="Bold"
+                                           Foreground="#FF453A"
+                                           HorizontalAlignment="Left"
+                                           Margin="16,0,0,3"
+                                           UseLayoutRounding="True"
+                                           SnapsToDevicePixels="True"
+                                           TextOptions.TextFormattingMode="Ideal"
+                                           TextOptions.TextRenderingMode="Grayscale"
+                                           TextOptions.TextHintingMode="Animated"/>
+
+                                <UniformGrid x:Name="ClockViewWeekHeader"
+                                             Grid.Row="1"
+                                             Columns="7"
+                                             Margin="0,2,0,3"/>
+
+                                <UniformGrid x:Name="ClockViewDayGrid"
+                                             Grid.Row="2"
+                                             Columns="7"
+                                             VerticalAlignment="Top"/>
+                            </Grid>
+                        </Grid>
+
+                        <Grid Grid.Row="1" VerticalAlignment="Center">
                             <Border Height="58"
                                     CornerRadius="16"
                                     Padding="12,0"

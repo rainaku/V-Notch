@@ -80,6 +80,12 @@ public partial class MainWindow
 
         UpdateCalendarHighlight(animate: false, pulse: false);
         EventText.Text = Loc.Get("greeting.enjoyDay");
+
+        // Keep the clock-view month grid current (e.g. across a midnight rollover).
+        if (_clockViewCalendarBuilt)
+        {
+            UpdateClockViewCalendar(now);
+        }
     }
 
     private int GetCalendarCenterIndexFromStripX(double stripX)
@@ -298,45 +304,25 @@ public partial class MainWindow
 
     private void AnimateCalendarWidgetHover(bool isHovered)
     {
-        var duration = new Duration(TimeSpan.FromMilliseconds(isHovered ? 350 : 420));
-        double currentScaleX = (double)CalendarWidgetScale.GetValue(ScaleTransform.ScaleXProperty);
-        double currentScaleY = (double)CalendarWidgetScale.GetValue(ScaleTransform.ScaleYProperty);
-        double currentLiftY = (double)CalendarWidgetTranslate.GetValue(TranslateTransform.YProperty);
+        // Mirrors the progress-bar hover feel: a clean, uniform scale-up driven by a
+        // single DoubleAnimation per channel. Snappy exponential ease-out on enter,
+        // softer cubic ease-out on release — no squash/stretch keyframes.
+        double targetScale = isHovered ? 1.035 : 1.0;
+        double targetLiftY = isHovered ? -3.0 : 0.0;
 
-        var scaleXAnim = new DoubleAnimationUsingKeyFrames { Duration = duration };
-        var scaleYAnim = new DoubleAnimationUsingKeyFrames { Duration = duration };
-        var liftAnim = new DoubleAnimationUsingKeyFrames { Duration = duration };
+        var duration = new Duration(TimeSpan.FromMilliseconds(isHovered ? 350 : 250));
+        var easing = (IEasingFunction)(isHovered
+            ? new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut }
+            : new CubicEase { EasingMode = EasingMode.EaseOut });
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentScaleX, KeyTime.FromPercent(0.0)));
-        scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentScaleY, KeyTime.FromPercent(0.0)));
-        liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(currentLiftY, KeyTime.FromPercent(0.0)));
+        var scaleXAnim = new DoubleAnimation { To = targetScale, Duration = duration, EasingFunction = easing };
+        var scaleYAnim = new DoubleAnimation { To = targetScale, Duration = duration, EasingFunction = easing };
+        var liftAnim = new DoubleAnimation { To = targetLiftY, Duration = duration, EasingFunction = easing };
 
-        if (isHovered)
-        {
-            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.135, KeyTime.FromPercent(0.40), _easeSineInOut));
-            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.955, KeyTime.FromPercent(0.40), _easeSineInOut));
-            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.095, KeyTime.FromPercent(0.72), _easeSineInOut));
-            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.085, KeyTime.FromPercent(0.72), _easeSineInOut));
-            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.105, KeyTime.FromPercent(1.0), _easeSineInOut));
-            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.105, KeyTime.FromPercent(1.0), _easeSineInOut));
-
-            liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(-3.7, KeyTime.FromPercent(0.48), _easeSineInOut));
-            liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(-3.1, KeyTime.FromPercent(1.0), _easeSineInOut));
-        }
-        else
-        {
-            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.985, KeyTime.FromPercent(0.42), _easeSineInOut));
-            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.02, KeyTime.FromPercent(0.42), _easeSineInOut));
-            scaleXAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-            scaleYAnim.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-
-            liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(-0.6, KeyTime.FromPercent(0.42), _easeSineInOut));
-            liftAnim.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0), _easeSineInOut));
-        }
-
-        Timeline.SetDesiredFrameRate(scaleXAnim, VNotch.Services.AnimationConfig.TargetFps);
-        Timeline.SetDesiredFrameRate(scaleYAnim, VNotch.Services.AnimationConfig.TargetFps);
-        Timeline.SetDesiredFrameRate(liftAnim, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(scaleXAnim, fps);
+        Timeline.SetDesiredFrameRate(scaleYAnim, fps);
+        Timeline.SetDesiredFrameRate(liftAnim, fps);
 
         CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim, HandoffBehavior.SnapshotAndReplace);
         CalendarWidgetScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim, HandoffBehavior.SnapshotAndReplace);

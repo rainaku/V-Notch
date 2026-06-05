@@ -91,6 +91,12 @@ public partial class MainWindow
 
         NotchBorder.IsHitTestVisible = false;
 
+        // Size the host window and pin the clock-view content up-front so nothing
+        // re-layouts mid-animation (prevents the enter stutter).
+        ApplyClockViewWindowSize();
+        PrepareClockViewContentSize();
+        RefreshClockView();
+
         var durOut = new Duration(TimeSpan.FromMilliseconds(180));
         var durIn = new Duration(TimeSpan.FromMilliseconds(480));
         var inDelay = TimeSpan.FromMilliseconds(50);
@@ -172,25 +178,12 @@ public partial class MainWindow
         timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
 
-        // Shrink notch height for timer view
-        double currentHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
-        NotchBorder.BeginAnimation(HeightProperty, null);
-        NotchBorder.Height = currentHeight;
-        var heightShrink = MakeAnim(currentHeight, _timerViewHeight, durIn, _easeExpOut6, inDelay);
-        heightShrink.Completed += (s, ev) =>
-        {
-            NotchBorder.BeginAnimation(HeightProperty, null);
-            NotchBorder.Height = _timerViewHeight;
-        };
-        NotchBorder.BeginAnimation(HeightProperty, heightShrink, HandoffBehavior.SnapshotAndReplace);
-
-        // Resize window to fit
-        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        double windowHeightDip = _timerViewHeight + 80;
-        this.Height = windowHeightDip;
-        _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
-        if (_hwnd != IntPtr.Zero)
-            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        // Animate the notch border to the widened clock-view surface (content is already
+        // sized + positioned, so this only clip-reveals it — no per-frame re-layout).
+        AnimateClockViewNotchResize(
+            NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _expandedWidth,
+            NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight,
+            _clockViewWidth, _clockViewHeight, durIn, inDelay);
 
         UpdateTimerDisplay();
     }
@@ -215,6 +208,12 @@ public partial class MainWindow
 
         UpdateTimerNavIconsState();
         NotchBorder.IsHitTestVisible = false;
+
+        // Size the host window and pin the clock-view content up-front so nothing
+        // re-layouts mid-animation (prevents the enter stutter).
+        ApplyClockViewWindowSize();
+        PrepareClockViewContentSize();
+        RefreshClockView();
 
         var durOut = new Duration(TimeSpan.FromMilliseconds(180));
         var durIn = new Duration(TimeSpan.FromMilliseconds(480));
@@ -297,25 +296,12 @@ public partial class MainWindow
         timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
 
-        // Shrink notch height for timer view
-        double currentHeight2 = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
-        NotchBorder.BeginAnimation(HeightProperty, null);
-        NotchBorder.Height = currentHeight2;
-        var heightShrink2 = MakeAnim(currentHeight2, _timerViewHeight, durIn, _easeExpOut6, inDelay);
-        heightShrink2.Completed += (s, ev) =>
-        {
-            NotchBorder.BeginAnimation(HeightProperty, null);
-            NotchBorder.Height = _timerViewHeight;
-        };
-        NotchBorder.BeginAnimation(HeightProperty, heightShrink2, HandoffBehavior.SnapshotAndReplace);
-
-        // Resize window to fit
-        double dpiScale2 = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        double windowHeightDip2 = _timerViewHeight + 80;
-        this.Height = windowHeightDip2;
-        _windowHeight = (int)Math.Round(windowHeightDip2 * dpiScale2);
-        if (_hwnd != IntPtr.Zero)
-            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        // Animate the notch border to the widened clock-view surface (content is already
+        // sized + positioned, so this only clip-reveals it — no per-frame re-layout).
+        AnimateClockViewNotchResize(
+            NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _expandedWidth,
+            NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight,
+            _clockViewWidth, _clockViewHeight, durIn, inDelay);
 
         UpdateTimerDisplay();
     }
@@ -428,25 +414,11 @@ public partial class MainWindow
         ExpandedContent.BeginAnimation(OpacityProperty, primaryFadeIn);
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, primarySlideDown);
 
-        // Restore notch height back to expanded
-        double currentH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _timerViewHeight;
-        NotchBorder.BeginAnimation(HeightProperty, null);
-        NotchBorder.Height = currentH;
-        var heightGrow = MakeAnim(currentH, _expandedHeight, durIn, _easeExpOut6, inDelay);
-        heightGrow.Completed += (s, ev) =>
-        {
-            NotchBorder.BeginAnimation(HeightProperty, null);
-            NotchBorder.Height = _expandedHeight;
-        };
-        NotchBorder.BeginAnimation(HeightProperty, heightGrow, HandoffBehavior.SnapshotAndReplace);
-
-        // Resize window back
-        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        double windowHeightDip = _expandedHeight + 80;
-        this.Height = windowHeightDip;
-        _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
-        if (_hwnd != IntPtr.Zero)
-            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        // Restore notch back to the standard expanded surface (width + height), then
+        // shrink the host window once the notch has finished collapsing.
+        double currentH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _clockViewHeight;
+        double currentWidthExit = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _clockViewWidth;
+        AnimateClockViewNotchResize(currentWidthExit, currentH, _expandedWidth, _expandedHeight, durIn, inDelay, RestoreExpandedWindowSize);
     }
 
     private void UpdateTimerNavIconsState()
@@ -555,25 +527,11 @@ public partial class MainWindow
         secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
 
-        // Restore notch height back to expanded
-        double currentH2 = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _timerViewHeight;
-        NotchBorder.BeginAnimation(HeightProperty, null);
-        NotchBorder.Height = currentH2;
-        var heightGrow2 = MakeAnim(currentH2, _expandedHeight, durIn, _easeExpOut6, inDelay);
-        heightGrow2.Completed += (s, ev) =>
-        {
-            NotchBorder.BeginAnimation(HeightProperty, null);
-            NotchBorder.Height = _expandedHeight;
-        };
-        NotchBorder.BeginAnimation(HeightProperty, heightGrow2, HandoffBehavior.SnapshotAndReplace);
-
-        // Resize window back
-        double dpiScale3 = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        double windowHeightDip3 = _expandedHeight + 80;
-        this.Height = windowHeightDip3;
-        _windowHeight = (int)Math.Round(windowHeightDip3 * dpiScale3);
-        if (_hwnd != IntPtr.Zero)
-            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        // Restore notch back to the standard expanded surface (width + height), then
+        // shrink the host window once the notch has finished collapsing.
+        double currentH2 = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _clockViewHeight;
+        double currentWidthExit2 = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _clockViewWidth;
+        AnimateClockViewNotchResize(currentWidthExit2, currentH2, _expandedWidth, _expandedHeight, durIn, inDelay, RestoreExpandedWindowSize);
 
         UpdateShelfCapacityIndicator();
     }
@@ -851,12 +809,14 @@ public partial class MainWindow
             NotchBorder.BeginAnimation(HeightProperty, null);
             NotchBorder.Width = targetWidth;
             NotchBorder.Height = _timerViewHeight;
+            // Notch has finished shrinking from the (taller/wider) clock view — now it is
+            // safe to shrink the host window back to the standard footprint.
+            RestoreExpandedWindowSize();
             ShowCompletionOverlayContent();
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim, HandoffBehavior.SnapshotAndReplace);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim, HandoffBehavior.SnapshotAndReplace);
-        ResizeWindowForTimerViewSurface();
     }
 
     private void AnimateCountdownCompletionContentOut(FrameworkElement element, Duration duration)
@@ -931,16 +891,6 @@ public partial class MainWindow
             };
             NavIconsBackground.BeginAnimation(OpacityProperty, navBgFade);
         }
-    }
-
-    private void ResizeWindowForTimerViewSurface()
-    {
-        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        double windowHeightDip = _timerViewHeight + 80;
-        this.Height = windowHeightDip;
-        _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
-        if (_hwnd != IntPtr.Zero)
-            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
     }
 
     private void ShowCompletionOverlayContent()
@@ -1209,43 +1159,15 @@ public partial class MainWindow
         NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, navSlideIn);
         NavIconsBackground.BeginAnimation(OpacityProperty, navBgFadeIn);
 
+        // Grow back into the widened clock-view surface.
+        ApplyClockViewWindowSize();
+        PrepareClockViewContentSize();
+        RefreshClockView();
+
         double currentHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _timerViewHeight;
         double currentWidth = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : NotchBorder.Width;
         if (double.IsNaN(currentWidth) || currentWidth <= 0) currentWidth = _expandedWidth;
-        if (Math.Abs(currentWidth - _expandedWidth) > 0.5)
-        {
-            NotchBorder.BeginAnimation(WidthProperty, null);
-            NotchBorder.Width = currentWidth;
-            var widthAnim = MakeAnim(currentWidth, _expandedWidth, durIn, _easeExpOut6, TimeSpan.Zero);
-            Timeline.SetDesiredFrameRate(widthAnim, fps);
-            widthAnim.Completed += (s, e) =>
-            {
-                NotchBorder.BeginAnimation(WidthProperty, null);
-                NotchBorder.Width = _expandedWidth;
-            };
-            NotchBorder.BeginAnimation(WidthProperty, widthAnim, HandoffBehavior.SnapshotAndReplace);
-        }
-
-        if (Math.Abs(currentHeight - _timerViewHeight) > 0.5)
-        {
-            NotchBorder.BeginAnimation(HeightProperty, null);
-            NotchBorder.Height = currentHeight;
-            var heightAnim = MakeAnim(currentHeight, _timerViewHeight, durIn, _easeExpOut6, TimeSpan.Zero);
-            Timeline.SetDesiredFrameRate(heightAnim, fps);
-            heightAnim.Completed += (s, e) =>
-            {
-                NotchBorder.BeginAnimation(HeightProperty, null);
-                NotchBorder.Height = _timerViewHeight;
-            };
-            NotchBorder.BeginAnimation(HeightProperty, heightAnim, HandoffBehavior.SnapshotAndReplace);
-        }
-
-        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        double windowHeightDip = _timerViewHeight + 80;
-        this.Height = windowHeightDip;
-        _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
-        if (_hwnd != IntPtr.Zero)
-            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        AnimateClockViewNotchResize(currentWidth, currentHeight, _clockViewWidth, _clockViewHeight, durIn, TimeSpan.Zero);
     }
 
     private void CountdownDismiss_Click(object sender, MouseButtonEventArgs e)
@@ -1694,27 +1616,40 @@ public partial class MainWindow
         AnimateCountdownDisplayPulse(1.025);
     }
 
+    private string _lastCountdownText = string.Empty;
+
     private void UpdateTimerDisplay()
     {
         var total = _countdownRemaining;
+        string text;
         if (total.TotalDays >= 1)
         {
             int days = (int)total.TotalDays;
             int hours = total.Hours;
-            CountdownDisplay.Text = $"{days}d {hours:D2}h";
+            text = $"{days}d {hours:D2}h";
         }
         else if (total.TotalHours >= 1)
         {
             int hours = (int)total.TotalHours;
             int minutes = total.Minutes;
-            CountdownDisplay.Text = $"{hours:D2}:{minutes:D2}:{total.Seconds:D2}";
+            text = $"{hours:D2}:{minutes:D2}:{total.Seconds:D2}";
         }
         else
         {
             int minutes = (int)total.TotalMinutes;
             int seconds = total.Seconds;
-            CountdownDisplay.Text = $"{minutes:D2}:{seconds:D2}";
+            text = $"{minutes:D2}:{seconds:D2}";
         }
+
+        // The display only changes at second granularity, but the countdown ticks every
+        // 100 ms (for a smooth progress fill). Skip the TextBlock write on the ~9/10 ticks
+        // where the visible text is unchanged.
+        if (!string.Equals(text, _lastCountdownText, StringComparison.Ordinal))
+        {
+            _lastCountdownText = text;
+            CountdownDisplay.Text = text;
+        }
+
         UpdateCountdownProgressFill();
     }
 
