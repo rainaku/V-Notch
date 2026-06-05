@@ -178,42 +178,38 @@ public partial class App : Application
             if (currentVersion == null) return;
 
             var currentVersionStr = FormatVersion(currentVersion);
+            bool needSave = false;
 
-            if (!string.IsNullOrEmpty(settings.LastRunVersion) && settings.LastRunVersion != currentVersionStr)
+            // Show Introducing Window for new Dynamic Island feature once
+            if (!settings.HasSeenDynamicIslandIntro)
             {
-                // Version changed — user just updated. Open the release page.
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                Current.Dispatcher.BeginInvoke(new System.Action(() =>
                 {
-                    FileName = $"https://github.com/rainaku/V-Notch/releases/tag/{currentVersionStr}",
-                    UseShellExecute = true
-                });
-
-                // Show Introducing Window for new Dynamic Island feature once
-                if (!settings.HasSeenDynamicIslandIntro)
-                {
-                    Current.Dispatcher.BeginInvoke(new System.Action(() =>
+                    try
                     {
-                        try
-                        {
-                            var introWindow = new IntroducingWindow();
-                            introWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-                            introWindow.ShowDialog();
-                        }
-                        catch (System.Exception introEx)
-                        {
-                            RuntimeLog.Error("INTRO-WINDOW", introEx, "Failed to show introducing window");
-                        }
-                    }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                        var introWindow = new IntroducingWindow();
+                        introWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                        introWindow.ShowDialog();
+                    }
+                    catch (System.Exception introEx)
+                    {
+                        RuntimeLog.Error("INTRO-WINDOW", introEx, "Failed to show introducing window");
+                    }
+                }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
-                    settings.HasSeenDynamicIslandIntro = true;
-                    settingsService.Save(settings);
-                }
+                settings.HasSeenDynamicIslandIntro = true;
+                needSave = true;
             }
 
             // Always update the stored version
             if (settings.LastRunVersion != currentVersionStr)
             {
                 settings.LastRunVersion = currentVersionStr;
+                needSave = true;
+            }
+
+            if (needSave)
+            {
                 settingsService.Save(settings);
             }
         }
