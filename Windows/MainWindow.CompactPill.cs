@@ -13,6 +13,9 @@ public partial class MainWindow
 
     private bool TryAcquireCompactSlot(CompactPillSlot slot, out int token)
     {
+        // A compact pill wants the stage — reveal the notch if it's hidden by idle.
+        WakeFromIdle();
+
         var result = _compactPillArbiter.TryAcquire(slot);
         token = result.Token;
         if (!result.Won)

@@ -1071,6 +1071,40 @@
                                                            Margin="0,3,0,0"/>
                                             </StackPanel>
                                         </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ReopenLastViewCheck" x:Uid="reopenLastView" Content="Reopen last view on expand"/>
+                                                <TextBlock x:Name="ReopenLastViewHint" Text="Restore the view that was open before the last collapse the next time the notch expands."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="IdleAutoHideCheck" x:Uid="idleAutoHide" Content="Auto-hide when idle"
+                                                         Checked="IdleAutoHideCheck_Changed" Unchecked="IdleAutoHideCheck_Changed"/>
+                                                <TextBlock x:Name="IdleAutoHideHint" Text="Slide the notch out of view when it stays empty for a while. It returns on the next activity."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
+                                                <TextBlock x:Name="IdleAutoHideKeywords" Visibility="Collapsed"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <controls:ElasticSlider x:Name="IdleAutoHideDelaySlider"
+                                                        Label="Idle delay" Unit=" s"
+                                                        Description="How long the notch stays empty before hiding."
+                                                        Minimum="2"
+                                                        Maximum="30"
+                                                        Value="5"
+                                                        TickFrequency="1"
+                                                        IsSnapToTickEnabled="True"/>
+                                                <TextBlock x:Name="IdleAutoHideDelayKeywords" Visibility="Collapsed"/>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

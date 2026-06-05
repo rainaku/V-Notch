@@ -34,6 +34,7 @@ public class NotchSettings
     public bool EnableCursorBypass { get; set; } = false;
     public bool EnableAnimations { get; set; } = true;
     public bool DisableMouseLeaveAutoClose { get; set; } = false;
+    public bool ReopenLastViewOnExpand { get; set; } = false;
 
     public double AnimationSpeed { get; set; } = 2.0;
     public bool EnableBounceEffect { get; set; } = true;
@@ -54,6 +55,10 @@ public class NotchSettings
 
     public bool HideOnExclusiveFullscreen { get; set; } = true;
     public bool HideOnWindowedFullscreen { get; set; } = true;
+
+    // Automatically slide the notch out of view when it sits empty/idle for a while.
+    public bool EnableIdleAutoHide { get; set; } = false;
+    public int IdleAutoHideDelay { get; set; } = 5000; // ms of continuous idle before hiding
 
     public bool ShowMusicNotifications { get; set; } = true;
     public bool ShowSystemNotifications { get; set; } = true;

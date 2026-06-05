@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
     
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
@@ -76,6 +76,14 @@ public static class SettingsMigrator
                 if (!root.ContainsKey(nameof(NotchSettings.DynamicIslandHeight)))
                 {
                     root[nameof(NotchSettings.DynamicIslandHeight)] = 40;
+                }
+                return root;
+            },
+            [6] = root =>
+            {
+                if (!root.ContainsKey(nameof(NotchSettings.ReopenLastViewOnExpand)))
+                {
+                    root[nameof(NotchSettings.ReopenLastViewOnExpand)] = false;
                 }
                 return root;
             },

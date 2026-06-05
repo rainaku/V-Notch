@@ -35,6 +35,9 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() =>
         {
+            // New media activity should immediately reveal an idle-hidden notch.
+            WakeFromIdle();
+
             if (info.IsThumbnailOnlyUpdate && _currentMediaInfo != null)
             {
                 string incomingTrack = info.CurrentTrack ?? "";

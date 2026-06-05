@@ -139,6 +139,7 @@ public event EventHandler? AnimatedClosing;
         HoverDelaySlider.IsEnabled = _settings.EnableHoverExpand;
         HoverDelaySlider.Opacity = _settings.EnableHoverExpand ? 1.0 : 0.4;
         DisableMouseLeaveAutoCloseCheck.IsChecked = _settings.DisableMouseLeaveAutoClose;
+        ReopenLastViewCheck.IsChecked = _settings.ReopenLastViewOnExpand;
 
         var monitors = NotchManager.GetMonitorNames();
         MonitorCombo.ItemsSource = monitors;
@@ -152,6 +153,10 @@ public event EventHandler? AnimatedClosing;
         HelloGreetingCheck.IsChecked = _settings.EnableHelloGreeting;
         HideOnExclusiveFullscreenCheck.IsChecked = _settings.HideOnExclusiveFullscreen;
         HideOnWindowedFullscreenCheck.IsChecked = _settings.HideOnWindowedFullscreen;
+        IdleAutoHideCheck.IsChecked = _settings.EnableIdleAutoHide;
+        IdleAutoHideDelaySlider.Value = Math.Max(2, _settings.IdleAutoHideDelay / 1000.0);
+        IdleAutoHideDelaySlider.IsEnabled = _settings.EnableIdleAutoHide;
+        IdleAutoHideDelaySlider.Opacity = _settings.EnableIdleAutoHide ? 1.0 : 0.4;
         MusicNotifyCheck.IsChecked = _settings.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = _settings.ShowSystemNotifications;
         ShelfUnlockCheck.IsChecked = _settings.IsShelfUploadLimitUnlocked;
@@ -267,6 +272,14 @@ public event EventHandler? AnimatedClosing;
         HoverDelaySlider.Description = Loc.Get("settings.expandDelay.hint");
         DisableMouseLeaveAutoCloseCheck.Content = Loc.Get("settings.disableAutoClose");
         DisableMouseLeaveAutoCloseHint.Text = Loc.Get("settings.disableAutoClose.hint");
+        ReopenLastViewCheck.Content = Loc.Get("settings.reopenLastView");
+        ReopenLastViewHint.Text = Loc.Get("settings.reopenLastView.hint");
+        IdleAutoHideCheck.Content = Loc.Get("settings.idleAutoHide");
+        IdleAutoHideHint.Text = Loc.Get("settings.idleAutoHide.hint");
+        IdleAutoHideKeywords.Text = Loc.Get("settings.idleAutoHide.keywords");
+        IdleAutoHideDelaySlider.Label = Loc.Get("settings.idleAutoHideDelay");
+        IdleAutoHideDelaySlider.Description = Loc.Get("settings.idleAutoHideDelay.hint");
+        IdleAutoHideDelayKeywords.Text = Loc.Get("settings.idleAutoHideDelay.keywords");
 
         // Updates & Report Bug
         CheckUpdateButton.Content = Loc.Get("settings.checkUpdate");
@@ -707,6 +720,13 @@ public event EventHandler? AnimatedClosing;
         HoverDelaySlider.Opacity = enabled ? 1.0 : 0.4;
     }
 
+    private void IdleAutoHideCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        bool enabled = IdleAutoHideCheck.IsChecked ?? false;
+        IdleAutoHideDelaySlider.IsEnabled = enabled;
+        IdleAutoHideDelaySlider.Opacity = enabled ? 1.0 : 0.4;
+    }
+
     private void LanguageCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_isLoadingSettings) return;
@@ -900,6 +920,9 @@ public event EventHandler? AnimatedClosing;
             (HoverExpandHint, () => HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint")),
             (ExpandDelayLabel, () => { ExpandDelayLabel.Text = Loc.Get("settings.expandDelay"); HoverDelaySlider.Label = Loc.Get("settings.expandDelay"); HoverDelaySlider.Description = Loc.Get("settings.expandDelay.hint"); }),
             (DisableMouseLeaveAutoCloseHint, () => DisableMouseLeaveAutoCloseHint.Text = Loc.Get("settings.disableAutoClose.hint")),
+            (ReopenLastViewHint, () => ReopenLastViewHint.Text = Loc.Get("settings.reopenLastView.hint")),
+            (IdleAutoHideHint, () => IdleAutoHideHint.Text = Loc.Get("settings.idleAutoHide.hint")),
+            (IdleAutoHideDelaySlider, () => { IdleAutoHideDelaySlider.Label = Loc.Get("settings.idleAutoHideDelay"); IdleAutoHideDelaySlider.Description = Loc.Get("settings.idleAutoHideDelay.hint"); }),
 
             // Updates
             (UpdateStatusText, () => UpdateStatusText.Text = Loc.Get("settings.upToDate")),
@@ -990,6 +1013,10 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(HoverExpandCheck, () => HoverExpandCheck.Content = Loc.Get("settings.hoverExpand"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(DisableMouseLeaveAutoCloseCheck, () => DisableMouseLeaveAutoCloseCheck.Content = Loc.Get("settings.disableAutoClose"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(ReopenLastViewCheck, () => ReopenLastViewCheck.Content = Loc.Get("settings.reopenLastView"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(IdleAutoHideCheck, () => IdleAutoHideCheck.Content = Loc.Get("settings.idleAutoHide"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(EnableSpotifyLyricsCheck, () => EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
@@ -1368,6 +1395,7 @@ private void PushLivePreview()
         HoverDelaySlider.IsEnabled = defaults.EnableHoverExpand;
         HoverDelaySlider.Opacity = defaults.EnableHoverExpand ? 1.0 : 0.4;
         DisableMouseLeaveAutoCloseCheck.IsChecked = defaults.DisableMouseLeaveAutoClose;
+        ReopenLastViewCheck.IsChecked = defaults.ReopenLastViewOnExpand;
 
         MusicNotifyCheck.IsChecked = defaults.ShowMusicNotifications;
         SystemNotifyCheck.IsChecked = defaults.ShowSystemNotifications;
@@ -1377,6 +1405,10 @@ private void PushLivePreview()
         _settings.BatteryDeviceId = defaults.BatteryDeviceId;
         HideOnExclusiveFullscreenCheck.IsChecked = defaults.HideOnExclusiveFullscreen;
         HideOnWindowedFullscreenCheck.IsChecked = defaults.HideOnWindowedFullscreen;
+        IdleAutoHideCheck.IsChecked = defaults.EnableIdleAutoHide;
+        IdleAutoHideDelaySlider.Value = Math.Max(2, defaults.IdleAutoHideDelay / 1000.0);
+        IdleAutoHideDelaySlider.IsEnabled = defaults.EnableIdleAutoHide;
+        IdleAutoHideDelaySlider.Opacity = defaults.EnableIdleAutoHide ? 1.0 : 0.4;
         LanguageCombo.SelectedIndex = defaults.Language == "vi" ? 1 : 0;
         _settings.ExpandedWidget = defaults.ExpandedWidget;
         WidgetCombo.SelectedIndex = defaults.ExpandedWidget == "clock" ? 1 : 0;
@@ -1737,6 +1769,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.EnableHoverExpand = HoverExpandCheck.IsChecked ?? true;
         _settings.HoverExpandDelay = (int)HoverDelaySlider.Value;
         _settings.DisableMouseLeaveAutoClose = DisableMouseLeaveAutoCloseCheck.IsChecked ?? false;
+        _settings.ReopenLastViewOnExpand = ReopenLastViewCheck.IsChecked ?? false;
 
         _settings.MonitorIndex = MonitorCombo.SelectedIndex;
         if (CameraCombo.SelectedItem is CameraDeviceItem selectedCamera)
@@ -1747,6 +1780,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.EnableHelloGreeting = HelloGreetingCheck.IsChecked ?? true;
         _settings.HideOnExclusiveFullscreen = HideOnExclusiveFullscreenCheck.IsChecked ?? true;
         _settings.HideOnWindowedFullscreen = HideOnWindowedFullscreenCheck.IsChecked ?? true;
+        _settings.EnableIdleAutoHide = IdleAutoHideCheck.IsChecked ?? false;
+        _settings.IdleAutoHideDelay = Math.Max(1000, (int)(IdleAutoHideDelaySlider.Value * 1000));
         _settings.ShowMusicNotifications = MusicNotifyCheck.IsChecked ?? true;
         _settings.ShowSystemNotifications = SystemNotifyCheck.IsChecked ?? true;
         _settings.IsShelfUploadLimitUnlocked = ShelfUnlockCheck.IsChecked ?? false;

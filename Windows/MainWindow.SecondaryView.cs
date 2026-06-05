@@ -124,25 +124,6 @@ public partial class MainWindow
         }
     }
 
-    // Shows the file-shelf nav icons during a direct expand-into-shelf, mirroring the
-    // reveal used by SwitchToSecondaryView so the chrome matches a normal shelf open.
-    private void RevealSecondaryNavIconsForDirectOpen()
-    {
-        NavIconsPanel.Visibility = Visibility.Visible;
-        NavIconsPanel.Opacity = 1;
-
-        NavIconsBackground.BeginAnimation(OpacityProperty, null);
-        NavIconsBackground.Opacity = 0;
-        NavIconsBackground.Visibility = Visibility.Visible;
-        var navBgFadeIn = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(300)))
-        {
-            EasingFunction = _easePowerOut3,
-            BeginTime = TimeSpan.FromMilliseconds(200)
-        };
-        Timeline.SetDesiredFrameRate(navBgFadeIn, VNotch.Services.AnimationConfig.TargetFps);
-        NavIconsBackground.BeginAnimation(OpacityProperty, navBgFadeIn);
-    }
-
     private void SwitchToSecondaryView()
     {
         if (_isSecondaryView || _isAnimating) return;
