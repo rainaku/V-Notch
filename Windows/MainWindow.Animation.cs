@@ -167,6 +167,11 @@ public partial class MainWindow
         bool restoreSecondaryDirect = _settings.ReopenLastViewOnExpand
             && _lastExpandedViewBeforeCollapse == LastExpandedView.Secondary;
 
+        VNotch.Services.RuntimeLog.Log("REOPEN-VIEW",
+            $"ExpandNotch: reopenSetting={_settings.ReopenLastViewOnExpand} " +
+            $"lastView={_lastExpandedViewBeforeCollapse} restoreSecondaryDirect={restoreSecondaryDirect} " +
+            $"isMusicCompact={_isMusicCompactMode}");
+
         bool suppressCompactThumbnailMotion = IsCountdownCompletionVisualActive;
         if (suppressCompactThumbnailMotion)
         {
@@ -320,7 +325,12 @@ public partial class MainWindow
 
             HideMediaBackground();
             UpdateShelfCapacityIndicator();
-            UpdateNavIconsActiveState();
+            // The state machine can only enter SecondaryView from the Expanded state, which
+            // isn't reached until this expand finishes. Paint the shelf-active nav state
+            // manually for now; the real state transition is committed on completion below.
+            HomeIconButton.Opacity = 0.4;
+            FileShelfIconButton.Opacity = 1.0;
+            TimerIconButton.Opacity = 0.4;
             EnableKeyboardInput();
             RevealSecondaryNavIconsForDirectOpen();
 
@@ -335,6 +345,13 @@ public partial class MainWindow
             ExpandedContent.Visibility = Visibility.Collapsed;
             SecondaryContent.Visibility = Visibility.Visible;
             SecondaryContent.Opacity = 0;
+
+            // Lay the shelf out at its final size up-front (mirrors the ExpandedContent
+            // treatment below) so the growing notch reveals it by clipping instead of
+            // reflowing it from collapsed dimensions, which left it blank.
+            SecondaryContent.Width = _expandedWidth - 24;   // Margin 12 + 12
+            SecondaryContent.Height = _expandedHeight - 18; // Margin 6 + 12
+            SecondaryContent.UpdateLayout();
             revealContent = SecondaryContent;
         }
         else
@@ -342,6 +359,15 @@ public partial class MainWindow
             ExpandedContent.Opacity = 0;
             ExpandedContent.Visibility = Visibility.Visible;
             revealContent = ExpandedContent;
+        }
+
+        if (restoreSecondaryDirect)
+        {
+            VNotch.Services.RuntimeLog.Log("REOPEN-VIEW",
+                $"ExpandNotch.Setup(direct shelf): state={_notchState.CurrentState} " +
+                $"reveal={(revealContent == SecondaryContent ? "Secondary" : "Expanded")} " +
+                $"ExpandedVis={ExpandedContent.Visibility} SecondaryVis={SecondaryContent.Visibility} " +
+                $"isMusicCompact={_isMusicCompactMode}");
         }
 
         // Hide lyrics blur during expand to prevent visual artifacts, will show after completion
@@ -496,6 +522,35 @@ public partial class MainWindow
             _notchState.TryTransitionTo(NotchState.Expanded);
             NotchBorder.IsHitTestVisible = true;
 
+            // Opened straight into the file shelf — finalize that view and skip the
+            // primary-view (media/lyrics/thumbnail) setup below.
+            if (restoreSecondaryDirect)
+            {
+                VNotch.Services.RuntimeLog.Log("REOPEN-VIEW",
+                    $"ExpandNotch.Completed: finalizing direct shelf open. " +
+                    $"state={_notchState.CurrentState} " +
+                    $"ExpandedVis={ExpandedContent.Visibility} ExpandedOp={ExpandedContent.Opacity:F2} " +
+                    $"SecondaryVis={SecondaryContent.Visibility} SecondaryOp={SecondaryContent.Opacity:F2} " +
+                    $"notchW={NotchBorder.ActualWidth:F0} notchH={NotchBorder.ActualHeight:F0}");
+                SecondaryContent.BeginAnimation(OpacityProperty, null);
+                SecondaryContent.Opacity = 1;
+                SecondaryContent.RenderTransform = null;
+                // Hand sizing back to layout so the shelf fills the notch naturally.
+                SecondaryContent.Width = double.NaN;
+                SecondaryContent.Height = double.NaN;
+                _isScrollSessionLocked = false;
+                CollapsedContent.Visibility = Visibility.Collapsed;
+                MusicCompactContent.Visibility = Visibility.Collapsed;
+                ResetCameraSectionLayoutInstant();
+
+                // Now that the notch is Expanded, commit the SecondaryView state (the earlier
+                // assignment during Expanding was a no-op) and lock in the correct nav icons.
+                // This mirrors how the clock view finalizes via SwitchToTimerView().
+                _isSecondaryView = true;
+                UpdateNavIconsActiveState();
+                return;
+            }
+
             // ─── Restore UI element opacity after expand completes ───
             RestoreExpandedContentOpacity();
 
@@ -582,17 +637,12 @@ public partial class MainWindow
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
 
-            // Restore the view that was active before the last collapse, if the user enabled it.
-            if (_settings.ReopenLastViewOnExpand && !_isSecondaryView && !_isTimerView)
+            // Restore the timer/clock view that was active before the last collapse, if enabled.
+            // (The file-shelf view is opened directly during the expand, handled above.)
+            if (_settings.ReopenLastViewOnExpand && !_isSecondaryView && !_isTimerView
+                && _lastExpandedViewBeforeCollapse == LastExpandedView.Timer)
             {
-                if (_lastExpandedViewBeforeCollapse == LastExpandedView.Secondary)
-                {
-                    SwitchToSecondaryView();
-                }
-                else if (_lastExpandedViewBeforeCollapse == LastExpandedView.Timer)
-                {
-                    SwitchToTimerView();
-                }
+                SwitchToTimerView();
             }
         };
 
@@ -616,6 +666,20 @@ public partial class MainWindow
     private void CollapseNotch()
     {
         if (_isAnimating || !_isExpanded || _isGreetingActive) return;
+
+        // Capture the active view FIRST, before any teardown. Deactivation fires two
+        // collapse triggers (WM_ACTIVATEAPP + Deactivated) and the view teardown below
+        // can flip _isSecondaryView/_isTimerView before a later capture point would run,
+        // which previously lost the shelf state needed to reopen it.
+        _lastExpandedViewBeforeCollapse = _isTimerView
+            ? LastExpandedView.Timer
+            : _isSecondaryView
+                ? LastExpandedView.Secondary
+                : LastExpandedView.Primary;
+        VNotch.Services.RuntimeLog.Log("REOPEN-VIEW",
+            $"CollapseNotch: captured lastView={_lastExpandedViewBeforeCollapse} " +
+            $"isSecondary={_isSecondaryView} isTimer={_isTimerView}");
+
         if (_isSecondaryView)
         {
             StopCameraPreviewForViewExit();
@@ -658,13 +722,6 @@ public partial class MainWindow
         // If collapsing from secondary/timer view, animate that surface out while the notch returns to compact.
         bool wasSecondary = _isSecondaryView;
         bool wasTimer = _isTimerView;
-
-        // Remember which view was active so the next expand can restore it (when enabled).
-        _lastExpandedViewBeforeCollapse = wasTimer
-            ? LastExpandedView.Timer
-            : wasSecondary
-                ? LastExpandedView.Secondary
-                : LastExpandedView.Primary;
         if (wasSecondary)
         {
             if (IsCameraPreviewLifecycleActive)

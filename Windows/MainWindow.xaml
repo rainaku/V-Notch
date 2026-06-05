@@ -1200,6 +1200,12 @@
                                                Margin="0,1.5,0,0"
                                                VerticalAlignment="Center"/>
                                     <Grid Margin="4.51,0,0,0">
+                                        <!-- Rasterize the battery glyph once so the hover scale (1.0->1.1)
+                                             transforms a stable bitmap instead of re-tessellating the thin
+                                             vector borders every frame (prevents edge shimmer / shape wobble). -->
+                                        <Grid.CacheMode>
+                                            <BitmapCache RenderAtScale="2" SnapsToDevicePixels="False"/>
+                                        </Grid.CacheMode>
                                         <!-- Battery Body -->
                                         <Border x:Name="BatteryIcon"
                                                 Width="27.08" Height="14.44"
