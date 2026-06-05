@@ -509,14 +509,21 @@ public partial class MainWindow
             };
             CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
 
-            GreetingSection.Visibility = Visibility.Visible;
-            GreetingSection.Opacity = 0;
-            var fadeInGreeting = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(350)))
+            if (!IsClockWidgetMode)
             {
-                EasingFunction = new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut },
-                BeginTime = TimeSpan.FromMilliseconds(150)
-            };
-            GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
+                GreetingSection.Visibility = Visibility.Visible;
+                GreetingSection.Opacity = 0;
+                var fadeInGreeting = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(350)))
+                {
+                    EasingFunction = new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut },
+                    BeginTime = TimeSpan.FromMilliseconds(150)
+                };
+                GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
+            }
+            else
+            {
+                GreetingSection.Visibility = Visibility.Collapsed;
+            }
         });
     }
 

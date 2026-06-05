@@ -2027,7 +2027,6 @@
                                         <TranslateTransform x:Name="CalendarWidgetTranslate" Y="0"/>
                                     </TransformGroup>
                                 </Border.RenderTransform>
-                                <Grid>
                                 <Grid x:Name="CalendarInnerContent" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="40"/>
@@ -2062,7 +2061,7 @@
                                                HorizontalAlignment="Center"
                                                Visibility="Collapsed"/>
 
-                                    <Grid Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                    <Grid x:Name="CalendarStripContainer" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
                                         <Grid.OpacityMask>
                                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                                 <GradientStop Color="Transparent" Offset="0"/>
@@ -2104,13 +2103,14 @@
                                             </Grid>
                                         </Canvas>
                                     </Grid>
-                                </Grid>
-                                <ctrl:AnalogClock x:Name="ClockWidget"
-                                                  Width="92" Height="92"
-                                                  Margin="0,0,0,0"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  Visibility="Collapsed"/>
+
+                                    <ctrl:AnalogClock x:Name="ClockWidget"
+                                                      Grid.Column="1"
+                                                      Width="92" Height="92"
+                                                      Margin="0,0,4,0"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Visibility="Collapsed"/>
                                 </Grid>
                             </Border>
 

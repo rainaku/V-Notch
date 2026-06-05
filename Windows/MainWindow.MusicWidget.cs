@@ -267,8 +267,9 @@ public partial class MainWindow
 
         GreetingSection.BeginAnimation(OpacityProperty, null);
         GreetingSection.Opacity = 0;
-        GreetingSection.Visibility = _isLyricsActive ? Visibility.Collapsed : Visibility.Visible;
-        if (!_isLyricsActive)
+        bool showGreeting = !_isLyricsActive && !IsClockWidgetMode;
+        GreetingSection.Visibility = showGreeting ? Visibility.Visible : Visibility.Collapsed;
+        if (showGreeting)
         {
             var fadeInGreeting = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(140));
             GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
