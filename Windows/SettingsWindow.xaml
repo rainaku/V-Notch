@@ -864,6 +864,16 @@
 
                                         <Border Style="{StaticResource SettingRowBorder}">
                                             <StackPanel>
+                                                <TextBlock x:Name="ExpandedWidgetLabel" Text="Expanded widget" Style="{StaticResource SettingTitleText}"/>
+                                                <TextBlock x:Name="ExpandedWidgetHint" Text="Choose which widget shows in the expanded notch."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,6,0,8"/>
+                                                <ComboBox x:Name="WidgetCombo" SelectionChanged="WidgetCombo_SelectionChanged"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}">
+                                            <StackPanel>
                                                 <TextBlock x:Name="WidthLabel" Text="Width" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
                                                 <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
                                                     <Run x:Name="WidthValue" Text="360"/><Run Text=" px"/>

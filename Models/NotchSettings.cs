@@ -84,6 +84,8 @@ public class NotchSettings
 
     public string Language { get; set; } = "en"; // "en" or "vi"
 
+    public string ExpandedWidget { get; set; } = "calendar"; // "calendar" or "clock"
+
     public bool HasSeenDynamicIslandIntro { get; set; } = false;
 
     [JsonIgnore]

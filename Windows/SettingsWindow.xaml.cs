@@ -164,6 +164,9 @@ public event EventHandler? AnimatedClosing;
         LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "Tiếng Việt", Tag = "vi" });
         LanguageCombo.SelectedIndex = _settings.Language == "vi" ? 1 : 0;
 
+        // Expanded widget combo
+        PopulateWidgetCombo();
+
         // YouTube API
         YouTubeApiCheck.IsChecked = _settings.EnableYouTubeApi;
         YouTubeApiKeyPasswordBox.Password = _settings.YouTubeApiKey;
@@ -217,6 +220,9 @@ public event EventHandler? AnimatedClosing;
         NavUpdatesText.Text = Loc.Get("settings.nav.updates");
 
         // Appearance labels & hints
+        ExpandedWidgetLabel.Text = Loc.Get("settings.expandedWidget");
+        ExpandedWidgetHint.Text = Loc.Get("settings.expandedWidget.hint");
+        RepopulateWidgetComboPreservingSelection();
         WidthLabel.Text = Loc.Get("settings.width");
         WidthSlider.Label = Loc.Get("settings.width");
         WidthSlider.Description = Loc.Get("settings.width.hint");
@@ -315,7 +321,6 @@ public event EventHandler? AnimatedClosing;
         ShowBatteryHint.Text = Loc.Get("settings.showBattery.hint");
         LanguageLabel.Text = Loc.Get("settings.language");
         LanguageHint.Text = Loc.Get("settings.language.hint");
-
         // Advanced
         AdvancedHeader.Text = Loc.Get("settings.advanced");
         YouTubeApiCheck.Content = Loc.Get("settings.youtubeApi");
@@ -718,6 +723,36 @@ public event EventHandler? AnimatedClosing;
         }
     }
 
+    private void PopulateWidgetCombo()
+    {
+        WidgetCombo.Items.Clear();
+        WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.calendar"), Tag = "calendar" });
+        WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.clock"), Tag = "clock" });
+        WidgetCombo.SelectedIndex = _settings.ExpandedWidget == "clock" ? 1 : 0;
+    }
+
+    private void RepopulateWidgetComboPreservingSelection()
+    {
+        if (WidgetCombo == null) return;
+
+        bool wasLoading = _isLoadingSettings;
+        _isLoadingSettings = true; // suppress SelectionChanged side effects during rebuild
+        PopulateWidgetCombo();
+        _isLoadingSettings = wasLoading;
+    }
+
+    private void WidgetCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        if (WidgetCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is string widget)
+        {
+            if (widget == _settings.ExpandedWidget) return;
+
+            _settings.ExpandedWidget = widget;
+            PushLivePreview();
+        }
+    }
+
     private void YouTubeApiCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_isLoadingSettings) return;
@@ -847,6 +882,7 @@ public event EventHandler? AnimatedClosing;
             (NavUpdatesText, () => NavUpdatesText.Text = Loc.Get("settings.nav.updates")),
 
             // Appearance
+            (ExpandedWidgetLabel, () => { ExpandedWidgetLabel.Text = Loc.Get("settings.expandedWidget"); ExpandedWidgetHint.Text = Loc.Get("settings.expandedWidget.hint"); RepopulateWidgetComboPreservingSelection(); }),
             (WidthLabel, () => { WidthLabel.Text = Loc.Get("settings.width"); WidthSlider.Label = Loc.Get("settings.width"); WidthSlider.Description = Loc.Get("settings.width.hint"); }),
             (DynamicIslandWidthLabel, () => { DynamicIslandWidthLabel.Text = Loc.Get("settings.dynamicIslandWidth"); DynamicIslandWidthSlider.Label = Loc.Get("settings.dynamicIslandWidth"); DynamicIslandWidthSlider.Description = Loc.Get("settings.dynamicIslandWidth.hint"); }),
             (DynamicIslandHeightLabel, () => { DynamicIslandHeightLabel.Text = Loc.Get("settings.dynamicIslandHeight"); DynamicIslandHeightSlider.Label = Loc.Get("settings.dynamicIslandHeight"); DynamicIslandHeightSlider.Description = Loc.Get("settings.dynamicIslandHeight.hint"); }),
@@ -1342,6 +1378,8 @@ private void PushLivePreview()
         HideOnExclusiveFullscreenCheck.IsChecked = defaults.HideOnExclusiveFullscreen;
         HideOnWindowedFullscreenCheck.IsChecked = defaults.HideOnWindowedFullscreen;
         LanguageCombo.SelectedIndex = defaults.Language == "vi" ? 1 : 0;
+        _settings.ExpandedWidget = defaults.ExpandedWidget;
+        WidgetCombo.SelectedIndex = defaults.ExpandedWidget == "clock" ? 1 : 0;
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -1723,6 +1761,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         if (LanguageCombo.SelectedItem is System.Windows.Controls.ComboBoxItem langItem && langItem.Tag is string langCode)
             _settings.Language = langCode;
 
+        // Expanded widget
+        if (WidgetCombo.SelectedItem is System.Windows.Controls.ComboBoxItem widgetItem && widgetItem.Tag is string widgetCode)
+            _settings.ExpandedWidget = widgetCode;
         if (persist)
         {
             _settingsService.Save(_settings);

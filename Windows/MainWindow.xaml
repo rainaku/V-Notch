@@ -2027,7 +2027,8 @@
                                         <TranslateTransform x:Name="CalendarWidgetTranslate" Y="0"/>
                                     </TransformGroup>
                                 </Border.RenderTransform>
-                                <Grid VerticalAlignment="Center">
+                                <Grid>
+                                <Grid x:Name="CalendarInnerContent" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="40"/>
                                         <ColumnDefinition Width="*"/>
@@ -2103,6 +2104,13 @@
                                             </Grid>
                                         </Canvas>
                                     </Grid>
+                                </Grid>
+                                <ctrl:AnalogClock x:Name="ClockWidget"
+                                                  Width="92" Height="92"
+                                                  Margin="0,0,0,0"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Visibility="Collapsed"/>
                                 </Grid>
                             </Border>
 
@@ -2296,8 +2304,7 @@
                         </Border>
 
                         <Border x:Name="FileShelf"
-                                Grid.Row="0"
-                                Grid.RowSpan="2"
+                                Grid.Row="1"
                                 Grid.Column="1" 
                                 Background="#1A1A1A" 
                                 CornerRadius="16" 

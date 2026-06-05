@@ -1024,6 +1024,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         VNotch.Controls.MusicVisualizer.ConfigureAudioDevice(_settings.VisualizerAudioDeviceId);
         ApplyPerformanceSettings();
 
+        ApplyExpandedWidgetMode();
+
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
         _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
 
