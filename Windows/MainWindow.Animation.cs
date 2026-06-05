@@ -15,6 +15,8 @@ public partial class MainWindow
 {
 
     #region Notch Expand/Collapse
+    private enum LastExpandedView { Primary, Secondary, Timer }
+    private LastExpandedView _lastExpandedViewBeforeCollapse = LastExpandedView.Primary;
 
     private double GetCurrentExpandedContentTranslationY()
     {
@@ -159,6 +161,12 @@ public partial class MainWindow
         if (_isAnimating || _isExpanded || _isGreetingActive) return;
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Expanding);
+
+        // When "Reopen last view on expand" is on and the file shelf was the last view,
+        // open straight into it during this expand (no expand-then-switch lag).
+        bool restoreSecondaryDirect = _settings.ReopenLastViewOnExpand
+            && _lastExpandedViewBeforeCollapse == LastExpandedView.Secondary;
+
         bool suppressCompactThumbnailMotion = IsCountdownCompletionVisualActive;
         if (suppressCompactThumbnailMotion)
         {
@@ -302,8 +310,39 @@ public partial class MainWindow
         SecondaryContent.Visibility = Visibility.Collapsed;
         TimerContent.Visibility = Visibility.Collapsed;
 
-        ExpandedContent.Opacity = 0;
-        ExpandedContent.Visibility = Visibility.Visible;
+        // The element the expand animation fades/slides in. Normally the primary
+        // widgets; when restoring the file shelf we reveal it directly instead.
+        FrameworkElement revealContent;
+        if (restoreSecondaryDirect)
+        {
+            _isSecondaryView = true;
+            _isScrollSessionLocked = true;
+
+            HideMediaBackground();
+            UpdateShelfCapacityIndicator();
+            UpdateNavIconsActiveState();
+            EnableKeyboardInput();
+            RevealSecondaryNavIconsForDirectOpen();
+
+            if (CompactThumbnailBorder != null)
+            {
+                CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
+                CompactThumbnailBorder.Opacity = 0;
+                CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+            }
+
+            ExpandedContent.Opacity = 0;
+            ExpandedContent.Visibility = Visibility.Collapsed;
+            SecondaryContent.Visibility = Visibility.Visible;
+            SecondaryContent.Opacity = 0;
+            revealContent = SecondaryContent;
+        }
+        else
+        {
+            ExpandedContent.Opacity = 0;
+            ExpandedContent.Visibility = Visibility.Visible;
+            revealContent = ExpandedContent;
+        }
 
         // Hide lyrics blur during expand to prevent visual artifacts, will show after completion
         if (_isLyricsActive && LyricsBlurBackground != null)
@@ -330,8 +369,8 @@ public partial class MainWindow
         var expandedGroup = new TransformGroup();
         var expandedTranslate = new TranslateTransform(0, 10);
         expandedGroup.Children.Add(expandedTranslate);
-        ExpandedContent.RenderTransform = expandedGroup;
-        ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
+        revealContent.RenderTransform = expandedGroup;
+        revealContent.RenderTransformOrigin = new Point(0.5, 0.4);
 
         var fadeInAnim = MakeAnim(0d, 1d, _dur400, _easePowerOut3);
         double contentTargetY = _settings.EnableDynamicIslandMode ? 5 : 0;
@@ -344,7 +383,7 @@ public partial class MainWindow
         var blurInAnim = MakeAnim(contentBlurRadius, 0, _dur500, _easePowerOut3);
         ExpandedContentBlur.Radius = contentBlurRadius;
 
-        if (_isMusicCompactMode && CompactThumbnail.Source != null && !suppressCompactThumbnailMotion)
+        if (_isMusicCompactMode && CompactThumbnail.Source != null && !suppressCompactThumbnailMotion && !restoreSecondaryDirect)
         {
             var cachedExpandTarget = _cachedThumbnailExpandTarget;
             if (!cachedExpandTarget.HasValue)
@@ -542,6 +581,19 @@ public partial class MainWindow
 
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
+
+            // Restore the view that was active before the last collapse, if the user enabled it.
+            if (_settings.ReopenLastViewOnExpand && !_isSecondaryView && !_isTimerView)
+            {
+                if (_lastExpandedViewBeforeCollapse == LastExpandedView.Secondary)
+                {
+                    SwitchToSecondaryView();
+                }
+                else if (_lastExpandedViewBeforeCollapse == LastExpandedView.Timer)
+                {
+                    SwitchToTimerView();
+                }
+            }
         };
 
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
@@ -552,7 +604,7 @@ public partial class MainWindow
         CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
         MusicCompactContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        ExpandedContent.BeginAnimation(OpacityProperty, fadeInAnim);
+        revealContent.BeginAnimation(OpacityProperty, fadeInAnim);
         expandedTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
 
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, blurInAnim);
@@ -606,6 +658,13 @@ public partial class MainWindow
         // If collapsing from secondary/timer view, animate that surface out while the notch returns to compact.
         bool wasSecondary = _isSecondaryView;
         bool wasTimer = _isTimerView;
+
+        // Remember which view was active so the next expand can restore it (when enabled).
+        _lastExpandedViewBeforeCollapse = wasTimer
+            ? LastExpandedView.Timer
+            : wasSecondary
+                ? LastExpandedView.Secondary
+                : LastExpandedView.Primary;
         if (wasSecondary)
         {
             if (IsCameraPreviewLifecycleActive)
