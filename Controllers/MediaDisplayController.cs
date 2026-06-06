@@ -76,6 +76,22 @@ public sealed class MediaDisplayController
         // ─── Track Identity ───
         string trackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
         bool isNewTrack = trackIdentity != _lastAnimatedTrackSignature;
+
+        if (isNewTrack && hasRealTrack && !string.IsNullOrEmpty(_lastAnimatedTrackSignature))
+        {
+            string titlePrefix = $"{info.CurrentTrack}|";
+            if (_lastAnimatedTrackSignature.StartsWith(titlePrefix, StringComparison.Ordinal))
+            {
+                isNewTrack = false;
+                _lastAnimatedTrackSignature = trackIdentity;
+
+                if (_lastColorTrackSignature.StartsWith(titlePrefix, StringComparison.Ordinal))
+                {
+                    _lastColorTrackSignature = trackIdentity;
+                }
+            }
+        }
+
         result.IsNewTrack = isNewTrack;
         result.TrackIdentity = trackIdentity;
 
