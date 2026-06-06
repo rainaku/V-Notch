@@ -267,7 +267,7 @@ public partial class MainWindow
 
         GreetingSection.BeginAnimation(OpacityProperty, null);
         GreetingSection.Opacity = 0;
-        bool showGreeting = !_isLyricsActive && !IsClockWidgetMode;
+        bool showGreeting = !_isLyricsActive && !IsAnyClockWidgetMode;
         GreetingSection.Visibility = showGreeting ? Visibility.Visible : Visibility.Collapsed;
         if (showGreeting)
         {

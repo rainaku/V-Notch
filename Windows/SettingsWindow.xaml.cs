@@ -748,7 +748,13 @@ public event EventHandler? AnimatedClosing;
         WidgetCombo.Items.Clear();
         WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.calendar"), Tag = "calendar" });
         WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.clock"), Tag = "clock" });
-        WidgetCombo.SelectedIndex = _settings.ExpandedWidget == "clock" ? 1 : 0;
+        WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.wordclock"), Tag = "wordclock" });
+        WidgetCombo.SelectedIndex = _settings.ExpandedWidget switch
+        {
+            "clock" => 1,
+            "wordclock" => 2,
+            _ => 0
+        };
     }
 
     private void RepopulateWidgetComboPreservingSelection()
@@ -1411,7 +1417,12 @@ private void PushLivePreview()
         IdleAutoHideDelaySlider.Opacity = defaults.EnableIdleAutoHide ? 1.0 : 0.4;
         LanguageCombo.SelectedIndex = defaults.Language == "vi" ? 1 : 0;
         _settings.ExpandedWidget = defaults.ExpandedWidget;
-        WidgetCombo.SelectedIndex = defaults.ExpandedWidget == "clock" ? 1 : 0;
+        WidgetCombo.SelectedIndex = defaults.ExpandedWidget switch
+        {
+            "clock" => 1,
+            "wordclock" => 2,
+            _ => 0
+        };
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)

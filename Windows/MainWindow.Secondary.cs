@@ -526,6 +526,15 @@ public partial class MainWindow
         int fileCount = files.Count;
         bool useSmallSize = fileCount > 4;
 
+        // Size the container to its real content height so the WrapPanel's
+        // VerticalAlignment="Center" actually centers the visible rows within
+        // the (fixed-height) tray. A vertical WrapPanel top-aligns its rows, so
+        // a height larger than the content would leave a gap at the bottom and
+        // make the grid look pushed up. Small mode lays items out in 2 rows
+        // (48px item + 8px margin = 56px each), large mode in a single row
+        // (74px item + 8px margin = 82px).
+        ShelfItemsContainer.Height = useSmallSize ? 112 : 82;
+
         // Differential update: reuse existing items where possible
         int existingCount = ShelfItemsContainer.Children.Count;
 
