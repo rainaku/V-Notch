@@ -13,13 +13,16 @@ public partial class MainWindow
 
     // The order the widget card cycles through when the user drags left/right. Drag
     // left advances to the next entry, drag right goes back; the list wraps around.
-    private static readonly string[] _expandedWidgetOrder = { "calendar", "clock", "wordclock" };
+    private static readonly string[] _expandedWidgetOrder = { "calendar", "clock", "wordclock", "weather" };
 
     private bool IsClockWidgetMode =>
         string.Equals(_settings.ExpandedWidget, "clock", StringComparison.OrdinalIgnoreCase);
 
     private bool IsWordClockWidgetMode =>
         string.Equals(_settings.ExpandedWidget, "wordclock", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsWeatherWidgetMode =>
+        string.Equals(_settings.ExpandedWidget, "weather", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// True for any widget mode that replaces the calendar strip with a clock face
@@ -29,11 +32,18 @@ public partial class MainWindow
     private bool IsAnyClockWidgetMode => IsClockWidgetMode || IsWordClockWidgetMode;
 
     /// <summary>
+    /// True for any widget mode other than the calendar (clock, word clock, weather).
+    /// The calendar-only chrome — day strip, greeting and scroll handling — is hidden
+    /// for all of these.
+    /// </summary>
+    private bool IsNonCalendarWidgetMode => IsAnyClockWidgetMode || IsWeatherWidgetMode;
+
+    /// <summary>
     /// Applies the user's chosen expanded-notch widget. The month label stays
-    /// visible in every mode (just like the calendar); only the calendar day strip
-    /// is swapped for the analog clock or the spelled-out word clock, both of which
-    /// follow the local system time zone automatically. The greeting line is hidden
-    /// in either clock mode to keep the widget card uncluttered.
+    /// visible in the calendar / clock modes; only the calendar day strip is swapped
+    /// for the analog clock, the spelled-out word clock, or the weather widget, all of
+    /// which follow the local system automatically. The greeting line is hidden in any
+    /// non-calendar mode to keep the widget card uncluttered.
     /// </summary>
     private void ApplyExpandedWidgetMode()
     {
@@ -41,25 +51,33 @@ public partial class MainWindow
 
         bool useAnalogClock = IsClockWidgetMode;
         bool useWordClock = IsWordClockWidgetMode;
-        bool useCalendar = !useAnalogClock && !useWordClock;
+        bool useWeather = IsWeatherWidgetMode;
+        bool useCalendar = !useAnalogClock && !useWordClock && !useWeather;
 
         ClockWidget.Visibility = useAnalogClock ? Visibility.Visible : Visibility.Collapsed;
         if (WordClockWidget != null)
             WordClockWidget.Visibility = useWordClock ? Visibility.Visible : Visibility.Collapsed;
+        if (WeatherWidgetContent != null)
+            WeatherWidgetContent.Visibility = useWeather ? Visibility.Visible : Visibility.Collapsed;
         CalendarStripContainer.Visibility = useCalendar ? Visibility.Visible : Visibility.Collapsed;
+
+        // The weather widget carries its own location label and spans the full card,
+        // so the month label is hidden in that mode only.
+        if (MonthText != null)
+            MonthText.Visibility = useWeather ? Visibility.Collapsed : Visibility.Visible;
 
         UpdateGreetingVisibilityForWidget();
     }
 
     /// <summary>
-    /// Greeting is hidden whenever a clock widget is active; in calendar mode
+    /// Greeting is hidden whenever a non-calendar widget is active; in calendar mode
     /// it follows the lyrics state (lyrics replace the greeting).
     /// </summary>
     private void UpdateGreetingVisibilityForWidget()
     {
         if (GreetingSection == null) return;
 
-        bool show = !IsAnyClockWidgetMode && !_isLyricsActive;
+        bool show = !IsNonCalendarWidgetMode && !_isLyricsActive;
         GreetingSection.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 

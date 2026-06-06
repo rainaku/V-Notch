@@ -38,6 +38,7 @@ internal static class ServicePrewarmer
         SafeResolve<IVolumeService>(provider);
         SafeResolve<IBatteryService>(provider);
         SafeResolve<IUpdateService>(provider);
+        SafeResolve<IWeatherService>(provider);
 
         // Long-lived watchers (own internal timers / device watchers)
         SafeResolve<BluetoothMonitorService>(provider);
@@ -48,6 +49,7 @@ internal static class ServicePrewarmer
         SafeResolve<CalendarModule>(provider);
         SafeResolve<BluetoothModule>(provider);
         SafeResolve<PrivacyIndicatorModule>(provider);
+        SafeResolve<WeatherModule>(provider);
         SafeResolve<IModuleLifecycleManager>(provider);
     }
 

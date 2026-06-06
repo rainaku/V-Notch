@@ -2137,6 +2137,78 @@
                                                     Visibility="Collapsed"
                                                     TextOptions.TextRenderingMode="Grayscale"
                                                     TextOptions.TextHintingMode="Animated"/>
+
+                                    <!-- Weather widget mode (current location) — iOS-style vertical layout -->
+                                    <Grid x:Name="WeatherWidgetContent"
+                                          Grid.Column="0" Grid.ColumnSpan="2"
+                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="Left"
+                                          Margin="2,0,0,0"
+                                          Visibility="Collapsed">
+                                        <StackPanel Orientation="Vertical" HorizontalAlignment="Left">
+
+                                            <!-- Location + current-location arrow -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="WeatherLocationText"
+                                                           Text="—"
+                                                           FontFamily="{StaticResource MainSystemFont}"
+                                                           FontSize="11.5"
+                                                           FontWeight="Bold"
+                                                           Foreground="#F2FFFFFF"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MaxWidth="118"
+                                                           TextOptions.TextRenderingMode="Grayscale"
+                                                           TextOptions.TextHintingMode="Animated"/>
+                                                <Viewbox Width="10" Height="10" Margin="5,1,0,0" VerticalAlignment="Center">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Fill="#F2FFFFFF"
+                                                              Data="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                            </StackPanel>
+
+                                            <!-- Large temperature -->
+                                            <TextBlock x:Name="WeatherTempText"
+                                                       Text=""
+                                                       FontFamily="{StaticResource MainSystemFont}"
+                                                       FontSize="31"
+                                                       FontWeight="Bold"
+                                                       Foreground="White"
+                                                       Margin="-1,-1,0,0"
+                                                       LineHeight="34"
+                                                       LineStackingStrategy="BlockLineHeight"
+                                                       VerticalAlignment="Center"
+                                                       TextOptions.TextRenderingMode="Grayscale"
+                                                       TextOptions.TextHintingMode="Animated"/>
+
+                                            <!-- Condition text -->
+                                            <TextBlock x:Name="WeatherConditionText"
+                                                       Text=""
+                                                       FontFamily="{StaticResource MainSystemFont}"
+                                                       FontSize="11"
+                                                       FontWeight="Bold"
+                                                       Foreground="#E6FFFFFF"
+                                                       Margin="0,8,0,0"
+                                                       HorizontalAlignment="Left"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       MaxWidth="130"
+                                                       TextOptions.TextRenderingMode="Grayscale"
+                                                       TextOptions.TextHintingMode="Animated"/>
+
+                                            <!-- Hi / Lo -->
+                                            <TextBlock x:Name="WeatherHiLoText"
+                                                       Text=""
+                                                       FontFamily="{StaticResource MainSystemFont}"
+                                                       FontSize="10.5"
+                                                       FontWeight="Bold"
+                                                       Foreground="#99FFFFFF"
+                                                       Margin="0,1,0,0"
+                                                       HorizontalAlignment="Left"
+                                                       TextOptions.TextRenderingMode="Grayscale"
+                                                       TextOptions.TextHintingMode="Animated"/>
+                                        </StackPanel>
+                                    </Grid>
                                 </Grid>
                             </Border>
 
@@ -2149,9 +2221,9 @@
                                     <ColumnDefinition Width="40"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                
-                                <Border Grid.Column="0" Margin="0,0,12,0"/> 
-                                
+
+                                <Border Grid.Column="0" Margin="0,0,12,0"/>
+
                                 <TextBlock x:Name="EventText"
                                            Grid.Column="1"
                                            Text="Enjoy your day!"

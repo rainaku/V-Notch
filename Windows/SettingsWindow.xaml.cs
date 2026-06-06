@@ -748,10 +748,12 @@ public event EventHandler? AnimatedClosing;
         WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.calendar"), Tag = "calendar" });
         WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.clock"), Tag = "clock" });
         WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.wordclock"), Tag = "wordclock" });
+        WidgetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.widget.weather"), Tag = "weather" });
         WidgetCombo.SelectedIndex = _settings.ExpandedWidget switch
         {
             "clock" => 1,
             "wordclock" => 2,
+            "weather" => 3,
             _ => 0
         };
     }
@@ -1420,6 +1422,7 @@ private void PushLivePreview()
         {
             "clock" => 1,
             "wordclock" => 2,
+            "weather" => 3,
             _ => 0
         };
     }

@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private readonly CalendarModule _calendarModule;
     private readonly BluetoothModule _bluetoothModule;
     private readonly PrivacyIndicatorModule _privacyModule;
+    private readonly WeatherModule _weatherModule;
     private readonly IModuleLifecycleManager _moduleHost;
 
     // ─── Notch State (centralized via NotchStateManager) ───
@@ -154,7 +155,8 @@ public partial class MainWindow : Window
         BatteryModule batteryModule,
         CalendarModule calendarModule,
         BluetoothModule bluetoothModule,
-        PrivacyIndicatorModule privacyIndicatorModule)
+        PrivacyIndicatorModule privacyIndicatorModule,
+        WeatherModule weatherModule)
     {
         InitializeComponent();
         _settingsService = (SettingsService)settingsService;
@@ -185,6 +187,9 @@ public partial class MainWindow : Window
 
         _privacyModule = privacyIndicatorModule;
         _privacyModule.StateChanged += PrivacyModule_StateChanged;
+
+        _weatherModule = weatherModule;
+        _weatherModule.WeatherUpdated += WeatherModule_WeatherUpdated;
 
         _collapsedWidth = GetCollapsedWidth();
         _collapsedHeight = GetCollapsedHeight();
@@ -460,9 +465,11 @@ public partial class MainWindow : Window
         _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
+        _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;
 
         // Unsubscribe static events
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
+
 
         UnregisterClipboardListener();
         _hwndSource?.RemoveHook(WndProc);
@@ -1993,6 +2000,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         _mediaService.MediaChanged -= OnMediaChanged;        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
+        _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
 
         StopTitleGradientShift();

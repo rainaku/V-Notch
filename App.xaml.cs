@@ -116,11 +116,13 @@ public partial class App : Application
         services.AddSingleton<IDispatcherService>(sp =>
             new DispatcherService(Current.Dispatcher));
         services.AddSingleton<IUpdateService, UpdateService>();
+        services.AddSingleton<IWeatherService, WeatherService>();
 
         services.AddSingleton<BatteryModule>();
         services.AddSingleton<CalendarModule>();
         services.AddSingleton<BluetoothModule>();
         services.AddSingleton<PrivacyIndicatorModule>();
+        services.AddSingleton<WeatherModule>();
         services.AddSingleton<IModuleLifecycleManager>(sp =>
         {
             var host = new ModuleLifecycleManager();
@@ -128,6 +130,7 @@ public partial class App : Application
             host.Register(sp.GetRequiredService<CalendarModule>());
             host.Register(sp.GetRequiredService<BluetoothModule>());
             host.Register(sp.GetRequiredService<PrivacyIndicatorModule>());
+            host.Register(sp.GetRequiredService<WeatherModule>());
             return host;
         });
 

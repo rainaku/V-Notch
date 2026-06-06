@@ -393,7 +393,7 @@ public partial class MainWindow
 
     private void CalendarWidget_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
     {
-        if (IsAnyClockWidgetMode) return;
+        if (IsNonCalendarWidgetMode) return;
         if (!_calendarInitialized) return;
 
         _calendarScrollAccumulator += e.Delta;
