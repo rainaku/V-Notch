@@ -129,11 +129,19 @@ public partial class MainWindow
             return;
         }
 
-        // Otherwise, if the pointer barely moved treat it as a tap and collapse the
-        // notch, matching a normal click anywhere else on it.
+        // Otherwise, if the pointer barely moved treat it as a tap.
         if (Math.Abs(dx) < WidgetTapThreshold && Math.Abs(dy) < WidgetTapThreshold)
         {
-            CollapseNotch();
+            // The analog clock widget opens the full clock view on tap; the other
+            // widgets keep the normal click-to-collapse behavior.
+            if (IsClockWidgetMode && _isExpanded && !_isSecondaryView && !_isTimerView)
+            {
+                SwitchToTimerView();
+            }
+            else
+            {
+                CollapseNotch();
+            }
         }
     }
 

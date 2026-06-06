@@ -455,7 +455,6 @@ public event EventHandler? AnimatedClosing;
     private void LoadSubtitlePriority()
     {
         _subtitleItems.Clear();
-        bool isVi = _settings.Language == "vi";
 
         var keys = (_settings.SubtitlePriority ?? "native,english,auto")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -473,18 +472,18 @@ public event EventHandler? AnimatedClosing;
             _subtitleItems.Add(new SubtitlePriorityItem
             {
                 Key = key,
-                DisplayName = GetSubtitleModeName(key, isVi)
+                DisplayName = GetSubtitleModeName(key)
             });
         }
 
         SubtitlePriorityItems.ItemsSource = _subtitleItems;
     }
 
-    private static string GetSubtitleModeName(string key, bool isVi) => key switch
+    private static string GetSubtitleModeName(string key) => key switch
     {
-        "native" => isVi ? "Ngôn ngữ gốc video" : "Video's native language",
-        "english" => isVi ? "Tiếng Anh" : "English",
-        "auto" => isVi ? "Tự động (bất kỳ)" : "Auto (any available)",
+        "native" => Loc.Get("settings.subtitleMode.native"),
+        "english" => Loc.Get("settings.subtitleMode.english"),
+        "auto" => Loc.Get("settings.subtitleMode.auto"),
         _ => key
     };
 
