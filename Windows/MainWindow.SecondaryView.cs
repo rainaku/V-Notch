@@ -115,7 +115,6 @@ public partial class MainWindow
         e.Handled = true;
         if (_isTimerView && !_isAnimating)
         {
-            // Switch from timer to file shelf
             SwitchFromTimerToSecondaryView();
         }
         else if (!_isSecondaryView && !_isAnimating)
@@ -132,7 +131,6 @@ public partial class MainWindow
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
 
-        // Hide media background and lyrics blur immediately
         HideMediaBackground();
         if (LyricsBlurBackground != null && LyricsBlurBackground.Visibility == Visibility.Visible)
         {
@@ -343,7 +341,6 @@ public partial class MainWindow
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.RenderTransform = null;
 
-            // Restore blur background and lyrics background
             ShowMediaBackground();
 
             if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)

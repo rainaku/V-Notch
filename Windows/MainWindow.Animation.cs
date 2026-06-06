@@ -216,12 +216,10 @@ public partial class MainWindow
             _isCompactThumbnailHovered = false;
             _compactThumbnailHoverLeaveTimer.Stop();
         }
-        // Hide hover info immediately (title text below thumbnail)
         CompactHoverInfo.BeginAnimation(OpacityProperty, null);
         CompactHoverInfo.Opacity = 0;
         CompactHoverInfo.Visibility = Visibility.Collapsed;
         ResetAnimationThumbnailOverlay();
-        // Reset compact thumbnail corner radius from hover state
         this.BeginAnimation(CurrentCompactThumbnailRadiusProperty, null);
         CurrentCompactThumbnailRadius = 6;
         ResetCompactThumbnailRestingState();
@@ -233,7 +231,6 @@ public partial class MainWindow
         double currentWidth = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
         double currentHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight;
 
-        // Cancel hover animations on notch size and corner radius
         NotchBorder.BeginAnimation(WidthProperty, null);
         NotchBorder.BeginAnimation(HeightProperty, null);
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
@@ -320,7 +317,6 @@ public partial class MainWindow
         ExpandedContent.Height = _expandedHeight - 2;
         ExpandedContent.UpdateLayout();
 
-        // Animate Status Bar (Battery + Settings) reveal
         AnimateStatusBarReveal(true);
 
         NotchBorder.IsHitTestVisible = false;
@@ -460,7 +456,6 @@ public partial class MainWindow
             _notchState.TryTransitionTo(NotchState.Expanded);
             NotchBorder.IsHitTestVisible = true;
 
-            // ─── Restore UI element opacity after expand completes ───
             RestoreExpandedContentOpacity();
 
             UpdateProgressTimerState();
@@ -617,10 +612,8 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // ─── Apple-Style: Fade out UI elements with staggered timing BEFORE notch shrinks ───
         AnimateExpandedContentFadeOut();
 
-        // Hide Status Bar (Battery + Settings)
         AnimateStatusBarReveal(false);
 
         // Immediately hide nav icons to prevent them staying visible during collapse
@@ -687,7 +680,6 @@ public partial class MainWindow
                 StopCameraPreviewForViewExit();
             }
 
-            // ─── Apple-Style: Fade out timer elements with staggered timing ───
             AnimateTimerContentFadeOut();
 
             TimerContent.BeginAnimation(OpacityProperty, null);

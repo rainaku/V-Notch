@@ -58,10 +58,8 @@ public partial class MainWindow : Window
     private readonly WeatherModule _weatherModule;
     private readonly IModuleLifecycleManager _moduleHost;
 
-    // ─── Notch State (centralized via NotchStateManager) ───
     private readonly NotchStateManager _notchState = new();
 
-    // ─── Controllers (Phase 2-5 refactoring) ───
     private readonly NotchAnimationController _animController;
     private readonly MusicWidgetController _musicController;
     private readonly CameraPreviewController _cameraController;
@@ -165,7 +163,6 @@ public partial class MainWindow : Window
         _mediaService = (MediaDetectionService)mediaService;
         _updateService = updateService;
 
-        // Initialize controllers
         _animController = new NotchAnimationController(_notchState);
         _musicController = new MusicWidgetController(_notchState);
         _cameraController = new CameraPreviewController();
@@ -458,7 +455,6 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        // Unsubscribe instance events
         _notchManager.HoverService.HoverEnter -= HoverService_HoverEnter;
         _notchManager.HoverService.HoverLeave -= HoverService_HoverLeave;
         _mediaService.MediaChanged -= OnMediaChanged;
@@ -467,9 +463,7 @@ public partial class MainWindow : Window
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
         _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;
 
-        // Unsubscribe static events
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
-
 
         UnregisterClipboardListener();
         _hwndSource?.RemoveHook(WndProc);
@@ -746,7 +740,6 @@ public partial class MainWindow : Window
             Track(SecondaryContent);
             Track(MusicCompactContent);
 
-            // Music widget sub-elements
             Track(InlineControls);
             Track(LyricsWidget);
             Track(LyricsBlurBackground);
@@ -772,7 +765,6 @@ public partial class MainWindow : Window
             NotchBorder.Width = _expandedWidth;
             NotchBorder.Height = _expandedHeight;
 
-            // Force a synchronous layout pass — measure + arrange everything
             UpdateLayout();
 
             // Pre-compute thumbnail expand target now that real layout is settled
@@ -852,7 +844,6 @@ public partial class MainWindow : Window
             CompactThumbnailOutScale.ScaleX = 1.0;
             CompactThumbnailOutScale.ScaleY = 1.0;
 
-            // Restore original visibility/opacity and dimensions
             foreach (var (el, originalVis, originalOpacity) in elementsToWarm)
             {
                 el.Visibility = originalVis;
@@ -875,7 +866,6 @@ public partial class MainWindow : Window
         var screen = System.Windows.Forms.Screen.PrimaryScreen;
         if (screen == null) return;
 
-        // Get the DPI scale factor for this window.
         // GetDpiForWindow returns the DPI (96 = 100%, 144 = 150%, 192 = 200%, etc.)
         double dpiScale = 1.0;
         if (_hwnd != IntPtr.Zero)
@@ -1016,7 +1006,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             NotchShadowScale.ScaleX = 1.0;
             NotchShadowScale.ScaleY = 1.0;
 
-            // Ensure thumbnail borders are visible after settings close
             if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
             // Reset animation state that may have been left dirty
@@ -1051,10 +1040,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         _hoverCollapseTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverCollapseDelay);
         _hoverThumbnailDelayTimer.Interval = TimeSpan.FromMilliseconds(_settings.HoverExpandDelay);
 
-        // Start/stop the empty-notch auto-hide watcher per the current setting.
         ApplyIdleAutoHideSettings();
 
-        // Sync subtitle mode to the service
         _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
 
         if (_settings.DisableMouseLeaveAutoClose)
@@ -1203,7 +1190,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         this.Opacity = _settings.Opacity;
 
-        // Apply dark overlay opacity to lyrics blur image
         double lyricsImageOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
         if (LyricsBlurImage != null)
         {
@@ -1851,7 +1837,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             : (NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : NotchBorder.Width);
         if (notchLength <= 0) return;
 
-        // Use two-thirds of notch length.
         double primaryLength = notchLength * (2.0 / 3.0);
         double secondaryLength = primaryLength * 0.84;
 
@@ -1996,7 +1981,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         _hwndSource?.RemoveHook(WndProc);
         StopZOrderWatchdog();
 
-        // Unsubscribe events before shutdown
         _mediaService.MediaChanged -= OnMediaChanged;        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;

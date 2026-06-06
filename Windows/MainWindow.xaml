@@ -2011,7 +2011,7 @@
 
                     </Grid>
 
-                        <Grid Grid.Column="2" Margin="0,20,-1,0" VerticalAlignment="Center" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True" RenderOptions.ClearTypeHint="Enabled">
+                        <Grid Grid.Column="2" Margin="0,20,-1,0" VerticalAlignment="Center" HorizontalAlignment="Stretch" Grid.IsSharedSizeScope="True" RenderOptions.ClearTypeHint="Enabled">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -2020,6 +2020,7 @@
                             
                             <Border x:Name="CalendarWidget"
                                     Grid.Row="0" 
+                                    HorizontalAlignment="Left"
                                     Background="{StaticResource CardGradient}"
                                     CornerRadius="16"
                                     Padding="10,8"

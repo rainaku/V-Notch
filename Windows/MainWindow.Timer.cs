@@ -15,19 +15,16 @@ namespace VNotch;
 
 public partial class MainWindow
 {
-    // ─── Timer View State ───
     private bool _isTimerView = false;
     private const double _timerViewHeight = 108;
     private const double _countdownCompleteWidthInset = 28;
     private double CountdownCompleteViewWidth => Math.Max(_collapsedWidth, _expandedWidth - _countdownCompleteWidthInset);
 
-    // ─── Countdown State ───
     private TimeSpan _countdownDuration = TimeSpan.FromMinutes(25);
     private TimeSpan _countdownRemaining = TimeSpan.FromMinutes(25);
     private bool _isCountdownRunning = false;
     private DispatcherTimer? _countdownTimer;
 
-    // ─── Countdown Hold-to-Repeat ───
     private DispatcherTimer? _countdownRepeatTimer;
     private int _countdownRepeatDirection; // +1 or -1
     private int _countdownRepeatCount;
@@ -51,7 +48,6 @@ public partial class MainWindow
             }
             else
             {
-                // Switch from primary to timer
                 SwitchToTimerView();
             }
         }
@@ -102,7 +98,6 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(50);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        // Fade out primary content
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
         var primaryTranslate = new TranslateTransform(0, 0);
@@ -137,7 +132,6 @@ public partial class MainWindow
         primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
         expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        // Fade in timer content
         TimerContent.Visibility = Visibility.Visible;
         TimerContent.Opacity = 0;
 
@@ -220,7 +214,6 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(50);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        // Fade out secondary content
         var secondaryGroup = new TransformGroup();
         var secondaryScale = new ScaleTransform(1, 1);
         var secondaryTranslate = new TranslateTransform(0, 0);
@@ -255,7 +248,6 @@ public partial class MainWindow
         secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
         secondaryBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        // Fade in timer content
         TimerContent.Visibility = Visibility.Visible;
         TimerContent.Opacity = 0;
 
@@ -326,10 +318,8 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(30);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        // ─── Scroll animation: both views move DOWN together ───
         // Timer scrolls down and out, primary scrolls down into view from above.
 
-        // Timer content scrolls down + fades out
         var timerTranslate = new TranslateTransform(0, 0);
         TimerContent.RenderTransform = timerTranslate;
         TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -350,12 +340,25 @@ public partial class MainWindow
         TimerContent.BeginAnimation(OpacityProperty, timerFadeOut);
         timerTranslate.BeginAnimation(TranslateTransform.YProperty, timerSlideDown);
 
-        // Primary content scrolls in from above
         ExpandedContent.Visibility = Visibility.Visible;
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
         ExpandedContent.Width = _expandedWidth - 16;
         ExpandedContent.Height = _expandedHeight - 2;
+        // The notch is still at the wide clock-view width (600) and only animates down to
+        // _expandedWidth over this transition. ExpandedContent has a FIXED width (no per-frame
+        // reflow), so by default (Stretch) it gets CENTERED inside the wide notch — which leaves
+        // the right-aligned lyric floating in the middle of the notch instead of hugging the
+        // right edge, then sliding right as the notch shrinks. Right-align it so its right edge
+        // tracks the notch's right edge throughout, keeping the lyric pinned to the right.
+        // In the final state the content fills the notch exactly, so this is identical to the
+        // default; we restore Stretch on completion.
+        ExpandedContent.HorizontalAlignment = HorizontalAlignment.Right;
+        // Disable layout rounding for the duration of the notch-resize animation so the content
+        // tracks the animating notch edge smoothly instead of snapping to integer device pixels
+        // every frame (which made the right-aligned lyric shimmer left/right). Restored on
+        // completion so steady-state text stays crisp.
+        ExpandedContent.UseLayoutRounding = false;
         ExpandedContent.UpdateLayout();
 
         // Restore progress bar gradient & tint colors immediately so they're visible
@@ -393,8 +396,11 @@ public partial class MainWindow
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.RenderTransform = null;
+            // Notch width is now fixed again — restore default layout so the content stretches
+            // to fill the notch, and re-enable rounding for crisp text.
+            ExpandedContent.HorizontalAlignment = HorizontalAlignment.Stretch;
+            ExpandedContent.UseLayoutRounding = true;
 
-            // Restore blur background and lyrics background
             ShowMediaBackground();
 
             if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
@@ -449,7 +455,6 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(50);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        // Fade out timer content
         var timerGroup = new TransformGroup();
         var timerScale = new ScaleTransform(1, 1);
         var timerTranslate = new TranslateTransform(0, 0);
@@ -484,7 +489,6 @@ public partial class MainWindow
         timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
         timerBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        // Fade in secondary content
         SecondaryContent.Visibility = Visibility.Visible;
         SecondaryContent.Opacity = 0;
         EnableKeyboardInput();
@@ -625,10 +629,8 @@ public partial class MainWindow
             _isCountdownRunning = false;
             _countdownTimer?.Stop();
 
-            // Play system notification sound
             SystemSounds.Exclamation.Play();
 
-            // Collapse to pill and show completion overlay
             ShowCountdownCompletionOnPill();
             return;
         }
