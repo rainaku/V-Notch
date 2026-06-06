@@ -14,6 +14,8 @@
         WindowStartupLocation="CenterScreen"
         AllowsTransparency="True"
         Background="Transparent"
+        FontFamily="{StaticResource SFProDisplay}"
+        FontWeight="Bold"
         Loaded="Window_Loaded"
         SizeChanged="Window_SizeChanged">
     
@@ -147,8 +149,8 @@
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="Foreground" Value="#000000"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontFamily" Value="SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="{StaticResource SFProDisplay}"/>
             <Setter Property="Padding" Value="24,10"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -198,8 +200,8 @@
             <Setter Property="Background" Value="#1A1A1A"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="FontFamily" Value="SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="{StaticResource SFProDisplay}"/>
             <Setter Property="Padding" Value="24,10"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -287,8 +289,8 @@
                                Text="Setup Assistant"
                                Foreground="#F2FFFFFF"
                                FontSize="14"
-                               FontWeight="SemiBold"
-                               FontFamily="SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"
+                               FontWeight="Bold"
+                               FontFamily="{StaticResource SFProDisplay}"
                                VerticalAlignment="Center"
                                Margin="12,0,0,0"/>
                     
@@ -384,7 +386,7 @@
                     <Border Grid.Column="0" CornerRadius="20" Background="#101014" BorderBrush="#18FFFFFF" BorderThickness="1" Padding="16" Margin="0,0,24,0">
                         <StackPanel>
                             <Image Source="/Assets/logo.png" Width="68" Height="68" HorizontalAlignment="Left" Margin="0,0,0,18"/>
-                            <TextBlock Text="V-Notch" FontSize="18" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"/>
+                            <TextBlock Text="V-Notch" FontSize="18" FontWeight="Bold" Foreground="White" FontFamily="{StaticResource SFProDisplay}"/>
                             <TextBlock Text="Dynamic Island for Windows" FontSize="11.5" Foreground="#99FFFFFF" TextWrapping="Wrap" LineHeight="16" Margin="0,4,0,18"/>
                             <StackPanel>
                                 <TextBlock x:Name="Step1Text" Text="01  Language" Foreground="#FFFFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
@@ -413,13 +415,13 @@
                             </Image.RenderTransform>
                         </Image>
                         
-                        <TextBlock x:Name="HeadlineText" Grid.Row="1" Text="Welcome to V-Notch" FontSize="34" FontWeight="Bold" Foreground="White" FontFamily="SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif" Margin="0,0,0,12" TextWrapping="Wrap" Opacity="0">
+                        <TextBlock x:Name="HeadlineText" Grid.Row="1" Text="Welcome to V-Notch" FontSize="34" FontWeight="Bold" Foreground="White" FontFamily="{StaticResource SFProDisplay}" Margin="0,0,0,12" TextWrapping="Wrap" Opacity="0">
                             <TextBlock.RenderTransform>
                                 <TranslateTransform x:Name="HeadlineTranslate" Y="8"/>
                             </TextBlock.RenderTransform>
                         </TextBlock>
                         
-                        <TextBlock x:Name="BodyText" Grid.Row="2" FontSize="14" Foreground="#CCFFFFFF" FontFamily="SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif" LineHeight="23" TextWrapping="Wrap" Opacity="0">
+                        <TextBlock x:Name="BodyText" Grid.Row="2" FontSize="14" Foreground="#CCFFFFFF" FontFamily="{StaticResource SFProDisplay}" LineHeight="23" TextWrapping="Wrap" Opacity="0">
                             <TextBlock.RenderTransform>
                                 <TranslateTransform x:Name="BodyTranslate" Y="8"/>
                             </TextBlock.RenderTransform>
@@ -427,7 +429,7 @@
                             <LineBreak/><LineBreak/>
                             <Run Text="We're about to set up a sleek little notch at the top of your screen — it handles your music, battery, calendar, file shelf, and more. Think of it as a tiny command center that stays out of your way until you need it."/>
                             <LineBreak/><LineBreak/>
-                            <Run Text="This will only take a minute. Let's get started!" FontWeight="Medium"/>
+                            <Run Text="This will only take a minute. Let's get started!" FontWeight="Bold"/>
                         </TextBlock>
                         
                         <ContentPresenter x:Name="ContentPresenter" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed"/>

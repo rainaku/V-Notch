@@ -34,11 +34,9 @@ task.md
 !PRIVACY_POLICY_VI.md
 fix_xaml.py
 /artifacts
-r.ps1
 *.v2
 *.vsidx
 build-release.ps1
-build-installer.ps1
 build-msix.ps1
 V-Notch-Setup.nsi
 *.kiro

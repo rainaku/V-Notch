@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -797,21 +797,21 @@ public partial class SetupWindow : Window
                 // Current step - bright white
                 steps[i].Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(255, 255, 255, 255));
-                steps[i].FontWeight = FontWeights.SemiBold;
+                steps[i].FontWeight = FontWeights.Bold;
             }
             else if (i < currentStep)
             {
                 // Completed steps - medium opacity
                 steps[i].Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(153, 255, 255, 255));
-                steps[i].FontWeight = FontWeights.Normal;
+                steps[i].FontWeight = FontWeights.Bold;
             }
             else
             {
                 // Future steps - low opacity
                 steps[i].Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(136, 255, 255, 255));
-                steps[i].FontWeight = FontWeights.Normal;
+                steps[i].FontWeight = FontWeights.Bold;
             }
         }
     }
@@ -1011,7 +1011,7 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
-            FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 12),
             TextWrapping = TextWrapping.Wrap
         };
@@ -1024,7 +1024,7 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
             FontSize = 14,
             LineHeight = 21,
             Foreground = new SolidColorBrush(Color.FromArgb(204, 255, 255, 255)),
-            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 18),
             TextWrapping = TextWrapping.Wrap
         };
@@ -1064,9 +1064,9 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
         {
             Text = text,
             FontSize = 11.5,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Color.FromArgb(224, 255, 255, 255)),
-            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display")
         };
         return new Border
         {
@@ -1088,9 +1088,9 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
         {
             Text = title,
             FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
-            FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 7)
         };
         stack.Children.Add(titleBlock);
@@ -1102,7 +1102,7 @@ public class IntroductionPage : UserControl, ISetupAnimatedPage
             LineHeight = 20,
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.FromArgb(196, 255, 255, 255)),
-            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display")
         };
         stack.Children.Add(bodyBlock);
 
@@ -1141,7 +1141,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = System.Windows.Media.Brushes.White,
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 12)
         };
         Grid.SetRow(_headline, 0);
@@ -1152,7 +1152,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             Text = Loc.Get("setup.directory.description"),
             FontSize = 14,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 255, 255)),
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 24)
         };
         Grid.SetRow(_description, 1);
@@ -1188,7 +1188,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         {
             Text = initialInstallPath,
             FontSize = 13,
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Background = System.Windows.Media.Brushes.Transparent,
             Foreground = System.Windows.Media.Brushes.White,
             BorderThickness = new Thickness(0),
@@ -1204,8 +1204,8 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             Padding = new Thickness(12, 0, 12, 0),
             Margin = new Thickness(12, 0, 0, 0),
             FontSize = 13,
-            FontWeight = FontWeights.Medium,
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontWeight = FontWeights.Bold,
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(255, 10, 122, 255)),
             Foreground = System.Windows.Media.Brushes.White,
             BorderThickness = new Thickness(0),
@@ -1320,7 +1320,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = System.Windows.Media.Brushes.White,
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 12)
         };
         Grid.SetRow(_headline, 0);
@@ -1331,7 +1331,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
             Text = Loc.Get("setup.startup.description"),
             FontSize = 14,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 255, 255)),
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 32)
         };
         Grid.SetRow(_description, 1);
@@ -1343,7 +1343,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
             IsChecked = startWithWindows,
             FontSize = 14,
             Foreground = System.Windows.Media.Brushes.White,
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display")
         };
         Grid.SetRow(_checkbox, 2);
         grid.Children.Add(_checkbox);
@@ -1388,7 +1388,7 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
-            FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 12)
         };
         Grid.SetRow(_headline, 0);
@@ -1400,7 +1400,7 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
             FontSize = 14,
             LineHeight = 22,
             Foreground = new SolidColorBrush(Color.FromArgb(204, 255, 255, 255)),
-            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 24),
             TextWrapping = TextWrapping.Wrap
         };
@@ -1433,9 +1433,9 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
         {
             Text = Loc.Get("setup.cancel.warningTitle"),
             FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
-            FontFamily = new FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 6),
             TextWrapping = TextWrapping.Wrap
         };
@@ -1447,7 +1447,7 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
             FontSize = 13,
             LineHeight = 20,
             Foreground = new SolidColorBrush(Color.FromArgb(196, 255, 255, 255)),
-            FontFamily = new FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             TextWrapping = TextWrapping.Wrap
         };
         stack.Children.Add(bodyBlock);
@@ -1485,7 +1485,7 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = System.Windows.Media.Brushes.White,
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 12)
         };
         Grid.SetRow(_headline, 0);
@@ -1498,7 +1498,7 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
             TextWrapping = TextWrapping.Wrap,
             LineHeight = 21,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 255, 255)),
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             MaxWidth = 430,
             Margin = new Thickness(0, 0, 0, 32)
         };
@@ -1656,7 +1656,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
             FontSize = 28,
             FontWeight = FontWeights.Bold,
             Foreground = System.Windows.Media.Brushes.White,
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             Margin = new Thickness(0, 0, 0, 12)
         };
         Grid.SetRow(_headline, 1);
@@ -1667,7 +1667,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
             Text = Loc.Get("setup.finish.description"),
             FontSize = 14,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 255, 255)),
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif"),
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display"),
             LineHeight = 22,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 24)
@@ -1681,7 +1681,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
             IsChecked = launchAfterInstall,
             FontSize = 14,
             Foreground = System.Windows.Media.Brushes.White,
-            FontFamily = new System.Windows.Media.FontFamily("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif")
+            FontFamily = new System.Windows.Media.FontFamily("pack://application:,,,/Fonts/#SF Pro Display")
         };
         Grid.SetRow(_checkbox, 3);
         grid.Children.Add(_checkbox);
