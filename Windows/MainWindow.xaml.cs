@@ -962,6 +962,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             _settings = newSettings.Clone();
             _notchManager.UpdateSettings(_settings);
             _fileShelf.UpdateSettings(_settings);
+            _fullscreenController.UpdateSettings(_settings);
             ApplySettings(sizeChanged);
             UpdateBatteryInfo();
 
@@ -1987,11 +1988,45 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
+        CleanupBeforeShutdown();
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    private void Restart_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // Launch a fresh instance before tearing this one down.
+            var exePath = Environment.ProcessPath
+                ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+
+            if (!string.IsNullOrEmpty(exePath))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exePath)
+                {
+                    Arguments = "--restart",
+                    UseShellExecute = true,
+                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Restart failed: {ex.Message}");
+        }
+
+        CleanupBeforeShutdown();
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    private void CleanupBeforeShutdown()
+    {
         UnregisterClipboardListener();
         _hwndSource?.RemoveHook(WndProc);
         StopZOrderWatchdog();
 
-        _mediaService.MediaChanged -= OnMediaChanged;        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
+        _mediaService.MediaChanged -= OnMediaChanged;
+        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         AnimationConfig.ReduceMotionChanged -= OnReduceMotionChanged;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
@@ -2007,7 +2042,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         TrayIcon.Dispose();
         _updateTimer.Stop();
         DisposeAllShelfWatchers();
-        System.Windows.Application.Current.Shutdown();
     }
 
     #endregion

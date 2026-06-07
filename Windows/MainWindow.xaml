@@ -272,6 +272,15 @@
                         </MenuItem.Header>
                     </MenuItem>
                     <Separator Style="{StaticResource TraySeparatorStyle}"/>
+                    <MenuItem x:Name="MenuRestart" Style="{StaticResource TrayMenuItemStyle}" Click="Restart_Click">
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE72C;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="MenuRestartText" Text="Restart app" Style="{StaticResource TrayMenuItemText}"/>
+                            </StackPanel>
+                        </MenuItem.Header>
+                    </MenuItem>
+                    <Separator Style="{StaticResource TraySeparatorStyle}"/>
                     <MenuItem Style="{StaticResource TrayMenuItemStyle}" Click="Exit_Click">
                         <MenuItem.Header>
                             <TextBlock Text="Exit" Style="{StaticResource TrayMenuItemText}" HorizontalAlignment="Center"/>

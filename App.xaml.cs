@@ -35,6 +35,25 @@ public partial class App : Application
         
         _mutex = new Mutex(true, MutexName, out bool createdNew);
 
+        // When relaunched via the tray "Restart" action, the previous instance
+        // may still be shutting down and holding the mutex. Wait briefly for it
+        // to release instead of bailing out immediately.
+        if (!createdNew && e.Args.Contains("--restart"))
+        {
+            try
+            {
+                if (_mutex.WaitOne(TimeSpan.FromSeconds(10)))
+                {
+                    createdNew = true;
+                }
+            }
+            catch (AbandonedMutexException)
+            {
+                // Previous owner exited without releasing — we now own it.
+                createdNew = true;
+            }
+        }
+
         if (!createdNew)
         {
             MessageBox.Show("V-Notch is already running!", "V-Notch",

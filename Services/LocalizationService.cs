@@ -224,6 +224,7 @@ public static class Loc
             ["tray.show"] = "Show Notch",
             ["tray.reset"] = "Reset position",
             ["tray.settings"] = "Notch settings",
+            ["tray.restart"] = "Restart app",
             ["tray.exit"] = "Exit",
 
             // ─── File Shelf ───
@@ -478,6 +479,7 @@ public static class Loc
             ["tray.show"] = "Hiện Notch",
             ["tray.reset"] = "Đặt lại vị trí",
             ["tray.settings"] = "Cài đặt Notch",
+            ["tray.restart"] = "Khởi động lại ứng dụng",
             ["tray.exit"] = "Thoát",
 
             // ─── File Shelf ───
