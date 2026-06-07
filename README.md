@@ -148,6 +148,20 @@
 3. Launch **V-Notch** from the Start Menu
 4. (Optional) Enable "Start with Windows" in Settings
 
+### Build the latest (without waiting for a release)
+Muốn dùng code mới nhất mà chưa có bản release? Bạn có thể tự build setup ngay trên GitHub:
+
+1. Vào tab **Actions** của repo (fork về tài khoản của bạn nếu cần).
+2. Chọn workflow **Build Installer (Nightly / On-Demand)** → bấm **Run workflow**.
+   Chọn **Loại build**:
+   - `framework-dependent` — nhẹ, cần cài [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+   - `self-contained` — chạy ngay không cần cài .NET (file lớn hơn).
+   - `both` — build cả hai.
+3. Khi chạy xong, tải file `.exe` ở phần **Artifacts** của lần chạy đó,
+   hoặc tải trực tiếp từ prerelease **`nightly`** trong [Releases](https://github.com/rainaku/V-Notch/releases).
+
+> Workflow cũng tự chạy mỗi khi có push vào `main`, nên prerelease `nightly` luôn là bản mới nhất.
+
 ---
 
 ## Usage

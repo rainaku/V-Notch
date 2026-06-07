@@ -1,8 +1,20 @@
 # Build V-Notch Installer
 # This script builds the Release version and creates the NSIS installer
+#
+# By default it produces a framework-dependent build (needs .NET 8 Desktop Runtime).
+# Use -SelfContained to bundle the runtime so the app runs on a clean machine
+# without installing .NET separately (larger installer).
+param(
+    [switch]$SelfContained
+)
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "V-Notch Installer Build Script" -ForegroundColor Cyan
+if ($SelfContained) {
+    Write-Host "Mode: Self-contained (.NET runtime bundled)" -ForegroundColor Cyan
+} else {
+    Write-Host "Mode: Framework-dependent (needs .NET 8 Runtime)" -ForegroundColor Cyan
+}
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -24,9 +36,15 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "      Build successful" -ForegroundColor Green
 
-# Step 3: Publish to release folder (framework-dependent single file - requires .NET 8 runtime)
+# Step 3: Publish to release folder
 Write-Host "[3/4] Publishing to $publishDir..." -ForegroundColor Yellow
-dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
+if ($SelfContained) {
+    # Self-contained: bundles the .NET runtime, runs without installing .NET 8.
+    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
+} else {
+    # Framework-dependent single file - requires .NET 8 runtime.
+    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
+}
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Publish failed!" -ForegroundColor Red
     exit 1
@@ -56,7 +74,12 @@ if (-not (Test-Path "installers")) {
 }
 
 # Build installer
-& $nsisPath "V-Notch-Setup.nsi"
+if ($SelfContained) {
+    # Tell NSIS to skip the .NET runtime check/install (runtime is bundled).
+    & $nsisPath "/DSELF_CONTAINED" "V-Notch-Setup.nsi"
+} else {
+    & $nsisPath "V-Notch-Setup.nsi"
+}
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      NSIS build failed!" -ForegroundColor Red
     exit 1

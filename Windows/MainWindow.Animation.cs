@@ -808,11 +808,14 @@ public partial class MainWindow
 
         if (_isMusicCompactMode && ThumbnailImage.Source != null && !suppressCompactThumbnailMotion)
         {
-            // Hide both real thumbnails immediately to prevent double-thumbnail during crossfade
+            // Hide both real thumbnails immediately to prevent double-thumbnail during crossfade.
+            // Use Hidden (not Collapsed) for the compact thumbnail so its 22px layout slot stays
+            // reserved — collapsing it shrinks row 0 to the visualizer height, which makes the
+            // center-aligned MusicViz jump ~2.5px when the slot is restored at the end of collapse.
             if (CompactThumbnailBorder != null)
             {
                 CompactThumbnailBorder.Opacity = 0;
-                CompactThumbnailBorder.Visibility = Visibility.Collapsed;
+                CompactThumbnailBorder.Visibility = Visibility.Hidden;
             }
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 0;
 

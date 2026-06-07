@@ -1,0 +1,126 @@
+name: Build Installer (Nightly / On-Demand)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        type: choice
+        default: framework-dependent
+        options:
+          - framework-dependent
+          - self-contained
+          - both
+      publish_nightly:
+        description: 'Publish a "nightly" prerelease with a direct download link'
+        type: boolean
+        default: true
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        shell: bash
+        run: |
+          choice="${{ github.event.inputs.build_type }}"
+          if [ -z "$choice" ]; then choice="framework-dependent"; fi
+          case "$choice" in
+            self-contained)    matrix='{"include":[{"variant":"self-contained"}]}' ;;
+            both)              matrix='{"include":[{"variant":"framework-dependent"},{"variant":"self-contained"}]}' ;;
+            *)                 matrix='{"include":[{"variant":"framework-dependent"}]}' ;;
+          esac
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: setup
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+
+    steps:
+      - name: Checkout source (latest code)
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install NSIS
+        run: choco install nsis --no-progress -y
+        shell: pwsh
+
+      - name: Build installer (${{ matrix.variant }})
+        shell: pwsh
+        run: |
+          if ('${{ matrix.variant }}' -eq 'self-contained') {
+            ./build-installer.ps1 -SelfContained
+          } else {
+            ./build-installer.ps1
+          }
+
+      - name: Read app version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Get-Item "release\V-Notch.exe").VersionInfo.FileVersion
+          $short = (git rev-parse --short HEAD)
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "sha=$short" >> $env:GITHUB_OUTPUT
+          Write-Host "Built V-Notch v$v ($short) [${{ matrix.variant }}]"
+
+      - name: Name the setup file
+        id: name
+        shell: pwsh
+        run: |
+          if ('${{ matrix.variant }}' -eq 'self-contained') {
+            $out = "V-Notch-Setup-SelfContained.exe"
+          } else {
+            $out = "V-Notch-Setup.exe"
+          }
+          Copy-Item "installers\V-Notch-Setup.exe" "installers\$out" -Force
+          "file=installers/$out" >> $env:GITHUB_OUTPUT
+          "asset=$out" >> $env:GITHUB_OUTPUT
+
+      - name: Upload setup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name.outputs.asset }}-${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.sha }}
+          path: ${{ steps.name.outputs.file }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish nightly prerelease
+        if: ${{ github.event_name == 'push' || inputs.publish_nightly }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly build (latest code)
+          prerelease: true
+          body: |
+            Automated build from the latest commit (`${{ steps.ver.outputs.sha }}`), version `${{ steps.ver.outputs.version }}`.
+
+            > This is an automated build from the `main` branch, not a stable release.
+
+            - `V-Notch-Setup.exe` — lightweight, requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+            - `V-Notch-Setup-SelfContained.exe` — runs out of the box, no .NET install required (larger file).
+          files: ${{ steps.name.outputs.file }}
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
