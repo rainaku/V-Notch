@@ -65,61 +65,93 @@ public static class FastBlurService
         }
     }
 
+    // Sliding-window (running-sum) box blur: O(w*h) per pass, independent of radius.
+    // Produces bit-identical output to the naive per-pixel accumulation: same
+    // clamp-to-edge border handling and the same fixed window size (2*radius+1).
     private static void BoxBlurHorizontal(byte[] source, byte[] target, int w, int h, int radius)
     {
+        int window = 2 * radius + 1;
+
         for (int y = 0; y < h; y++)
         {
             int pBase = y * w * 4;
+
+            // Seed the window for x = 0: indices clamp(0 + dx) for dx in [-radius, radius].
+            int sumB = 0, sumG = 0, sumR = 0, sumA = 0;
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                int nx = dx < 0 ? 0 : (dx >= w ? w - 1 : dx);
+                int o = pBase + nx * 4;
+                sumB += source[o];
+                sumG += source[o + 1];
+                sumR += source[o + 2];
+                sumA += source[o + 3];
+            }
+
             for (int x = 0; x < w; x++)
             {
-                int r = 0, g = 0, b = 0, a = 0;
-                int count = 0;
+                int t = pBase + x * 4;
+                target[t] = (byte)(sumB / window);
+                target[t + 1] = (byte)(sumG / window);
+                target[t + 2] = (byte)(sumR / window);
+                target[t + 3] = (byte)(sumA / window);
 
-                for (int dx = -radius; dx <= radius; dx++)
-                {
-                    int nx = Math.Clamp(x + dx, 0, w - 1);
-                    int offset = pBase + nx * 4;
-                    b += source[offset];
-                    g += source[offset + 1];
-                    r += source[offset + 2];
-                    a += source[offset + 3];
-                    count++;
-                }
+                // Slide to x+1: drop clamp(x - radius), add clamp(x + 1 + radius).
+                int outX = x - radius;
+                outX = outX < 0 ? 0 : (outX >= w ? w - 1 : outX);
+                int inX = x + 1 + radius;
+                inX = inX < 0 ? 0 : (inX >= w ? w - 1 : inX);
 
-                int tOffset = pBase + x * 4;
-                target[tOffset] = (byte)(b / count);
-                target[tOffset + 1] = (byte)(g / count);
-                target[tOffset + 2] = (byte)(r / count);
-                target[tOffset + 3] = (byte)(a / count);
+                int oOut = pBase + outX * 4;
+                int oIn = pBase + inX * 4;
+                sumB += source[oIn] - source[oOut];
+                sumG += source[oIn + 1] - source[oOut + 1];
+                sumR += source[oIn + 2] - source[oOut + 2];
+                sumA += source[oIn + 3] - source[oOut + 3];
             }
         }
     }
 
     private static void BoxBlurVertical(byte[] source, byte[] target, int w, int h, int radius)
     {
+        int window = 2 * radius + 1;
+        int rowStride = w * 4;
+
         for (int x = 0; x < w; x++)
         {
+            int col = x * 4;
+
+            // Seed the window for y = 0: indices clamp(0 + dy) for dy in [-radius, radius].
+            int sumB = 0, sumG = 0, sumR = 0, sumA = 0;
+            for (int dy = -radius; dy <= radius; dy++)
+            {
+                int ny = dy < 0 ? 0 : (dy >= h ? h - 1 : dy);
+                int o = ny * rowStride + col;
+                sumB += source[o];
+                sumG += source[o + 1];
+                sumR += source[o + 2];
+                sumA += source[o + 3];
+            }
+
             for (int y = 0; y < h; y++)
             {
-                int r = 0, g = 0, b = 0, a = 0;
-                int count = 0;
+                int t = y * rowStride + col;
+                target[t] = (byte)(sumB / window);
+                target[t + 1] = (byte)(sumG / window);
+                target[t + 2] = (byte)(sumR / window);
+                target[t + 3] = (byte)(sumA / window);
 
-                for (int dy = -radius; dy <= radius; dy++)
-                {
-                    int ny = Math.Clamp(y + dy, 0, h - 1);
-                    int offset = (ny * w + x) * 4;
-                    b += source[offset];
-                    g += source[offset + 1];
-                    r += source[offset + 2];
-                    a += source[offset + 3];
-                    count++;
-                }
+                int outY = y - radius;
+                outY = outY < 0 ? 0 : (outY >= h ? h - 1 : outY);
+                int inY = y + 1 + radius;
+                inY = inY < 0 ? 0 : (inY >= h ? h - 1 : inY);
 
-                int tOffset = (y * w + x) * 4;
-                target[tOffset] = (byte)(b / count);
-                target[tOffset + 1] = (byte)(g / count);
-                target[tOffset + 2] = (byte)(r / count);
-                target[tOffset + 3] = (byte)(a / count);
+                int oOut = outY * rowStride + col;
+                int oIn = inY * rowStride + col;
+                sumB += source[oIn] - source[oOut];
+                sumG += source[oIn + 1] - source[oOut + 1];
+                sumR += source[oIn + 2] - source[oOut + 2];
+                sumA += source[oIn + 3] - source[oOut + 3];
             }
         }
     }

@@ -6,10 +6,18 @@ namespace VNotch.Services;
 
 public class HoverDetectionService : IDisposable
 {
+    // Adaptive polling: poll fast only when the cursor is near the notch (or a hover
+    // transition is in progress); back off to a slow rate when the cursor is far away.
+    // This keeps hover-expand responsive while cutting idle CPU wakeups by ~75%.
+    private const int FastIntervalMs = 33;   // ~30fps — responsive enter/leave detection
+    private const int SlowIntervalMs = 125;  // ~8fps — idle background poll when far
+    private const int ProximityMargin = 120; // extra px around the hover zone that triggers fast polling
+
     private readonly DispatcherTimer _pollTimer;
     private readonly int _hoverZoneMargin;
     private Rect _notchBounds;
     private Rect _hoverZone;
+    private Rect _proximityZone;
     private bool _isHovering;
     private bool _disposed;
 
@@ -41,7 +49,7 @@ public class HoverDetectionService : IDisposable
         _hoverZoneMargin = hoverZoneMargin;
         _pollTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(33) 
+            Interval = TimeSpan.FromMilliseconds(SlowIntervalMs)
         };
         _pollTimer.Tick += PollTimer_Tick;
     }
@@ -56,12 +64,24 @@ public class HoverDetectionService : IDisposable
             width + _hoverZoneMargin * 2,
             height + _hoverZoneMargin
         );
+
+        // Larger region used purely to decide when to ramp polling up to the fast rate,
+        // so we never miss a fast cursor approaching the actual hover zone.
+        _proximityZone = new Rect(
+            _hoverZone.Left - ProximityMargin,
+            _hoverZone.Top - ProximityMargin,
+            _hoverZone.Width + ProximityMargin * 2,
+            _hoverZone.Height + ProximityMargin * 2
+        );
     }
 
     public void Start()
     {
         if (!_disposed)
         {
+            // Start fast so a hover right after the notch appears is caught immediately;
+            // the tick will back off to the slow rate once the cursor is confirmed far.
+            ApplyInterval(FastIntervalMs);
             _pollTimer.Start();
         }
     }
@@ -125,6 +145,17 @@ public class HoverDetectionService : IDisposable
                 }
             }
         }
+
+        // Poll fast while near the notch or mid hover-transition; slow down when idle/far.
+        bool needFast = _proximityZone.Contains(mousePoint)
+                        || _isHovering || _pendingEnter || _pendingLeave;
+        ApplyInterval(needFast ? FastIntervalMs : SlowIntervalMs);
+    }
+
+    private void ApplyInterval(int intervalMs)
+    {
+        if ((int)_pollTimer.Interval.TotalMilliseconds == intervalMs) return;
+        _pollTimer.Interval = TimeSpan.FromMilliseconds(intervalMs);
     }
 
     public bool IsPointOverNotch(Point point)

@@ -782,15 +782,20 @@ public partial class MainWindow
         contentToHide.Visibility = Visibility.Collapsed;
         contentToHide.Opacity = 0;
 
-        bool useCompactIslandReturn = _settings.EnableDynamicIslandMode && _isMusicCompactMode;
+        // Skip the 0.8 -> 1.0 zoom spring for the music-compact pill. That spring scales the
+        // whole MusicCompactContent around its center with an overshooting ease, which drags the
+        // right-edge MusicViz off its rest slot and desyncs it from the thumbnail morph (the
+        // thumbnail uses its own overlay + spring to a precise target). Letting the pill content
+        // sit at scale 1.0 keeps MusicViz pinned to its layout slot while it fades in.
+        bool skipContentZoom = _isMusicCompactMode;
         var showGroup = new TransformGroup();
-        var showScale = new ScaleTransform(useCompactIslandReturn ? 1.0 : 0.8, useCompactIslandReturn ? 1.0 : 0.8);
+        var showScale = new ScaleTransform(skipContentZoom ? 1.0 : 0.8, skipContentZoom ? 1.0 : 0.8);
         showGroup.Children.Add(showScale);
         contentToShow.RenderTransform = showGroup;
         contentToShow.RenderTransformOrigin = new Point(0.5, 0.5);
 
         var fadeInAnim = MakeAnim(1, _dur400, _easePowerOut3);
-        var springShow = MakeAnim(useCompactIslandReturn ? 1.0 : 0.8, 1, _dur400, _easeMenuSpring);
+        var springShow = MakeAnim(skipContentZoom ? 1.0 : 0.8, 1, _dur400, _easeMenuSpring);
 
         var glowAnim = MakeAnim(0, _dur150);
 
@@ -938,6 +943,7 @@ public partial class MainWindow
             {
                 contentToShow.Opacity = 1;
                 contentToShow.BeginAnimation(OpacityProperty, null);
+                contentToShow.RenderTransform = null;
 
                 ResetAnimationThumbnailOverlay();
 

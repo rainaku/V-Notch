@@ -146,55 +146,90 @@ public static class SubjectAwareBlurService
         }
     }
 
+    // Sliding-window (running-sum) box blur: O(w*h) per pass, independent of radius.
+    // Bit-identical to the naive version: same clamp-to-edge handling, same fixed
+    // window size (2*radius+1), same integer division.
     private static void BoxBlurHorizontal(byte[] source, byte[] target, int w, int h, int radius)
     {
+        int window = 2 * radius + 1;
+
         for (int y = 0; y < h; y++)
         {
             int pBase = y * w * 4;
+
+            int sumB = 0, sumG = 0, sumR = 0, sumA = 0;
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                int nx = dx < 0 ? 0 : (dx >= w ? w - 1 : dx);
+                int o = pBase + nx * 4;
+                sumB += source[o];
+                sumG += source[o + 1];
+                sumR += source[o + 2];
+                sumA += source[o + 3];
+            }
+
             for (int x = 0; x < w; x++)
             {
-                int r = 0, g = 0, b = 0, a = 0, count = 0;
-                for (int dx = -radius; dx <= radius; dx++)
-                {
-                    int nx = Math.Clamp(x + dx, 0, w - 1);
-                    int o = pBase + nx * 4;
-                    b += source[o];
-                    g += source[o + 1];
-                    r += source[o + 2];
-                    a += source[o + 3];
-                    count++;
-                }
                 int t = pBase + x * 4;
-                target[t]     = (byte)(b / count);
-                target[t + 1] = (byte)(g / count);
-                target[t + 2] = (byte)(r / count);
-                target[t + 3] = (byte)(a / count);
+                target[t]     = (byte)(sumB / window);
+                target[t + 1] = (byte)(sumG / window);
+                target[t + 2] = (byte)(sumR / window);
+                target[t + 3] = (byte)(sumA / window);
+
+                int outX = x - radius;
+                outX = outX < 0 ? 0 : (outX >= w ? w - 1 : outX);
+                int inX = x + 1 + radius;
+                inX = inX < 0 ? 0 : (inX >= w ? w - 1 : inX);
+
+                int oOut = pBase + outX * 4;
+                int oIn = pBase + inX * 4;
+                sumB += source[oIn] - source[oOut];
+                sumG += source[oIn + 1] - source[oOut + 1];
+                sumR += source[oIn + 2] - source[oOut + 2];
+                sumA += source[oIn + 3] - source[oOut + 3];
             }
         }
     }
 
     private static void BoxBlurVertical(byte[] source, byte[] target, int w, int h, int radius)
     {
+        int window = 2 * radius + 1;
+        int rowStride = w * 4;
+
         for (int x = 0; x < w; x++)
         {
+            int col = x * 4;
+
+            int sumB = 0, sumG = 0, sumR = 0, sumA = 0;
+            for (int dy = -radius; dy <= radius; dy++)
+            {
+                int ny = dy < 0 ? 0 : (dy >= h ? h - 1 : dy);
+                int o = ny * rowStride + col;
+                sumB += source[o];
+                sumG += source[o + 1];
+                sumR += source[o + 2];
+                sumA += source[o + 3];
+            }
+
             for (int y = 0; y < h; y++)
             {
-                int r = 0, g = 0, b = 0, a = 0, count = 0;
-                for (int dy = -radius; dy <= radius; dy++)
-                {
-                    int ny = Math.Clamp(y + dy, 0, h - 1);
-                    int o = (ny * w + x) * 4;
-                    b += source[o];
-                    g += source[o + 1];
-                    r += source[o + 2];
-                    a += source[o + 3];
-                    count++;
-                }
-                int t = (y * w + x) * 4;
-                target[t]     = (byte)(b / count);
-                target[t + 1] = (byte)(g / count);
-                target[t + 2] = (byte)(r / count);
-                target[t + 3] = (byte)(a / count);
+                int t = y * rowStride + col;
+                target[t]     = (byte)(sumB / window);
+                target[t + 1] = (byte)(sumG / window);
+                target[t + 2] = (byte)(sumR / window);
+                target[t + 3] = (byte)(sumA / window);
+
+                int outY = y - radius;
+                outY = outY < 0 ? 0 : (outY >= h ? h - 1 : outY);
+                int inY = y + 1 + radius;
+                inY = inY < 0 ? 0 : (inY >= h ? h - 1 : inY);
+
+                int oOut = outY * rowStride + col;
+                int oIn = inY * rowStride + col;
+                sumB += source[oIn] - source[oOut];
+                sumG += source[oIn + 1] - source[oOut + 1];
+                sumR += source[oIn + 2] - source[oOut + 2];
+                sumA += source[oIn + 3] - source[oOut + 3];
             }
         }
     }
