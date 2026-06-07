@@ -12,9 +12,11 @@ public sealed class PrivacyIndicatorService : IDisposable
     private const string ConsentRoot =
         @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore";
 
-    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ActivePollInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan IdlePollInterval = TimeSpan.FromSeconds(5);
 
     private readonly DispatcherTimer _timer;
+    private readonly TimeSpan _activeInterval;
     private bool _disposed;
     private bool _started;
 
@@ -24,9 +26,11 @@ public sealed class PrivacyIndicatorService : IDisposable
 
     public PrivacyIndicatorService(TimeSpan? pollInterval = null)
     {
+        _activeInterval = pollInterval ?? ActivePollInterval;
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval = pollInterval ?? DefaultPollInterval
+            // Start responsive; AdaptInterval() backs off once we confirm nothing is in use.
+            Interval = _activeInterval
         };
         _timer.Tick += (_, _) => Poll();
     }
@@ -82,6 +86,20 @@ public sealed class PrivacyIndicatorService : IDisposable
         {
             RuntimeLog.Error("PRIVACY", ex, "PrivacyIndicatorService poll failed");
         }
+        finally
+        {
+            AdaptInterval();
+        }
+    }
+
+    // Poll frequently while a device is in use (responsive consumer updates), but back off
+    // when idle to cut background registry/audio scans.
+    private void AdaptInterval()
+    {
+        if (!_started) return;
+        var desired = CurrentState.AnyInUse ? _activeInterval : IdlePollInterval;
+        if (_timer.Interval != desired)
+            _timer.Interval = desired;
     }
 
     private static bool IsMicrophoneActuallyCapturing()
