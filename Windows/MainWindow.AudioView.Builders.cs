@@ -30,7 +30,6 @@ public partial class MainWindow
     private const double ColName = 196;
     private const double ColPercent = 50;
     private const double ColDevice = 206;
-    private const double ColArrow = 26;
 
     private static readonly Brush AudioGreen = Frozen("#3FD15B");
     private static readonly Brush AudioTrack = Frozen("#4D4D4D");
@@ -285,13 +284,13 @@ public partial class MainWindow
             _audioStructureKey = StructureKey(snap);
             AudioRoot.Children.Clear();
 
-            // Pin the content area to a fixed size so it does NOT re-layout every frame
-            // while the notch border animates its size (keeps the BitmapCache valid and
-            // the open animation smooth).
+            // Pin the content WIDTH so it does NOT re-layout horizontally while the notch
+            // border animates (keeps the BitmapCache valid and the open animation smooth). The
+            // HEIGHT is set at the end of the build, once the content is measured, so the panel
+            // can fit itself to the rows it actually shows.
             if (AudioScrollViewer != null)
             {
                 AudioScrollViewer.Width = _audioViewWidth - 38;
-                AudioScrollViewer.Height = _audioViewHeight - 66;
                 AudioScrollViewer.HorizontalAlignment = HorizontalAlignment.Left;
                 AudioScrollViewer.VerticalAlignment = VerticalAlignment.Top;
             }
@@ -343,8 +342,33 @@ public partial class MainWindow
             RuntimeLog.Log("AUDIOVIEW", $"Build error: {ex.Message}");
         }
 
+        // Fit the notch to the content just built (clamped to the max; the list scrolls beyond
+        // that). The scroll viewport gets the matching height so there's no dead space below the
+        // last row when only a few apps are present.
+        _audioViewHeight = MeasureAudioFitHeight();
+        if (AudioScrollViewer != null)
+            AudioScrollViewer.Height = _audioViewHeight - _audioViewChrome;
+
         if (AudioScrollViewer != null)
             AudioScrollViewer.ScrollToTop();
+    }
+
+    /// <summary>
+    /// Measures the natural height of the mixer content (for the current expand/collapse state)
+    /// and returns the notch height that fits it, clamped to [min, max].
+    /// </summary>
+    private double MeasureAudioFitHeight()
+    {
+        if (AudioRoot == null) return _audioViewMaxHeight;
+        double contentWidth = _audioViewWidth - 38 - 7; // scroll width minus the right padding
+        // Force a fresh measure. WPF returns the cached DesiredSize when IsMeasureValid is true
+        // and the constraint is unchanged; toggling a section only dirties the inner rows panel,
+        // not AudioRoot, so without this we'd read the PRE-toggle height — making newFit ≈ the
+        // current height and the notch resize snap/skip instead of animating.
+        AudioRoot.InvalidateMeasure();
+        AudioRoot.Measure(new Size(contentWidth, double.PositiveInfinity));
+        double desired = AudioRoot.DesiredSize.Height;
+        return Math.Clamp(desired + _audioViewChrome, _audioViewMinHeight, _audioViewMaxHeight);
     }
 
     // Collapse/expand a section with a height + fade animation and a rotating chevron.
@@ -373,6 +397,8 @@ public partial class MainWindow
         rows.BeginAnimation(HeightProperty, null);
         rows.BeginAnimation(OpacityProperty, null);
 
+        double newFit;
+
         if (expand)
         {
             rows.Visibility = Visibility.Visible;
@@ -384,6 +410,9 @@ public partial class MainWindow
             rows.Height = double.NaN;
             rows.Measure(new Size(availableWidth, double.PositiveInfinity));
             double target = rows.DesiredSize.Height;
+
+            // With this section now full-height, measure the whole panel to fit the notch to it.
+            newFit = MeasureAudioFitHeight();
 
             rows.Height = 0;
             rows.Opacity = 0;
@@ -408,6 +437,11 @@ public partial class MainWindow
         else
         {
             double from = rows.ActualHeight;
+
+            // Measure the panel with this section collapsed (height 0) to fit the notch to it,
+            // then restore the start height for the shrink animation.
+            rows.Height = 0;
+            newFit = MeasureAudioFitHeight();
             rows.Height = from;
 
             var hAnim = new DoubleAnimation(from, 0, dur) { EasingFunction = ease };
@@ -425,6 +459,10 @@ public partial class MainWindow
             rows.BeginAnimation(HeightProperty, hAnim);
             rows.BeginAnimation(OpacityProperty, oAnim);
         }
+
+        // Grow/shrink the notch alongside the section so the panel keeps hugging its content.
+        _audioViewHeight = newFit;
+        AnimateAudioNotchHeight(newFit, dur, ease);
     }
 
     private static string PickName(List<AudioDeviceInfo> devices, string fallback)
@@ -447,7 +485,6 @@ public partial class MainWindow
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 120 });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ColPercent) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ColDevice) });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ColArrow) });
         return g;
     }
 

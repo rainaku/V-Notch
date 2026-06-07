@@ -221,6 +221,12 @@ public partial class MainWindow
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
+        // Cache the calendar tree as a bitmap for the duration of the spring so the scale/slide
+        // is a cheap GPU blend instead of re-rasterizing the whole tree every frame (this is what
+        // made the calendar open less smoothly than the main view). RenderAtScale 1.0 keeps it
+        // crisp at the settled size; the cache is released in fadeIn.Completed.
+        SecondaryContent.CacheMode = new BitmapCache { RenderAtScale = 1.0 };
+
         var fadeIn       = MakeAnim(0, 1,    durIn, _easeExpOut6,   inDelay);
         var springSlide  = MakeAnim(26, 0,   durIn, _easeExpOut7,   inDelay);
         var springScaleX = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
@@ -238,6 +244,7 @@ public partial class MainWindow
             SecondaryContent.Opacity = 1;
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             SecondaryContent.RenderTransform = null;
+            SecondaryContent.CacheMode = null;
 
             if (_pendingFlipThumbnail != null)
             {
@@ -335,6 +342,11 @@ public partial class MainWindow
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
+        // Cache the primary tree during the spring so the scale/slide back in is a GPU bitmap
+        // blend (no per-frame re-raster). Released in fadeIn.Completed before the media background
+        // and live content resume.
+        ExpandedContent.CacheMode = new BitmapCache { RenderAtScale = 1.0 };
+
         var fadeIn       = MakeAnim(0, 1,     durIn, _easeExpOut6,    inDelay);
         var springSlide  = MakeAnim(ExpandedContentRestY - 26, ExpandedContentRestY, durIn, _easeExpOut7, inDelay);
         var springScaleX = MakeAnim(0.93, 1,  durIn, _easeSoftSpring, inDelay);
@@ -351,6 +363,7 @@ public partial class MainWindow
             NotchBorder.IsHitTestVisible = true;
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
+            ExpandedContent.CacheMode = null;
             ApplyExpandedContentRestTransform();
 
             ShowMediaBackground();

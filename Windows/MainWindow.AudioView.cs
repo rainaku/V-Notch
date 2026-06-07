@@ -16,7 +16,16 @@ public partial class MainWindow
 {
     private bool _isAudioView = false;
     private const double _audioViewWidth = 720;
-    private const double _audioViewHeight = 378;
+
+    // The Sound view height adapts to its content: it shrinks to fit when only a few rows are
+    // shown (no dead space at the bottom) and grows up to _audioViewMaxHeight, after which the
+    // list scrolls. _audioViewHeight holds the current fitted notch height and is recomputed
+    // whenever the mixer UI is (re)built or a section is collapsed/expanded. _audioViewChrome is
+    // the constant top + bottom space around the scrollable area (AudioContent margins + insets).
+    private const double _audioViewMaxHeight = 378;
+    private const double _audioViewMinHeight = 150;
+    private const double _audioViewChrome = 66;
+    private double _audioViewHeight = _audioViewMaxHeight;
 
     private AudioMixerService? _audioMixerServiceCached;
     private AudioMixerService AudioMixer =>
@@ -147,20 +156,43 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(navBgFadeIn, AnimationConfig.TargetFps);
         NavIconsBackground.BeginAnimation(OpacityProperty, navBgFadeIn);
 
-        ApplyAudioViewWindowSize();
+        // Build the mixer from the cached snapshot first so BuildAudioUI can measure its natural
+        // height and size the notch to fit the content (clamped to the max). Building before the
+        // animation lets the open transition target the fitted height directly.
+        bool hadSnapshot = _lastAudioSnapshot != null;
+        if (hadSnapshot)
+            BuildAudioUI(_lastAudioSnapshot!);   // also recomputes _audioViewHeight to fit
+        else
+            _audioViewHeight = _audioViewMaxHeight;
 
         double fromW = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _expandedWidth;
         double fromH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
+
+        // Size the host window to cover both the starting notch height and the fitted target so
+        // the notch is never clipped while it animates. If we opened from a taller view (e.g. the
+        // clock), shrink the window down to the fitted size once the open finishes.
+        double openWindowHeight = Math.Max(fromH, _audioViewHeight);
+        ResizeHostWindowHeight(openWindowHeight);
+
+        // The cached snapshot gives an instant first paint, but refresh immediately (don't wait
+        // for the open animation to finish) so the app list and volumes are current the moment
+        // the view opens. When the structure is unchanged this patches in place (smooth); a
+        // structural change rebuilds and re-fits the notch once the open completes.
         AnimateAudioViewSwap(
             outgoing, AudioContent,
             fromW, fromH, _audioViewWidth, _audioViewHeight,
-            prepIncoming: () =>
+            prepIncoming: null,
+            onComplete: () =>
             {
-                if (_lastAudioSnapshot != null)
-                    BuildAudioUI(_lastAudioSnapshot);
-            },
-            onComplete: null);
-        RefreshAudioData();
+                if (openWindowHeight > _audioViewHeight)
+                    ResizeHostWindowHeight(_audioViewHeight);
+                // Reconcile the notch height in case fresh data arrived (and changed the row
+                // count) while the open animation was running and SettleAudioNotchToFit was
+                // suppressed by the _isAnimating guard.
+                SettleAudioNotchToFit();
+            });
+
+        RefreshAudioData(SettleAudioNotchToFit);
         SyncAudioVolumesImmediate();
         StartAudioPoll();
     }
@@ -453,5 +485,57 @@ public partial class MainWindow
         AnimateClockViewNotchResize(notchFromW, notchFromH, notchToW, notchToH, durIn, inDelay);
     }
 
-    private void ApplyAudioViewWindowSize() => ResizeHostWindowHeight(_audioViewHeight);
+    /// <summary>
+    /// Animates the notch (and the scroll viewport + host window) to the current fitted
+    /// <see cref="_audioViewHeight"/> using the default open-style easing. Used after a
+    /// structural data refresh so the panel keeps hugging its content.
+    /// </summary>
+    private void SettleAudioNotchToFit()
+        => AnimateAudioNotchHeight(_audioViewHeight, new Duration(TimeSpan.FromMilliseconds(300)), _easeExpOut6);
+
+    /// <summary>
+    /// Smoothly resizes the Sound-view notch height to <paramref name="target"/>, keeping the
+    /// scroll viewport and the host window in sync. The window grows up-front (so a taller notch
+    /// isn't clipped) and shrinks on completion, so it never clips the notch mid-animation.
+    /// No-op while a view-switch animation is running.
+    /// </summary>
+    private void AnimateAudioNotchHeight(double target, Duration dur, IEasingFunction ease)
+    {
+        if (!_isAudioView || _isAnimating || AudioScrollViewer == null) return;
+
+        double current = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : target;
+        if (Math.Abs(current - target) < 0.5)
+        {
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = target;
+            AudioScrollViewer.BeginAnimation(HeightProperty, null);
+            AudioScrollViewer.Height = target - _audioViewChrome;
+            ResizeHostWindowHeight(target);
+            return;
+        }
+
+        int fps = AnimationConfig.TargetFps;
+        bool growing = target > current;
+        if (growing) ResizeHostWindowHeight(target);
+
+        NotchBorder.BeginAnimation(HeightProperty, null);
+        AudioScrollViewer.BeginAnimation(HeightProperty, null);
+
+        var notchAnim = MakeAnim(current, target, dur, ease);
+        var scrollAnim = MakeAnim(current - _audioViewChrome, target - _audioViewChrome, dur, ease);
+        Timeline.SetDesiredFrameRate(notchAnim, fps);
+        Timeline.SetDesiredFrameRate(scrollAnim, fps);
+
+        notchAnim.Completed += (_, _) =>
+        {
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Height = target;
+            AudioScrollViewer.BeginAnimation(HeightProperty, null);
+            AudioScrollViewer.Height = target - _audioViewChrome;
+            if (!growing) ResizeHostWindowHeight(target);
+        };
+
+        NotchBorder.BeginAnimation(HeightProperty, notchAnim, HandoffBehavior.SnapshotAndReplace);
+        AudioScrollViewer.BeginAnimation(HeightProperty, scrollAnim, HandoffBehavior.SnapshotAndReplace);
+    }
 }
