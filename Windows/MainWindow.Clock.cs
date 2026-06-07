@@ -13,7 +13,7 @@ public partial class MainWindow
 
     // The order the widget card cycles through when the user drags left/right. Drag
     // left advances to the next entry, drag right goes back; the list wraps around.
-    private static readonly string[] _expandedWidgetOrder = { "calendar", "clock", "wordclock", "weather" };
+    private static readonly string[] _expandedWidgetOrder = { "calendar", "clock", "wordclock", "weather", "sysmon" };
 
     private bool IsClockWidgetMode =>
         string.Equals(_settings.ExpandedWidget, "clock", StringComparison.OrdinalIgnoreCase);
@@ -24,6 +24,9 @@ public partial class MainWindow
     private bool IsWeatherWidgetMode =>
         string.Equals(_settings.ExpandedWidget, "weather", StringComparison.OrdinalIgnoreCase);
 
+    private bool IsSystemMonitorWidgetMode =>
+        string.Equals(_settings.ExpandedWidget, "sysmon", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// True for any widget mode that replaces the calendar strip with a clock face
     /// (analog or word clock). Used to hide the calendar-only chrome (month label,
@@ -32,18 +35,18 @@ public partial class MainWindow
     private bool IsAnyClockWidgetMode => IsClockWidgetMode || IsWordClockWidgetMode;
 
     /// <summary>
-    /// True for any widget mode other than the calendar (clock, word clock, weather).
-    /// The calendar-only chrome — day strip, greeting and scroll handling — is hidden
-    /// for all of these.
+    /// True for any widget mode other than the calendar (clock, word clock, weather,
+    /// system monitor). The calendar-only chrome — day strip, greeting and scroll
+    /// handling — is hidden for all of these.
     /// </summary>
-    private bool IsNonCalendarWidgetMode => IsAnyClockWidgetMode || IsWeatherWidgetMode;
+    private bool IsNonCalendarWidgetMode => IsAnyClockWidgetMode || IsWeatherWidgetMode || IsSystemMonitorWidgetMode;
 
     /// <summary>
     /// Applies the user's chosen expanded-notch widget. The month label stays
     /// visible in the calendar / clock modes; only the calendar day strip is swapped
-    /// for the analog clock, the spelled-out word clock, or the weather widget, all of
-    /// which follow the local system automatically. The greeting line is hidden in any
-    /// non-calendar mode to keep the widget card uncluttered.
+    /// for the analog clock, the spelled-out word clock, the weather widget, or the
+    /// system monitor, all of which follow the local system automatically. The greeting
+    /// line is hidden in any non-calendar mode to keep the widget card uncluttered.
     /// </summary>
     private void ApplyExpandedWidgetMode()
     {
@@ -52,19 +55,22 @@ public partial class MainWindow
         bool useAnalogClock = IsClockWidgetMode;
         bool useWordClock = IsWordClockWidgetMode;
         bool useWeather = IsWeatherWidgetMode;
-        bool useCalendar = !useAnalogClock && !useWordClock && !useWeather;
+        bool useSystemMonitor = IsSystemMonitorWidgetMode;
+        bool useCalendar = !useAnalogClock && !useWordClock && !useWeather && !useSystemMonitor;
 
         ClockWidget.Visibility = useAnalogClock ? Visibility.Visible : Visibility.Collapsed;
         if (WordClockWidget != null)
             WordClockWidget.Visibility = useWordClock ? Visibility.Visible : Visibility.Collapsed;
         if (WeatherWidgetContent != null)
             WeatherWidgetContent.Visibility = useWeather ? Visibility.Visible : Visibility.Collapsed;
+        if (SystemMonitorWidgetContent != null)
+            SystemMonitorWidgetContent.Visibility = useSystemMonitor ? Visibility.Visible : Visibility.Collapsed;
         CalendarStripContainer.Visibility = useCalendar ? Visibility.Visible : Visibility.Collapsed;
 
-        // The weather widget carries its own location label and spans the full card,
-        // so the month label is hidden in that mode only.
+        // The weather and system-monitor widgets carry their own labels and span the full
+        // card, so the month label is hidden in those modes only.
         if (MonthText != null)
-            MonthText.Visibility = useWeather ? Visibility.Collapsed : Visibility.Visible;
+            MonthText.Visibility = (useWeather || useSystemMonitor) ? Visibility.Collapsed : Visibility.Visible;
 
         UpdateGreetingVisibilityForWidget();
     }

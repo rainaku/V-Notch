@@ -39,6 +39,11 @@ public partial class MainWindow
     private void TimerIconButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+        if (_isAudioView && !_isAnimating)
+        {
+            SwitchFromAudioToTimerView();
+            return;
+        }
         if (!_isTimerView && !_isAnimating)
         {
             if (_isSecondaryView)
@@ -379,11 +384,11 @@ public partial class MainWindow
             ProgressBarGradientEnd.Color = darkColor;
         }
 
-        var primaryTranslate = new TranslateTransform(0, -36);
+        var primaryTranslate = new TranslateTransform(0, ExpandedContentRestY - 36);
         ExpandedContent.RenderTransform = primaryTranslate;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var primarySlideDown = MakeAnim(-36, 0, durIn, _easeExpOut7, inDelay);
+        var primarySlideDown = MakeAnim(ExpandedContentRestY - 36, ExpandedContentRestY, durIn, _easeExpOut7, inDelay);
         var primaryFadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
         Timeline.SetDesiredFrameRate(primarySlideDown, fps);
         Timeline.SetDesiredFrameRate(primaryFadeIn, fps);
@@ -395,7 +400,7 @@ public partial class MainWindow
             NotchBorder.IsHitTestVisible = true;
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
-            ExpandedContent.RenderTransform = null;
+            ApplyExpandedContentRestTransform();
             // Notch width is now fixed again — restore default layout so the content stretches
             // to fill the notch, and re-enable rounding for crisp text.
             ExpandedContent.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -432,6 +437,7 @@ public partial class MainWindow
         HomeIconButton.Opacity = 0.4;
         FileShelfIconButton.Opacity = 0.4;
         TimerIconButton.Opacity = 1.0;
+        AudioIconButton.Opacity = 0.4;
         if (!_isAnimating)
         {
             ShelfCountBadge.Visibility = Visibility.Collapsed;

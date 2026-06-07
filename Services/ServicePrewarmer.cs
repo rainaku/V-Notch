@@ -50,6 +50,7 @@ internal static class ServicePrewarmer
         SafeResolve<BluetoothModule>(provider);
         SafeResolve<PrivacyIndicatorModule>(provider);
         SafeResolve<WeatherModule>(provider);
+        SafeResolve<SystemMonitorModule>(provider);
         SafeResolve<IModuleLifecycleManager>(provider);
     }
 

@@ -56,6 +56,7 @@ public partial class MainWindow : Window
     private readonly BluetoothModule _bluetoothModule;
     private readonly PrivacyIndicatorModule _privacyModule;
     private readonly WeatherModule _weatherModule;
+    private readonly SystemMonitorModule _systemMonitorModule;
     private readonly IModuleLifecycleManager _moduleHost;
 
     private readonly NotchStateManager _notchState = new();
@@ -154,7 +155,8 @@ public partial class MainWindow : Window
         CalendarModule calendarModule,
         BluetoothModule bluetoothModule,
         PrivacyIndicatorModule privacyIndicatorModule,
-        WeatherModule weatherModule)
+        WeatherModule weatherModule,
+        SystemMonitorModule systemMonitorModule)
     {
         InitializeComponent();
         _settingsService = (SettingsService)settingsService;
@@ -188,6 +190,9 @@ public partial class MainWindow : Window
 
         _weatherModule = weatherModule;
         _weatherModule.WeatherUpdated += WeatherModule_WeatherUpdated;
+
+        _systemMonitorModule = systemMonitorModule;
+        _systemMonitorModule.StatsUpdated += SystemMonitorModule_StatsUpdated;
 
         _collapsedWidth = GetCollapsedWidth();
         _collapsedHeight = GetCollapsedHeight();
@@ -348,6 +353,8 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
         {
             BuildClockViewCalendar();
+            // Warm the audio snapshot so the first open of the volume view is instant.
+            PrewarmAudioSnapshot();
         }));
 
         // Start media service after layout is fully measured to avoid zero ActualWidth/Height on first update.
@@ -464,6 +471,7 @@ public partial class MainWindow : Window
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
         _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;
+        _systemMonitorModule.StatsUpdated -= SystemMonitorModule_StatsUpdated;
 
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
 
@@ -887,7 +895,7 @@ public partial class MainWindow : Window
         // is then never resized/moved horizontally at runtime — resizing a centered,
         // transparent window mid-animation makes the notch visibly snap sideways and back.
         // The extra width is just transparent, click-through margin around the notch.
-        double notchSurfaceWidth = Math.Max(_expandedWidth, _clockViewWidth);
+        double notchSurfaceWidth = Math.Max(Math.Max(_expandedWidth, _clockViewWidth), _audioViewWidth);
         double windowWidthDip = notchSurfaceWidth + NotchWindowHorizontalPadding;
         double windowHeightDip = _expandedHeight + 80;
 
@@ -1371,6 +1379,14 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void ApplyDynamicIslandContentAlignment(bool islandMode)
     {
+        // StatusBar lives inside ExpandedContent, which nudges all its children down by
+        // ExpandedContentRestY in Dynamic Island mode. The nav icons live outside that nudge,
+        // so cancel it here to keep battery/update/settings level with the nav icons.
+        if (StatusBarTranslate != null)
+        {
+            StatusBarTranslate.Y = -ExpandedContentRestY;
+        }
+
         if (MusicCompactContent != null)
         {
             double islandTop = Math.Max(0, (GetCollapsedHeight() - 22) / 2.0);
@@ -1996,17 +2012,20 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         try
         {
-            // Launch a fresh instance before tearing this one down.
             var exePath = Environment.ProcessPath
                 ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
 
             if (!string.IsNullOrEmpty(exePath))
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exePath)
+                // Relaunch via a detached cmd that waits ~1s, so the old process
+                // is gone and the single-instance mutex is released first.
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    Arguments = "--restart",
-                    UseShellExecute = true,
-                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory
+                    FileName = "cmd.exe",
+                    Arguments = $"/c ping -n 2 127.0.0.1 >nul & start \"\" \"{exePath}\" --restart",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
                 });
             }
         }
@@ -2031,6 +2050,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
         _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;
+        _systemMonitorModule.StatsUpdated -= SystemMonitorModule_StatsUpdated;
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
 
         StopTitleGradientShift();

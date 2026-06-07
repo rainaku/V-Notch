@@ -35,9 +35,7 @@ public partial class App : Application
         
         _mutex = new Mutex(true, MutexName, out bool createdNew);
 
-        // When relaunched via the tray "Restart" action, the previous instance
-        // may still be shutting down and holding the mutex. Wait briefly for it
-        // to release instead of bailing out immediately.
+        // On tray "Restart", the previous instance may still hold the mutex.
         if (!createdNew && e.Args.Contains("--restart"))
         {
             try
@@ -49,7 +47,6 @@ public partial class App : Application
             }
             catch (AbandonedMutexException)
             {
-                // Previous owner exited without releasing — we now own it.
                 createdNew = true;
             }
         }
@@ -129,6 +126,7 @@ public partial class App : Application
         services.AddSingleton<IWindowTitleScanner, WindowTitleScanner>();
         services.AddSingleton<IMediaDetectionService, MediaDetectionService>();
         services.AddSingleton<IVolumeService, VolumeService>();
+        services.AddSingleton<AudioMixerService>();
         services.AddSingleton<IBatteryService, BatteryServiceImpl>();
         services.AddSingleton<BluetoothMonitorService>();
         services.AddSingleton<PrivacyIndicatorService>();
@@ -142,6 +140,7 @@ public partial class App : Application
         services.AddSingleton<BluetoothModule>();
         services.AddSingleton<PrivacyIndicatorModule>();
         services.AddSingleton<WeatherModule>();
+        services.AddSingleton<SystemMonitorModule>();
         services.AddSingleton<IModuleLifecycleManager>(sp =>
         {
             var host = new ModuleLifecycleManager();
@@ -150,6 +149,7 @@ public partial class App : Application
             host.Register(sp.GetRequiredService<BluetoothModule>());
             host.Register(sp.GetRequiredService<PrivacyIndicatorModule>());
             host.Register(sp.GetRequiredService<WeatherModule>());
+            host.Register(sp.GetRequiredService<SystemMonitorModule>());
             return host;
         });
 

@@ -445,7 +445,7 @@
                             Margin="8,-2,0,0" Panel.ZIndex="199"
                             Background="Transparent"
                             CornerRadius="12,12,10,10"
-                            Width="64" Height="34"
+                            Width="94" Height="34"
                             Opacity="0"
                             Visibility="Collapsed"
                             MouseLeftButtonDown="NavIconsPanel_MouseLeftButtonDown"/>
@@ -468,7 +468,7 @@
                                     Width="22" Height="22"
                                     Background="Transparent"
                                     Cursor="Hand"
-                                    Margin="0,0,8,0"
+                                    Margin="0,0,4,0"
                                     Opacity="1.0"
                                     MouseLeftButtonDown="HomeIconButton_Click">
                                 <Border.Effect>
@@ -485,7 +485,7 @@
                                     Background="Transparent"
                                     Cursor="Hand"
                                     Opacity="0.4"
-                                    Margin="0,0,8,0"
+                                    Margin="0,0,4,0"
                                     MouseLeftButtonDown="FileShelfIconButton_Click">
                                 <Border.Effect>
                                     <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
@@ -500,6 +500,7 @@
                                     Width="22" Height="22"
                                     Background="Transparent"
                                     Cursor="Hand"
+                                    Margin="0,0,4,0"
                                     Opacity="0.4"
                                     MouseLeftButtonDown="TimerIconButton_Click">
                                 <Border.Effect>
@@ -508,6 +509,21 @@
                                 <Viewbox Width="15" Height="15" Stretch="Uniform"
                                          HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Path Data="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12ZM15.8321 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.8321L11.8451 13.0986C11.3171 12.7466 11 12.1541 11 11.5196V11.5V7C11 6.44772 11.4477 6 12 6C12.5523 6 13 6.44772 13 7V11.4648L15.5547 13.1679C16.0142 13.4743 16.1384 14.0952 15.8321 14.5547Z" 
+                                          Fill="White"/>
+                                </Viewbox>
+                            </Border>
+                            <Border x:Name="AudioIconButton"
+                                    Width="22" Height="22"
+                                    Background="Transparent"
+                                    Cursor="Hand"
+                                    Opacity="0.4"
+                                    MouseLeftButtonDown="AudioIconButton_Click">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
+                                </Border.Effect>
+                                <Viewbox Width="15" Height="15" Stretch="Uniform"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path Data="M13.5 2.5C13.5 2.1 13.05 1.86 12.72 2.09L6.8 6.2H3.5C2.95 6.2 2.5 6.65 2.5 7.2V12.8C2.5 13.35 2.95 13.8 3.5 13.8H6.8L12.72 17.91C13.05 18.14 13.5 17.9 13.5 17.5V2.5ZM16.04 6.05C15.74 5.79 15.28 5.82 15.02 6.13C14.76 6.43 14.79 6.89 15.1 7.15C16.0 7.93 16.5 8.93 16.5 10C16.5 11.07 16.0 12.07 15.1 12.85C14.79 13.11 14.76 13.57 15.02 13.87C15.28 14.18 15.74 14.21 16.04 13.95C17.25 12.91 18 11.5 18 10C18 8.5 17.25 7.09 16.04 6.05Z" 
                                           Fill="White"/>
                                 </Viewbox>
                             </Border>
@@ -1167,6 +1183,13 @@
                         <Grid x:Name="StatusBar" Grid.Column="0" Grid.ColumnSpan="3" 
                               HorizontalAlignment="Right" VerticalAlignment="Top" 
                               Margin="0,0,5,0" Panel.ZIndex="100">
+                            <Grid.RenderTransform>
+                                <!-- Cancels the Dynamic-Island content nudge that ExpandedContent applies
+                                     to everything inside it, so the battery/update/settings icons sit at the
+                                     same height as the nav icons (which live outside ExpandedContent). Set in
+                                     ApplyDynamicIslandContentAlignment. -->
+                                <TranslateTransform x:Name="StatusBarTranslate" Y="0"/>
+                            </Grid.RenderTransform>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -2219,6 +2242,131 @@
                                                        TextOptions.TextHintingMode="Animated"/>
                                         </StackPanel>
                                     </Grid>
+
+                                    <!-- System monitor widget mode (CPU / RAM / Network) -->
+                                    <Grid x:Name="SystemMonitorWidgetContent"
+                                          Grid.Column="0" Grid.ColumnSpan="2"
+                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="Left"
+                                          Margin="2,0,0,0"
+                                          Visibility="Collapsed">
+                                        <StackPanel Orientation="Vertical" HorizontalAlignment="Left">
+
+                                            <!-- CPU -->
+                                            <StackPanel Orientation="Vertical" Margin="0,0,0,13">
+                                                <Grid Width="130">
+                                                    <TextBlock Text="CPU"
+                                                               FontFamily="{StaticResource MainSystemFont}"
+                                                               FontSize="10.5"
+                                                               FontWeight="Bold"
+                                                               Foreground="#99FFFFFF"
+                                                               HorizontalAlignment="Left"
+                                                               VerticalAlignment="Bottom"
+                                                               TextOptions.TextRenderingMode="Grayscale"
+                                                               TextOptions.TextHintingMode="Animated"/>
+                                                    <TextBlock x:Name="SysMonCpuValueText"
+                                                               Text="0%"
+                                                               FontFamily="{StaticResource MainSystemFont}"
+                                                               FontSize="13"
+                                                               FontWeight="Bold"
+                                                               Foreground="White"
+                                                               HorizontalAlignment="Right"
+                                                               VerticalAlignment="Bottom"
+                                                               TextOptions.TextRenderingMode="Grayscale"
+                                                               TextOptions.TextHintingMode="Animated"/>
+                                                </Grid>
+                                                <Border Width="130" Height="5"
+                                                        CornerRadius="2.5"
+                                                        Margin="0,5,0,0"
+                                                        HorizontalAlignment="Left"
+                                                        Background="#33FFFFFF">
+                                                    <Border x:Name="SysMonCpuBar"
+                                                            Width="0" Height="5"
+                                                            CornerRadius="2.5"
+                                                            HorizontalAlignment="Left"
+                                                            Background="#FF4ED164"/>
+                                                </Border>
+                                            </StackPanel>
+
+                                            <!-- RAM -->
+                                            <StackPanel Orientation="Vertical" Margin="0,0,0,13">
+                                                <Grid Width="130">
+                                                    <TextBlock Text="RAM"
+                                                               FontFamily="{StaticResource MainSystemFont}"
+                                                               FontSize="10.5"
+                                                               FontWeight="Bold"
+                                                               Foreground="#99FFFFFF"
+                                                               HorizontalAlignment="Left"
+                                                               VerticalAlignment="Bottom"
+                                                               TextOptions.TextRenderingMode="Grayscale"
+                                                               TextOptions.TextHintingMode="Animated"/>
+                                                    <TextBlock x:Name="SysMonRamValueText"
+                                                               Text="—"
+                                                               FontFamily="{StaticResource MainSystemFont}"
+                                                               FontSize="13"
+                                                               FontWeight="Bold"
+                                                               Foreground="White"
+                                                               HorizontalAlignment="Right"
+                                                               VerticalAlignment="Bottom"
+                                                               TextOptions.TextRenderingMode="Grayscale"
+                                                               TextOptions.TextHintingMode="Animated"/>
+                                                </Grid>
+                                                <Border Width="130" Height="5"
+                                                        CornerRadius="2.5"
+                                                        Margin="0,5,0,0"
+                                                        HorizontalAlignment="Left"
+                                                        Background="#33FFFFFF">
+                                                    <Border x:Name="SysMonRamBar"
+                                                            Width="0" Height="5"
+                                                            CornerRadius="2.5"
+                                                            HorizontalAlignment="Left"
+                                                            Background="#FF4E9BD1"/>
+                                                </Border>
+                                            </StackPanel>
+
+                                            <!-- Network down / up -->
+                                            <Grid Width="130">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Viewbox Width="11" Height="11" Margin="0,1,4,0" VerticalAlignment="Center">
+                                                        <Canvas Width="24" Height="24">
+                                                            <Path Fill="#E6FFFFFF"
+                                                                  Data="M12 21l-7-7h4V3h6v11h4z"/>
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                    <TextBlock x:Name="SysMonNetDownText"
+                                                               Text="0 B/s"
+                                                               FontFamily="{StaticResource MainSystemFont}"
+                                                               FontSize="10.5"
+                                                               FontWeight="Bold"
+                                                               Foreground="#E6FFFFFF"
+                                                               VerticalAlignment="Center"
+                                                               TextOptions.TextRenderingMode="Grayscale"
+                                                               TextOptions.TextHintingMode="Animated"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Viewbox Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center">
+                                                        <Canvas Width="24" Height="24">
+                                                            <Path Fill="#E6FFFFFF"
+                                                                  Data="M12 3l7 7h-4v11H9V10H5z"/>
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                    <TextBlock x:Name="SysMonNetUpText"
+                                                               Text="0 B/s"
+                                                               FontFamily="{StaticResource MainSystemFont}"
+                                                               FontSize="10.5"
+                                                               FontWeight="Bold"
+                                                               Foreground="#E6FFFFFF"
+                                                               VerticalAlignment="Center"
+                                                               TextOptions.TextRenderingMode="Grayscale"
+                                                               TextOptions.TextHintingMode="Animated"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
                                 </Grid>
                             </Border>
 
@@ -2860,6 +3008,28 @@
                             </Border>
                         </Grid>
 
+                    </Grid>
+
+                    <!-- Audio View (table-style mixer: System + Applications) -->
+                    <Grid x:Name="AudioContent"
+                          Opacity="0"
+                          Visibility="Collapsed"
+                          Margin="22,52,16,14"
+                          MouseLeftButtonDown="SecondaryContent_Click"
+                          RenderOptions.ClearTypeHint="Enabled">
+                        <ScrollViewer x:Name="AudioScrollViewer"
+                                      VerticalScrollBarVisibility="Hidden"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      PanningMode="VerticalOnly"
+                                      Padding="0,0,4,0">
+                            <StackPanel x:Name="AudioRoot"/>
+                        </ScrollViewer>
+                        <!-- In-app device dropdown layer (avoids the unreliable system Popup
+                             inside the no-activate overlay window) -->
+                        <Grid x:Name="AudioOverlay"
+                              Background="Transparent"
+                              Visibility="Collapsed"
+                              Panel.ZIndex="100"/>
                     </Grid>
 
                     <!-- Countdown Completion Overlay -->

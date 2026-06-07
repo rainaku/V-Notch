@@ -12,6 +12,10 @@ public partial class MainWindow
 {
     private void NotchWrapper_MouseWheel(object sender, MouseWheelEventArgs e)
     {
+        // In the audio view the inner ScrollViewer owns the wheel so the mixer list
+        // can scroll; don't hijack it for view switching.
+        if (_isAudioView) return;
+
         if (!_isExpanded && !_isAnimating)
         {
             if (_settings.EnableHoverExpand) return;
@@ -99,7 +103,11 @@ public partial class MainWindow
     private void HomeIconButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (_isTimerView && !_isAnimating)
+        if (_isAudioView && !_isAnimating)
+        {
+            SwitchFromAudioToPrimaryView();
+        }
+        else if (_isTimerView && !_isAnimating)
         {
             SwitchFromTimerToPrimaryView();
         }
@@ -113,7 +121,11 @@ public partial class MainWindow
     private void FileShelfIconButton_Click(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (_isTimerView && !_isAnimating)
+        if (_isAudioView && !_isAnimating)
+        {
+            SwitchFromAudioToSecondaryView();
+        }
+        else if (_isTimerView && !_isAnimating)
         {
             SwitchFromTimerToSecondaryView();
         }
@@ -317,14 +329,14 @@ public partial class MainWindow
 
         var primaryGroup     = new TransformGroup();
         var primaryScale     = new ScaleTransform(0.93, 0.93);
-        var primaryTranslate = new TranslateTransform(0, -26);
+        var primaryTranslate = new TranslateTransform(0, ExpandedContentRestY - 26);
         primaryGroup.Children.Add(primaryScale);
         primaryGroup.Children.Add(primaryTranslate);
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
         var fadeIn       = MakeAnim(0, 1,     durIn, _easeExpOut6,    inDelay);
-        var springSlide  = MakeAnim(-26, 0,   durIn, _easeExpOut7,    inDelay);
+        var springSlide  = MakeAnim(ExpandedContentRestY - 26, ExpandedContentRestY, durIn, _easeExpOut7, inDelay);
         var springScaleX = MakeAnim(0.93, 1,  durIn, _easeSoftSpring, inDelay);
         var springScaleY = MakeAnim(0.93, 1,  durIn, _easeSoftSpring, inDelay);
         Timeline.SetDesiredFrameRate(fadeIn,       fps);
@@ -339,7 +351,7 @@ public partial class MainWindow
             NotchBorder.IsHitTestVisible = true;
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
-            ExpandedContent.RenderTransform = null;
+            ApplyExpandedContentRestTransform();
 
             ShowMediaBackground();
 
@@ -374,17 +386,26 @@ public partial class MainWindow
     {
         var showShelfCountBadge = false;
 
-        if (_isTimerView)
+        if (_isAudioView)
+        {
+            HomeIconButton.Opacity = 0.4;
+            FileShelfIconButton.Opacity = 0.4;
+            TimerIconButton.Opacity = 0.4;
+            AudioIconButton.Opacity = 1.0;
+        }
+        else if (_isTimerView)
         {
             HomeIconButton.Opacity = 0.4;
             FileShelfIconButton.Opacity = 0.4;
             TimerIconButton.Opacity = 1.0;
+            AudioIconButton.Opacity = 0.4;
         }
         else if (_isSecondaryView)
         {
             HomeIconButton.Opacity = 0.4;
             FileShelfIconButton.Opacity = 1.0;
             TimerIconButton.Opacity = 0.4;
+            AudioIconButton.Opacity = 0.4;
             showShelfCountBadge = ShelfUnlockBanner.Visibility != Visibility.Visible;
         }
         else
@@ -392,6 +413,7 @@ public partial class MainWindow
             HomeIconButton.Opacity = 1.0;
             FileShelfIconButton.Opacity = 0.4;
             TimerIconButton.Opacity = 0.4;
+            AudioIconButton.Opacity = 0.4;
         }
 
         if (!_isAnimating)

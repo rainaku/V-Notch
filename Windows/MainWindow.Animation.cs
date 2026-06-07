@@ -18,6 +18,25 @@ public partial class MainWindow
     private enum LastExpandedView { Primary, Secondary, Timer }
     private LastExpandedView _lastExpandedViewBeforeCollapse = LastExpandedView.Primary;
 
+    /// <summary>
+    /// The primary <see cref="ExpandedContent"/> rests shifted down by a few px in Dynamic
+    /// Island mode (matching the <c>contentTargetY</c> that <c>ExpandNotch</c> animates to).
+    /// All return-to-primary transitions must settle the content here — not at Y=0 — or it
+    /// ends up a few px too high compared to a fresh expand.
+    /// </summary>
+    private double ExpandedContentRestY => _settings.EnableDynamicIslandMode ? 5 : 0;
+
+    /// <summary>
+    /// Restores <see cref="ExpandedContent"/> to its canonical resting transform after a
+    /// view transition: the small Dynamic-Island Y offset, or no transform in notch mode.
+    /// </summary>
+    private void ApplyExpandedContentRestTransform()
+    {
+        if (ExpandedContent == null) return;
+        double restY = ExpandedContentRestY;
+        ExpandedContent.RenderTransform = restY != 0 ? new TranslateTransform(0, restY) : null;
+    }
+
     private double GetCurrentExpandedContentTranslationY()
     {
         if (ExpandedContent == null) return 0;
@@ -627,6 +646,9 @@ public partial class MainWindow
         // If collapsing from secondary/timer view, animate that surface out while the notch returns to compact.
         bool wasSecondary = _isSecondaryView;
         bool wasTimer = _isTimerView;
+        bool wasAudio = _isAudioView;
+        _isAudioView = false;
+        if (wasAudio) { StopAudioPoll(); _audioMixerServiceCached?.ReleaseSessionCache(); }
         if (wasSecondary)
         {
             if (IsCameraPreviewLifecycleActive)
@@ -718,6 +740,29 @@ public partial class MainWindow
             timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, timerScaleDown);
             timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, timerScaleDown);
             timerBlur.BeginAnimation(BlurEffect.RadiusProperty, timerBlurOut);
+        }
+
+        if (wasAudio)
+        {
+            AudioContent.BeginAnimation(OpacityProperty, null);
+            var audioFadeOut = MakeAnim(AudioContent.Opacity, 0, _dur200, _easeQuadIn);
+            var audioBlur = AudioContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+            AudioContent.Effect = audioBlur;
+            var audioBlurOut = MakeAnim(audioBlur.Radius, 10, _dur200, _easeQuadIn);
+            Timeline.SetDesiredFrameRate(audioFadeOut, VNotch.Services.AnimationConfig.TargetFps);
+
+            audioFadeOut.Completed += (s, e) =>
+            {
+                AudioContent.BeginAnimation(OpacityProperty, null);
+                AudioContent.Opacity = 0;
+                AudioContent.Visibility = Visibility.Collapsed;
+                AudioContent.RenderTransform = null;
+                AudioContent.Effect = null;
+                audioBlur.Radius = 0;
+            };
+
+            AudioContent.BeginAnimation(OpacityProperty, audioFadeOut);
+            audioBlur.BeginAnimation(BlurEffect.RadiusProperty, audioBlurOut);
         }
 
         ExpandedContent.BeginAnimation(OpacityProperty, null);
@@ -898,7 +943,7 @@ public partial class MainWindow
 
             // Collapsing straight out of the widened clock view: shrink the host window
             // back to its standard footprint now that the notch is compact again.
-            if (wasTimer)
+            if (wasTimer || wasAudio)
             {
                 RestoreExpandedWindowSize();
             }

@@ -108,6 +108,12 @@ namespace VNotch.Controls
         private double _lastDtMs;
         private DateTime _lastCaptureRetryUtc = DateTime.MinValue;
         private bool _isRenderingActive;
+        // The loopback capture + FFT pipeline is a single shared system resource. Multiple
+        // visualizers (e.g. compact pill + expanded) all want the SAME system audio, so we
+        // share one capture and refcount it: physical start on the first consumer, physical
+        // stop only when the last one releases. This stops one instance pausing/hiding from
+        // killing capture while another is still playing.
+        private bool _holdsCaptureLease;
         
         private readonly double[] _currentHeights = new double[BarCount];
         private readonly double[] _sortedHeights = new double[BarCount];
@@ -125,7 +131,7 @@ namespace VNotch.Controls
             Unloaded += (s, e) =>
             {
                 StopRendering();
-                StopAudioCapture();
+                ReleaseCaptureLease();
             };
             IsVisibleChanged += (s, e) => UpdateRenderingState();
 
@@ -162,8 +168,8 @@ namespace VNotch.Controls
                 UpdateRenderingState();
                 if (_state == VisualizerState.Idle)
                 {
-                    // No track at all — safe to drop capture immediately.
-                    StopAudioCapture();
+                    // No track at all — safe to drop our capture claim immediately.
+                    ReleaseCaptureLease();
                 }
             }
 
@@ -227,7 +233,7 @@ namespace VNotch.Controls
             {
                 InvalidateVisual();
                 StopRendering();
-                StopAudioCapture();
+                ReleaseCaptureLease();
                 return;
             }
 
@@ -478,6 +484,7 @@ namespace VNotch.Controls
         private void EnsureAudioCaptureStarted(bool force = false)
         {
             if (!ShouldCaptureAudio) return;
+            AcquireCaptureLease();
             if (_capture != null) return;
 
             var now = DateTime.UtcNow;
@@ -485,6 +492,39 @@ namespace VNotch.Controls
 
             _lastCaptureRetryUtc = now;
             StartAudioCapture();
+        }
+
+        // Registers this instance as a consumer of the shared capture. Physical capture is
+        // started lazily by EnsureAudioCaptureStarted; here we only track the refcount.
+        private void AcquireCaptureLease()
+        {
+            lock (_lockObj)
+            {
+                if (_holdsCaptureLease) return;
+                _holdsCaptureLease = true;
+                _captureLeaseCount++;
+            }
+        }
+
+        // Drops this instance's claim on the shared capture. Only when the last consumer
+        // releases do we actually tear down the WASAPI capture + FFT pipeline.
+        private void ReleaseCaptureLease()
+        {
+            bool stopPhysical = false;
+            lock (_lockObj)
+            {
+                if (!_holdsCaptureLease) return;
+                _holdsCaptureLease = false;
+                _captureLeaseCount--;
+                if (_captureLeaseCount <= 0)
+                {
+                    _captureLeaseCount = 0;
+                    stopPhysical = true;
+                }
+            }
+
+            // StopAudioCapture takes _lockObj itself — call it outside our lock.
+            if (stopPhysical) StopAudioCapture();
         }
 
         private void PrepareDrawHeights()
@@ -628,6 +668,7 @@ namespace VNotch.Controls
         
         private static WasapiLoopbackCapture? _capture;
         private static readonly object _lockObj = new object();
+        private static int _captureLeaseCount;
         private static string _audioDeviceId = string.Empty;
         private const int FftLength = 512;
         private const int FftM = 9;
@@ -683,7 +724,6 @@ namespace VNotch.Controls
         private static int _rmsWindowSamples = 882;
         private static float _latestRmsNormalized;
         private static int _sampleRate = 44100;
-        private static long _lastAudioFrameUtcTicks;
         private static double _agcPeak = 0.35;
         private static double _prevKickEnergy;
         private static double _prevSnareEnergy;
@@ -691,7 +731,16 @@ namespace VNotch.Controls
         private static double _snareAccent;
         private static double _prevRmsForBeat;
         private static double _beatAccent;
-        private static float _latestBeatAccent;
+
+        // ── Output publish (tiny critical section) ──
+        // The capture thread does ALL heavy work (mixing + FFT + spectral processing) on
+        // its own buffers with NO lock. It then publishes the few output values the UI
+        // render thread reads through this dedicated lock, so the lock is held for only a
+        // handful of microseconds (a 5-float copy) instead of across the whole FFT.
+        private static readonly object _outputLock = new object();
+        private static readonly float[] _publishedTargets = new float[BarCount];
+        private static float _publishedBeatAccent;
+        private static long _publishedFrameTicks;
 
         public static void ConfigureAudioDevice(string? deviceId)
         {
@@ -811,7 +860,6 @@ namespace VNotch.Controls
             _rmsSumSquares = 0;
             _rmsSampleCount = 0;
             _latestRmsNormalized = 0;
-            _lastAudioFrameUtcTicks = 0;
             _agcPeak = 0.35;
             _prevKickEnergy = 0;
             _prevSnareEnergy = 0;
@@ -819,7 +867,13 @@ namespace VNotch.Controls
             _snareAccent = 0;
             _prevRmsForBeat = 0;
             _beatAccent = 0;
-            _latestBeatAccent = 0;
+
+            lock (_outputLock)
+            {
+                Array.Clear(_publishedTargets, 0, _publishedTargets.Length);
+                _publishedBeatAccent = 0;
+                _publishedFrameTicks = 0;
+            }
         }
 
         private static void ResetRolePeaks()
@@ -833,9 +887,12 @@ namespace VNotch.Controls
 
         private static void OnAudioDataAvailable(object? sender, WaveInEventArgs e)
         {
-            if (_capture == null) return;
+            // Snapshot the capture reference so a concurrent StopAudioCapture (which nulls
+            // _capture) can't NRE us mid-callback.
+            var capture = _capture;
+            if (capture == null) return;
 
-            var waveFormat = _capture.WaveFormat;
+            var waveFormat = capture.WaveFormat;
             int bytesPerSample = waveFormat.BitsPerSample / 8;
             if (bytesPerSample <= 0)
             {
@@ -850,23 +907,26 @@ namespace VNotch.Controls
             int framesRecorded = e.BytesRecorded / bytesPerFrame;
             if (framesRecorded <= 0) return;
 
-            lock (_lockObj)
+            // No lock here: the FFT input buffer + all spectral processing state are owned
+            // exclusively by this (capture) thread. ComputeDisplayTargets publishes its
+            // result under _outputLock for the UI thread.
+            for (int frame = 0; frame < framesRecorded; frame++)
             {
-                for (int frame = 0; frame < framesRecorded; frame++)
+                int frameOffset = frame * bytesPerFrame;
+                double mixed = 0;
+
+                for (int ch = 0; ch < channels; ch++)
                 {
-                    int frameOffset = frame * bytesPerFrame;
-                    double mixed = 0;
-
-                    for (int ch = 0; ch < channels; ch++)
-                    {
-                        int sampleOffset = frameOffset + (ch * bytesPerSample);
-                        mixed += ReadSampleAsFloat(e.Buffer, sampleOffset, waveFormat);
-                    }
-
-                    PushSample((float)(mixed / channels));
+                    int sampleOffset = frameOffset + (ch * bytesPerSample);
+                    mixed += ReadSampleAsFloat(e.Buffer, sampleOffset, waveFormat);
                 }
 
-                _lastAudioFrameUtcTicks = DateTime.UtcNow.Ticks;
+                PushSample((float)(mixed / channels));
+            }
+
+            lock (_outputLock)
+            {
+                _publishedFrameTicks = DateTime.UtcNow.Ticks;
             }
         }
 
@@ -988,7 +1048,6 @@ namespace VNotch.Controls
             double beatDriver = (_kickAccent * 0.55) + (_snareAccent * 0.30) + (rmsHit * 0.35);
             double beatHit = Math.Clamp((beatDriver - BeatTransientThreshold) * BeatTransientGain, 0.0, 1.0);
             _beatAccent = Math.Max(beatHit, _beatAccent * BeatAccentDecay);
-            _latestBeatAccent = (float)_beatAccent;
 
             ApplySpectralContrast(ref subBass, ref bass, ref lowMid, ref mid, ref highMid, ref high, ref kick, ref snare, ref rms);
             melody = ExpandDynamicRange(melody);
@@ -1007,6 +1066,13 @@ namespace VNotch.Controls
             ApplyInstrumentRoleResponse(_displayTargets, rms);
             ApplyBarContrast(_displayTargets);
             NormalizeDisplayTargetsToMaxVisual(_displayTargets);
+
+            // Publish the finished frame for the UI thread (tiny critical section).
+            lock (_outputLock)
+            {
+                Array.Copy(_displayTargets, _publishedTargets, BarCount);
+                _publishedBeatAccent = (float)_beatAccent;
+            }
         }
 
         private static double ComputeBandEnergy(int fromHz, int toHz)
@@ -1271,14 +1337,14 @@ namespace VNotch.Controls
 
         private float[] GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent)
         {
-            lock (_lockObj)
+            lock (_outputLock)
             {
-                long ticks = _lastAudioFrameUtcTicks;
+                long ticks = _publishedFrameTicks;
                 hasFreshAudio = ticks != 0 &&
                     (DateTime.UtcNow.Ticks - ticks) <= TimeSpan.FromMilliseconds(FreshAudioTimeoutMs).Ticks;
-                beatAccent = _latestBeatAccent;
+                beatAccent = _publishedBeatAccent;
 
-                Array.Copy(_displayTargets, _levelsBuffer, BarCount);
+                Array.Copy(_publishedTargets, _levelsBuffer, BarCount);
                 return _levelsBuffer;
             }
         }
