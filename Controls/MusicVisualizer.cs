@@ -73,9 +73,10 @@ namespace VNotch.Controls
         private const double BarSpacingRatio = 0.05;
         private const double CornerRadiusRatio = 0.5;
 
-        private const double AlphaAttack = 0.56;
-        private const double AlphaRelease = 0.72;
-        private const double AlphaPauseRelease = 0.98;
+        // Higher = more inertia / slower glide. Tuned up for a slower, smoother Apple-style ease.
+        private const double AlphaAttack = 0.70;
+        private const double AlphaRelease = 0.84;
+        private const double AlphaPauseRelease = 0.985;
         private const double TauOpacity = 200;
         private const double CaptureRetryIntervalMs = 2500;
         private const double NoAudioPulseAmplitude = 0.05;
@@ -84,8 +85,8 @@ namespace VNotch.Controls
         private const double LegacyRhythmMaxMix = 0.25;
         private const double AudioPresenceThreshold = 0.0012;
         private const double DownwardDropBoost = 0.18;
-        private const double MinReleaseAlpha = 0.54;
-        private const double MotionContrast = 1.35;
+        private const double MinReleaseAlpha = 0.66;
+        private const double MotionContrast = 1.22;
         private const double LeftMiniBarSensitivity = 0.78;
         private const double RightBiasStrength = 0.12;
         private const double RightBiasDeadzone = 0.025;
@@ -413,10 +414,10 @@ namespace VNotch.Controls
         {
             uint hash = GetDeterministicHash(sid + index);
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
-            double freq = 0.22 + (hash % 15) / 100.0;
+            double freq = 0.13 + (hash % 15) / 200.0;
             double wavePrimary = 0.5 + 0.5 * Math.Sin((t * freq * Math.PI * 2) + phase);
             double waveSecondary = 0.5 + 0.5 * Math.Sin((t * (freq * 1.35) * Math.PI * 2) + (phase * 0.37));
-            double wave = (wavePrimary * 0.80) + (waveSecondary * 0.20);
+            double wave = (wavePrimary * 0.85) + (waveSecondary * 0.15);
             return NoAudioPulseBase + (wave * NoAudioPulseAmplitude);
         }
 
@@ -437,7 +438,7 @@ namespace VNotch.Controls
         {
             uint hash = GetDeterministicHash("floor:" + sid + index);
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
-            double freq = 0.58 + ((hash % 21) / 100.0) + (energy * 0.18);
+            double freq = 0.34 + ((hash % 21) / 200.0) + (energy * 0.12);
             double pulse = 0.5 + 0.5 * Math.Sin((t * freq * Math.PI * 2) + phase);
             double counterPulse = 0.5 + 0.5 * Math.Sin((t * (freq * 1.73) * Math.PI * 2) + (phase * 0.43));
             double motion = (pulse * 0.72) + (counterPulse * 0.28);
@@ -459,14 +460,14 @@ namespace VNotch.Controls
         {
             uint hash = GetDeterministicHash(sid + index);
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
-            double baseFreq = 0.35 + (hash % 18) / 100.0;
-            double speed = 0.40 + (energy * 0.22);
+            double baseFreq = 0.20 + (hash % 18) / 200.0;
+            double speed = 0.28 + (energy * 0.16);
 
             double value = Math.Sin((t * baseFreq * speed * Math.PI * 2) + phase) * 0.38;
-            value += Math.Sin((t * (0.22 + (energy * 0.16)) * Math.PI * 2) + (phase * 0.5)) * 0.18;
+            value += Math.Sin((t * (0.13 + (energy * 0.10)) * Math.PI * 2) + (phase * 0.5)) * 0.18;
             value += Math.Sin((t * (baseFreq * 0.32) * Math.PI * 2) + (phase * 1.7)) * 0.06;
 
-            double noiseRate = 0.7 + (energy * 0.9);
+            double noiseRate = 0.45 + (energy * 0.6);
             uint noiseSeed = GetDeterministicHash(sid + index + (int)Math.Floor(t * noiseRate));
             value += (((noiseSeed % 200) / 100.0) - 1.0) * (0.003 + (energy * 0.005));
 
@@ -531,7 +532,7 @@ namespace VNotch.Controls
         {
             // Frame-rate independent smoothing. Keep this responsive so each bar visibly moves
             // even when the incoming track has a narrow or heavily compressed spectrum.
-            double smoothingFactor = Math.Pow(0.46, _lastDtMs / ReferenceFrameMs);
+            double smoothingFactor = Math.Pow(0.56, _lastDtMs / ReferenceFrameMs);
             for (int i = 0; i < BarCount; i++)
             {
                 double targetSmoothing = smoothingFactor;
