@@ -49,6 +49,13 @@ public sealed class SmartThumbnailCropService : IDisposable
     private bool _modelExistsChecked;
     private InferenceSession? _cachedSession;
 
+    // ─── Idle auto-unload ───
+    // The YOLOv8n session is memory-heavy; release it after a period of inactivity.
+    // It transparently reloads on the next smart-crop request.
+    private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(5);
+    private DateTime _lastUsedUtc;
+    private System.Threading.Timer? _idleTimer;
+
     // COCO class IDs for multi-class priority: person > product > animal > background
     private static readonly HashSet<int> _personClasses = new() { 0 }; // person
     private static readonly HashSet<int> _animalClasses = new()
@@ -91,6 +98,38 @@ public sealed class SmartThumbnailCropService : IDisposable
         {
             _cachedSession?.Dispose();
             _cachedSession = null;
+            _idleTimer?.Dispose();
+            _idleTimer = null;
+        }
+    }
+
+    // Marks the session as used and ensures the idle-unload timer is running.
+    // Caller must hold _lock.
+    private void MarkSessionUsed()
+    {
+        _lastUsedUtc = DateTime.UtcNow;
+        _idleTimer ??= new System.Threading.Timer(OnIdleCheck, null, IdleTimeout, IdleTimeout);
+    }
+
+    private void OnIdleCheck(object? state)
+    {
+        lock (_lock)
+        {
+            if (_cachedSession == null)
+            {
+                _idleTimer?.Dispose();
+                _idleTimer = null;
+                return;
+            }
+
+            if (DateTime.UtcNow - _lastUsedUtc >= IdleTimeout)
+            {
+                _cachedSession.Dispose();
+                _cachedSession = null;
+                _idleTimer?.Dispose();
+                _idleTimer = null;
+                VNotch.Services.RuntimeLog.Log("SMART-CROP", "Session unloaded after idle timeout");
+            }
         }
     }
 
@@ -121,6 +160,8 @@ public sealed class SmartThumbnailCropService : IDisposable
                     options.EnableCpuMemArena = true;
                     _cachedSession = new InferenceSession(GetModelPath(), options);
                 }
+
+                MarkSessionUsed();
 
                 int requiredLength = 1 * 3 * ModelInputSize * ModelInputSize;
                 tensorBuffer = ArrayPool<float>.Shared.Rent(requiredLength);
@@ -254,6 +295,8 @@ public sealed class SmartThumbnailCropService : IDisposable
                     _cachedSession = new InferenceSession(GetModelPath(), options);
                     System.Diagnostics.Debug.WriteLine("[SmartCrop] Model loaded (cached session).");
                 }
+
+                MarkSessionUsed();
 
                 int requiredLength = 1 * 3 * ModelInputSize * ModelInputSize;
                 tensorBuffer = ArrayPool<float>.Shared.Rent(requiredLength);
@@ -982,6 +1025,8 @@ public sealed class SmartThumbnailCropService : IDisposable
         _disposed = true;
         lock (_lock)
         {
+            _idleTimer?.Dispose();
+            _idleTimer = null;
             _cachedSession?.Dispose();
             _cachedSession = null;
         }
