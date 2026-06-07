@@ -315,9 +315,9 @@ public partial class MainWindow
                 out _inputSetVol, out _inputDeviceLabel));
 
             AudioRoot.Children.Add(BuildSectionHeader("System", _audioSystemExpanded,
-                showVolumeLabel: true, deviceLabel: "Device", out var sysChevron, out var sysClick, topMargin: 0));
+                showVolumeLabel: true, deviceLabel: "Device", out var sysChevron, out var sysClick, out var sysLabels, topMargin: 0));
             AudioRoot.Children.Add(systemRows);
-            WireSectionToggle(sysClick, sysChevron, () => _audioSystemExpanded, v => _audioSystemExpanded = v, systemRows);
+            WireSectionToggle(sysClick, sysChevron, () => _audioSystemExpanded, v => _audioSystemExpanded = v, systemRows, sysLabels);
 
             // ── Applications section ──
             var appRows = new StackPanel { ClipToBounds = true, Visibility = _audioAppsExpanded ? Visibility.Visible : Visibility.Collapsed };
@@ -333,9 +333,9 @@ public partial class MainWindow
             }
 
             AudioRoot.Children.Add(BuildSectionHeader("Applications", _audioAppsExpanded,
-                showVolumeLabel: false, deviceLabel: "Redirect Audio To", out var appChevron, out var appClick, topMargin: 14));
+                showVolumeLabel: false, deviceLabel: "Redirect Audio To", out var appChevron, out var appClick, out var appLabels, topMargin: 14));
             AudioRoot.Children.Add(appRows);
-            WireSectionToggle(appClick, appChevron, () => _audioAppsExpanded, v => _audioAppsExpanded = v, appRows);
+            WireSectionToggle(appClick, appChevron, () => _audioAppsExpanded, v => _audioAppsExpanded = v, appRows, appLabels);
         }
         catch (Exception ex)
         {
@@ -372,18 +372,18 @@ public partial class MainWindow
     }
 
     // Collapse/expand a section with a height + fade animation and a rotating chevron.
-    private void WireSectionToggle(FrameworkElement clickTarget, RotateTransform chevron, Func<bool> get, Action<bool> set, StackPanel rows)
+    private void WireSectionToggle(FrameworkElement clickTarget, RotateTransform chevron, Func<bool> get, Action<bool> set, StackPanel rows, List<FrameworkElement> columnLabels)
     {
         clickTarget.MouseLeftButtonDown += (_, e) =>
         {
             e.Handled = true;
             bool next = !get();
             set(next);
-            AnimateSectionToggle(rows, chevron, next);
+            AnimateSectionToggle(rows, chevron, columnLabels, next);
         };
     }
 
-    private void AnimateSectionToggle(StackPanel rows, RotateTransform chevron, bool expand)
+    private void AnimateSectionToggle(StackPanel rows, RotateTransform chevron, List<FrameworkElement> columnLabels, bool expand)
     {
         int fps = AnimationConfig.TargetFps;
         var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut };
@@ -393,6 +393,27 @@ public partial class MainWindow
         var rotAnim = new DoubleAnimation(chevron.Angle, expand ? 0 : -90, dur) { EasingFunction = ease };
         Timeline.SetDesiredFrameRate(rotAnim, fps);
         chevron.BeginAnimation(RotateTransform.AngleProperty, rotAnim);
+
+        // Fade the column header labels (Volume / Device / Redirect Audio To) with the section so
+        // a collapsed category shows only its title + chevron, not the dangling column headers.
+        if (columnLabels != null)
+        {
+            foreach (var lbl in columnLabels)
+            {
+                lbl.BeginAnimation(OpacityProperty, null);
+                if (expand) lbl.Visibility = Visibility.Visible;
+                var lblFade = new DoubleAnimation(lbl.Opacity, expand ? 1 : 0, dur) { EasingFunction = ease };
+                Timeline.SetDesiredFrameRate(lblFade, fps);
+                var captured = lbl;
+                lblFade.Completed += (_, _) =>
+                {
+                    captured.BeginAnimation(OpacityProperty, null);
+                    captured.Opacity = expand ? 1 : 0;
+                    if (!expand) captured.Visibility = Visibility.Collapsed;
+                };
+                lbl.BeginAnimation(OpacityProperty, lblFade);
+            }
+        }
 
         rows.BeginAnimation(HeightProperty, null);
         rows.BeginAnimation(OpacityProperty, null);
@@ -492,10 +513,11 @@ public partial class MainWindow
 
     private FrameworkElement BuildSectionHeader(string title, bool expanded,
         bool showVolumeLabel, string deviceLabel, out RotateTransform chevronTransform,
-        out FrameworkElement clickTarget, double topMargin = 0)
+        out FrameworkElement clickTarget, out List<FrameworkElement> columnLabels, double topMargin = 0)
     {
         var grid = NewRowGrid();
         grid.Margin = new Thickness(0, topMargin, 0, 6);
+        columnLabels = new List<FrameworkElement>();
 
         // Chevron + title
         var titlePanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Background = Brushes.Transparent };
@@ -527,13 +549,19 @@ public partial class MainWindow
         if (showVolumeLabel)
         {
             var vol = ColumnLabel("Volume");
+            vol.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            vol.Opacity = expanded ? 1 : 0;
             Grid.SetColumn(vol, 1);
             grid.Children.Add(vol);
+            columnLabels.Add(vol);
         }
 
         var dev = ColumnLabel(deviceLabel);
+        dev.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        dev.Opacity = expanded ? 1 : 0;
         Grid.SetColumn(dev, 3);
         grid.Children.Add(dev);
+        columnLabels.Add(dev);
 
         return grid;
     }
@@ -834,7 +862,9 @@ public partial class MainWindow
             BorderThickness = new Thickness(1),
             Padding = new Thickness(8, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            // Stretch so every pill fills the device column at a uniform width (short labels like
+            // "No Redirect" would otherwise shrink and hug the right edge).
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             MaxWidth = ColDevice,
             Margin = new Thickness(0, 0, 6, 0),
             Cursor = interactive ? Cursors.Hand : Cursors.Arrow

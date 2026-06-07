@@ -44,6 +44,22 @@ public partial class MainWindow
         ExpandedContent.RenderTransform = restY != 0 ? new TranslateTransform(0, restY) : null;
     }
 
+    /// <summary>
+    /// Forces ExpandedContent to a final, measured layout and recomputes its width-dependent
+    /// sub-layouts (progress section + media marquee) before a return-to-main-view reveal or its
+    /// BitmapCache snapshot. Without this the progress bar and title/artist marquee — both derived
+    /// from MediaWidgetContainer.ActualWidth — are revealed at stale positions for a frame and jump.
+    /// </summary>
+    private void PrepareExpandedContentLayoutForReveal()
+    {
+        if (ExpandedContent == null) return;
+
+        ExpandedContent.UpdateLayout();
+        UpdateProgressSectionLayout();
+        RefreshMediaMarquee();
+        ExpandedContent.UpdateLayout();
+    }
+
     private double GetCurrentExpandedContentTranslationY()
     {
         if (ExpandedContent == null) return 0;

@@ -20,6 +20,16 @@ internal static class AnimationPrimitives
     public static readonly ElasticEase _easeThumbSpring = Freeze(new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 6.5 });
     public static readonly SineEase _easeSineInOut = Freeze(new SineEase { EasingMode = EasingMode.EaseInOut });
     public static readonly ElasticEase _easeHapticBounce = Freeze(new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 });
+    public static readonly CubicBezierEase _easeAppleOut =
+        Freeze(new CubicBezierEase(0.32, 0.72, 0.0, 1.0) { EasingMode = EasingMode.EaseIn });
+
+    // Symmetric ease-in-out for crossfades / size changes.
+    public static readonly CubicBezierEase _easeAppleInOut =
+        Freeze(new CubicBezierEase(0.4, 0.0, 0.2, 1.0) { EasingMode = EasingMode.EaseIn });
+
+    // Quick exit curve for outgoing content.
+    public static readonly CubicBezierEase _easeAppleIn =
+        Freeze(new CubicBezierEase(0.4, 0.0, 1.0, 1.0) { EasingMode = EasingMode.EaseIn });
 
     private static T Freeze<T>(T easing) where T : Freezable
     {
@@ -88,4 +98,55 @@ internal static class AnimationPrimitives
     }
 
     #endregion
+}
+
+internal sealed class CubicBezierEase : EasingFunctionBase
+{
+    public double X1 { get; set; }
+    public double Y1 { get; set; }
+    public double X2 { get; set; }
+    public double Y2 { get; set; }
+
+    public CubicBezierEase() { }
+
+    public CubicBezierEase(double x1, double y1, double x2, double y2)
+    {
+        X1 = x1; Y1 = y1; X2 = x2; Y2 = y2;
+    }
+
+    protected override double EaseInCore(double normalizedTime)
+    {
+        double x = normalizedTime <= 0 ? 0 : (normalizedTime >= 1 ? 1 : normalizedTime);
+        double t = SolveForT(x);
+        return Sample(t, Y1, Y2);
+    }
+
+    // Newton-Raphson from the input as the initial guess; clamped against degenerate points.
+    private double SolveForT(double x)
+    {
+        double t = x;
+        for (int i = 0; i < 8; i++)
+        {
+            double error = Sample(t, X1, X2) - x;
+            if (error > -1e-5 && error < 1e-5) break;
+            double slope = Derivative(t, X1, X2);
+            if (slope > -1e-6 && slope < 1e-6) break;
+            t -= error / slope;
+        }
+        return t < 0 ? 0 : (t > 1 ? 1 : t);
+    }
+
+    private static double Sample(double t, double p1, double p2)
+    {
+        double mt = 1 - t;
+        return (3 * mt * mt * t * p1) + (3 * mt * t * t * p2) + (t * t * t);
+    }
+
+    private static double Derivative(double t, double p1, double p2)
+    {
+        double mt = 1 - t;
+        return (3 * mt * mt * p1) + (6 * mt * t * (p2 - p1)) + (3 * t * t * (1 - p2));
+    }
+
+    protected override Freezable CreateInstanceCore() => new CubicBezierEase(X1, Y1, X2, Y2);
 }

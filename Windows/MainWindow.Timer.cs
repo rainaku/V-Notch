@@ -98,9 +98,9 @@ public partial class MainWindow
         PrepareClockViewContentSize();
         RefreshClockView();
 
-        var durOut = new Duration(TimeSpan.FromMilliseconds(180));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(480));
-        var inDelay = TimeSpan.FromMilliseconds(50);
+        var durOut = new Duration(TimeSpan.FromMilliseconds(170));
+        var durIn = new Duration(TimeSpan.FromMilliseconds(440));
+        var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         var primaryGroup = new TransformGroup();
@@ -111,17 +111,17 @@ public partial class MainWindow
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeOut = MakeAnim(1, 0, durOut, _easeQuadIn);
-        var slideUp = MakeAnim(ExpandedContentRestY, ExpandedContentRestY - 16, durOut, _easeQuadIn);
-        var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
-        var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
+        var fadeOut = MakeAnim(1, 0, durOut, _easeAppleIn);
+        var slideUp = MakeAnim(ExpandedContentRestY, ExpandedContentRestY - 10, durOut, _easeAppleIn);
+        var scaleDownX = MakeAnim(1, 0.96, durOut, _easeAppleIn);
+        var scaleDownY = MakeAnim(1, 0.96, durOut, _easeAppleIn);
         Timeline.SetDesiredFrameRate(slideUp, fps);
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
         var expandedBlur = ExpandedContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         ExpandedContent.Effect = expandedBlur;
-        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 10 : 0, durOut, _easeQuadIn);
+        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 6 : 0, durOut, _easeAppleIn);
 
         fadeOut.Completed += (s, ev) =>
         {
@@ -141,17 +141,17 @@ public partial class MainWindow
         TimerContent.Opacity = 0;
 
         var timerGroup = new TransformGroup();
-        var timerScale = new ScaleTransform(0.93, 0.93);
-        var timerTranslate = new TranslateTransform(0, 26);
+        var timerScale = new ScaleTransform(0.96, 0.96);
+        var timerTranslate = new TranslateTransform(0, 16);
         timerGroup.Children.Add(timerScale);
         timerGroup.Children.Add(timerTranslate);
         TimerContent.RenderTransform = timerGroup;
         TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
-        var springSlide = MakeAnim(26, 0, durIn, _easeExpOut7, inDelay);
-        var springScaleX = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
-        var springScaleY = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
+        var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
+        var springSlide = MakeAnim(16, 0, durIn, _easeAppleOut, inDelay);
+        var springScaleX = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
+        var springScaleY = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
         Timeline.SetDesiredFrameRate(fadeIn, fps);
         Timeline.SetDesiredFrameRate(springSlide, fps);
         Timeline.SetDesiredFrameRate(springScaleX, fps);
@@ -214,9 +214,9 @@ public partial class MainWindow
         PrepareClockViewContentSize();
         RefreshClockView();
 
-        var durOut = new Duration(TimeSpan.FromMilliseconds(180));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(480));
-        var inDelay = TimeSpan.FromMilliseconds(50);
+        var durOut = new Duration(TimeSpan.FromMilliseconds(170));
+        var durIn = new Duration(TimeSpan.FromMilliseconds(440));
+        var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         var secondaryGroup = new TransformGroup();
@@ -227,17 +227,17 @@ public partial class MainWindow
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeOut = MakeAnim(1, 0, durOut, _easeQuadIn);
-        var slideUp = MakeAnim(0, -16, durOut, _easeQuadIn);
-        var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
-        var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
+        var fadeOut = MakeAnim(1, 0, durOut, _easeAppleIn);
+        var slideUp = MakeAnim(0, -10, durOut, _easeAppleIn);
+        var scaleDownX = MakeAnim(1, 0.96, durOut, _easeAppleIn);
+        var scaleDownY = MakeAnim(1, 0.96, durOut, _easeAppleIn);
         Timeline.SetDesiredFrameRate(slideUp, fps);
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
         var secondaryBlur = SecondaryContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         SecondaryContent.Effect = secondaryBlur;
-        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 10 : 0, durOut, _easeQuadIn);
+        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 6 : 0, durOut, _easeAppleIn);
 
         fadeOut.Completed += (s, ev) =>
         {
@@ -257,17 +257,17 @@ public partial class MainWindow
         TimerContent.Opacity = 0;
 
         var timerGroup = new TransformGroup();
-        var timerScale = new ScaleTransform(0.93, 0.93);
-        var timerTranslate = new TranslateTransform(0, 26);
+        var timerScale = new ScaleTransform(0.96, 0.96);
+        var timerTranslate = new TranslateTransform(0, 16);
         timerGroup.Children.Add(timerScale);
         timerGroup.Children.Add(timerTranslate);
         TimerContent.RenderTransform = timerGroup;
         TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
-        var springSlide = MakeAnim(26, 0, durIn, _easeExpOut7, inDelay);
-        var springScaleX = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
-        var springScaleY = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
+        var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
+        var springSlide = MakeAnim(16, 0, durIn, _easeAppleOut, inDelay);
+        var springScaleX = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
+        var springScaleY = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
         Timeline.SetDesiredFrameRate(fadeIn, fps);
         Timeline.SetDesiredFrameRate(springSlide, fps);
         Timeline.SetDesiredFrameRate(springScaleX, fps);
@@ -319,7 +319,7 @@ public partial class MainWindow
         NotchBorder.IsHitTestVisible = false;
 
         var durScroll = new Duration(TimeSpan.FromMilliseconds(420));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(480));
+        var durIn = new Duration(TimeSpan.FromMilliseconds(440));
         var inDelay = TimeSpan.FromMilliseconds(30);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
@@ -366,6 +366,9 @@ public partial class MainWindow
         ExpandedContent.UseLayoutRounding = false;
         ExpandedContent.UpdateLayout();
 
+        // Recompute progress bar + marquee at the final width so they don't jump into the reveal.
+        PrepareExpandedContentLayoutForReveal();
+
         // Restore progress bar gradient & tint colors immediately so they're visible
         // during the fade-in (blur background will fade in after animation completes).
         if (_currentMediaInfo?.Thumbnail != null && _currentMediaInfo.IsAnyMediaPlaying)
@@ -384,12 +387,12 @@ public partial class MainWindow
             ProgressBarGradientEnd.Color = darkColor;
         }
 
-        var primaryTranslate = new TranslateTransform(0, ExpandedContentRestY - 36);
+        var primaryTranslate = new TranslateTransform(0, ExpandedContentRestY - 16);
         ExpandedContent.RenderTransform = primaryTranslate;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var primarySlideDown = MakeAnim(ExpandedContentRestY - 36, ExpandedContentRestY, durIn, _easeExpOut7, inDelay);
-        var primaryFadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
+        var primarySlideDown = MakeAnim(ExpandedContentRestY - 16, ExpandedContentRestY, durIn, _easeAppleOut, inDelay);
+        var primaryFadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
         Timeline.SetDesiredFrameRate(primarySlideDown, fps);
         Timeline.SetDesiredFrameRate(primaryFadeIn, fps);
 
@@ -456,9 +459,9 @@ public partial class MainWindow
         UpdateNavIconsActiveState();
         NotchBorder.IsHitTestVisible = false;
 
-        var durOut = new Duration(TimeSpan.FromMilliseconds(180));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(480));
-        var inDelay = TimeSpan.FromMilliseconds(50);
+        var durOut = new Duration(TimeSpan.FromMilliseconds(170));
+        var durIn = new Duration(TimeSpan.FromMilliseconds(440));
+        var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
         var timerGroup = new TransformGroup();
@@ -469,17 +472,17 @@ public partial class MainWindow
         TimerContent.RenderTransform = timerGroup;
         TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeOut = MakeAnim(1, 0, durOut, _easeQuadIn);
-        var slideUp = MakeAnim(0, -16, durOut, _easeQuadIn);
-        var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
-        var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
+        var fadeOut = MakeAnim(1, 0, durOut, _easeAppleIn);
+        var slideUp = MakeAnim(0, -10, durOut, _easeAppleIn);
+        var scaleDownX = MakeAnim(1, 0.96, durOut, _easeAppleIn);
+        var scaleDownY = MakeAnim(1, 0.96, durOut, _easeAppleIn);
         Timeline.SetDesiredFrameRate(slideUp, fps);
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
         var timerBlur = TimerContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
         TimerContent.Effect = timerBlur;
-        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 10 : 0, durOut, _easeQuadIn);
+        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 6 : 0, durOut, _easeAppleIn);
 
         fadeOut.Completed += (s, ev) =>
         {
@@ -500,17 +503,17 @@ public partial class MainWindow
         EnableKeyboardInput();
 
         var secondaryGroup = new TransformGroup();
-        var secondaryScale = new ScaleTransform(0.93, 0.93);
-        var secondaryTranslate = new TranslateTransform(0, 26);
+        var secondaryScale = new ScaleTransform(0.96, 0.96);
+        var secondaryTranslate = new TranslateTransform(0, 16);
         secondaryGroup.Children.Add(secondaryScale);
         secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
-        var springSlide = MakeAnim(26, 0, durIn, _easeExpOut7, inDelay);
-        var springScaleX = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
-        var springScaleY = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
+        var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
+        var springSlide = MakeAnim(16, 0, durIn, _easeAppleOut, inDelay);
+        var springScaleX = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
+        var springScaleY = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
         Timeline.SetDesiredFrameRate(fadeIn, fps);
         Timeline.SetDesiredFrameRate(springSlide, fps);
         Timeline.SetDesiredFrameRate(springScaleX, fps);

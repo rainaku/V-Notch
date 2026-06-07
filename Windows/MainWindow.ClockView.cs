@@ -308,8 +308,8 @@ public partial class MainWindow
         NotchBorder.Width = fromWidth;
         NotchBorder.Height = fromHeight;
 
-        var widthAnim = MakeAnim(fromWidth, toWidth, duration, _easeExpOut6, delay);
-        var heightAnim = MakeAnim(fromHeight, toHeight, duration, _easeExpOut6, delay);
+        var widthAnim = MakeAnim(fromWidth, toWidth, duration, _easeAppleOut, delay);
+        var heightAnim = MakeAnim(fromHeight, toHeight, duration, _easeAppleOut, delay);
         Timeline.SetDesiredFrameRate(widthAnim, fps);
         Timeline.SetDesiredFrameRate(heightAnim, fps);
 

@@ -265,9 +265,19 @@ public partial class MainWindow
         AnimateAudioViewSwap(
             AudioContent, SecondaryContent,
             fromW, fromH, _expandedWidth, _expandedHeight,
-            prepIncoming: () => EnableKeyboardInput(),
+            prepIncoming: () =>
+            {
+                EnableKeyboardInput();
+                // SecondaryContent uses star-sized columns; pin its settled width so the right-edge
+                // pin during the notch shrink doesn't collapse the columns and squish the layout.
+                SecondaryContent.Width = _expandedWidth
+                    - SecondaryContent.Margin.Left - SecondaryContent.Margin.Right;
+            },
             onComplete: () =>
             {
+                // Notch width is fixed again — return to Stretch sizing so it fills the notch.
+                SecondaryContent.Width = double.NaN;
+                SecondaryContent.UpdateLayout();
                 RestoreExpandedWindowSize();
                 ResetCameraSectionLayoutInstant();
             });
@@ -310,9 +320,9 @@ public partial class MainWindow
     {
         NotchBorder.IsHitTestVisible = false;
 
-        var durOut = new Duration(TimeSpan.FromMilliseconds(180));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(480));
-        var inDelay = TimeSpan.FromMilliseconds(50);
+        var durOut = new Duration(TimeSpan.FromMilliseconds(170));
+        var durIn = new Duration(TimeSpan.FromMilliseconds(440));
+        var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = AnimationConfig.TargetFps;
 
         bool outIsAudio = ReferenceEquals(outgoing, AudioContent);
@@ -331,10 +341,10 @@ public partial class MainWindow
             outgoing.RenderTransform = closeGroup;
             outgoing.RenderTransformOrigin = new Point(0.5, 0.4);
 
-            var aFade = MakeAnim(1, 0, durOut, _easeQuadIn);
-            var aSlide = MakeAnim(0, 18, durOut, _easeQuadIn);
-            var aScaleX = MakeAnim(1, 0.96, durOut, _easeQuadIn);
-            var aScaleY = MakeAnim(1, 0.96, durOut, _easeQuadIn);
+            var aFade = MakeAnim(1, 0, durOut, _easeAppleIn);
+            var aSlide = MakeAnim(0, 12, durOut, _easeAppleIn);
+            var aScaleX = MakeAnim(1, 0.97, durOut, _easeAppleIn);
+            var aScaleY = MakeAnim(1, 0.97, durOut, _easeAppleIn);
             Timeline.SetDesiredFrameRate(aSlide, fps);
             Timeline.SetDesiredFrameRate(aScaleX, fps);
             Timeline.SetDesiredFrameRate(aScaleY, fps);
@@ -366,17 +376,17 @@ public partial class MainWindow
             outgoing.RenderTransform = outGroup;
             outgoing.RenderTransformOrigin = new Point(0.5, 0.5);
 
-            var fadeOut = MakeAnim(1, 0, durOut, _easeQuadIn);
-            var slideUp = MakeAnim(outRestY, outRestY - 16, durOut, _easeQuadIn);
-            var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
-            var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
+            var fadeOut = MakeAnim(1, 0, durOut, _easeAppleIn);
+            var slideUp = MakeAnim(outRestY, outRestY - 10, durOut, _easeAppleIn);
+            var scaleDownX = MakeAnim(1, 0.96, durOut, _easeAppleIn);
+            var scaleDownY = MakeAnim(1, 0.96, durOut, _easeAppleIn);
             Timeline.SetDesiredFrameRate(slideUp, fps);
             Timeline.SetDesiredFrameRate(scaleDownX, fps);
             Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
             var outBlur = outgoing.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
             outgoing.Effect = outBlur;
-            var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 10 : 0, durOut, _easeQuadIn);
+            var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 6 : 0, durOut, _easeAppleIn);
 
             fadeOut.Completed += (s, e) =>
             {
@@ -405,7 +415,7 @@ public partial class MainWindow
             // the fade is a cheap bitmap blend instead of re-rasterizing every frame.
             incoming.RenderTransform = null;
             incoming.CacheMode = new BitmapCache();
-            var aFadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
+            var aFadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
             Timeline.SetDesiredFrameRate(aFadeIn, fps);
             aFadeIn.Completed += (s, e) =>
             {
@@ -433,22 +443,27 @@ public partial class MainWindow
                 incoming.UpdateLayout();
             }
 
+            // Returning to the main view: settle progress bar + marquee at the final width so they
+            // don't land at a stale position for a frame and jump.
+            if (ReferenceEquals(incoming, ExpandedContent))
+                PrepareExpandedContentLayoutForReveal();
+
             // Primary content rests with a small downward offset in Dynamic Island mode;
             // settle the spring there (not at 0) so it matches a fresh expand.
             double restY = ReferenceEquals(incoming, ExpandedContent) ? ExpandedContentRestY : 0;
 
             var inGroup = new TransformGroup();
-            var inScale = new ScaleTransform(0.93, 0.93);
-            var inTranslate = new TranslateTransform(0, 26 + restY);
+            var inScale = new ScaleTransform(0.96, 0.96);
+            var inTranslate = new TranslateTransform(0, 16 + restY);
             inGroup.Children.Add(inScale);
             inGroup.Children.Add(inTranslate);
             incoming.RenderTransform = inGroup;
             incoming.RenderTransformOrigin = new Point(0.5, 0.5);
 
-            var fadeIn = MakeAnim(0, 1, durIn, _easeExpOut6, inDelay);
-            var springSlide = MakeAnim(26 + restY, restY, durIn, _easeExpOut7, inDelay);
-            var springScaleX = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
-            var springScaleY = MakeAnim(0.93, 1, durIn, _easeSoftSpring, inDelay);
+            var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
+            var springSlide = MakeAnim(16 + restY, restY, durIn, _easeAppleOut, inDelay);
+            var springScaleX = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
+            var springScaleY = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
             Timeline.SetDesiredFrameRate(fadeIn, fps);
             Timeline.SetDesiredFrameRate(springSlide, fps);
             Timeline.SetDesiredFrameRate(springScaleX, fps);

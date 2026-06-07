@@ -85,14 +85,15 @@ public partial class MainWindow
         if (isHovered)
         {
             CompactHoverInfo.Visibility = Visibility.Visible;
+
+            // Finalize layout so the title container width and (custom font) text metrics are set
+            // before centering, otherwise the title visibly jumps once layout settles.
+            CompactHoverInfo.UpdateLayout();
             UpdateCompactMarquee();
-            widthAnim.Completed += (s, e) =>
-            {
-                if (!_isExpanded && !_isAnimating && _isMusicCompactMode)
-                {
-                    UpdateCompactMarquee();
-                }
-            };
+
+            // Re-validate on the next layout tick (width is already pinned) so any tiny correction
+            // happens during the fade-in instead of as a jerk at the end of the width animation.
+            QueueCompactMarqueeRefresh();
         }
 
         var fadeAnim = MakeAnim(
