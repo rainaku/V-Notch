@@ -136,6 +136,44 @@ public partial class MainWindow
     }
 
     // Lightweight live poll: refresh only volume positions (no icons/device lists) so the
+    // One-shot, high-priority volume sync used right when the mixer opens. Unlike the
+    // periodic PollAudioVolumes it is NOT gated by _isAnimating and patches at Render
+    // priority, so the sliders reflect the current system volume immediately (e.g. after the
+    // compact volume bar was scrolled) instead of lagging behind the open animation / the
+    // slower icon-enriched refresh.
+    private void SyncAudioVolumesImmediate()
+    {
+        if (!_isAudioView) return;
+
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            var sessions = SafeCall(() => AudioMixer.GetSessions(includeIcons: false)) ?? new();
+            float capture = SafeCall(() => AudioMixer.GetCaptureVolume());
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_isAudioView) return;
+
+                if (_outputSetVol != null && MasterVolume.IsAvailable) _outputSetVol(MasterVolume.GetVolume());
+                if (_inputSetVol != null) _inputSetVol(capture);
+
+                foreach (var s in sessions)
+                {
+                    if (s.IsSystemSounds) continue;
+                    if (_appRows.TryGetValue(s.ProcessId, out var h))
+                        h.SetVol(s.IsMuted ? 0 : s.Volume);
+
+                    if (_lastAudioSnapshot != null)
+                    {
+                        var c = _lastAudioSnapshot.Sessions.Find(x => x.ProcessId == s.ProcessId);
+                        if (c != null) { c.Volume = s.Volume; c.IsMuted = s.IsMuted; }
+                    }
+                }
+                if (_lastAudioSnapshot != null) _lastAudioSnapshot.Capture = capture;
+            }), System.Windows.Threading.DispatcherPriority.Render);
+        });
+    }
+
     // bars track external changes quickly, without rebuilding or re-enumerating icons.
     private void PollAudioVolumes()
     {
@@ -181,7 +219,7 @@ public partial class MainWindow
                     // App started/stopped audio — full refresh so rows are added/removed.
                     RefreshAudioData();
                 }
-            }), System.Windows.Threading.DispatcherPriority.Background);
+            }), System.Windows.Threading.DispatcherPriority.Render);
         });
     }
 

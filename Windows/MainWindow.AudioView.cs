@@ -161,6 +161,7 @@ public partial class MainWindow
             },
             onComplete: null);
         RefreshAudioData();
+        SyncAudioVolumesImmediate();
         StartAudioPoll();
     }
 
