@@ -162,15 +162,22 @@ namespace VNotch.Controls
                 UpdateRenderingState();
                 if (_state == VisualizerState.Idle)
                 {
+                    // No track at all — safe to drop capture immediately.
                     StopAudioCapture();
                 }
             }
 
-            if (_state != VisualizerState.Idle)
+            if (ShouldCaptureAudio)
             {
                 EnsureAudioCaptureStarted(force: oldState != _state);
             }
         }
+
+        // Live audio capture (and its background FFT) is only worth running while the bars
+        // actually react to sound. On pause we keep it briefly so the bars can settle
+        // smoothly, then release it once the settle animation finishes (see OnRendering).
+        private bool ShouldCaptureAudio =>
+            _state == VisualizerState.Playing || _state == VisualizerState.Seeking;
 
         private void UpdateRenderingState()
         {
@@ -213,11 +220,14 @@ namespace VNotch.Controls
             _lastDtMs = dt * 1000.0;
             bool isSettled = UpdateAnimation(dt, totalSec);
 
-            // When paused and animation has settled, stop rendering to save CPU
+            // When paused and animation has settled, stop rendering to save CPU.
+            // Release the audio capture here too (not at the pause transition) so the bars
+            // can fall smoothly with the real audio tail before we cut the FFT.
             if (isSettled && _state == VisualizerState.Paused)
             {
                 InvalidateVisual();
                 StopRendering();
+                StopAudioCapture();
                 return;
             }
 
@@ -467,7 +477,7 @@ namespace VNotch.Controls
 
         private void EnsureAudioCaptureStarted(bool force = false)
         {
-            if (_state == VisualizerState.Idle) return;
+            if (!ShouldCaptureAudio) return;
             if (_capture != null) return;
 
             var now = DateTime.UtcNow;
