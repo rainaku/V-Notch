@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -12,8 +14,18 @@ using Windows.Storage.FileProperties;
 namespace VNotch.Services;
 internal static class FileIconProvider
 {
-    private static readonly ConcurrentDictionary<string, ImageSource?> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+    private sealed class CacheEntry
+    {
+        public ImageSource? Icon;
+        public long LastAccess;
+    }
+
+    private static readonly ConcurrentDictionary<string, CacheEntry> _iconCache = new(StringComparer.OrdinalIgnoreCase);
     private const int MaxCacheSize = 200;
+    // Monotonic clock used to order entries by recency of access.
+    private static long _accessCounter;
+    // Serializes eviction so multiple threads don't trim concurrently.
+    private static readonly object _evictLock = new();
 
     public static void Invalidate(string filePath) => _iconCache.TryRemove(filePath, out _);
 
@@ -54,15 +66,19 @@ public static ImageSource? GetFileIcon(string filePath)
     {
         // Fast path: return cached icon without any I/O
         if (_iconCache.TryGetValue(filePath, out var cached))
-            return cached;
+        {
+            cached.LastAccess = Interlocked.Increment(ref _accessCounter);
+            return cached.Icon;
+        }
 
         try
         {
             if (!File.Exists(filePath)) return null;
 
-            // Prevent unbounded growth
+            // Keep the cache bounded by evicting the least-recently-used entries
+            // instead of clearing everything (avoids CPU spikes and icon flicker).
             if (_iconCache.Count >= MaxCacheSize)
-                _iconCache.Clear();
+                EvictOldest();
 
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
             bool isImage = ext is ".jpg" or ".jpeg" or ".png" or ".bmp" or ".gif";
@@ -87,12 +103,36 @@ public static ImageSource? GetFileIcon(string filePath)
 
             result ??= TryGetAssociatedIcon(filePath);
 
-            _iconCache[filePath] = result;
+            _iconCache[filePath] = new CacheEntry
+            {
+                Icon = result,
+                LastAccess = Interlocked.Increment(ref _accessCounter)
+            };
             return result;
         }
         catch
         {
             return null;
+        }
+    }
+
+    // Removes roughly the oldest 25% of entries by last-access time.
+    private static void EvictOldest()
+    {
+        lock (_evictLock)
+        {
+            // Another thread may have already evicted while we waited on the lock.
+            if (_iconCache.Count < MaxCacheSize) return;
+
+            int removeCount = Math.Max(1, MaxCacheSize / 4);
+            var oldest = _iconCache
+                .OrderBy(kvp => kvp.Value.LastAccess)
+                .Take(removeCount)
+                .Select(kvp => kvp.Key)
+                .ToArray();
+
+            foreach (var key in oldest)
+                _iconCache.TryRemove(key, out _);
         }
     }
 
