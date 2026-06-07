@@ -349,7 +349,7 @@ public partial class MainWindow
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
         ExpandedContent.Width = _expandedWidth - 16;
-        ExpandedContent.Height = _expandedHeight - 2;
+        ExpandedContent.Height = _expandedHeight - 10;
         // The notch is still at the wide clock-view width (600) and only animates down to
         // _expandedWidth over this transition. ExpandedContent has a FIXED width (no per-frame
         // reflow), so by default (Stretch) it gets CENTERED inside the wide notch — which leaves

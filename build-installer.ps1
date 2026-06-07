@@ -5,8 +5,23 @@
 # Use -SelfContained to bundle the runtime so the app runs on a clean machine
 # without installing .NET separately (larger installer).
 param(
-    [switch]$SelfContained
+    [switch]$SelfContained,
+    # Optional version override (e.g. injected from a git tag by CI).
+    # When empty, the version baked into V-Notch.csproj is used.
+    [string]$Version = ''
 )
+
+# Build a list of -p:Version arguments only when an override is supplied.
+$versionArgs = @()
+if ($Version) {
+    $versionArgs = @(
+        "-p:Version=$Version",
+        "-p:AssemblyVersion=$Version",
+        "-p:FileVersion=$Version",
+        "-p:InformationalVersion=$Version"
+    )
+    Write-Host "Version override: $Version" -ForegroundColor Cyan
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "V-Notch Installer Build Script" -ForegroundColor Cyan
@@ -29,7 +44,7 @@ if (Test-Path $publishDir) {
 
 # Step 2: Build Release
 Write-Host "[2/4] Building Release configuration..." -ForegroundColor Yellow
-dotnet build .\V-Notch.csproj --configuration Release
+dotnet build .\V-Notch.csproj --configuration Release @versionArgs
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Build failed!" -ForegroundColor Red
     exit 1
@@ -40,10 +55,10 @@ Write-Host "      Build successful" -ForegroundColor Green
 Write-Host "[3/4] Publishing to $publishDir..." -ForegroundColor Yellow
 if ($SelfContained) {
     # Self-contained: bundles the .NET runtime, runs without installing .NET 8.
-    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
+    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false @versionArgs -o $publishDir
 } else {
     # Framework-dependent single file - requires .NET 8 runtime.
-    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
+    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false @versionArgs -o $publishDir
 }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Publish failed!" -ForegroundColor Red

@@ -1169,7 +1169,7 @@
                     <Grid x:Name="ExpandedContent" 
                           Opacity="0" 
                           Visibility="Collapsed"
-                          Margin="8,2,8,0"
+                          Margin="8,2,8,8"
                           Background="{StaticResource NotchGradient}"
                           ClipToBounds="False"
                           RenderOptions.ClearTypeHint="Enabled">
@@ -3021,7 +3021,20 @@
                                       VerticalScrollBarVisibility="Hidden"
                                       HorizontalScrollBarVisibility="Disabled"
                                       PanningMode="VerticalOnly"
-                                      Padding="0,0,4,0">
+                                      Padding="0,0,4,0"
+                                      ScrollChanged="AudioScrollViewer_ScrollChanged">
+                            <!-- Top/bottom fade marquee. The edge stops animate between Black
+                                 (no fade) and Transparent (fade) based on scroll position, so
+                                 the top fade only appears once scrolled down and the bottom
+                                 fade hides when the end is reached — see UpdateAudioScrollFades. -->
+                            <ScrollViewer.OpacityMask>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop x:Name="AudioFadeTopStop" Color="Black" Offset="0"/>
+                                    <GradientStop Color="Black" Offset="0.06"/>
+                                    <GradientStop Color="Black" Offset="0.94"/>
+                                    <GradientStop x:Name="AudioFadeBottomStop" Color="Black" Offset="1"/>
+                                </LinearGradientBrush>
+                            </ScrollViewer.OpacityMask>
                             <StackPanel x:Name="AudioRoot"/>
                         </ScrollViewer>
                         <!-- In-app device dropdown layer (avoids the unreliable system Popup

@@ -17,6 +17,7 @@ on:
         default: true
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -66,13 +67,31 @@ jobs:
         run: choco install nsis --no-progress -y
         shell: pwsh
 
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$csproj = Get-Content V-Notch.csproj
+          $base = ($csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1).Trim()
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            # Tagged release: the git tag is the source of truth (e.g. v1.7.7 -> 1.7.7).
+            $version = $env:GITHUB_REF_NAME.TrimStart('v')
+            Write-Host "Tagged release build: $version"
+          } else {
+            # Nightly / branch build: base major.minor.patch + unique run number.
+            $threePart = ($base -split '\.')[0..2] -join '.'
+            $version = "$threePart.$env:GITHUB_RUN_NUMBER"
+            Write-Host "Nightly build: $version (base $base)"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
       - name: Build installer (${{ matrix.variant }})
         shell: pwsh
         run: |
           if ('${{ matrix.variant }}' -eq 'self-contained') {
-            ./build-installer.ps1 -SelfContained
+            ./build-installer.ps1 -SelfContained -Version '${{ steps.version.outputs.version }}'
           } else {
-            ./build-installer.ps1
+            ./build-installer.ps1 -Version '${{ steps.version.outputs.version }}'
           }
 
       - name: Read app version
@@ -109,7 +128,7 @@ jobs:
           retention-days: 30
 
       - name: Publish nightly prerelease
-        if: ${{ github.event_name == 'push' || inputs.publish_nightly }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && (github.event_name == 'push' || inputs.publish_nightly) }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly
@@ -124,5 +143,22 @@ jobs:
             - `V-Notch-Setup-SelfContained.exe` — runs out of the box, no .NET install required (larger file).
           files: ${{ steps.name.outputs.file }}
           make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish tagged release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: V-Notch ${{ github.ref_name }}
+          prerelease: false
+          body: |
+            Stable release `${{ steps.ver.outputs.version }}` (`${{ steps.ver.outputs.sha }}`).
+
+            - `V-Notch-Setup.exe` — lightweight, requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+            - `V-Notch-Setup-SelfContained.exe` — runs out of the box, no .NET install required (larger file).
+          files: ${{ steps.name.outputs.file }}
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

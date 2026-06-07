@@ -40,6 +40,55 @@ public partial class MainWindow
 
     private void StopAudioPoll() => _audioPollTimer?.Stop();
 
+    // ─── Scroll edge fades (dynamic marquee) ───
+    private bool _audioTopFadeShown;
+    private bool _audioBottomFadeShown;
+
+    private void AudioScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        => UpdateAudioScrollFades();
+
+    /// <summary>
+    /// Shows the top fade only once the list is scrolled down from the top, and the bottom
+    /// fade only while there's still content below — each transition animated so the fade
+    /// appears/disappears smoothly instead of popping. At rest (top of a list) only the
+    /// bottom edge fades; headers at the very top stay fully opaque.
+    /// </summary>
+    private void UpdateAudioScrollFades()
+    {
+        if (AudioScrollViewer == null || AudioFadeTopStop == null || AudioFadeBottomStop == null) return;
+
+        double offset = AudioScrollViewer.VerticalOffset;
+        double scrollable = AudioScrollViewer.ScrollableHeight;
+
+        bool showTop = offset > 1.0;
+        bool showBottom = scrollable > 1.0 && offset < scrollable - 1.0;
+
+        if (showTop != _audioTopFadeShown)
+        {
+            _audioTopFadeShown = showTop;
+            AnimateAudioFadeStop(AudioFadeTopStop, showTop);
+        }
+        if (showBottom != _audioBottomFadeShown)
+        {
+            _audioBottomFadeShown = showBottom;
+            AnimateAudioFadeStop(AudioFadeBottomStop, showBottom);
+        }
+    }
+
+    // Black = fully opaque (no fade), Transparent = edge fades the content out.
+    private void AnimateAudioFadeStop(GradientStop stop, bool fade)
+    {
+        var to = fade ? Colors.Transparent : Colors.Black;
+        var anim = new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(180)))
+        {
+            EasingFunction = new System.Windows.Media.Animation.QuadraticEase
+            {
+                EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut
+            }
+        };
+        stop.BeginAnimation(GradientStop.ColorProperty, anim);
+    }
+
     // ─── Navigation ───
 
     private void AudioIconButton_Click(object sender, MouseButtonEventArgs e)
@@ -140,7 +189,7 @@ public partial class MainWindow
             {
                 ExpandedContent.Effect = null;
                 ExpandedContent.Width = _expandedWidth - 16;
-                ExpandedContent.Height = _expandedHeight - 2;
+                ExpandedContent.Height = _expandedHeight - 10;
             },
             onComplete: () =>
             {

@@ -86,7 +86,7 @@ public partial class MainWindow : Window
     private double _collapsedHeight;
     private bool _modeTransitionPending;
     private double _expandedWidth = 480;
-    private double _expandedHeight = 146;
+    private double _expandedHeight = 147;
     private double _cornerRadiusCollapsed;
     private double _cornerRadiusExpanded = 24;
     private const double NotchWindowHorizontalPadding = 96;
@@ -196,7 +196,7 @@ public partial class MainWindow : Window
 
         _collapsedWidth = GetCollapsedWidth();
         _collapsedHeight = GetCollapsedHeight();
-        _expandedHeight = _settings.EnableDynamicIslandMode ? 154 : 146;
+        _expandedHeight = _settings.EnableDynamicIslandMode ? 154 : 147;
         _cornerRadiusCollapsed = GetCollapsedCornerRadius();
 
         _updateTimer = new DispatcherTimer
@@ -770,7 +770,7 @@ public partial class MainWindow : Window
             double prevExpandedWidth = ExpandedContent.Width;
             double prevExpandedHeight = ExpandedContent.Height;
             ExpandedContent.Width = _expandedWidth - 16;
-            ExpandedContent.Height = _expandedHeight - 2;
+            ExpandedContent.Height = _expandedHeight - 10;
 
             // Also temporarily resize the notch border itself so any TransformToAncestor calculations resolve against the final expanded dimensions
             double prevNotchWidth = NotchBorder.Width;
@@ -1071,7 +1071,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         _collapsedWidth = GetCollapsedWidth();
         _collapsedHeight = GetCollapsedHeight();
-        _expandedHeight = _settings.EnableDynamicIslandMode ? 154 : 146;
+        _expandedHeight = _settings.EnableDynamicIslandMode ? 154 : 147;
         _cornerRadiusCollapsed = GetCollapsedCornerRadius();
         _cachedThumbnailExpandTarget = null;
 

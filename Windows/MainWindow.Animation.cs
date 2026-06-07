@@ -19,12 +19,19 @@ public partial class MainWindow
     private LastExpandedView _lastExpandedViewBeforeCollapse = LastExpandedView.Primary;
 
     /// <summary>
-    /// The primary <see cref="ExpandedContent"/> rests shifted down by a few px in Dynamic
-    /// Island mode (matching the <c>contentTargetY</c> that <c>ExpandNotch</c> animates to).
-    /// All return-to-primary transitions must settle the content here — not at Y=0 — or it
-    /// ends up a few px too high compared to a fresh expand.
+    /// The resting Y offset of <see cref="ExpandedContent"/>. In Dynamic Island mode it's a
+    /// small nudge (matching the taller island). In notch mode the expanded surface is 10px
+    /// taller than the content needs, so we push the content down here to keep the bottom
+    /// spacing equal to the side margin. The status bar cancels this shift (see
+    /// ApplyDynamicIslandContentAlignment) so the top icons stay put. Tune this single number
+    /// to change the content's vertical resting position.
     /// </summary>
-    private double ExpandedContentRestY => _settings.EnableDynamicIslandMode ? 5 : 0;
+    /// <summary>
+    /// Resting Y offset of <see cref="ExpandedContent"/>. Dynamic Island keeps a small
+    /// downward nudge; notch mode rests at 0 since the bottom spacing is now provided by the
+    /// ExpandedContent bottom margin (matching the side margin).
+    /// </summary>
+    private double ExpandedContentRestY => _settings.EnableDynamicIslandMode ? 5 : 4;
 
     /// <summary>
     /// Restores <see cref="ExpandedContent"/> to its canonical resting transform after a
@@ -84,7 +91,7 @@ public partial class MainWindow
             // Adjust the Y-coordinate to align with the final static expanded state (which is shifted by target translation)
             // regardless of the current rendering transform of ExpandedContent during measurement.
             double currentTranslationY = GetCurrentExpandedContentTranslationY();
-            double contentTargetY = _settings.EnableDynamicIslandMode ? 5 : 0;
+            double contentTargetY = ExpandedContentRestY;
             double targetY = (thumbPos.Y - currentTranslationY) + contentTargetY - overlayMargin.Top;
 
             if (double.IsNaN(targetX) || double.IsInfinity(targetX) ||
@@ -333,7 +340,7 @@ public partial class MainWindow
         }
         // Force layout pass so ThumbnailBorder gets actual dimensions for target compute
         ExpandedContent.Width = _expandedWidth - 16;
-        ExpandedContent.Height = _expandedHeight - 2;
+        ExpandedContent.Height = _expandedHeight - 10;
         ExpandedContent.UpdateLayout();
 
         AnimateStatusBarReveal(true);
@@ -352,7 +359,7 @@ public partial class MainWindow
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
 
         var fadeInAnim = MakeAnim(0d, 1d, _dur400, _easePowerOut3);
-        double contentTargetY = _settings.EnableDynamicIslandMode ? 5 : 0;
+        double contentTargetY = ExpandedContentRestY;
         var springSlide = MakeAnim(10, contentTargetY, _dur400, _easeExpOut6);
 
         var glowAnim = MakeAnim(0.15, _dur200);
@@ -376,7 +383,7 @@ public partial class MainWindow
                 NotchBorder.Width = _expandedWidth;
                 NotchBorder.Height = _expandedHeight;
                 ExpandedContent.Width = _expandedWidth - 16;
-                ExpandedContent.Height = _expandedHeight - 2;
+                ExpandedContent.Height = _expandedHeight - 10;
 
                 // Force layout update synchronously to measure exact dimensions of children
                 UpdateLayout();
@@ -792,7 +799,7 @@ public partial class MainWindow
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
 
         var fadeOutAnim = MakeAnim(0, _dur200, _easeQuadOut);
-        double currentY = _settings.EnableDynamicIslandMode ? 5 : 0;
+        double currentY = ExpandedContentRestY;
         var slideOutAnim = MakeAnim(currentY, -10, _dur400, _easeExpOut6);
 
         fadeOutAnim.Completed += (s, e) =>
