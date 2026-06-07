@@ -160,11 +160,23 @@ public sealed class PrivacyIndicatorService : IDisposable
     private static IReadOnlyList<string> ScanCapability(string capability)
     {
         var consumers = new List<string>();
+
+        // Usage timestamps live under HKCU for per-user apps, but desktop apps launched by a
+        // service or elevated process (common for screen recorders/capture tools) register
+        // under HKLM. Scan both so we don't miss them.
+        ScanCapabilityHive(Registry.CurrentUser, capability, consumers);
+        ScanCapabilityHive(Registry.LocalMachine, capability, consumers);
+
+        return consumers.Count == 0 ? Array.Empty<string>() : consumers.Distinct().ToList();
+    }
+
+    private static void ScanCapabilityHive(RegistryKey hive, string capability, List<string> consumers)
+    {
         try
         {
-            using var capRoot = Registry.CurrentUser.OpenSubKey(
+            using var capRoot = hive.OpenSubKey(
                 $"{ConsentRoot}\\{capability}", writable: false);
-            if (capRoot == null) return Array.Empty<string>();
+            if (capRoot == null) return;
 
             foreach (var subKeyName in capRoot.GetSubKeyNames())
             {
@@ -195,10 +207,8 @@ public sealed class PrivacyIndicatorService : IDisposable
         }
         catch (Exception ex)
         {
-            RuntimeLog.Error("PRIVACY", ex, $"Scan {capability} failed");
+            RuntimeLog.Error("PRIVACY", ex, $"Scan {capability} ({hive.Name}) failed");
         }
-
-        return consumers.Count == 0 ? Array.Empty<string>() : consumers.Distinct().ToList();
     }
 
     private static bool TryDetectInUse(RegistryKey key, out long lastStart)
@@ -217,13 +227,13 @@ public sealed class PrivacyIndicatorService : IDisposable
 
     private static bool DetectScreenRecording()
     {
-        // Only use ConsentStore registry — this is 100% accurate
-        if (ScanCapability("graphicsCaptureProgrammatic").Count > 0)
-            return true;
-        if (ScanCapability("graphicsCaptureWithoutBorder").Count > 0)
-            return true;
-
-        return false;
+        // Windows records screen-capture consent under these ConsentStore capabilities for
+        // apps that go through the WinRT GraphicsCapture broker (Game Bar, Snipping Tool,
+        // Teams/Zoom share, most modern recorders). We scan both HKCU and HKLM (see
+        // ScanCapability). Note: tools using raw DXGI desktop duplication don't register
+        // here and can't be detected from the registry.
+        return ScanCapability("graphicsCaptureProgrammatic").Count > 0
+            || ScanCapability("graphicsCaptureWithoutBorder").Count > 0;
     }
 
     private static string NormalizeAppName(string raw)

@@ -64,6 +64,9 @@ public class BatteryServiceImpl : IBatteryService
                 info.IsPluggedIn = status.ACLineStatus == 1;
                 info.HasBattery = status.BatteryFlag != 128;
 
+                // SystemStatusFlag bit 0 set => battery saver is on.
+                info.IsBatterySaver = (status.SystemStatusFlag & 0x01) != 0;
+
                 if (status.BatteryFlag == 8)
                 {
                     info.IsCharging = true;

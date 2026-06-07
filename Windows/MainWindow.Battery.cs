@@ -12,14 +12,43 @@ namespace VNotch;
 public partial class MainWindow
 {
     private Storyboard? _chargingPulseStoryboard;
+    private bool _chargingPulseWanted;
     private bool _wasCharging = true; // Start as true to suppress notification on first battery update at app launch
     private bool? _wasPluggedIn = null; // Track plug/unplug transitions; null until first sample
     private bool _isChargingNotificationVisible = false;
     private int _chargingGlanceToken = 0;
     private DispatcherTimer? _chargingNotificationDismissTimer;
 
+    // ─── Ambient animation gate ───
+    // Looping "ambient" effects (charging pulse, title shimmer) are paused when the OS
+    // battery saver is on, or when the notch isn't actually visible, to avoid keeping the
+    // compositor awake for nothing. They resume automatically when conditions allow.
+    private bool AmbientAnimationsAllowed =>
+        !AnimationConfig.ReduceMotion && _isNotchVisible && !_isHiddenByFullscreen;
+
+    // Re-applies ambient loops to match current intent + gate state. Safe to call often.
+    private void RefreshAmbientAnimations()
+    {
+        bool allowed = AmbientAnimationsAllowed;
+
+        if (_chargingPulseWanted && allowed) StartChargingPulse();
+        else StopChargingPulseInternal();
+
+        if (_shimmerWanted && allowed) StartTitleShimmer();
+        else StopTitleShimmerInternal();
+    }
+
+    private void OnReduceMotionChanged()
+    {
+        if (Dispatcher.CheckAccess()) RefreshAmbientAnimations();
+        else Dispatcher.BeginInvoke(new Action(RefreshAmbientAnimations));
+    }
+
     private void HandleBatteryUpdate(BatteryInfo battery)
     {
+        // Drive the global reduce-motion gate from the OS battery-saver state.
+        AnimationConfig.SetReduceMotion(battery.IsBatterySaver);
+
         BatteryPercent.Text = battery.GetPercentageText();
 
         // Inner fill space = BatteryIcon.Width(27.08) - BorderThickness(1.36*2) - MarginLeft(1.36) = 23.0
@@ -332,12 +361,18 @@ public partial class MainWindow
 
     private void StartChargingPulse()
     {
+        _chargingPulseWanted = true;
+        if (!AmbientAnimationsAllowed) return; // intent recorded; resumes when allowed
         if (_chargingPulseStoryboard != null) return;
 
         _chargingPulseStoryboard = new Storyboard
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
+        // Ambient pulse: cap wakeups to keep the compositor from running at full
+        // refresh rate the whole time the battery is charging. 24fps is plenty for a
+        // slow 1s opacity pulse.
+        Timeline.SetDesiredFrameRate(_chargingPulseStoryboard, 24);
 
         var pulseAnimation = new DoubleAnimation
         {
@@ -356,6 +391,14 @@ public partial class MainWindow
     }
 
     private void StopChargingPulse()
+    {
+        _chargingPulseWanted = false;
+        StopChargingPulseInternal();
+    }
+
+    // Stops the pulse animation without clearing the "wanted" intent, so a reduce-motion
+    // or visibility toggle can pause/resume it while charging continues.
+    private void StopChargingPulseInternal()
     {
         if (_chargingPulseStoryboard == null) return;
 

@@ -21,9 +21,30 @@ internal static class AnimationConfig
     private static int _configuredFps = FallbackFps;
     private static string? _deviceName;
     private static bool _hooked;
+    private static bool _reduceMotion;
 
     /// <summary>Frame rate cap all animations should use.</summary>
     public static int TargetFps => _targetFps;
+
+    /// <summary>
+    /// When true, ambient looping animations (e.g. title shimmer, charging pulse)
+    /// should be paused to save power. Driven by the OS battery-saver state.
+    /// </summary>
+    public static bool ReduceMotion => _reduceMotion;
+
+    /// <summary>Raised whenever <see cref="ReduceMotion"/> changes value.</summary>
+    public static event Action? ReduceMotionChanged;
+
+    /// <summary>
+    /// Update the reduce-motion state. No-ops (and stays silent) if the value is unchanged,
+    /// so callers can poke this on every battery poll cheaply.
+    /// </summary>
+    public static void SetReduceMotion(bool on)
+    {
+        if (_reduceMotion == on) return;
+        _reduceMotion = on;
+        ReduceMotionChanged?.Invoke();
+    }
 
     /// <summary>Apply the user-selected animation frame cap.</summary>
     public static void Configure(int animationFps)

@@ -695,7 +695,10 @@ public partial class MainWindow
         }
 
         _isMusicCompactMode = shouldBeCompact;
-        
+
+        // Reposition the privacy dot (if shown) so it clears or restores around the visualizer.
+        if (_privacyIndicatorsVisible) UpdatePrivacyDotPosition();
+
         if (!_isExpanded)
         {
             if (_isBluetoothNotificationVisible || _isChargingNotificationVisible || _isGreetingActive || _isAnimating)
@@ -932,9 +935,12 @@ public partial class MainWindow
 
     private Storyboard? _titleShimmerStoryboard;
     private bool _isShimmerActive;
+    private bool _shimmerWanted;
 
     private void StartTitleShimmer()
     {
+        _shimmerWanted = true;
+        if (!AmbientAnimationsAllowed) return; // intent recorded; resumes when allowed
         if (_isShimmerActive) return;
         _isShimmerActive = true;
 
@@ -963,6 +969,9 @@ public partial class MainWindow
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
+        // Subtle, slow highlight sweep — cap the frame rate so this looping effect
+        // doesn't hold the compositor at full refresh rate the whole time a title shows.
+        Timeline.SetDesiredFrameRate(storyboard, 30);
 
         // Stop 0: leading edge of highlight
         var anim0 = new DoubleAnimation
@@ -1006,6 +1015,14 @@ public partial class MainWindow
     }
 
     private void StopTitleShimmer()
+    {
+        _shimmerWanted = false;
+        StopTitleShimmerInternal();
+    }
+
+    // Stops the shimmer without clearing intent, so reduce-motion / visibility toggles
+    // can pause and later resume it while the idle state persists.
+    private void StopTitleShimmerInternal()
     {
         if (!_isShimmerActive) return;
         _isShimmerActive = false;

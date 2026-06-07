@@ -174,6 +174,7 @@ public partial class MainWindow : Window
         _moduleHost = moduleHost;
         _batteryModule = batteryModule;
         _batteryModule.BatteryUpdated += BatteryModule_BatteryUpdated;
+        AnimationConfig.ReduceMotionChanged += OnReduceMotionChanged;
 
         _calendarModule = calendarModule;
         _calendarModule.CalendarUpdated += CalendarModule_CalendarUpdated;
@@ -459,6 +460,7 @@ public partial class MainWindow : Window
         _notchManager.HoverService.HoverLeave -= HoverService_HoverLeave;
         _mediaService.MediaChanged -= OnMediaChanged;
         _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
+        AnimationConfig.ReduceMotionChanged -= OnReduceMotionChanged;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
         _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;
@@ -629,6 +631,9 @@ public partial class MainWindow : Window
         }
 
         ApplyNotchVisibilityState();
+
+        // Pause/resume ambient loops based on the new visibility.
+        RefreshAmbientAnimations();
 
         if (!_isHiddenByFullscreen && _isNotchVisible)
         {
@@ -1388,6 +1393,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             MusicViz.Margin = islandMode ? new Thickness(0, 0, -4, 0) : new Thickness(0, 2.5, -4, 0);
         }
 
+        if (_privacyIndicatorsVisible) UpdatePrivacyDotPosition();
+
         if (ClipboardCheckIcon != null)
         {
             ClipboardCheckIcon.Margin = islandMode ? new Thickness(2, 0, -2, 0) : new Thickness(2, 4, -2, 0);
@@ -1959,6 +1966,9 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         ApplyNotchVisibilityState();
 
+        // Pause/resume ambient loops based on the new visibility.
+        RefreshAmbientAnimations();
+
         if (_isNotchVisible)
         {
             UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
@@ -1982,6 +1992,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         StopZOrderWatchdog();
 
         _mediaService.MediaChanged -= OnMediaChanged;        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
+        AnimationConfig.ReduceMotionChanged -= OnReduceMotionChanged;
         _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
         _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;

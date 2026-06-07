@@ -14,6 +14,14 @@ public partial class MainWindow
     // iOS behavior: single dot, orange = mic, green = cam, alternates when both active.
     private bool _privacyIndicatorsVisible = false;
     private PrivacyIndicatorState _lastPrivacyState = PrivacyIndicatorState.Empty;
+
+    // Right margin of the privacy dot panel within NotchContent. In compact music mode the
+    // visualizer occupies the top-right corner, so we shift the dot further left to clear it.
+    private const double PrivacyDotDefaultRightMargin = 27.0;
+    private const double PrivacyDotCompactMusicRightMargin = 34.0;
+    private const double PrivacyDotTopMargin = 11.2;
+    private const double PrivacyDotSize = 7.0;
+
     private static readonly Color _micColor = Color.FromRgb(0xFF, 0x95, 0x00);  // Orange — mic only
     private static readonly Color _camColor = Color.FromRgb(0x30, 0xD1, 0x58);  // Green — cam only
     private static readonly Color _bothColor = Color.FromRgb(0x00, 0x4E, 0x92); // Navy blue — mic+cam
@@ -57,8 +65,19 @@ public partial class MainWindow
         }
         else if (shouldShow)
         {
-            // Already visible — update color
-            ApplyDotColor(state, animate: true);
+            bool suppressed = _isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive;
+
+            // Self-heal: we think the dot is visible but it isn't actually drawn — e.g. a
+            // recording started while the volume/Bluetooth/clipboard UI was up. Draw it now.
+            if (!suppressed && PrivacyIndicatorPanel.Visibility != Visibility.Visible)
+            {
+                ShowPrivacyDot(state);
+            }
+            else
+            {
+                // Already visible — update color only.
+                ApplyDotColor(state, animate: true);
+            }
         }
     }
 
@@ -72,6 +91,8 @@ public partial class MainWindow
 
         PrivacyDot.Visibility = Visibility.Visible;
         PrivacyIndicatorPanel.Visibility = Visibility.Visible;
+
+        UpdatePrivacyDotPosition();
 
         // Set initial color
         ApplyDotColor(state, animate: false);
@@ -126,12 +147,32 @@ public partial class MainWindow
         PrivacyDot.Visibility = Visibility.Visible;
         PrivacyIndicatorPanel.Visibility = Visibility.Visible;
 
+        UpdatePrivacyDotPosition();
+
         ApplyDotColor(_lastPrivacyState, animate: false);
 
         var fadeIn = MakeAnim(0d, 1d, _dur250, _easePowerOut3, null);
         PrivacyIndicatorPanel.BeginAnimation(OpacityProperty, fadeIn);
 
         StartBreathingAnimation(PrivacyDot);
+    }
+
+    // Keeps the privacy dot clear of the compact-mode music visualizer (top-right corner)
+    // and vertically centered in the dynamic island pill so it lines up with the content.
+    private void UpdatePrivacyDotPosition()
+    {
+        bool compact = _isMusicCompactMode && !_isExpanded;
+        double right = compact ? PrivacyDotCompactMusicRightMargin : PrivacyDotDefaultRightMargin;
+
+        double top = PrivacyDotTopMargin;
+        if (compact && _settings.EnableDynamicIslandMode)
+        {
+            // In island mode the visualizer/thumbnail are centered at H/2 — match that.
+            double h = GetCollapsedHeight();
+            if (h > 0) top = Math.Max(0, (h - PrivacyDotSize) / 2.0);
+        }
+
+        PrivacyIndicatorPanel.Margin = new Thickness(0, top, right, 0);
     }
 
     private void ApplyDotColor(PrivacyIndicatorState state, bool animate)
@@ -187,7 +228,8 @@ public partial class MainWindow
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = _easeSineInOut
         };
-        Timeline.SetDesiredFrameRate(breathing, 30);
+        // Slow 1.4s breathing — 24fps is visually identical and lighter on the compositor.
+        Timeline.SetDesiredFrameRate(breathing, 24);
         dot.BeginAnimation(OpacityProperty, breathing);
     }
 

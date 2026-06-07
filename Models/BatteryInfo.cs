@@ -12,6 +12,9 @@ public class BatteryInfo
 
     public bool HasPowerRate { get; set; } = false;
 
+    /// <summary>True when Windows battery saver is currently active.</summary>
+    public bool IsBatterySaver { get; set; } = false;
+
     public bool IsFullyCharged => IsPluggedIn && Percentage >= 99;
 
     public string GetBatteryIcon()
