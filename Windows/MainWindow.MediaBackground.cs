@@ -342,9 +342,10 @@ public partial class MainWindow
     {
         HideMediaBackgroundOverlay();
 
-        // When in timer/clock view, preserve progress bar gradient & tint so they're
-        // ready when switching back to main view.
-        if (_isTimerView) return;
+        // When in timer/clock or audio (sound mixer) view, preserve progress bar gradient &
+        // tint so they're ready when switching back to main view (otherwise e.g. the compact
+        // volume bar loses its media color after closing the mixer).
+        if (_isTimerView || _isAudioView) return;
 
         var defaultColorAnim = new ColorAnimation
         {

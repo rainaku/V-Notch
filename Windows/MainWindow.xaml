@@ -3016,12 +3016,17 @@
                           Visibility="Collapsed"
                           Margin="22,40,16,14"
                           MouseLeftButtonDown="SecondaryContent_Click"
+                          UseLayoutRounding="True"
+                          SnapsToDevicePixels="True"
+                          TextOptions.TextFormattingMode="Ideal"
+                          TextOptions.TextRenderingMode="ClearType"
+                          TextOptions.TextHintingMode="Fixed"
                           RenderOptions.ClearTypeHint="Enabled">
                         <ScrollViewer x:Name="AudioScrollViewer"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
                                       PanningMode="VerticalOnly"
-                                      Padding="0,0,2,0"
+                                      Padding="0,0,7,0"
                                       ScrollChanged="AudioScrollViewer_ScrollChanged">
                             <ScrollViewer.Resources>
                                 <!-- Invisible but hit-testable page-scroll regions -->
@@ -3073,6 +3078,26 @@
                                     </Setter>
                                 </Style>
                             </ScrollViewer.Resources>
+                            <ScrollViewer.Template>
+                                <!-- Overlay scrollbar: the vertical bar floats over the content
+                                     instead of taking a layout column, so showing/hiding it (as
+                                     a section expands) never reflows or shifts the rows. The
+                                     content reserves a constant right inset via Padding. -->
+                                <ControlTemplate TargetType="ScrollViewer">
+                                    <Grid>
+                                        <ScrollContentPresenter Margin="{TemplateBinding Padding}"
+                                                                CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                                        <ScrollBar x:Name="PART_VerticalScrollBar"
+                                                   Orientation="Vertical"
+                                                   HorizontalAlignment="Right"
+                                                   Margin="0,2,0,2"
+                                                   Maximum="{TemplateBinding ScrollableHeight}"
+                                                   ViewportSize="{TemplateBinding ViewportHeight}"
+                                                   Value="{Binding VerticalOffset, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"
+                                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                                    </Grid>
+                                </ControlTemplate>
+                            </ScrollViewer.Template>
                             <!-- Top/bottom fade marquee. The edge stops animate between Black
                                  (no fade) and Transparent (fade) based on scroll position, so
                                  the top fade only appears once scrolled down and the bottom

@@ -358,6 +358,11 @@ public partial class MainWindow
             {
                 rows.BeginAnimation(HeightProperty, null);
                 rows.Height = double.NaN; // back to auto so it can reflow naturally
+                // Commit opacity back to its base value, otherwise the next collapse clears
+                // this holding animation and the rows snap to the base opacity (0) — which
+                // made the collapse fade appear "missing".
+                rows.BeginAnimation(OpacityProperty, null);
+                rows.Opacity = 1;
             };
             rows.BeginAnimation(HeightProperty, hAnim);
             rows.BeginAnimation(OpacityProperty, oAnim);

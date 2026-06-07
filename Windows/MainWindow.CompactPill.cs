@@ -58,10 +58,13 @@ public partial class MainWindow
     {
         int version = ++_compactWidthAnimationVersion;
 
-        NotchBorder.BeginAnimation(WidthProperty, null);
-
         var anim = new DoubleAnimation
         {
+            // Start from the actual current width (the live animated value) rather than
+            // clearing to the base property first — otherwise, if a collapse from the
+            // clock/audio view is still in flight, the base Width is the wide view width
+            // and clearing snaps the notch out to that width for a frame before shrinking.
+            From = NotchBorder.ActualWidth,
             To = targetWidth,
             Duration = duration,
             EasingFunction = ease,
@@ -78,7 +81,7 @@ public partial class MainWindow
             NotchBorder.Width = targetWidth;
         };
 
-        NotchBorder.BeginAnimation(WidthProperty, anim);
+        NotchBorder.BeginAnimation(WidthProperty, anim, HandoffBehavior.SnapshotAndReplace);
     }
 
     private bool IsCompactSlotStale(int token) => !_compactPillArbiter.IsTokenCurrent(token);
