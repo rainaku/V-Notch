@@ -94,7 +94,9 @@ jobs:
           } else {
             $out = "V-Notch-Setup.exe"
           }
-          Copy-Item "installers\V-Notch-Setup.exe" "installers\$out" -Force
+          if ($out -ne "V-Notch-Setup.exe") {
+            Copy-Item "installers\V-Notch-Setup.exe" "installers\$out" -Force
+          }
           "file=installers/$out" >> $env:GITHUB_OUTPUT
           "asset=$out" >> $env:GITHUB_OUTPUT
 
