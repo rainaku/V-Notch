@@ -11,7 +11,7 @@ public sealed class FullscreenAutoHideController
     private static readonly TimeSpan ThrottleInterval = TimeSpan.FromMilliseconds(50);
 
     private readonly Func<IntPtr> _getNotchHwnd;
-    private readonly NotchSettings _settings;
+    private NotchSettings _settings;
 
     private DateTime _lastCheckUtc = DateTime.MinValue;
     private DateTime _lastStateChangeUtc = DateTime.MinValue;
@@ -32,6 +32,15 @@ public sealed class FullscreenAutoHideController
     public FullscreenAutoHideController(Func<IntPtr> getNotchHwnd, NotchSettings settings)
     {
         _getNotchHwnd = getNotchHwnd ?? throw new ArgumentNullException(nameof(getNotchHwnd));
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+    }
+
+    /// <summary>
+    /// Swaps in a new settings instance so toggles (e.g. HideOnExclusiveFullscreen /
+    /// HideOnWindowedFullscreen) take effect live instead of only after an app restart.
+    /// </summary>
+    public void UpdateSettings(NotchSettings settings)
+    {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
     }
 
