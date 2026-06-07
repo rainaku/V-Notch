@@ -523,10 +523,6 @@ public partial class MainWindow
         Grid.SetColumn(combo, 3);
         grid.Children.Add(combo);
 
-        var arrow = CreateDisclosure();
-        Grid.SetColumn(arrow, 4);
-        grid.Children.Add(arrow);
-
         return grid;
     }
 
@@ -582,10 +578,6 @@ public partial class MainWindow
         var combo = CreateDeviceCombo("\uE898", null, "No Redirect", null, null, out _);
         Grid.SetColumn(combo, 3);
         grid.Children.Add(combo);
-
-        var arrow = CreateDisclosure();
-        Grid.SetColumn(arrow, 4);
-        grid.Children.Add(arrow);
 
         return grid;
     }
@@ -746,35 +738,6 @@ public partial class MainWindow
         return cell;
     }
 
-    // ─── Disclosure arrow (decorative) ───
-
-    private FrameworkElement CreateDisclosure()
-    {
-        var border = new Border
-        {
-            Width = 22,
-            Height = 22,
-            CornerRadius = new CornerRadius(11),
-            Background = AudioComboBg,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Opacity = 0.7
-        };
-        var vb = new Viewbox { Width = 7, Height = 11 };
-        var icon = new System.Windows.Shapes.Path
-        {
-            Data = Geometry.Parse("M0,0 L5,5 L0,10"),
-            Stroke = AudioMuted,
-            StrokeThickness = 1.6,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
-            StrokeLineJoin = PenLineJoin.Round
-        };
-        vb.Child = icon;
-        border.Child = vb;
-        return border;
-    }
-
     // ─── Device "combo" pill ───
 
     private FrameworkElement CreateDeviceCombo(string glyph, Geometry? iconGeometry, string text,
@@ -791,6 +754,8 @@ public partial class MainWindow
             BorderThickness = new Thickness(1),
             Padding = new Thickness(8, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            MaxWidth = ColDevice,
             Margin = new Thickness(0, 0, 6, 0),
             Cursor = interactive ? Cursors.Hand : Cursors.Arrow
         };

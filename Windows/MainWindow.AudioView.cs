@@ -321,16 +321,20 @@ public partial class MainWindow
         }
         else
         {
+            // Outgoing fixed content. ExpandedContent rests shifted down by RestY, so start the
+            // slide from there (not 0) to avoid a 1-frame jump up before the transition.
+            double outRestY = ReferenceEquals(outgoing, ExpandedContent) ? ExpandedContentRestY : 0;
+
             var outGroup = new TransformGroup();
             var outScale = new ScaleTransform(1, 1);
-            var outTranslate = new TranslateTransform(0, 0);
+            var outTranslate = new TranslateTransform(0, outRestY);
             outGroup.Children.Add(outScale);
             outGroup.Children.Add(outTranslate);
             outgoing.RenderTransform = outGroup;
             outgoing.RenderTransformOrigin = new Point(0.5, 0.5);
 
             var fadeOut = MakeAnim(1, 0, durOut, _easeQuadIn);
-            var slideUp = MakeAnim(0, -16, durOut, _easeQuadIn);
+            var slideUp = MakeAnim(outRestY, outRestY - 16, durOut, _easeQuadIn);
             var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
             var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
             Timeline.SetDesiredFrameRate(slideUp, fps);

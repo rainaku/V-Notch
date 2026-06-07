@@ -3014,15 +3014,65 @@
                     <Grid x:Name="AudioContent"
                           Opacity="0"
                           Visibility="Collapsed"
-                          Margin="22,52,16,14"
+                          Margin="22,40,16,14"
                           MouseLeftButtonDown="SecondaryContent_Click"
                           RenderOptions.ClearTypeHint="Enabled">
                         <ScrollViewer x:Name="AudioScrollViewer"
-                                      VerticalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
                                       PanningMode="VerticalOnly"
-                                      Padding="0,0,4,0"
+                                      Padding="0,0,2,0"
                                       ScrollChanged="AudioScrollViewer_ScrollChanged">
+                            <ScrollViewer.Resources>
+                                <!-- Invisible but hit-testable page-scroll regions -->
+                                <Style x:Key="AudioScrollPageButton" TargetType="RepeatButton">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Focusable" Value="False"/>
+                                    <Setter Property="IsTabStop" Value="False"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                                <!-- Slim rounded vertical scrollbar -->
+                                <Style TargetType="ScrollBar">
+                                    <Setter Property="Width" Value="5"/>
+                                    <Setter Property="MinWidth" Value="5"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ScrollBar">
+                                                <Grid Background="Transparent">
+                                                    <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                                        <Track.DecreaseRepeatButton>
+                                                            <RepeatButton Style="{StaticResource AudioScrollPageButton}"
+                                                                          Command="ScrollBar.PageUpCommand"/>
+                                                        </Track.DecreaseRepeatButton>
+                                                        <Track.IncreaseRepeatButton>
+                                                            <RepeatButton Style="{StaticResource AudioScrollPageButton}"
+                                                                          Command="ScrollBar.PageDownCommand"/>
+                                                        </Track.IncreaseRepeatButton>
+                                                        <Track.Thumb>
+                                                            <Thumb>
+                                                                <Thumb.Template>
+                                                                    <ControlTemplate TargetType="Thumb">
+                                                                        <Border Width="5"
+                                                                                CornerRadius="2.5"
+                                                                                Background="#59FFFFFF"/>
+                                                                    </ControlTemplate>
+                                                                </Thumb.Template>
+                                                            </Thumb>
+                                                        </Track.Thumb>
+                                                    </Track>
+                                                </Grid>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ScrollViewer.Resources>
                             <!-- Top/bottom fade marquee. The edge stops animate between Black
                                  (no fade) and Transparent (fade) based on scroll position, so
                                  the top fade only appears once scrolled down and the bottom

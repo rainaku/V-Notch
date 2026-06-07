@@ -177,14 +177,14 @@ public partial class MainWindow
 
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
-        var primaryTranslate = new TranslateTransform(0, 0);
+        var primaryTranslate = new TranslateTransform(0, ExpandedContentRestY);
         primaryGroup.Children.Add(primaryScale);
         primaryGroup.Children.Add(primaryTranslate);
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
         var fadeOut    = MakeAnim(1, 0,    durOut, _easeQuadIn);
-        var slideUp    = MakeAnim(0, -16,  durOut, _easeQuadIn);
+        var slideUp    = MakeAnim(ExpandedContentRestY, ExpandedContentRestY - 16, durOut, _easeQuadIn);
         var scaleDownX = MakeAnim(1, 0.93, durOut, _easeQuadIn);
         var scaleDownY = MakeAnim(1, 0.93, durOut, _easeQuadIn);
         Timeline.SetDesiredFrameRate(slideUp,    fps);

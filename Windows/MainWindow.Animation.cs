@@ -31,7 +31,7 @@ public partial class MainWindow
     /// downward nudge; notch mode rests at 0 since the bottom spacing is now provided by the
     /// ExpandedContent bottom margin (matching the side margin).
     /// </summary>
-    private double ExpandedContentRestY => _settings.EnableDynamicIslandMode ? 5 : 4;
+    private double ExpandedContentRestY => _settings.EnableDynamicIslandMode ? 8.5 : 4;
 
     /// <summary>
     /// Restores <see cref="ExpandedContent"/> to its canonical resting transform after a
@@ -793,7 +793,7 @@ public partial class MainWindow
         var heightAnim = MakeAnim(_collapsedHeight, _dur500, _easeExpOut6, animFps);
 
         var expandedGroup = new TransformGroup();
-        var expandedTranslate = new TranslateTransform(0, 0);
+        var expandedTranslate = new TranslateTransform(0, ExpandedContentRestY);
         expandedGroup.Children.Add(expandedTranslate);
         ExpandedContent.RenderTransform = expandedGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.4);
