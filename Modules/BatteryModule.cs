@@ -1,6 +1,7 @@
 ﻿using System;
-using VNotch.Services;
+using Microsoft.Win32;
 using VNotch.Models;
+using VNotch.Services;
 
 namespace VNotch.Modules;
 
@@ -8,7 +9,10 @@ public class BatteryModule : NotchModuleBase
 {
     public override string ModuleName => "Battery";
 
-    public override TimeSpan? TickInterval => TimeSpan.FromSeconds(1);
+    // Battery level changes slowly, so a frequent poll wastes CPU on a background app.
+    // We poll every 15s for the percentage/rate, and rely on SystemEvents.PowerModeChanged
+    // to refresh instantly on AC plug/unplug so charging state still feels responsive.
+    public override TimeSpan? TickInterval => TimeSpan.FromSeconds(15);
 
     private readonly IBatteryService _batteryService;
 
@@ -19,7 +23,32 @@ public class BatteryModule : NotchModuleBase
         _batteryService = batteryService;
     }
 
-    protected override void OnTick()
+    protected override void OnStart()
+    {
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+    }
+
+    protected override void OnStop()
+    {
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+    }
+
+    protected override void OnTick() => EmitUpdate();
+
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        // StatusChange fires on AC plug/unplug and other power-source transitions.
+        // Refresh immediately so the charging indicator updates without waiting for the poll.
+        if (e.Mode != PowerModes.StatusChange) return;
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(new Action(EmitUpdate));
+        else
+            EmitUpdate();
+    }
+
+    private void EmitUpdate()
     {
         var info = _batteryService.GetBatteryInfo();
         BatteryUpdated?.Invoke(this, info);
