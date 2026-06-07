@@ -38,7 +38,6 @@ fix_xaml.py
 *.vsidx
 build-release.ps1
 build-msix.ps1
-V-Notch-Setup.nsi
 *.kiro
 *.sqlite
 *.pfx
