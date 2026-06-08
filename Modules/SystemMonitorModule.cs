@@ -29,28 +29,51 @@ public sealed class SystemMonitorModule : NotchModuleBase
     public override TimeSpan? TickInterval => TimeSpan.FromSeconds(1);
 
     private PerformanceCounter? _cpuCounter;
-    private PerformanceCounter? _ramAvailableBytesCounter;
     private readonly List<PerformanceCounter> _netReceivedCounters = new();
     private readonly List<PerformanceCounter> _netSentCounters = new();
 
-    private ulong _totalPhysicalBytes;
+    // Usable physical memory the OS manages (excludes hardware-reserved). Used to derive
+    // "in use". Installed memory is what Task Manager shows as the headline total.
+    private ulong _usablePhysicalBytes;
+    private ulong _installedPhysicalBytes;
 
     public event EventHandler<SystemMonitorInfo>? StatsUpdated;
 
     protected override void OnInitialize()
     {
-        _totalPhysicalBytes = ReadTotalPhysicalMemory();
+        _usablePhysicalBytes = ReadUsablePhysicalMemory();
+        _installedPhysicalBytes = ReadInstalledPhysicalMemory();
+        if (_installedPhysicalBytes == 0) _installedPhysicalBytes = _usablePhysicalBytes;
+
+        InitCpuCounter();
+        InitNetworkCounters();
+    }
+
+    /// <summary>
+    /// Initialises the CPU counter to match the figure Task Manager reports. Task Manager
+    /// (Windows 8+) uses "Processor Information(_Total)\% Processor Utility", which factors
+    /// in turbo/frequency scaling and so reads higher than the classic
+    /// "Processor(_Total)\% Processor Time". We prefer Utility and fall back to the legacy
+    /// counter on systems where it is unavailable.
+    /// </summary>
+    private void InitCpuCounter()
+    {
+        try
+        {
+            _cpuCounter = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total");
+            _cpuCounter.NextValue(); // prime; throws here if the instance/counter is bad
+            return;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MODULE-SystemMonitor", $"% Processor Utility unavailable, falling back: {ex.Message}");
+            _cpuCounter?.Dispose();
+            _cpuCounter = null;
+        }
 
         TryInit(() =>
             _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total"),
             "CPU counter");
-
-        // "Available Bytes" lets us derive used = total - available without a second API.
-        TryInit(() =>
-            _ramAvailableBytesCounter = new PerformanceCounter("Memory", "Available Bytes"),
-            "RAM counter");
-
-        InitNetworkCounters();
     }
 
     private void InitNetworkCounters()
@@ -97,11 +120,17 @@ public sealed class SystemMonitorModule : NotchModuleBase
         double cpu = SafeRead(_cpuCounter);
         cpu = Math.Clamp(cpu, 0, 100);
 
+        // Read live memory each tick from the OS. dwMemoryLoad is the same "in use"
+        // percentage Task Manager shows; "in use" bytes = usable - available.
         ulong used = 0;
-        if (_totalPhysicalBytes > 0 && _ramAvailableBytesCounter != null)
+        double ramPercent = 0;
+        var mem = ReadMemoryStatus();
+        if (mem != null)
         {
-            ulong available = (ulong)Math.Max(0, SafeRead(_ramAvailableBytesCounter));
-            used = available >= _totalPhysicalBytes ? _totalPhysicalBytes : _totalPhysicalBytes - available;
+            ulong usable = mem.ullTotalPhys > 0 ? mem.ullTotalPhys : _usablePhysicalBytes;
+            ulong available = mem.ullAvailPhys;
+            used = available >= usable ? usable : usable - available;
+            ramPercent = Math.Clamp(mem.dwMemoryLoad, 0, 100);
         }
 
         double down = SumCounters(_netReceivedCounters);
@@ -111,7 +140,8 @@ public sealed class SystemMonitorModule : NotchModuleBase
         {
             CpuPercent = cpu,
             RamUsedBytes = used,
-            RamTotalBytes = _totalPhysicalBytes,
+            RamTotalBytes = _installedPhysicalBytes,
+            RamPercent = ramPercent,
             NetDownBytesPerSec = down,
             NetUpBytesPerSec = up
         });
@@ -153,26 +183,48 @@ public sealed class SystemMonitorModule : NotchModuleBase
     protected override void OnDispose()
     {
         _cpuCounter?.Dispose();
-        _ramAvailableBytesCounter?.Dispose();
         foreach (var c in _netReceivedCounters) c.Dispose();
         foreach (var c in _netSentCounters) c.Dispose();
         _netReceivedCounters.Clear();
         _netSentCounters.Clear();
     }
 
-    #region Total physical memory (GlobalMemoryStatusEx)
+    #region Physical memory (GlobalMemoryStatusEx / GetPhysicallyInstalledSystemMemory)
 
-    private static ulong ReadTotalPhysicalMemory()
+    /// <summary>Reads a live memory snapshot. Returns null if the call fails.</summary>
+    private static MEMORYSTATUSEX? ReadMemoryStatus()
     {
         try
         {
             var status = new MEMORYSTATUSEX();
             if (GlobalMemoryStatusEx(status))
-                return status.ullTotalPhys;
+                return status;
         }
         catch (Exception ex)
         {
             RuntimeLog.Log("MODULE-SystemMonitor", $"GlobalMemoryStatusEx failed: {ex.Message}");
+        }
+        return null;
+    }
+
+    /// <summary>Usable physical memory managed by the OS (excludes hardware-reserved).</summary>
+    private static ulong ReadUsablePhysicalMemory() => ReadMemoryStatus()?.ullTotalPhys ?? 0;
+
+    /// <summary>
+    /// Total installed physical memory in bytes, read from SMBIOS. This is the headline
+    /// figure Task Manager displays (e.g. 32.0 GB) and is slightly larger than the usable
+    /// amount. Returns 0 if unavailable so the caller can fall back to usable memory.
+    /// </summary>
+    private static ulong ReadInstalledPhysicalMemory()
+    {
+        try
+        {
+            if (GetPhysicallyInstalledSystemMemory(out ulong totalKb) && totalKb > 0)
+                return totalKb * 1024UL;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("MODULE-SystemMonitor", $"GetPhysicallyInstalledSystemMemory failed: {ex.Message}");
         }
         return 0;
     }
@@ -199,6 +251,10 @@ public sealed class SystemMonitorModule : NotchModuleBase
     [return: MarshalAs(UnmanagedType.Bool)]
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern bool GlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX lpBuffer);
+
+    [return: MarshalAs(UnmanagedType.Bool)]
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetPhysicallyInstalledSystemMemory(out ulong totalMemoryInKilobytes);
 
     #endregion
 }

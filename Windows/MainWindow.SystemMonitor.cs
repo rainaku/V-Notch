@@ -1,4 +1,6 @@
 using System;
+using System.Windows;
+using System.Windows.Media.Animation;
 using VNotch.Models;
 
 namespace VNotch;
@@ -42,8 +44,9 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Drives a 0–100 usage bar by scaling its width relative to the track. The bar and
-    /// its track share a parent Grid, so we read the track's actual width at runtime.
+    /// Drives a 0–100 usage bar by animating its width relative to the track. The bar and
+    /// its track share a parent Grid, so we read the track's actual width at runtime, then
+    /// glide the fill to the new width so per-second updates move smoothly instead of snapping.
     /// </summary>
     private static void SetUsageBar(System.Windows.FrameworkElement? bar, double percent)
     {
@@ -53,7 +56,30 @@ public partial class MainWindow
         if (double.IsNaN(trackWidth) || trackWidth <= 0) return;
 
         double clamped = Math.Clamp(percent, 0, 100);
-        bar.Width = trackWidth * (clamped / 100.0);
+        double target = trackWidth * (clamped / 100.0);
+
+        // Start from the width currently on screen so the motion is continuous even if a
+        // previous animation is still settling.
+        double current = double.IsNaN(bar.Width) ? bar.ActualWidth : bar.Width;
+
+        // Skip imperceptible changes to avoid restarting the animation every tick for noise.
+        if (Math.Abs(target - current) < 0.5)
+        {
+            bar.BeginAnimation(System.Windows.FrameworkElement.WidthProperty, null);
+            bar.Width = target;
+            return;
+        }
+
+        var anim = new DoubleAnimation
+        {
+            From = current,
+            To = target,
+            Duration = TimeSpan.FromMilliseconds(550),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.HoldEnd
+        };
+
+        bar.BeginAnimation(System.Windows.FrameworkElement.WidthProperty, anim);
     }
 
     private static string FormatGb(ulong bytes) =>

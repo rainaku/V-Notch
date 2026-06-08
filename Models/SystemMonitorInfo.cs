@@ -17,9 +17,11 @@ public sealed class SystemMonitorInfo
     /// <summary>Total installed physical memory, in bytes.</summary>
     public ulong RamTotalBytes { get; init; }
 
-    /// <summary>Used memory as a percentage of total, 0–100.</summary>
-    public double RamPercent =>
-        RamTotalBytes == 0 ? 0 : (double)RamUsedBytes / RamTotalBytes * 100.0;
+    /// <summary>
+    /// Used memory as a percentage of total, 0–100. Set explicitly from the OS memory-load
+    /// figure so it matches the percentage Task Manager reports rather than being re-derived.
+    /// </summary>
+    public double RamPercent { get; init; }
 
     /// <summary>Current download rate (bytes received per second) summed over active NICs.</summary>
     public double NetDownBytesPerSec { get; init; }
