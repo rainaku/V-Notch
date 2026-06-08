@@ -78,6 +78,98 @@ internal static class MediaSourceClassifier
     }
 
     /// <summary>
+    /// Scans browser window titles (filtered to those matching the current track) and resolves the
+    /// media source to a concrete platform — YouTube, SoundCloud, Apple Music, Facebook, TikTok,
+    /// Instagram or Twitter/X. Mutates <paramref name="info"/> in place: it sets <see cref="MediaInfo.MediaSource"/>
+    /// and the matching <c>Is…Running</c> flag, and for YouTube refines <see cref="MediaInfo.CurrentTrack"/>
+    /// from the window title when the title is a longer superset of the SMTC track. Stops at the first
+    /// match and is a no-op once the source is already resolved to YouTube.
+    /// </summary>
+    /// <param name="trackTitleLower">Lower-cased current track title, used for exact title matching.</param>
+    /// <param name="trackTitleNormalized">Loosely-normalized current track title, used for fuzzy matching.</param>
+    /// <param name="hasTrack">When true, only window titles that match the current track are considered.</param>
+    public static void DetectFromWindowTitles(
+        MediaInfo info,
+        IEnumerable<string> windowTitles,
+        string trackTitleLower,
+        string trackTitleNormalized,
+        bool hasTrack)
+    {
+        foreach (var title in windowTitles)
+        {
+            if (info.Platform == MediaPlatform.YouTube)
+            {
+                break;
+            }
+
+            var winTitleLower = title.ToLower();
+            bool trackMatch = winTitleLower.Contains(trackTitleLower);
+
+            if (!trackMatch && !string.IsNullOrEmpty(trackTitleNormalized))
+            {
+                var winTitleNormalized = PlatformDetector.NormalizeForLooseMatch(winTitleLower);
+                trackMatch = winTitleNormalized.Contains(trackTitleNormalized, StringComparison.Ordinal);
+            }
+
+            if (hasTrack && !trackMatch)
+            {
+                continue;
+            }
+
+            if (winTitleLower.Contains("youtube") && !winTitleLower.StartsWith("youtube -") && winTitleLower != "youtube")
+            {
+                info.MediaSource = MediaPlatform.YouTube.ToDisplayString();
+                info.IsYouTubeRunning = true;
+                string extractedYouTubeTitle = PlatformDetector.ExtractTitleFromWindow(title, "YouTube");
+                if (!string.IsNullOrWhiteSpace(extractedYouTubeTitle) &&
+                    extractedYouTubeTitle.Length > info.CurrentTrack.Length &&
+                    PlatformDetector.NormalizeForLooseMatch(extractedYouTubeTitle).Contains(PlatformDetector.NormalizeForLooseMatch(info.CurrentTrack), StringComparison.Ordinal))
+                {
+                    info.CurrentTrack = extractedYouTubeTitle;
+                }
+                break;
+            }
+            else if (winTitleLower.Contains("soundcloud"))
+            {
+                info.MediaSource = MediaPlatform.SoundCloud.ToDisplayString();
+                info.IsSoundCloudRunning = true;
+                break;
+            }
+            else if (winTitleLower.Contains("apple music") || winTitleLower.Contains("music.apple.com") ||
+                     (winTitleLower.Contains("apple") && winTitleLower.Contains("music")))
+            {
+                info.MediaSource = MediaPlatform.AppleMusic.ToDisplayString();
+                info.IsAppleMusicRunning = true;
+                break;
+            }
+            else if (winTitleLower.Contains("facebook") && (winTitleLower.Contains("watch") || winTitleLower.Contains("video")))
+            {
+                info.MediaSource = MediaPlatform.Facebook.ToDisplayString();
+                info.IsFacebookRunning = true;
+                break;
+            }
+            else if (winTitleLower.Contains("tiktok") && winTitleLower.Contains(" | "))
+            {
+                info.MediaSource = MediaPlatform.TikTok.ToDisplayString();
+                info.IsTikTokRunning = true;
+                break;
+            }
+            else if (winTitleLower.Contains("instagram") && (winTitleLower.Contains("reel") || winTitleLower.Contains("video")))
+            {
+                info.MediaSource = MediaPlatform.Instagram.ToDisplayString();
+                info.IsInstagramRunning = true;
+                break;
+            }
+            else if ((winTitleLower.Contains("twitter") || winTitleLower.Contains(" / x")) && (winTitleLower.Contains("video") || winTitleLower.Contains("watch")))
+            {
+                info.MediaSource = MediaPlatform.Twitter.ToDisplayString();
+                info.IsTwitterRunning = true;
+                break;
+            }
+        }
+    }
+
+    /// <summary>
     /// Detects placeholder/junk SMTC titles (app names, ads, empty). Returns true when the caller
     /// should abort the pass; for a YouTube source it first clears the track and tags the artist.
     /// </summary>

@@ -2107,78 +2107,7 @@ public class MediaDetectionService : IMediaDetectionService
                         info.IsYouTubeRunning = true;
                     }
 
-                    foreach (var title in windowTitles)
-                    {
-                        if (info.Platform == MediaPlatform.YouTube)
-                        {
-                            break;
-                        }
-
-                        var winTitleLower = title.ToLower();
-                        bool trackMatch = winTitleLower.Contains(trackTitleLower);
-
-                        if (!trackMatch && !string.IsNullOrEmpty(trackTitleNormalized))
-                        {
-                            var winTitleNormalized = NormalizeForLooseMatch(winTitleLower);
-                            trackMatch = winTitleNormalized.Contains(trackTitleNormalized, StringComparison.Ordinal);
-                        }
-
-                        if (hasTrack && !trackMatch)
-                        {
-                            continue;
-                        }
-
-                        if (winTitleLower.Contains("youtube") && !winTitleLower.StartsWith("youtube -") && winTitleLower != "youtube")
-                        {
-                            info.MediaSource = MediaPlatform.YouTube.ToDisplayString();
-                            info.IsYouTubeRunning = true;
-                            string extractedYouTubeTitle = ExtractVideoTitle(title, "YouTube");
-                            if (!string.IsNullOrWhiteSpace(extractedYouTubeTitle) &&
-                                extractedYouTubeTitle.Length > info.CurrentTrack.Length &&
-                                NormalizeForLooseMatch(extractedYouTubeTitle).Contains(NormalizeForLooseMatch(info.CurrentTrack), StringComparison.Ordinal))
-                            {
-                                info.CurrentTrack = extractedYouTubeTitle;
-                            }
-                            break;
-                        }
-                        else if (winTitleLower.Contains("soundcloud"))
-                        {
-                            info.MediaSource = MediaPlatform.SoundCloud.ToDisplayString();
-                            info.IsSoundCloudRunning = true;
-                            break;
-                        }
-                        else if (winTitleLower.Contains("apple music") || winTitleLower.Contains("music.apple.com") ||
-                                 (winTitleLower.Contains("apple") && winTitleLower.Contains("music")))
-                        {
-                            info.MediaSource = MediaPlatform.AppleMusic.ToDisplayString();
-                            info.IsAppleMusicRunning = true;
-                            break;
-                        }
-                        else if (winTitleLower.Contains("facebook") && (winTitleLower.Contains("watch") || winTitleLower.Contains("video")))
-                        {
-                            info.MediaSource = MediaPlatform.Facebook.ToDisplayString();
-                            info.IsFacebookRunning = true;
-                            break;
-                        }
-                        else if (winTitleLower.Contains("tiktok") && winTitleLower.Contains(" | "))
-                        {
-                            info.MediaSource = MediaPlatform.TikTok.ToDisplayString();
-                            info.IsTikTokRunning = true;
-                            break;
-                        }
-                        else if (winTitleLower.Contains("instagram") && (winTitleLower.Contains("reel") || winTitleLower.Contains("video")))
-                        {
-                            info.MediaSource = MediaPlatform.Instagram.ToDisplayString();
-                            info.IsInstagramRunning = true;
-                            break;
-                        }
-                        else if ((winTitleLower.Contains("twitter") || winTitleLower.Contains(" / x")) && (winTitleLower.Contains("video") || winTitleLower.Contains("watch")))
-                        {
-                            info.MediaSource = MediaPlatform.Twitter.ToDisplayString();
-                            info.IsTwitterRunning = true;
-                            break;
-                        }
-                    }
+                    MediaSourceClassifier.DetectFromWindowTitles(info, windowTitles, trackTitleLower, trackTitleNormalized, hasTrack);
                 }
             }
 
@@ -2273,69 +2202,53 @@ public class MediaDetectionService : IMediaDetectionService
                                 bool isSoundCloudSource = info.Platform == MediaPlatform.SoundCloud;
                                 bool hasVerifiedSoundCloudThumb = MediaPlatformExtensions.ParsePlatform(_cachedThumbnailSource) == MediaPlatform.SoundCloud;
                                 bool likelySoundCloudArtwork = IsLikelySoundCloudArtworkCandidate(newBitmap);
-                                bool skipSmtcThumbForFreshSoundCloudTrack = isSoundCloudSource &&
-                                                                            trackChangedForThisPass &&
-                                                                            !hasVerifiedSoundCloudThumb &&
-                                                                            !likelySoundCloudArtwork;
 
-                                double smtcAspect = (double)newBitmap.PixelWidth / newBitmap.PixelHeight;
-                                bool isWideVideoFrame = smtcAspect > 1.3;
-                                // Also reject wide video frames within 4 seconds of a track change (SMTC thumbnail can lag multiple cycles)
-                                bool recentTrackChange = (DateTime.Now - _lastMetadataChangeTime).TotalSeconds < 4.0;
-                                bool skipSmtcThumbForFreshYouTubeTrack = isYouTubeLikeSource &&
-                                                                         isWideVideoFrame &&
-                                                                         (trackChangedForThisPass || (recentTrackChange && _cachedThumbnail == null));
+                                var thumbDecision = ThumbnailHeuristics.DecideSmtcThumbnail(new ThumbnailHeuristics.SmtcThumbnailInputs
+                                {
+                                    IsYouTubeLikeSource = isYouTubeLikeSource,
+                                    IsSoundCloudSource = isSoundCloudSource,
+                                    IsBrowserOrYouTubePlatform = info.Platform == MediaPlatform.YouTube || info.Platform == MediaPlatform.Browser,
+                                    TrackChanged = trackChangedForThisPass,
+                                    HasVerifiedYouTubeThumb = hasVerifiedYouTubeThumb,
+                                    HasVerifiedSoundCloudThumb = hasVerifiedSoundCloudThumb,
+                                    LikelySoundCloudArtwork = likelySoundCloudArtwork,
+                                    RecentTrackChange = (DateTime.Now - _lastMetadataChangeTime).TotalSeconds < 4.0,
+                                    CachedThumbnailIsNull = _cachedThumbnail == null,
+                                    PixelWidth = newBitmap.PixelWidth,
+                                    PixelHeight = newBitmap.PixelHeight,
+                                });
 
-                                if (skipSmtcThumbForFreshSoundCloudTrack || skipSmtcThumbForFreshYouTubeTrack)
+                                if (thumbDecision == ThumbnailHeuristics.SmtcThumbnailDecision.Reject)
                                 {
                                     RuntimeLog.Debug("MEDIA-THUMB-STALE", () =>
                                         $"Rejecting stale SMTC thumbnail on track change: " +
                                         $"track='{info.CurrentTrack}' source='{info.MediaSource}' " +
-                                        $"thumb={newBitmap.PixelWidth}x{newBitmap.PixelHeight} aspect={smtcAspect:F2} " +
-                                        $"isWide={isWideVideoFrame} skipYT={skipSmtcThumbForFreshYouTubeTrack} skipSC={skipSmtcThumbForFreshSoundCloudTrack}");
-                                    // Don't cache the stale thumbnail — leave info.Thumbnail as null so YouTube fetch provides the correct one
+                                        $"thumb={newBitmap.PixelWidth}x{newBitmap.PixelHeight} aspect={(double)newBitmap.PixelWidth / newBitmap.PixelHeight:F2}");
+                                    // Don't cache the stale thumbnail — leave info.Thumbnail as null so the verified lookup provides the correct one
                                     info.Thumbnail = null;
                                 }
-                                else
+                                else if (thumbDecision == ThumbnailHeuristics.SmtcThumbnailDecision.Accept)
                                 {
-                                    double aspect = (double)newBitmap.PixelWidth / newBitmap.PixelHeight;
-                                    bool isSquare = Math.Abs(aspect - 1.0) < 0.05;
-
-                                    bool isLikelySoundCloudPlaceholder =
-                                        info.Platform == MediaPlatform.SoundCloud &&
-                                        isSquare &&
-                                        (newBitmap.PixelWidth <= 320 || newBitmap.PixelHeight <= 320);
-                                    // Browser source SMTC thumbnail is typically the browser icon/favicon (not the actual video thumbnail) when the tab is in the background
-                                    bool isGenericIcon = (info.Platform == MediaPlatform.YouTube || info.Platform == MediaPlatform.Browser || isLikelySoundCloudPlaceholder)
-                                                         && isSquare && newBitmap.PixelWidth <= 300;
-                                    // On track change, always accept the SMTC thumbnail immediately so the UI updates right away
-                                    bool shouldPreferVerifiedYouTubeLookup = isYouTubeLikeSource &&
-                                                                            !hasVerifiedYouTubeThumb &&
-                                                                            !trackChangedForThisPass;
-
-                                    if (!(isSquare && isGenericIcon) && !shouldPreferVerifiedYouTubeLookup)
+                                    bool isSmtcTopicChannel = !string.IsNullOrEmpty(info.CurrentArtist) &&
+                                                              info.CurrentArtist.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase);
+                                    RuntimeLog.Debug("MEDIA-THUMB-CROP", () =>
+                                        $"path=smtc-update track='{info.CurrentTrack}' artist='{info.CurrentArtist}' source='{info.MediaSource}' " +
+                                        $"thumb={newBitmap.PixelWidth}x{newBitmap.PixelHeight} aspect={(double)newBitmap.PixelWidth / newBitmap.PixelHeight:F2} " +
+                                        $"isSmtcTopicChannel={isSmtcTopicChannel}");
+                                    newBitmap = CropToSquare(newBitmap, info.MediaSource, forceCenterCrop: isSmtcTopicChannel) ?? newBitmap;
+                                    _cachedThumbnail = newBitmap;
+                                    if (info.Platform == MediaPlatform.SoundCloud)
                                     {
-                                        bool isSmtcTopicChannel = !string.IsNullOrEmpty(info.CurrentArtist) &&
-                                                                  info.CurrentArtist.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase);
-                                        RuntimeLog.Debug("MEDIA-THUMB-CROP", () =>
-                                            $"path=smtc-update track='{info.CurrentTrack}' artist='{info.CurrentArtist}' source='{info.MediaSource}' " +
-                                            $"thumb={newBitmap.PixelWidth}x{newBitmap.PixelHeight} aspect={aspect:F2} " +
-                                            $"isSquare={isSquare} isSmtcTopicChannel={isSmtcTopicChannel}");
-                                        newBitmap = CropToSquare(newBitmap, info.MediaSource, forceCenterCrop: isSmtcTopicChannel) ?? newBitmap;
-                                        _cachedThumbnail = newBitmap;
-                                        if (info.Platform == MediaPlatform.SoundCloud)
+                                        if (likelySoundCloudArtwork)
                                         {
-                                            if (likelySoundCloudArtwork)
-                                            {
-                                                _cachedThumbnailSource = MediaPlatform.SoundCloud.ToDisplayString();
-                                            }
+                                            _cachedThumbnailSource = MediaPlatform.SoundCloud.ToDisplayString();
                                         }
-                                        else
-                                        {
-                                            _cachedThumbnailSource = info.MediaSource ?? "";
-                                        }
-                                        info.Thumbnail = _cachedThumbnail;
                                     }
+                                    else
+                                    {
+                                        _cachedThumbnailSource = info.MediaSource ?? "";
+                                    }
+                                    info.Thumbnail = _cachedThumbnail;
                                 }
                             }
                         }
@@ -2820,8 +2733,6 @@ public class MediaDetectionService : IMediaDetectionService
                     bool currentIsPremium = currentId.Contains("Spotify", StringComparison.OrdinalIgnoreCase) ||
                                           currentId.Contains("Music", StringComparison.OrdinalIgnoreCase);
 
-                    double holdTime = currentIsPremium ? 4.0 : 1.5;
-
                     bool isOsCurrent = !string.IsNullOrEmpty(osCurrentId) && bestId == osCurrentId;
                     bool isRecentLatestPlayback = !string.IsNullOrEmpty(_latestPlayingSessionKey) &&
                                                   bestSessionKey == _latestPlayingSessionKey &&
@@ -2863,11 +2774,15 @@ public class MediaDetectionService : IMediaDetectionService
                         RuntimeLog.Error("MEDIA-DETECT-FRESH-TIMELINE", ex.ToString());
                     }
 
-                    if (!isRecentLatestPlayback &&
-                        !isOsCurrent &&
-                        !hasFreshTimeline &&  
-                        currentStillPlaying &&
-                        (DateTime.Now - _pendingSessionStartTime).TotalSeconds < holdTime)
+                    if (SessionSwitchArbiter.ShouldHoldCurrentSession(new SessionSwitchInputs
+                    {
+                        CurrentIsPremium = currentIsPremium,
+                        BestIsOsCurrent = isOsCurrent,
+                        BestIsRecentLatestPlayback = isRecentLatestPlayback,
+                        CurrentStillPlaying = currentStillPlaying,
+                        BestHasFreshTimeline = hasFreshTimeline,
+                        PendingElapsedSeconds = (DateTime.Now - _pendingSessionStartTime).TotalSeconds,
+                    }))
                     {
                         bestSession = _activeDisplaySession;
                     }

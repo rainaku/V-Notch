@@ -152,4 +152,129 @@ public class ThumbnailHeuristicsTests
     }
 
     #endregion
+
+    #region DecideSmtcThumbnail
+
+    // A wide 16:9-ish frame that displays fine for a stable track but is rejected on a fresh one.
+    private static readonly ThumbnailHeuristics.SmtcThumbnailInputs WideYouTube = new()
+    {
+        IsYouTubeLikeSource = true,
+        IsBrowserOrYouTubePlatform = true,
+        PixelWidth = 640,
+        PixelHeight = 360,
+    };
+
+    [Fact]
+    public void Decide_YouTubeWideFrame_OnTrackChange_Rejects()
+    {
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Reject,
+            ThumbnailHeuristics.DecideSmtcThumbnail(WideYouTube with { TrackChanged = true }));
+    }
+
+    [Fact]
+    public void Decide_YouTubeWideFrame_RecentChangeNoCache_Rejects()
+    {
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Reject,
+            ThumbnailHeuristics.DecideSmtcThumbnail(WideYouTube with { RecentTrackChange = true, CachedThumbnailIsNull = true }));
+    }
+
+    [Fact]
+    public void Decide_YouTubeWideFrame_StableTrackWithVerifiedThumb_Accepts()
+    {
+        // Not a track change and a verified YouTube thumb already exists → the wide frame is accepted.
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Accept,
+            ThumbnailHeuristics.DecideSmtcThumbnail(WideYouTube with
+            {
+                RecentTrackChange = true,
+                CachedThumbnailIsNull = false,
+                HasVerifiedYouTubeThumb = true,
+            }));
+    }
+
+    [Fact]
+    public void Decide_YouTubeWideFrame_StableTrackNoVerifiedThumb_Skips()
+    {
+        // Stable track but no verified lookup yet → prefer waiting for the verified thumbnail.
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Skip,
+            ThumbnailHeuristics.DecideSmtcThumbnail(WideYouTube with { RecentTrackChange = true, CachedThumbnailIsNull = false }));
+    }
+
+    [Fact]
+    public void Decide_SoundCloudNonArtwork_OnTrackChange_Rejects()
+    {
+        var inputs = new ThumbnailHeuristics.SmtcThumbnailInputs
+        {
+            IsSoundCloudSource = true,
+            TrackChanged = true,
+            HasVerifiedSoundCloudThumb = false,
+            LikelySoundCloudArtwork = false,
+            PixelWidth = 500,
+            PixelHeight = 500,
+        };
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Reject,
+            ThumbnailHeuristics.DecideSmtcThumbnail(inputs));
+    }
+
+    [Fact]
+    public void Decide_SoundCloudRealArtwork_OnTrackChange_Accepts()
+    {
+        var inputs = new ThumbnailHeuristics.SmtcThumbnailInputs
+        {
+            IsSoundCloudSource = true,
+            TrackChanged = true,
+            LikelySoundCloudArtwork = true,
+            PixelWidth = 500,
+            PixelHeight = 500,
+        };
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Accept,
+            ThumbnailHeuristics.DecideSmtcThumbnail(inputs));
+    }
+
+    [Fact]
+    public void Decide_LargeSquareArtwork_Accepts()
+    {
+        var inputs = new ThumbnailHeuristics.SmtcThumbnailInputs
+        {
+            TrackChanged = true,
+            PixelWidth = 640,
+            PixelHeight = 640,
+        };
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Accept,
+            ThumbnailHeuristics.DecideSmtcThumbnail(inputs));
+    }
+
+    [Fact]
+    public void Decide_SmallSquareGenericIcon_Skips()
+    {
+        // Browser/YouTube small square (<=300) on a track change → favicon-like generic icon, skipped.
+        var inputs = new ThumbnailHeuristics.SmtcThumbnailInputs
+        {
+            IsBrowserOrYouTubePlatform = true,
+            TrackChanged = true,
+            PixelWidth = 256,
+            PixelHeight = 256,
+        };
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Skip,
+            ThumbnailHeuristics.DecideSmtcThumbnail(inputs));
+    }
+
+    [Fact]
+    public void Decide_UnchangedYouTubeTrackWithoutVerifiedThumb_Skips()
+    {
+        // Square SMTC art on a stable YouTube track where no verified lookup exists yet →
+        // prefer waiting for the verified lookup, so skip.
+        var inputs = new ThumbnailHeuristics.SmtcThumbnailInputs
+        {
+            IsYouTubeLikeSource = true,
+            IsBrowserOrYouTubePlatform = true,
+            TrackChanged = false,
+            HasVerifiedYouTubeThumb = false,
+            PixelWidth = 640,
+            PixelHeight = 640,
+        };
+        Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Skip,
+            ThumbnailHeuristics.DecideSmtcThumbnail(inputs));
+    }
+
+    #endregion
 }

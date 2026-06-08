@@ -89,8 +89,9 @@ public class SessionScorerTests
     [Fact]
     public void Active_OsCurrentBrowser_NoExtra()
     {
-        // 500 (active) + 1000 (os-current); the +1000 extra is suppressed for browser sources
-        Assert.Equal(1500, SessionScorer.Score(Empty with { IsActive = true, IsOsCurrent = true, IsBrowser = true }));
+        // 100 (browser source-kind) + 1000 (os-current) + 500 (active);
+        // the +1000 active-os-current extra is suppressed for browser sources
+        Assert.Equal(1600, SessionScorer.Score(Empty with { IsActive = true, IsOsCurrent = true, IsBrowser = true }));
     }
 
     #endregion

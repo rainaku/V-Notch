@@ -180,4 +180,101 @@ public class MediaSourceClassifierTests
     }
 
     #endregion
+
+    #region DetectFromWindowTitles
+
+    [Fact]
+    public void DetectFromWindowTitles_YouTubeTitle_ResolvesYouTube()
+    {
+        var info = new MediaInfo { MediaSource = "Browser" };
+        MediaSourceClassifier.DetectFromWindowTitles(info, new[] { "My Video - YouTube" }, "", "", hasTrack: false);
+
+        Assert.Equal("YouTube", info.MediaSource);
+        Assert.True(info.IsYouTubeRunning);
+    }
+
+    [Fact]
+    public void DetectFromWindowTitles_SoundCloudTitle_ResolvesSoundCloud()
+    {
+        var info = new MediaInfo { MediaSource = "Browser" };
+        MediaSourceClassifier.DetectFromWindowTitles(info, new[] { "Cool Track by Artist - SoundCloud" }, "", "", hasTrack: false);
+
+        Assert.Equal("SoundCloud", info.MediaSource);
+        Assert.True(info.IsSoundCloudRunning);
+    }
+
+    [Theory]
+    [InlineData("Some Album - Apple Music")]
+    [InlineData("Listen on music.apple.com")]
+    public void DetectFromWindowTitles_AppleMusicTitle_ResolvesAppleMusic(string title)
+    {
+        var info = new MediaInfo { MediaSource = "Browser" };
+        MediaSourceClassifier.DetectFromWindowTitles(info, new[] { title }, "", "", hasTrack: false);
+
+        Assert.Equal("Apple Music", info.MediaSource);
+        Assert.True(info.IsAppleMusicRunning);
+    }
+
+    [Fact]
+    public void DetectFromWindowTitles_FacebookWatch_ResolvesFacebook()
+    {
+        var info = new MediaInfo { MediaSource = "Browser" };
+        MediaSourceClassifier.DetectFromWindowTitles(info, new[] { "Funny clip | Facebook Watch" }, "", "", hasTrack: false);
+
+        Assert.Equal("Facebook", info.MediaSource);
+        Assert.True(info.IsFacebookRunning);
+    }
+
+    [Fact]
+    public void DetectFromWindowTitles_TikTok_ResolvesTikTok()
+    {
+        var info = new MediaInfo { MediaSource = "Browser" };
+        MediaSourceClassifier.DetectFromWindowTitles(info, new[] { "creator | TikTok" }, "", "", hasTrack: false);
+
+        Assert.Equal("TikTok", info.MediaSource);
+        Assert.True(info.IsTikTokRunning);
+    }
+
+    [Fact]
+    public void DetectFromWindowTitles_NoMatchingPlatform_LeavesSourceUnchanged()
+    {
+        var info = new MediaInfo { MediaSource = "Browser" };
+        MediaSourceClassifier.DetectFromWindowTitles(info, new[] { "Just a regular window title" }, "", "", hasTrack: false);
+
+        Assert.Equal("Browser", info.MediaSource);
+    }
+
+    [Fact]
+    public void DetectFromWindowTitles_AlreadyYouTube_IsNoOp()
+    {
+        // Pre-resolved YouTube source short-circuits the scan, so a SoundCloud window can't override it.
+        var info = new MediaInfo { MediaSource = "YouTube" };
+        MediaSourceClassifier.DetectFromWindowTitles(info, new[] { "Track - SoundCloud" }, "", "", hasTrack: false);
+
+        Assert.Equal("YouTube", info.MediaSource);
+    }
+
+    [Fact]
+    public void DetectFromWindowTitles_HasTrack_SkipsTitlesThatDoNotMatchTrack()
+    {
+        // With hasTrack=true, only window titles containing the current track are considered.
+        var info = new MediaInfo { MediaSource = "Browser", CurrentTrack = "My Song" };
+        MediaSourceClassifier.DetectFromWindowTitles(
+            info, new[] { "Unrelated tab - SoundCloud" }, trackTitleLower: "my song", trackTitleNormalized: "", hasTrack: true);
+
+        Assert.Equal("Browser", info.MediaSource); // no matching title → unchanged
+    }
+
+    [Fact]
+    public void DetectFromWindowTitles_HasTrack_MatchesTitleContainingTrack()
+    {
+        var info = new MediaInfo { MediaSource = "Browser", CurrentTrack = "My Song" };
+        MediaSourceClassifier.DetectFromWindowTitles(
+            info, new[] { "My Song - SoundCloud" }, trackTitleLower: "my song", trackTitleNormalized: "", hasTrack: true);
+
+        Assert.Equal("SoundCloud", info.MediaSource);
+        Assert.True(info.IsSoundCloudRunning);
+    }
+
+    #endregion
 }
