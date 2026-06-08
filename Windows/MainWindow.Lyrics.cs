@@ -17,7 +17,11 @@ public partial class MainWindow
     private List<LyricLine>? _currentLyrics;
     private int _currentLyricIndex = -1;
     private string _lyricsTrackKey = "";
-    private bool _isLyricsActive = false;
+    private bool _isLyricsActive
+    {
+        get => _notchState.IsLyricsActive;
+        set => _notchState.IsLyricsActive = value;
+    }
     private string _lastKnownYouTubeVideoId = "";
 
     private enum SyncedTextSource { None, SpotifyLyrics, YouTubeSubtitles }

@@ -14,7 +14,11 @@ namespace VNotch;
 
 public partial class MainWindow
 {
-    private bool _isAudioView = false;
+    private bool _isAudioView
+    {
+        get => _notchState.IsAudioView;
+        set => _notchState.IsAudioView = value;
+    }
     private const double _audioViewWidth = 720;
 
     // The Sound view height adapts to its content: it shrinks to fit when only a few rows are

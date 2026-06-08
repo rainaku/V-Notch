@@ -15,7 +15,11 @@ namespace VNotch;
 
 public partial class MainWindow
 {
-    private bool _isTimerView = false;
+    private bool _isTimerView
+    {
+        get => _notchState.IsTimerView;
+        set => _notchState.IsTimerView = value;
+    }
     private const double _timerViewHeight = 108;
     private const double _countdownCompleteWidthInset = 28;
     private double CountdownCompleteViewWidth => Math.Max(_collapsedWidth, _expandedWidth - _countdownCompleteWidthInset);

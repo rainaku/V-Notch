@@ -36,12 +36,7 @@ public enum SpatialAudioMode
     DolbyAtmos
 }
 
-/// <summary>
-/// Provides the data + control surface for the Audio view: a per-application
-/// volume mixer (via NAudio CoreAudio sessions), output-device enumeration and
-/// switching (via the undocumented IPolicyConfig COM interface) and a best-effort
-/// spatial-audio readout.
-/// </summary>
+
 public sealed class AudioMixerService : IDisposable
 {
     // Fast-path cache for rapid volume drags: resolve a session once, reuse for a few seconds.
@@ -50,20 +45,9 @@ public sealed class AudioMixerService : IDisposable
     private DateTime _setCacheAtUtc = DateTime.MinValue;
     private const double SetCacheLifetimeMs = 3000;
 
-    /// <summary>
-    /// Enumerates the active per-application audio sessions on the default render
-    /// endpoint and returns lightweight, thread-safe snapshots (icons are frozen).
-    /// Safe to call from a background thread — no COM objects are retained.
-    /// </summary>
+   
     public List<AudioSessionInfo> GetSessions() => GetSessions(includeIcons: true);
 
-    /// <summary>
-    /// Enumerates the active per-application audio sessions on the default render
-    /// endpoint. When <paramref name="includeIcons"/> is false it skips the expensive
-    /// icon + file-metadata extraction (uses the raw process name) so it can run
-    /// quickly on the UI thread; pass true on a background thread for the rich version.
-    /// Safe to call from any thread — no COM objects are retained.
-    /// </summary>
     public List<AudioSessionInfo> GetSessions(bool includeIcons)
     {
         var results = new List<AudioSessionInfo>();
@@ -159,7 +143,7 @@ public sealed class AudioMixerService : IDisposable
             if (!string.IsNullOrWhiteSpace(display) && !display.StartsWith("@"))
                 return display;
         }
-        catch { }
+        catch { /* best-effort: session metadata may be unavailable; fall back to "App" */ }
         return "App";
     }
 
@@ -188,7 +172,7 @@ public sealed class AudioMixerService : IDisposable
             if (string.IsNullOrWhiteSpace(name))
                 name = process.ProcessName;
         }
-        catch { }
+        catch { /* best-effort process resolve: process may have exited or be inaccessible */ }
 
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -277,7 +261,7 @@ public sealed class AudioMixerService : IDisposable
                     if (!keepAlive) sv.Dispose();
                     return result;
                 }
-                catch { }
+                catch { /* best-effort: this session may have ended; try the next one */ }
             }
         }
         catch (Exception ex)
@@ -311,7 +295,10 @@ public sealed class AudioMixerService : IDisposable
                 using var def = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
                 defaultId = def.ID;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("AUDIOMIXER", $"No default render endpoint: {ex.Message}");
+            }
 
             foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
             {
@@ -411,7 +398,10 @@ public sealed class AudioMixerService : IDisposable
                 using var def = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
                 defaultId = def.ID;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("AUDIOMIXER", $"No default capture endpoint: {ex.Message}");
+            }
 
             foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
             {

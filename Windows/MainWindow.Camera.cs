@@ -16,6 +16,7 @@ using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Media.MediaProperties;
 using VNotch.Services;
+using VNotch.Controllers;
 using static VNotch.Services.AnimationPrimitives;
 using static VNotch.Services.Win32Interop;
 
@@ -24,60 +25,26 @@ public partial class MainWindow
 {
     #region Camera Logic
 
-    private bool _isCameraActive = false;
-    private MediaCapture? _mediaCapture;
-    private MediaFrameReader? _frameReader;
-    private int _cameraPreviewFadeToken = 0;
+    // Capture pipeline (WinRT MediaCapture/FrameReader, device selection, lifecycle
+    // serialization, throttling, buffer reuse) lives in this controller now. This partial
+    // keeps only the WPF concerns: section animation, window sizing and frame rendering.
+    private readonly WebcamCaptureController _camera = new();
+
     private bool _cameraPreviewMorphPending = false;
     private const int CameraSectionExpandDurationMs = 420;
     private const int CameraSectionCollapseDurationMs = 420;
 
-    // ─── Performance: frame throttling & buffer reuse ───
-    private long _lastFrameTimestamp;
-    private const long FrameIntervalTicks = 333_333; // ~30fps cap (10_000_000 / 30)
-    private byte[]? _cameraFrameBuffer;
-    private int _cameraFrameBufferSize;
     private WriteableBitmap? _cameraWriteableBitmap;
     private bool _cameraFrameDispatchPending = false;
 
-    // ─── Lifecycle serialization: prevent race conditions on rapid click ───
-    private readonly object _cameraLifecycleLock = new();
-    private MediaCapture? _initializingMediaCapture;
-    private bool _cameraStarting = false;
-    private bool _cameraStopping = false;
-    private bool IsCameraPreviewLifecycleActive
+    // Read-only delegating views over the capture controller so existing cross-file callers
+    // (PrivacyIndicators, Timer, SecondaryView, AudioView, Animation) stay unchanged.
+    private bool _isCameraActive => _camera.IsActive;
+    private bool IsCameraPreviewLifecycleActive => _camera.IsLifecycleActive;
+
+    private void InitializeCameraController()
     {
-        get
-        {
-            lock (_cameraLifecycleLock)
-            {
-                return _isCameraActive
-                    || _cameraStarting
-                    || _cameraStopping
-                    || _frameReader != null
-                    || _mediaCapture != null
-                    || _initializingMediaCapture != null;
-            }
-        }
-    }
-
-    private static async Task DisposeCameraResourcesAsync(MediaFrameReader? reader, MediaCapture? capture)
-    {
-        if (reader != null)
-        {
-            try
-            {
-                await reader.StopAsync();
-            }
-            catch
-            {
-                // Reader may already be stopped or disposed when cancelling an in-flight start.
-            }
-
-            try { reader.Dispose(); } catch { }
-        }
-
-        try { capture?.Dispose(); } catch { }
+        _camera.FrameAvailable += OnCameraFrameAvailable;
     }
 
     private void PrimeCameraPreviewMorphIn()
@@ -104,7 +71,7 @@ public partial class MainWindow
         if (!_cameraPreviewMorphPending) return;
         _cameraPreviewMorphPending = false;
 
-        int token = _cameraPreviewFadeToken;
+        int token = _camera.FadeToken;
         var morphDuration = new Duration(TimeSpan.FromMilliseconds(380));
         var overlayDuration = new Duration(TimeSpan.FromMilliseconds(320));
 
@@ -116,7 +83,7 @@ public partial class MainWindow
         var overlayFadeOut = MakeAnim(CameraOverlay.Opacity, 0.0, overlayDuration, _easeQuadOut, TimeSpan.FromMilliseconds(40));
         overlayFadeOut.Completed += (s, e) =>
         {
-            if (token != _cameraPreviewFadeToken || !_isCameraActive) return;
+            if (token != _camera.FadeToken || !_isCameraActive) return;
             CameraOverlay.BeginAnimation(OpacityProperty, null);
             CameraOverlay.Visibility = Visibility.Collapsed;
             CameraOverlay.Opacity = 0.0;
@@ -432,7 +399,7 @@ public partial class MainWindow
         e.Handled = true; 
 
         if (_isAnimating || !_isSecondaryView) return;
-        if (_cameraStarting || _cameraStopping) return; // block rapid clicks
+        if (_camera.IsStarting || _camera.IsStopping) return; // block rapid clicks
 
         if (!_isCameraActive)
         {
@@ -452,143 +419,23 @@ public partial class MainWindow
 
     private async void StartCameraPreview()
     {
-        if (_isCameraActive && _frameReader != null) return;
-        if (_cameraStarting) return;
+        if (_camera.IsActive && _camera.HasReader) return;
+        if (_camera.IsStarting) return;
 
-        _cameraStarting = true;
-        int startToken = ++_cameraPreviewFadeToken;
         try
         {
             CameraPreviewImage.BeginAnimation(OpacityProperty, null);
             CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             PrimeCameraPreviewMorphIn();
-            _isCameraActive = true;
-            _lastFrameTimestamp = 0;
             CameraErrorOverlay.Visibility = Visibility.Collapsed;
 
-            // ─── Offload all heavy camera init to background thread ───
-            var cameraDeviceId = _settings.CameraDeviceId;
-            var (mediaCapture, frameReader, errorMsg) = await Task.Run(async () =>
+            // The capture controller owns device selection, lifecycle serialization and the
+            // background init; we only supply the device id and a callback describing whether the
+            // surrounding view still wants the preview (was the inline _isSecondaryView check).
+            string? error = await _camera.StartAsync(_settings.CameraDeviceId, () => _isSecondaryView);
+            if (error != null)
             {
-                MediaCapture? capture = null;
-                try
-                {
-                    var groups = await MediaFrameSourceGroup.FindAllAsync();
-                    MediaFrameSourceGroup? group = null;
-
-                    if (!string.IsNullOrEmpty(cameraDeviceId))
-                    {
-                        group = groups.FirstOrDefault(g => g.Id == cameraDeviceId &&
-                            g.SourceInfos.Any(s => s.SourceKind == MediaFrameSourceKind.Color));
-                    }
-
-                    group ??= groups.FirstOrDefault(g =>
-                        g.SourceInfos.Any(s => s.SourceKind == MediaFrameSourceKind.Color));
-
-                    if (group == null)
-                        return ((MediaCapture?)null, (MediaFrameReader?)null, "Cannot detect camera device");
-
-                    capture = new MediaCapture();
-                    lock (_cameraLifecycleLock)
-                    {
-                        _initializingMediaCapture = capture;
-                    }
-
-                    var initSettings = new MediaCaptureInitializationSettings
-                    {
-                        SourceGroup = group,
-                        MemoryPreference = MediaCaptureMemoryPreference.Cpu,
-                        StreamingCaptureMode = StreamingCaptureMode.Video
-                    };
-
-                    await capture.InitializeAsync(initSettings);
-                    if (startToken != _cameraPreviewFadeToken || !_isCameraActive || !_isSecondaryView)
-                    {
-                        lock (_cameraLifecycleLock)
-                        {
-                            if (ReferenceEquals(_initializingMediaCapture, capture))
-                            {
-                                _initializingMediaCapture = null;
-                            }
-                        }
-                        capture.Dispose();
-                        return ((MediaCapture?)null, (MediaFrameReader?)null, (string?)null);
-                    }
-
-                    var colorSource = capture.FrameSources.Values.FirstOrDefault(s => s.Info.SourceKind == MediaFrameSourceKind.Color);
-                    if (colorSource == null)
-                    {
-                        lock (_cameraLifecycleLock)
-                        {
-                            if (ReferenceEquals(_initializingMediaCapture, capture))
-                            {
-                                _initializingMediaCapture = null;
-                            }
-                        }
-                        capture.Dispose();
-                        return ((MediaCapture?)null, (MediaFrameReader?)null, "Cannot detect color source");
-                    }
-
-                    var reader = await capture.CreateFrameReaderAsync(colorSource, MediaEncodingSubtypes.Bgra8);
-                    lock (_cameraLifecycleLock)
-                    {
-                        if (ReferenceEquals(_initializingMediaCapture, capture))
-                        {
-                            _initializingMediaCapture = null;
-                        }
-                    }
-                    return (capture, reader, (string?)null);
-                }
-                catch (Exception ex)
-                {
-                    if (capture != null)
-                    {
-                        lock (_cameraLifecycleLock)
-                        {
-                            if (ReferenceEquals(_initializingMediaCapture, capture))
-                            {
-                                _initializingMediaCapture = null;
-                            }
-                        }
-                        try { capture.Dispose(); } catch { }
-                    }
-                    return ((MediaCapture?)null, (MediaFrameReader?)null, ex.Message);
-                }
-            });
-
-            if (startToken != _cameraPreviewFadeToken || !_isCameraActive || !_isSecondaryView)
-            {
-                await DisposeCameraResourcesAsync(frameReader, mediaCapture);
-                return;
-            }
-
-            if (mediaCapture == null || frameReader == null)
-                throw new Exception(errorMsg ?? "Cannot detect camera device");
-
-            _mediaCapture = mediaCapture;
-            _frameReader = frameReader;
-            lock (_cameraLifecycleLock)
-            {
-                if (ReferenceEquals(_initializingMediaCapture, mediaCapture))
-                {
-                    _initializingMediaCapture = null;
-                }
-            }
-            _frameReader.FrameArrived += FrameReader_FrameArrived;
-            await frameReader.StartAsync();
-
-            if (startToken != _cameraPreviewFadeToken || !_isCameraActive || !_isSecondaryView)
-            {
-                frameReader.FrameArrived -= FrameReader_FrameArrived;
-                if (ReferenceEquals(_frameReader, frameReader))
-                {
-                    _frameReader = null;
-                }
-                if (ReferenceEquals(_mediaCapture, mediaCapture))
-                {
-                    _mediaCapture = null;
-                }
-                await DisposeCameraResourcesAsync(frameReader, mediaCapture);
+                throw new Exception(error);
             }
         }
         catch (Exception ex)
@@ -604,10 +451,6 @@ public partial class MainWindow
             }
             RuntimeLog.Error("CAMERA", ex, "Camera initialization failed");
         }
-        finally
-        {
-            _cameraStarting = false;
-        }
     }
 
     private void StopCameraPreviewForViewExit(bool resetLayout = true)
@@ -621,32 +464,11 @@ public partial class MainWindow
 
     private void StopCameraPreviewSafe()
     {
-        _isCameraActive = false;
-        _cameraStarting = false;
-        _cameraStopping = false;
         _cameraPreviewMorphPending = false;
-        _cameraPreviewFadeToken++;
-        _cameraFrameBuffer = null;
-        _cameraFrameBufferSize = 0;
         _cameraWriteableBitmap = null;
         _cameraFrameDispatchPending = false;
 
-        MediaCapture? initializingCapture;
-        lock (_cameraLifecycleLock)
-        {
-            initializingCapture = _initializingMediaCapture;
-            _initializingMediaCapture = null;
-        }
-
-        var reader = _frameReader;
-        var capture = _mediaCapture;
-        _frameReader = null;
-        _mediaCapture = null;
-
-        if (reader != null)
-        {
-            reader.FrameArrived -= FrameReader_FrameArrived;
-        }
+        var (reader, capture, initializingCapture) = _camera.DetachForSafeStop();
 
         CameraPreviewImage.BeginAnimation(OpacityProperty, null);
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -663,54 +485,18 @@ public partial class MainWindow
         CameraOverlay.Visibility = Visibility.Collapsed;
         CameraErrorOverlay.Visibility = Visibility.Collapsed;
 
-        _ = DisposeCameraResourcesAsync(reader, capture);
+        _ = WebcamCaptureController.DisposeResourcesAsync(reader, capture);
         if (initializingCapture != null && !ReferenceEquals(initializingCapture, capture))
         {
-            _ = DisposeCameraResourcesAsync(null, initializingCapture);
+            _ = WebcamCaptureController.DisposeResourcesAsync(null, initializingCapture);
         }
     }
 
-    private void FrameReader_FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
+    private void OnCameraFrameAvailable(byte[] buffer, int w, int h)
     {
-        // ─── Frame throttle: skip frames if we're rendering faster than 30fps ───
-        long now = Stopwatch.GetTimestamp();
-        if (now - _lastFrameTimestamp < FrameIntervalTicks)
-            return;
-        _lastFrameTimestamp = now;
-
-        // ─── Coalesce: skip if previous frame hasn't been rendered yet ───
+        // Coalesce: skip if the previous frame has not been rendered yet.
         if (_cameraFrameDispatchPending)
             return;
-
-        using var frame = sender.TryAcquireLatestFrame();
-        if (frame?.VideoMediaFrame?.SoftwareBitmap == null) return;
-
-        var softwareBitmap = frame.VideoMediaFrame.SoftwareBitmap;
-
-        if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 ||
-            softwareBitmap.BitmapAlphaMode != BitmapAlphaMode.Premultiplied)
-        {
-            softwareBitmap = SoftwareBitmap.Convert(softwareBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
-        }
-
-        int width = softwareBitmap.PixelWidth;
-        int height = softwareBitmap.PixelHeight;
-        int requiredSize = width * height * 4;
-
-        // Reuse buffer to avoid GC pressure
-        if (_cameraFrameBuffer == null || _cameraFrameBufferSize < requiredSize)
-        {
-            _cameraFrameBuffer = new byte[requiredSize];
-            _cameraFrameBufferSize = requiredSize;
-        }
-
-        softwareBitmap.CopyToBuffer(_cameraFrameBuffer.AsBuffer());
-        softwareBitmap.Dispose();
-
-        // Capture buffer reference and dimensions for the closure
-        var buffer = _cameraFrameBuffer;
-        int w = width;
-        int h = height;
 
         _cameraFrameDispatchPending = true;
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
@@ -743,30 +529,16 @@ public partial class MainWindow
 
     private async void StopCameraPreview()
     {
-        if (_cameraStopping) return;
-        _cameraStopping = true;
+        // Detaches the reader and stops frame flow immediately; returns false if already stopping.
+        if (!_camera.TryBeginGracefulStop(out int fadeToken, out var reader, out var capture))
+            return;
 
         try
         {
             AnimateCameraSectionToShelf(false);
-            _isCameraActive = false;
             _cameraPreviewMorphPending = false;
-            _cameraFrameBuffer = null;
-            _cameraFrameBufferSize = 0;
             _cameraWriteableBitmap = null;
             _cameraFrameDispatchPending = false;
-            int fadeToken = ++_cameraPreviewFadeToken;
-
-            // ─── Capture references and detach immediately to stop frame flow ───
-            var reader = _frameReader;
-            var capture = _mediaCapture;
-            _frameReader = null;
-            _mediaCapture = null;
-
-            if (reader != null)
-            {
-                reader.FrameArrived -= FrameReader_FrameArrived;
-            }
 
         CameraOverlay.BeginAnimation(OpacityProperty, null);
         CameraOverlay.Visibility = Visibility.Visible;
@@ -825,7 +597,7 @@ public partial class MainWindow
 
         previewFadeOut.Completed += (s, e) =>
         {
-            if (fadeToken != _cameraPreviewFadeToken || _isCameraActive) return;
+            if (fadeToken != _camera.FadeToken || _isCameraActive) return;
             CameraPreviewImage.BeginAnimation(OpacityProperty, null);
             CameraPreviewImage.Opacity = 0;
             CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -843,7 +615,7 @@ public partial class MainWindow
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, previewScaleOutY, HandoffBehavior.SnapshotAndReplace);
         CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, previewBlurOut, HandoffBehavior.SnapshotAndReplace);
 
-            // ─── Offload heavy stop/dispose to background thread ───
+            // â”€â”€â”€ Offload heavy stop/dispose to background thread â”€â”€â”€
             await Task.Run(async () =>
             {
                 try
@@ -865,7 +637,7 @@ public partial class MainWindow
         }
         finally
         {
-            _cameraStopping = false;
+            _camera.EndGracefulStop();
         }
     }
 

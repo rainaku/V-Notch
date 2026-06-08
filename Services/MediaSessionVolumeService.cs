@@ -253,7 +253,7 @@ public sealed class MediaSessionVolumeService
                 {
                     processIds.Add((uint)process.Id);
                 }
-                catch { }
+                catch { /* best-effort: process may have exited */ }
                 finally
                 {
                     process.Dispose();

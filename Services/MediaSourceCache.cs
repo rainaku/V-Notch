@@ -122,7 +122,10 @@ public class MediaSourceCache
                 }
             }
         }
-        catch {  }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("MEDIA-SOURCE-CACHE", $"Failed to load cache from '{_cachePath}': {ex.Message}");
+        }
     }
 
     public void Save()
@@ -136,7 +139,10 @@ public class MediaSourceCache
                 File.WriteAllText(_cachePath, json);
                 _isDirty = false;
             }
-            catch {  }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("MEDIA-SOURCE-CACHE", $"Failed to save cache to '{_cachePath}': {ex.Message}");
+            }
         }
     }
 

@@ -746,7 +746,7 @@ public partial class MainWindow
         var track = new Border
         {
             Height = 4,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(4),
             Background = AudioTrack,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -755,7 +755,7 @@ public partial class MainWindow
         var fill = new Border
         {
             Height = 4,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(4),
             Background = AudioGreen,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
@@ -779,9 +779,15 @@ public partial class MainWindow
             IsHitTestVisible = false
         };
         // Position via TranslateTransform (render-only) instead of Margin (layout) so the
-        // thumb glides during drag without triggering layout.
+        // thumb glides during drag without triggering layout. A ScaleTransform lets it grow
+        // on hover (matching the progress bar's hover scale).
+        var thumbScale = new ScaleTransform(1, 1);
         var thumbTranslate = new TranslateTransform(0, 0);
-        thumb.RenderTransform = thumbTranslate;
+        var thumbGroup = new TransformGroup();
+        thumbGroup.Children.Add(thumbScale);
+        thumbGroup.Children.Add(thumbTranslate);
+        thumb.RenderTransform = thumbGroup;
+        thumb.RenderTransformOrigin = new Point(0.5, 0.5);
         area.Children.Add(thumb);
 
         Grid.SetColumn(area, 1);
@@ -811,7 +817,7 @@ public partial class MainWindow
             if (w <= 0) return;
             currentRatio = Math.Clamp(x / w, 0, 1);
             UpdateVisual(currentRatio);
-            try { onChanged(currentRatio); } catch { }
+            try { onChanged(currentRatio); } catch { /* best-effort: volume callback fires on every drag tick */ }
         }
 
         // External value updates (refresh/poll): move the slider unless the user is dragging
@@ -838,10 +844,38 @@ public partial class MainWindow
             area.ReleaseMouseCapture();
             // Commit the final value immediately and hold off external overrides briefly so
             // the bar doesn't jump back to a stale polled reading.
-            try { onChanged(currentRatio); } catch { }
+            try { onChanged(currentRatio); } catch { /* best-effort: final commit of volume on drag release */ }
             suppressUntil = DateTime.UtcNow.AddMilliseconds(600);
+            // If the cursor was released outside the slider, settle back to the rest size.
+            if (!area.IsMouseOver) AnimateSliderHover(false);
             e.Handled = true;
         };
+
+        // Hover grow/scale — mirrors the progress bar's hover (thicker track + scaled thumb,
+        // same Apple-style easing). Stays expanded while dragging even if the cursor strays.
+        void AnimateSliderHover(bool on)
+        {
+            int hoverFps = AnimationConfig.TargetFps;
+            var dur = TimeSpan.FromMilliseconds(on ? 350 : 250);
+            IEasingFunction ease = on
+                ? new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut }
+                : new CubicEase { EasingMode = EasingMode.EaseOut };
+
+            double barHeight = on ? 8 : 4;
+            var hAnim = new DoubleAnimation { To = barHeight, Duration = dur, EasingFunction = ease };
+            Timeline.SetDesiredFrameRate(hAnim, hoverFps);
+            track.BeginAnimation(FrameworkElement.HeightProperty, hAnim);
+            fill.BeginAnimation(FrameworkElement.HeightProperty, hAnim);
+
+            double thumbS = on ? 1.18 : 1.0;
+            var sAnim = new DoubleAnimation { To = thumbS, Duration = dur, EasingFunction = ease };
+            Timeline.SetDesiredFrameRate(sAnim, hoverFps);
+            thumbScale.BeginAnimation(ScaleTransform.ScaleXProperty, sAnim);
+            thumbScale.BeginAnimation(ScaleTransform.ScaleYProperty, sAnim);
+        }
+
+        area.MouseEnter += (_, _) => AnimateSliderHover(true);
+        area.MouseLeave += (_, _) => { if (!dragging) AnimateSliderHover(false); };
 
         return cell;
     }
@@ -1053,7 +1087,7 @@ public partial class MainWindow
             var pos = anchor.TransformToVisual(AudioContent).Transform(new Point(0, 0));
             container.Margin = new Thickness(pos.X, pos.Y + anchor.ActualHeight + 4, 0, 0);
         }
-        catch { }
+        catch { /* best-effort positioning: anchor may not be in the visual tree yet */ }
 
         AudioOverlay.Children.Add(container);
         AudioOverlay.Visibility = Visibility.Visible;

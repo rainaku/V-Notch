@@ -283,7 +283,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             if (!string.IsNullOrEmpty(tabUrl))
                 return tabUrl;
         }
-        catch { }
+        catch { /* best-effort UIA scan: address bar/tabs may be unavailable or vanish mid-scan */ }
 
         return null;
     }
@@ -305,7 +305,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
         }
-        catch { }
+        catch { /* best-effort UIA tab scan: elements may be torn down mid-enumeration */ }
         return null;
     }
 
@@ -340,7 +340,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
         }
-        catch { }
+        catch { /* best-effort UIA read: tab/children may be unavailable */ }
         return null;
     }
 
@@ -473,7 +473,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
         }
-        catch { }
+        catch { /* best-effort UIA scan for the Spotify web player */ }
 
         return false;
     }
@@ -505,7 +505,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
         }
-        catch { }
+        catch { /* best-effort UIA scan: tab/children may be unavailable */ }
 
         return false;
     }

@@ -1536,10 +1536,13 @@ private void RevertLivePreviewIfNeeded()
         {
             foreach (var corrupt in Directory.GetFiles(appData, "settings.corrupt-*.json"))
             {
-                try { File.Delete(corrupt); deletedCount++; } catch { }
+                try { File.Delete(corrupt); deletedCount++; } catch { /* skip locked/again-corrupt file */ }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            VNotch.Services.RuntimeLog.Warn("SETTINGS", $"Failed to enumerate corrupt backups: {ex.Message}");
+        }
 
         ClearCacheHint.Text = deletedCount > 0
             ? Loc.Get("settings.clearCache.done", deletedCount)

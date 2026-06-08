@@ -63,15 +63,20 @@ public partial class MainWindow : Window
 
     private readonly NotchAnimationController _animController;
     private readonly MusicWidgetController _musicController;
-    private readonly CameraPreviewController _cameraController;
     private readonly MediaDisplayController _mediaDisplayController;
     private readonly FullscreenAutoHideController _fullscreenController;
     private readonly BluetoothNotificationController _bluetoothController;
     private DragDropController _dragDropController = null!;
     private readonly TimerManager _timerManager;
 
-    // _isAnimating guards ALL animations (expand, collapse, view switch, file delete)
-    private bool _isAnimating = false;
+    // _isAnimating guards ALL animations (expand, collapse, view switch, file delete).
+    // Backed by NotchStateManager so the hot flag has a single owner; the member name is
+    // kept so all ~20 call sites are unchanged.
+    private bool _isAnimating
+    {
+        get => _notchState.IsAnimating;
+        set => _notchState.IsAnimating = value;
+    }
 
     // Logical state reads delegate to the state machine
     private bool _isExpanded
@@ -167,8 +172,8 @@ public partial class MainWindow : Window
 
         _animController = new NotchAnimationController(_notchState);
         _musicController = new MusicWidgetController(_notchState);
-        _cameraController = new CameraPreviewController();
         _mediaDisplayController = new MediaDisplayController();
+        InitializeCameraController();
         _fullscreenController = new FullscreenAutoHideController(() => _hwnd, _settings);
         _fullscreenController.HideStateChanged += FullscreenController_HideStateChanged;
         _fullscreenController.RecheckNeeded += ScheduleFullscreenRecheck;
@@ -461,8 +466,18 @@ public partial class MainWindow : Window
         if (_isExpanded) CollapseNotch();
     }
 
-    protected override void OnClosed(EventArgs e)
+    private bool _cleanedUp;
+
+    /// <summary>
+    /// Single, idempotent teardown for all timers, hooks, event subscriptions and
+    /// disposable resources owned by the window. Safe to call multiple times and from
+    /// multiple shutdown paths (OnClosed, Exit, Restart).
+    /// </summary>
+    private void PerformCleanup()
     {
+        if (_cleanedUp) return;
+        _cleanedUp = true;
+
         _notchManager.HoverService.HoverEnter -= HoverService_HoverEnter;
         _notchManager.HoverService.HoverLeave -= HoverService_HoverLeave;
         _mediaService.MediaChanged -= OnMediaChanged;
@@ -492,10 +507,15 @@ public partial class MainWindow : Window
         _compactThumbnailHoverLeaveTimer?.Stop();
         _idleHideTimer?.Stop();
         _moduleHost?.Dispose();
-        _cameraController?.Dispose();
+        _camera?.Dispose();
         _timerManager?.Dispose();
         DisposeGestureController();
         DisposeAllShelfWatchers();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        PerformCleanup();
         base.OnClosed(e);
     }
     private static void TrimWorkingSet()
@@ -507,7 +527,10 @@ public partial class MainWindow : Window
                 (IntPtr)(-1),
                 (IntPtr)(-1));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("TRIM-WS", $"SetProcessWorkingSetSize failed: {ex.Message}");
+        }
     }
 
     #endregion
@@ -2040,28 +2063,10 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void CleanupBeforeShutdown()
     {
-        UnregisterClipboardListener();
-        _hwndSource?.RemoveHook(WndProc);
-        StopZOrderWatchdog();
-
-        _mediaService.MediaChanged -= OnMediaChanged;
-        _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
-        AnimationConfig.ReduceMotionChanged -= OnReduceMotionChanged;
-        _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
-        _privacyModule.StateChanged -= PrivacyModule_StateChanged;
-        _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;
-        _systemMonitorModule.StatsUpdated -= SystemMonitorModule_StatsUpdated;
-        InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
-
-        StopTitleGradientShift();
-        _progressTimer.Stop();
-        _mediaService.Dispose();
-        _lyricsService.Dispose();
-        _notchManager.Dispose();
-        _zOrderManager.Dispose();
-        TrayIcon.Dispose();
-        _updateTimer.Stop();
-        DisposeAllShelfWatchers();
+        // Delegates to the single canonical teardown so shutdown paths can never
+        // diverge from OnClosed (previously this block leaked several timers,
+        // the camera controller, module host, gesture controller, etc.).
+        PerformCleanup();
     }
 
     #endregion

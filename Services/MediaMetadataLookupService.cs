@@ -941,7 +941,10 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("YOUTUBE-API-KEY", $"Failed to read API key from settings: {ex.Message}");
+        }
 
         return null;
     }
