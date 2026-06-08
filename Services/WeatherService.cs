@@ -91,6 +91,9 @@ public sealed class WeatherService : IWeatherService
         }
         catch (OperationCanceledException)
         {
+            // HttpClient.Timeout surfaces as a cancellation. Log it so a slow/unreachable
+            // network doesn't fail the widget silently.
+            RuntimeLog.Log("WEATHER", "Request timed out or was cancelled.");
             return null;
         }
         catch (Exception ex)
@@ -105,26 +108,40 @@ public sealed class WeatherService : IWeatherService
     /// </summary>
     private static async Task<(double lat, double lon, string city)?> ResolveLocationAsync(CancellationToken token)
     {
-        // Provider 1: ipapi.co (HTTPS, no key)
-        var result = await TryIpapiCoAsync(token).ConfigureAwait(false);
+        // Provider 1: ipwho.is (HTTPS, no key, reliable).
+        var result = await TryIpWhoIsAsync(token).ConfigureAwait(false);
         if (result is not null) return result;
 
-        // Provider 2: ip-api.com (fallback)
+        // Provider 2: ip-api.com (fallback, HTTP only).
         return await TryIpApiComAsync(token).ConfigureAwait(false);
     }
 
-    private static async Task<(double, double, string)?> TryIpapiCoAsync(CancellationToken token)
+    private static async Task<(double, double, string)?> TryIpWhoIsAsync(CancellationToken token)
     {
         try
         {
-            using var response = await _http.GetAsync("https://ipapi.co/json/", token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) return null;
+            using var response = await _http.GetAsync("https://ipwho.is/", token).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                RuntimeLog.Log("WEATHER", $"ipwho.is HTTP {(int)response.StatusCode}");
+                return null;
+            }
 
             var json = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            if (root.TryGetProperty("error", out _)) return null;
+            // ipwho.is reports failures as { "success": false, "message": "..." }.
+            if (root.TryGetProperty("success", out var successProp) &&
+                successProp.ValueKind == JsonValueKind.False)
+            {
+                string reason = root.TryGetProperty("message", out var msgProp)
+                    ? msgProp.GetString() ?? "unknown"
+                    : "unknown";
+                RuntimeLog.Log("WEATHER", $"ipwho.is error: {reason}");
+                return null;
+            }
+
             if (!root.TryGetProperty("latitude", out var latProp) ||
                 !root.TryGetProperty("longitude", out var lonProp))
                 return null;
@@ -139,7 +156,7 @@ public sealed class WeatherService : IWeatherService
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("WEATHER", $"ipapi.co failed: {ex.Message}");
+            RuntimeLog.Log("WEATHER", $"ipwho.is failed: {ex.Message}");
             return null;
         }
     }
