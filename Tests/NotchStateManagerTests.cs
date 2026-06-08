@@ -74,11 +74,12 @@ public class NotchStateManagerTests
     }
 
     [Fact]
-    public void Expanded_CanTransitionTo_MusicExpanding()
+    public void Expanded_CannotTransitionTo_MusicExpanding()
     {
+        // Music view is reachable only from Collapsed, never directly from Expanded.
         _sm.TryTransitionTo(NotchState.Expanding);
         _sm.TryTransitionTo(NotchState.Expanded);
-        Assert.True(_sm.TryTransitionTo(NotchState.MusicExpanding));
+        Assert.False(_sm.TryTransitionTo(NotchState.MusicExpanding));
     }
 
     [Fact]
@@ -132,27 +133,27 @@ public class NotchStateManagerTests
     #region Derived Properties
 
     [Fact]
-    public void IsAnimating_TrueWhenExpanding()
+    public void IsTransitioning_TrueWhenExpanding()
     {
         _sm.TryTransitionTo(NotchState.Expanding);
-        Assert.True(_sm.IsAnimating);
+        Assert.True(_sm.IsTransitioning);
     }
 
     [Fact]
-    public void IsAnimating_TrueWhenCollapsing()
+    public void IsTransitioning_TrueWhenCollapsing()
     {
         _sm.TryTransitionTo(NotchState.Expanding);
         _sm.TryTransitionTo(NotchState.Expanded);
         _sm.TryTransitionTo(NotchState.Collapsing);
-        Assert.True(_sm.IsAnimating);
+        Assert.True(_sm.IsTransitioning);
     }
 
     [Fact]
-    public void IsAnimating_FalseWhenExpanded()
+    public void IsTransitioning_FalseWhenExpanded()
     {
         _sm.TryTransitionTo(NotchState.Expanding);
         _sm.TryTransitionTo(NotchState.Expanded);
-        Assert.False(_sm.IsAnimating);
+        Assert.False(_sm.IsTransitioning);
     }
 
     [Fact]
@@ -205,10 +206,12 @@ public class NotchStateManagerTests
     }
 
     [Fact]
-    public void Hidden_CanTransitionTo_Collapsed()
+    public void Hidden_ReturnsToCollapsed_ViaShow()
     {
+        // Hidden is entered/left through ForceState (Hide/Show), not the validated table.
         _sm.ForceState(NotchState.Hidden);
-        Assert.True(_sm.TryTransitionTo(NotchState.Collapsed));
+        _sm.Show();
+        Assert.Equal(NotchState.Collapsed, _sm.CurrentState);
     }
 
     #endregion

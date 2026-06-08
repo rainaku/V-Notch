@@ -21,23 +21,30 @@ public class MediaSourceCacheTests : IDisposable
             File.Delete(_tempPath);
     }
 
+    // Helpers bridging the test intent to the real cache API.
+    private static void Set(MediaSourceCache cache, string? key, string? value) =>
+        cache.SetBoth(key ?? string.Empty, string.Empty, value ?? string.Empty);
+
+    private static string? Get(MediaSourceCache cache, string key) =>
+        cache.TryGet(key, out var value) ? value : null;
+
     [Fact]
     public void Set_And_Get_ReturnsValue()
     {
-        _cache.Set("track1|artist1", "YouTube");
-        Assert.Equal("YouTube", _cache.Get("track1|artist1"));
+        Set(_cache, "track1|artist1", "YouTube");
+        Assert.Equal("YouTube", Get(_cache, "track1|artist1"));
     }
 
     [Fact]
     public void Get_NonExistent_ReturnsNull()
     {
-        Assert.Null(_cache.Get("nonexistent"));
+        Assert.Null(Get(_cache, "nonexistent"));
     }
 
     [Fact]
     public void TryGet_Existing_ReturnsTrueWithValue()
     {
-        _cache.Set("key", "Spotify");
+        Set(_cache, "key", "Spotify");
         Assert.True(_cache.TryGet("key", out var value));
         Assert.Equal("Spotify", value);
     }
@@ -52,50 +59,50 @@ public class MediaSourceCacheTests : IDisposable
     public void SetBoth_SetsFullAndTrackOnly()
     {
         _cache.SetBoth("track|artist", "track|", "SoundCloud");
-        Assert.Equal("SoundCloud", _cache.Get("track|artist"));
-        Assert.Equal("SoundCloud", _cache.Get("track|"));
+        Assert.Equal("SoundCloud", Get(_cache, "track|artist"));
+        Assert.Equal("SoundCloud", Get(_cache, "track|"));
     }
 
     [Fact]
     public void HasSource_MatchesFull()
     {
-        _cache.Set("track|artist", "YouTube");
+        Set(_cache, "track|artist", "YouTube");
         Assert.True(_cache.HasSource("track|artist", "", "YouTube"));
     }
 
     [Fact]
     public void HasSource_MatchesTrackOnly()
     {
-        _cache.Set("track|", "YouTube");
+        Set(_cache, "track|", "YouTube");
         Assert.True(_cache.HasSource("", "track|", "YouTube"));
     }
 
     [Fact]
     public void HasSource_CaseInsensitive()
     {
-        _cache.Set("key", "YouTube");
+        Set(_cache, "key", "YouTube");
         Assert.True(_cache.HasSource("key", "", "youtube"));
     }
 
     [Fact]
     public void HasSource_WrongSource_ReturnsFalse()
     {
-        _cache.Set("key", "Spotify");
+        Set(_cache, "key", "Spotify");
         Assert.False(_cache.HasSource("key", "", "YouTube"));
     }
 
     [Fact]
     public void Save_And_Load_Persists()
     {
-        _cache.Set("track1", "YouTube");
-        _cache.Set("track2", "SoundCloud");
+        Set(_cache, "track1", "YouTube");
+        Set(_cache, "track2", "SoundCloud");
         _cache.Save();
 
         var loaded = new MediaSourceCache(_tempPath);
         loaded.Load();
 
-        Assert.Equal("YouTube", loaded.Get("track1"));
-        Assert.Equal("SoundCloud", loaded.Get("track2"));
+        Assert.Equal("YouTube", Get(loaded, "track1"));
+        Assert.Equal("SoundCloud", Get(loaded, "track2"));
     }
 
     [Fact]
@@ -106,7 +113,7 @@ public class MediaSourceCacheTests : IDisposable
         Assert.False(File.Exists(_tempPath));
 
         // After set — save should create file
-        _cache.Set("key", "value");
+        Set(_cache, "key", "value");
         _cache.Save();
         Assert.True(File.Exists(_tempPath));
     }
@@ -114,40 +121,40 @@ public class MediaSourceCacheTests : IDisposable
     [Fact]
     public void Clear_RemovesAll()
     {
-        _cache.Set("a", "1");
-        _cache.Set("b", "2");
+        Set(_cache, "a", "1");
+        Set(_cache, "b", "2");
         _cache.Clear();
 
         Assert.Equal(0, _cache.Count);
-        Assert.Null(_cache.Get("a"));
+        Assert.Null(Get(_cache, "a"));
     }
 
     [Fact]
     public void Set_EmptyKey_Ignored()
     {
-        _cache.Set("", "YouTube");
-        _cache.Set(null!, "YouTube");
+        Set(_cache, "", "YouTube");
+        Set(_cache, null, "YouTube");
         Assert.Equal(0, _cache.Count);
     }
 
     [Fact]
     public void Set_EmptyValue_Ignored()
     {
-        _cache.Set("key", "");
-        _cache.Set("key", null!);
+        Set(_cache, "key", "");
+        Set(_cache, "key", null);
         Assert.Equal(0, _cache.Count);
     }
 
     [Fact]
     public void Set_SameValue_DoesNotMarkDirty()
     {
-        _cache.Set("key", "YouTube");
-        _cache.ForceSave(); // Clear dirty flag
+        Set(_cache, "key", "YouTube");
+        _cache.Save(); // Writes and clears the dirty flag
 
-        // Delete file to detect if Save writes
+        // Delete file to detect if a subsequent Save writes again
         File.Delete(_tempPath);
 
-        _cache.Set("key", "YouTube"); // Same value
+        Set(_cache, "key", "YouTube"); // Same value — should not mark dirty
         _cache.Save(); // Should not write (not dirty)
         Assert.False(File.Exists(_tempPath));
     }
