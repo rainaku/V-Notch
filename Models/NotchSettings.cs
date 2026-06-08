@@ -83,6 +83,9 @@ public class NotchSettings
     public bool CopyShelfFilesToClipboard { get; set; } = false;
 
     public bool EnableYouTubeApi { get; set; } = false;
+
+    // Encrypted at rest via Windows DPAPI (see DpapiJsonConverter); kept as plaintext in memory.
+    [JsonConverter(typeof(VNotch.Services.DpapiJsonConverter))]
     public string YouTubeApiKey { get; set; } = "";
 
     public string SubtitlePriority { get; set; } = "native,english,auto";

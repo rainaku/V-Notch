@@ -27,7 +27,7 @@ public partial class MainWindow
     private enum SyncedTextSource { None, SpotifyLyrics, YouTubeSubtitles }
     private SyncedTextSource _syncedTextSource = SyncedTextSource.None;
 
-    private async void FetchLyricsForTrack(MediaInfo info)
+    private async Task FetchLyricsForTrack(MediaInfo info)
     {
         // Honor user setting — Spotify lyrics can be disabled
         if (!_settings.EnableSpotifyLyrics)
@@ -81,7 +81,7 @@ public partial class MainWindow
         ApplySyncedLines(lyrics, info);
     }
 
-    private async void FetchSubtitlesForTrack(MediaInfo info, bool force = false)
+    private async Task FetchSubtitlesForTrack(MediaInfo info, bool force = false)
     {
         // Honor user setting — YouTube subtitles can be disabled
         if (!_settings.EnableYouTubeSubtitles)

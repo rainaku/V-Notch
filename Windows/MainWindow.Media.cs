@@ -76,11 +76,11 @@ public partial class MainWindow
                 // Fetch synced lyrics for Spotify tracks
                 if (result.HasRealTrack && renderedSource == "Spotify")
                 {
-                    FetchLyricsForTrack(info);
+                    FetchLyricsForTrack(info).SafeFireAndForget("LYRICS");
                 }
                 else if (result.HasRealTrack && renderedSource == "YouTube")
                 {
-                    FetchSubtitlesForTrack(info);
+                    FetchSubtitlesForTrack(info).SafeFireAndForget("SUBTITLES");
                 }
                 else
                 {
@@ -96,7 +96,7 @@ public partial class MainWindow
                 if (result.HasRealTrack && renderedSource == "YouTube"
                     && !string.IsNullOrEmpty(info.YouTubeVideoId))
                 {
-                    FetchSubtitlesForTrack(info);
+                    FetchSubtitlesForTrack(info).SafeFireAndForget("SUBTITLES");
                 }
             }
 

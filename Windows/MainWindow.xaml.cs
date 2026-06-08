@@ -382,11 +382,13 @@ public partial class MainWindow : Window
                 _moduleHost.StartAll();
             }
 
-            // Trim working set after startup to release pages back to OS.
+            // One-shot, post-startup trim: a *non-blocking, optimized* collect lets the runtime
+            // reclaim the transient startup allocations, then we return freed pages to the OS.
+            // (Intentionally not Aggressive/blocking + WaitForPendingFinalizers — that caused a
+            // visible GC pause and only masked, never fixed, real leaks.)
             Task.Delay(3000).ContinueWith(_ =>
             {
-                GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
                 TrimWorkingSet();
             }, TaskScheduler.Default);
         }), DispatcherPriority.ContextIdle);
@@ -1016,7 +1018,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                     var refetchInfo = _currentMediaInfo ?? new VNotch.Models.MediaInfo();
                     if (string.IsNullOrEmpty(refetchInfo.YouTubeVideoId))
                         refetchInfo.YouTubeVideoId = _lastKnownYouTubeVideoId;
-                    FetchSubtitlesForTrack(refetchInfo, force: true);
+                    FetchSubtitlesForTrack(refetchInfo, force: true).SafeFireAndForget("SUBTITLES");
                 }
             }
 
@@ -1248,7 +1250,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                  && !_isLyricsActive)
         {
             _lyricsTrackKey = "";
-            FetchLyricsForTrack(_currentMediaInfo);
+            FetchLyricsForTrack(_currentMediaInfo).SafeFireAndForget("LYRICS");
         }
 
         // React to YouTube subtitles toggle: same pattern as Spotify lyrics.
@@ -1266,7 +1268,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                  && !_isLyricsActive)
         {
             _lyricsTrackKey = "";
-            FetchSubtitlesForTrack(_currentMediaInfo);
+            FetchSubtitlesForTrack(_currentMediaInfo).SafeFireAndForget("SUBTITLES");
         }
 
         if (_currentMediaInfo != null && !_isExpanded)

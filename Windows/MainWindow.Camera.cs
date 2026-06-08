@@ -404,11 +404,11 @@ public partial class MainWindow
         if (!_isCameraActive)
         {
             AnimateCameraSectionToShelf(true);
-            StartCameraPreview();
+            StartCameraPreview().SafeFireAndForget("CAMERA-START");
         }
         else
         {
-            StopCameraPreview();
+            StopCameraPreview().SafeFireAndForget("CAMERA-STOP");
         }
     }
 
@@ -417,7 +417,7 @@ public partial class MainWindow
         ApplyCameraCornerRadius(_isCameraSectionExpanded);
     }
 
-    private async void StartCameraPreview()
+    private async Task StartCameraPreview()
     {
         if (_camera.IsActive && _camera.HasReader) return;
         if (_camera.IsStarting) return;
@@ -527,7 +527,7 @@ public partial class MainWindow
         });
     }
 
-    private async void StopCameraPreview()
+    private async Task StopCameraPreview()
     {
         // Detaches the reader and stops frame flow immediately; returns false if already stopping.
         if (!_camera.TryBeginGracefulStop(out int fadeToken, out var reader, out var capture))

@@ -88,11 +88,9 @@ public static ImageSource? GetFileIcon(string filePath)
 
             if (isImage || isVideo)
             {
-                if (isVideo)
-                {
-                    result = TryGetVideoThumbnail(filePath);
-                }
-
+                // Videos use the synchronous shell thumbnail (the same image Explorer caches)
+                // rather than the WinRT StorageFile thumbnail API, which previously blocked the
+                // calling thread via Task.Run(...).Result and could freeze the UI on icon load.
                 result ??= TryGetShellThumbnail(filePath, 128);
 
                 if (result == null && isImage)
@@ -133,32 +131,6 @@ public static ImageSource? GetFileIcon(string filePath)
 
             foreach (var key in oldest)
                 _iconCache.TryRemove(key, out _);
-        }
-    }
-
-    private static ImageSource? TryGetVideoThumbnail(string filePath)
-    {
-        try
-        {
-            var task = Task.Run(async () =>
-            {
-                var file = await StorageFile.GetFileFromPathAsync(filePath);
-                var thumbnail = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, 128);
-                if (thumbnail == null) return null;
-
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.StreamSource = thumbnail.AsStream();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return (ImageSource?)bitmap;
-            });
-            return task.Result;
-        }
-        catch
-        {
-            return null;
         }
     }
 

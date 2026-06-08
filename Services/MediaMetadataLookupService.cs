@@ -935,7 +935,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             {
                 if (root.TryGetProperty("YouTubeApiKey", out var keyEl))
                 {
-                    string? key = keyEl.GetString()?.Trim();
+                    string? key = DataProtection.Unprotect(keyEl.GetString())?.Trim();
                     if (!string.IsNullOrEmpty(key) && key.Length > 10)
                         return key;
                 }

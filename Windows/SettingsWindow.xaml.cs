@@ -50,7 +50,7 @@ public event EventHandler? AnimatedClosing;
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         PlayEntranceAnimation();
-        LoadVisualizerAudioDevices();
+        LoadVisualizerAudioDevices().SafeFireAndForget("SETTINGS-VIS-AUDIO");
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -146,7 +146,7 @@ public event EventHandler? AnimatedClosing;
         MonitorCombo.SelectedIndex = Math.Min(_settings.MonitorIndex, monitors.Length - 1);
 
         // Camera device combo
-        LoadCameraDevices();
+        LoadCameraDevices().SafeFireAndForget("SETTINGS-CAMERA-DEVICES");
         SetVisualizerAudioDevicePlaceholder();
 
         AutoStartCheck.IsChecked = StartupManager.IsAutoStartEnabled();
@@ -301,7 +301,7 @@ public event EventHandler? AnimatedClosing;
         VisualizerAudioHint.Text = Loc.Get("settings.visualizerAudio.hint");
         if (IsLoaded)
         {
-            Dispatcher.BeginInvoke(new Action(LoadVisualizerAudioDevices), DispatcherPriority.Background);
+            Dispatcher.BeginInvoke(new Action(() => LoadVisualizerAudioDevices().SafeFireAndForget("SETTINGS-VIS-AUDIO")), DispatcherPriority.Background);
         }
         else
         {
@@ -952,7 +952,7 @@ public event EventHandler? AnimatedClosing;
             (VisualizerAudioHint, () =>
             {
                 VisualizerAudioHint.Text = Loc.Get("settings.visualizerAudio.hint");
-                LoadVisualizerAudioDevices();
+                LoadVisualizerAudioDevices().SafeFireAndForget("SETTINGS-VIS-AUDIO");
             }),
 
             // System
@@ -2556,7 +2556,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
     #region Camera Device
 
-    private async void LoadCameraDevices()
+    private async Task LoadCameraDevices()
     {
         try
         {
@@ -2607,7 +2607,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         VisualizerAudioCombo.SelectedIndex = 0;
     }
 
-    private async void LoadVisualizerAudioDevices()
+    private async Task LoadVisualizerAudioDevices()
     {
         // Enumerate audio endpoints on a background thread. This COM enumeration is slow
         // enough to block the UI thread for a frame; because it was previously dispatched at
