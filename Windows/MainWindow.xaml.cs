@@ -947,7 +947,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            VNotch.Services.RuntimeLog.Log("LAYOUT-PREWARM", ex.ToString());
+            VNotch.Services.RuntimeLog.Error("LAYOUT-PREWARM", ex.ToString());
         }
     }
 
@@ -1297,7 +1297,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
         }
         else if (_currentMediaInfo != null
-                 && _currentMediaInfo.MediaSource == "Spotify"
+                 && _currentMediaInfo.Platform == MediaPlatform.Spotify
                  && !string.IsNullOrEmpty(_currentMediaInfo.CurrentTrack)
                  && !_isLyricsActive)
         {
@@ -1315,7 +1315,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
         }
         else if (_currentMediaInfo != null
-                 && _currentMediaInfo.MediaSource == "YouTube"
+                 && _currentMediaInfo.Platform == MediaPlatform.YouTube
                  && !string.IsNullOrEmpty(_currentMediaInfo.YouTubeVideoId)
                  && !_isLyricsActive)
         {
@@ -1772,7 +1772,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("BATTERY-CLICK", ex.ToString());
+            RuntimeLog.Error("BATTERY-CLICK", ex.ToString());
         }
     }
 

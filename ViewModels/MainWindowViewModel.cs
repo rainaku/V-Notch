@@ -202,9 +202,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 TrackTitle = info.CurrentTrack;
 
                 if (!string.IsNullOrEmpty(info.CurrentArtist) &&
-                    info.CurrentArtist != "YouTube" &&
-                    info.CurrentArtist != "Browser" &&
-                    info.CurrentArtist != "Spotify")
+                    MediaPlatformExtensions.ParsePlatform(info.CurrentArtist) is not (MediaPlatform.YouTube or MediaPlatform.Browser or MediaPlatform.Spotify))
                 {
                     TrackArtist = info.CurrentArtist;
                 }
@@ -254,7 +252,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             UpdateProgressTracking(info);
 
             bool shouldBeCompact = info != null && info.IsAnyMediaPlaying && !string.IsNullOrEmpty(info.CurrentTrack);
-            if (info?.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
+            if (info?.Platform == MediaPlatform.Browser && string.IsNullOrEmpty(info.CurrentTrack)) shouldBeCompact = false;
 
             CollapsedWidth = GetCollapsedWidth(Settings);
             IsMusicCompactMode = shouldBeCompact;
@@ -361,7 +359,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             var timeSinceUpdate = DateTime.Now - _lastMediaUpdate;
 
             double capSeconds = (CurrentMediaInfo.IsThrottled) ? 3600 :
-                               (CurrentMediaInfo.MediaSource == "YouTube" || CurrentMediaInfo.MediaSource == "Browser") ? 600 : 30;
+                               (CurrentMediaInfo.Platform is MediaPlatform.YouTube or MediaPlatform.Browser) ? 600 : 30;
 
             if (timeSinceUpdate > TimeSpan.FromSeconds(capSeconds))
                 timeSinceUpdate = TimeSpan.FromSeconds(capSeconds);
@@ -419,7 +417,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("VM-SEEK", ex.ToString());
+            RuntimeLog.Error("VM-SEEK", ex.ToString());
         }
     }
 
@@ -447,7 +445,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("VM-SEEK-RELATIVE", ex.ToString());
+            RuntimeLog.Error("VM-SEEK-RELATIVE", ex.ToString());
         }
     }
 

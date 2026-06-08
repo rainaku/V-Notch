@@ -4,6 +4,18 @@ using System.Text;
 
 namespace VNotch.Services;
 
+/// <summary>Severity levels for <see cref="RuntimeLog"/>, ordered from most to least verbose.</summary>
+public enum LogLevel
+{
+    Trace = 0,
+    Debug = 1,
+    Info = 2,
+    Warn = 3,
+    Error = 4,
+    /// <summary>Disables all logging when used as the minimum level.</summary>
+    None = 5
+}
+
 public static class RuntimeLog
 {
     private static readonly object _lock = new();
@@ -11,7 +23,22 @@ public static class RuntimeLog
     private static bool _initialized;
     private const long MaxLogSizeBytes = 5 * 1024 * 1024; // 5 MB rotation threshold
 
+    /// <summary>
+    /// Entries below this level are dropped before any string formatting or I/O. Defaults to
+    /// <see cref="LogLevel.Debug"/> in DEBUG builds and <see cref="LogLevel.Info"/> in Release,
+    /// so high-frequency Trace/Debug diagnostics stay out of shipped logs unless opted into.
+    /// </summary>
+    public static LogLevel MinimumLevel { get; set; } =
+#if DEBUG
+        LogLevel.Debug;
+#else
+        LogLevel.Info;
+#endif
+
     public static string LogPath => _logPath;
+
+    /// <summary>True when an entry at <paramref name="level"/> would actually be written.</summary>
+    public static bool IsEnabled(LogLevel level) => _initialized && level >= MinimumLevel;
 
     public static void InitializeNewSession(string? fileName = null)
     {
@@ -46,27 +73,48 @@ public static class RuntimeLog
         }
     }
 
-    public static void Log(string category, string message)
+    // ─── Trace (most verbose; off by default in Release) ───
+    public static void Trace(string category, string message) => WriteEntry(LogLevel.Trace, category, message);
+
+    public static void Trace(string category, Func<string> messageFactory)
     {
-        WriteEntry("INFO", category, message);
+        if (IsEnabled(LogLevel.Trace)) WriteEntry(LogLevel.Trace, category, messageFactory());
     }
 
-    public static void Warn(string category, string message)
+    // ─── Debug (off by default in Release) ───
+    public static void Debug(string category, string message) => WriteEntry(LogLevel.Debug, category, message);
+
+    /// <summary>
+    /// Logs at Debug level, building the message only if Debug is enabled. Use on hot paths where
+    /// the interpolated string would otherwise be constructed on every call and then discarded.
+    /// </summary>
+    public static void Debug(string category, Func<string> messageFactory)
     {
-        WriteEntry("WARN", category, message);
+        if (IsEnabled(LogLevel.Debug)) WriteEntry(LogLevel.Debug, category, messageFactory());
     }
 
-    public static void Error(string category, string message)
+    // ─── Info (the default level; Log is kept as the Info alias for back-compat) ───
+    public static void Log(string category, string message) => WriteEntry(LogLevel.Info, category, message);
+
+    public static void Info(string category, string message) => WriteEntry(LogLevel.Info, category, message);
+
+    public static void Info(string category, Func<string> messageFactory)
     {
-        WriteEntry("ERROR", category, message);
+        if (IsEnabled(LogLevel.Info)) WriteEntry(LogLevel.Info, category, messageFactory());
     }
+
+    // ─── Warn ───
+    public static void Warn(string category, string message) => WriteEntry(LogLevel.Warn, category, message);
+
+    // ─── Error ───
+    public static void Error(string category, string message) => WriteEntry(LogLevel.Error, category, message);
 
     public static void Error(string category, Exception ex, string? context = null)
     {
         var msg = context != null
             ? $"{context}: {ex.GetType().Name}: {ex.Message}"
             : $"{ex.GetType().Name}: {ex.Message}";
-        WriteEntry("ERROR", category, msg);
+        WriteEntry(LogLevel.Error, category, msg);
 
 #if DEBUG
         System.Diagnostics.Debug.WriteLine($"[{category}] {msg}");
@@ -75,15 +123,27 @@ public static class RuntimeLog
 #endif
     }
 
-    private static void WriteEntry(string level, string category, string message)
+    private static string LevelLabel(LogLevel level) => level switch
     {
+        LogLevel.Trace => "TRACE",
+        LogLevel.Debug => "DEBUG",
+        LogLevel.Info => "INFO",
+        LogLevel.Warn => "WARN",
+        LogLevel.Error => "ERROR",
+        _ => "INFO"
+    };
+
+    private static void WriteEntry(LogLevel level, string category, string message)
+    {
+        if (level < MinimumLevel) return;
+
         lock (_lock)
         {
             if (!_initialized) return;
 
             try
             {
-                var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{level}] [{category}] {message}{Environment.NewLine}";
+                var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{LevelLabel(level)}] [{category}] {message}{Environment.NewLine}";
                 File.AppendAllText(_logPath, line, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             }
             catch

@@ -14,9 +14,7 @@ public static bool TryActivateForMedia(MediaInfo info)
     {
         var candidates = GetProcessCandidates(info).ToList();
         var processNames = new HashSet<string>(candidates, StringComparer.OrdinalIgnoreCase);
-        bool preferBrowserTabMatch = info.IsVideoSource ||
-                                     info.MediaSource is "YouTube" or "SoundCloud" or "Facebook"
-                                                       or "TikTok" or "Instagram" or "Twitter" or "Browser";
+        bool preferBrowserTabMatch = info.IsVideoSource || info.Platform == MediaPlatform.SoundCloud;
 
         if (preferBrowserTabMatch && TryActivateBestMatchingWindow(info, processNames, out _))
         {
@@ -29,7 +27,7 @@ public static bool TryActivateForMedia(MediaInfo info)
             try { processes = Process.GetProcessesByName(processName); }
             catch (Exception ex)
             {
-                RuntimeLog.Log("MEDIA-ACTIVATOR", ex.ToString());
+                RuntimeLog.Error("MEDIA-ACTIVATOR", ex.ToString());
                 continue;
             }
 
@@ -45,7 +43,7 @@ public static bool TryActivateForMedia(MediaInfo info)
                 }
                 catch (Exception ex)
                 {
-                    RuntimeLog.Log("MEDIA-ACTIVATOR", ex.ToString());
+                    RuntimeLog.Error("MEDIA-ACTIVATOR", ex.ToString());
                 }
             }
         }
@@ -69,17 +67,16 @@ public static IEnumerable<string> GetProcessCandidates(MediaInfo info)
         }
 
         string sourceAppId = info.SourceAppId ?? string.Empty;
-        string mediaSource = info.MediaSource ?? string.Empty;
 
         if (sourceAppId.Contains("spotify", StringComparison.OrdinalIgnoreCase) ||
-            mediaSource.Equals("Spotify", StringComparison.OrdinalIgnoreCase))
+            info.Platform == MediaPlatform.Spotify)
         {
             Add("Spotify");
         }
 
         if (sourceAppId.Contains("applemusic", StringComparison.OrdinalIgnoreCase) ||
             sourceAppId.Contains("apple music", StringComparison.OrdinalIgnoreCase) ||
-            mediaSource.Equals("Apple Music", StringComparison.OrdinalIgnoreCase))
+            info.Platform == MediaPlatform.AppleMusic)
         {
             Add("AppleMusic");
         }
@@ -95,12 +92,12 @@ public static IEnumerable<string> GetProcessCandidates(MediaInfo info)
         if (sourceAppId.Contains("sidekick", StringComparison.OrdinalIgnoreCase)) Add("sidekick");
 
         if (string.IsNullOrWhiteSpace(sourceAppId) &&
-            mediaSource is "YouTube" or "SoundCloud" or "Browser" or "Facebook" or "TikTok" or "Instagram" or "Twitter")
+            (info.IsVideoSource || info.Platform == MediaPlatform.SoundCloud))
         {
             Add("msedge"); Add("chrome"); Add("firefox"); Add("brave"); Add("opera");
         }
 
-        if (mediaSource is "YouTube" or "SoundCloud" or "Browser" or "Facebook" or "TikTok" or "Instagram" or "Twitter")
+        if (info.IsVideoSource || info.Platform == MediaPlatform.SoundCloud)
         {
             Add("msedge"); Add("chrome"); Add("firefox"); Add("brave"); Add("opera"); Add("vivaldi");
         }
@@ -190,12 +187,12 @@ public static bool TryActivateWindow(IntPtr hwnd)
         if (!string.IsNullOrWhiteSpace(track) && window.Contains(track, StringComparison.OrdinalIgnoreCase)) score += 140;
         if (!string.IsNullOrWhiteSpace(artist) && artist is not "youtube" and not "browser" && window.Contains(artist, StringComparison.OrdinalIgnoreCase)) score += 70;
 
-        if (source.Equals("YouTube", StringComparison.OrdinalIgnoreCase) && title.Contains("YouTube", StringComparison.OrdinalIgnoreCase)) score += 90;
-        if (source.Equals("SoundCloud", StringComparison.OrdinalIgnoreCase) && title.Contains("SoundCloud", StringComparison.OrdinalIgnoreCase)) score += 90;
-        if (source.Equals("Facebook", StringComparison.OrdinalIgnoreCase) && title.Contains("Facebook", StringComparison.OrdinalIgnoreCase)) score += 90;
-        if (source.Equals("TikTok", StringComparison.OrdinalIgnoreCase) && title.Contains("TikTok", StringComparison.OrdinalIgnoreCase)) score += 90;
-        if (source.Equals("Instagram", StringComparison.OrdinalIgnoreCase) && title.Contains("Instagram", StringComparison.OrdinalIgnoreCase)) score += 90;
-        if ((source.Equals("Twitter", StringComparison.OrdinalIgnoreCase) || source.Equals("X", StringComparison.OrdinalIgnoreCase)) &&
+        if (info.Platform == MediaPlatform.YouTube && title.Contains("YouTube", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (info.Platform == MediaPlatform.SoundCloud && title.Contains("SoundCloud", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (info.Platform == MediaPlatform.Facebook && title.Contains("Facebook", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (info.Platform == MediaPlatform.TikTok && title.Contains("TikTok", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (info.Platform == MediaPlatform.Instagram && title.Contains("Instagram", StringComparison.OrdinalIgnoreCase)) score += 90;
+        if (info.Platform == MediaPlatform.Twitter &&
             (title.Contains("Twitter", StringComparison.OrdinalIgnoreCase) || title.Contains(" / X", StringComparison.OrdinalIgnoreCase))) score += 90;
         if (info.IsVideoSource && IsBrowserProcess(processName)) score += 25;
 

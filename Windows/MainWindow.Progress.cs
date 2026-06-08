@@ -283,7 +283,7 @@ public partial class MainWindow
                     string oldArtist = _lastProgressSignature.Substring(trackPrefix.Length);
                     _lastProgressSignature = newSignature;
                     isTrackChanged = false;
-                    RuntimeLog.Log("PROGRESS-TRACK", 
+                    RuntimeLog.Debug("PROGRESS-TRACK", () =>
                         $"Artist-only stabilization, skipping reset: '{oldArtist}' → '{info.CurrentArtist}' pos={info.Position.TotalSeconds:F1}s");
                 }
             }
@@ -344,7 +344,7 @@ public partial class MainWindow
                         ProgressBarScale.ScaleX = initialRatio;
                         CurrentTimeText.Text = FormatTime(info.Position);
                         RemainingTimeText.Text = FormatTime(info.Duration);
-                        RuntimeLog.Log("PROGRESS-BOOT", 
+                        RuntimeLog.Debug("PROGRESS-BOOT", () =>
                             $"First track init at pos={info.Position.TotalSeconds:F1}s ratio={initialRatio:F4}");
                     }
                     else
@@ -607,7 +607,7 @@ public partial class MainWindow
                 _progressDisplayRatio = Spring.DisplayRatio;
                 _progressVelocity = 0;
                 _springSettleFrames = 0;
-                RuntimeLog.Log("PROGRESS-SPRING", $"settled at ratio={_progressDisplayRatio:F4} engineRatio={engineRatio:F4}");
+                RuntimeLog.Debug("PROGRESS-SPRING", () => $"settled at ratio={_progressDisplayRatio:F4} engineRatio={engineRatio:F4}");
                 
                 _progressDisplayRatio = engineRatio;
                 ProgressBarScale.ScaleX = engineRatio;
@@ -726,7 +726,7 @@ public partial class MainWindow
 
             if (rawDiffSeconds >= SOURCE_SMOOTH_SECONDS)
             {
-                RuntimeLog.Log("PROGRESS-RENDER-JUMP",
+                RuntimeLog.Debug("PROGRESS-RENDER-JUMP", () =>
                     $"*** LARGE-RENDER-SNAP: display={_progressDisplayRatio:F4} -> target={rawTargetRatio:F4} " +
                     $"diffSec={rawDiffSeconds:F2}s direction={(rawTargetRatio < _progressDisplayRatio ? "BACKWARD" : "forward")} " +
                     $"state={frame.State} pos={frame.Position.TotalSeconds:F2}s dur={frame.Duration.TotalSeconds:F1}s");
@@ -744,9 +744,7 @@ public partial class MainWindow
                 double backwardThreshold = 0.5;  // Default for native apps
                 if (_currentMediaInfo != null)
                 {
-                    bool isBrowserSource = string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
-                                          string.Equals(_currentMediaInfo.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
-                                          string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase) ||
+                    bool isBrowserSource = _currentMediaInfo.Platform is MediaPlatform.Browser or MediaPlatform.YouTube or MediaPlatform.SoundCloud ||
                                           (!string.IsNullOrEmpty(_currentMediaInfo.SourceAppId) && 
                                            ((_currentMediaInfo.SourceAppId.Contains("chrome", StringComparison.OrdinalIgnoreCase)) ||
                                             (_currentMediaInfo.SourceAppId.Contains("edge", StringComparison.OrdinalIgnoreCase)) ||
@@ -770,7 +768,7 @@ public partial class MainWindow
                     if (isUserSeekWindow)
                     {
                         // User is seeking — allow backward movement freely
-                        RuntimeLog.Log("PROGRESS-RENDER-BACKWARD",
+                        RuntimeLog.Debug("PROGRESS-RENDER-BACKWARD", () =>
                             $"allowed (user-seek): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} backSec={backwardSeconds:F2}s");
                     }
                     else if (isPostSeekStabilization)
@@ -782,21 +780,19 @@ public partial class MainWindow
                     {
                         // During normal playback, block backward jumps to prevent visible snapping
                         bool isBrowserSourceForBackward = _currentMediaInfo != null &&
-                            (string.Equals(_currentMediaInfo.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(_currentMediaInfo.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(_currentMediaInfo.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase));
+                            _currentMediaInfo.Platform is MediaPlatform.Browser or MediaPlatform.YouTube or MediaPlatform.SoundCloud;
 
                         double allowedBackward = isBrowserSourceForBackward ? 0.5 : 0.08;
                         if (backwardSeconds > allowedBackward)
                         {
-                            RuntimeLog.Log("PROGRESS-RENDER-BACKWARD",
+                            RuntimeLog.Debug("PROGRESS-RENDER-BACKWARD", () =>
                                 $"BLOCKED (playback): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} " +
                                 $"backSec={backwardSeconds:F2}s > allowed={allowedBackward:F2}s isBrowser={isBrowserSourceForBackward}");
                             _progressTargetRatio = _progressDisplayRatio;
                         }
                         else
                         {
-                            RuntimeLog.Log("PROGRESS-RENDER-BACKWARD",
+                            RuntimeLog.Debug("PROGRESS-RENDER-BACKWARD", () =>
                                 $"allowed (small): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} " +
                                 $"backSec={backwardSeconds:F2}s <= allowed={allowedBackward:F2}s");
                         }
@@ -807,7 +803,7 @@ public partial class MainWindow
                         double maxBackwardStepSeconds = 0.22;
                         double maxBackwardRatioStep = maxBackwardStepSeconds / frame.Duration.TotalSeconds;
                         double cappedTarget = Math.Max(_progressTargetRatio, _progressDisplayRatio - maxBackwardRatioStep);
-                        RuntimeLog.Log("PROGRESS-RENDER-BACKWARD",
+                        RuntimeLog.Debug("PROGRESS-RENDER-BACKWARD", () =>
                             $"capped (paused): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} " +
                             $"backSec={backwardSeconds:F2}s capped={cappedTarget:F4}");
                         _progressTargetRatio = cappedTarget;
@@ -1161,7 +1157,7 @@ public partial class MainWindow
         } 
         catch (Exception ex)
         {
-            RuntimeLog.Log("PROGRESS-SEEK", ex.ToString());
+            RuntimeLog.Error("PROGRESS-SEEK", ex.ToString());
         }
     }
 
@@ -1200,7 +1196,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("PROGRESS-SEEK-RELATIVE", ex.ToString());
+            RuntimeLog.Error("PROGRESS-SEEK-RELATIVE", ex.ToString());
         }
     }
 

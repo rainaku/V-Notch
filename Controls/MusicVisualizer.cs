@@ -829,7 +829,7 @@ namespace VNotch.Controls
             }
             catch (Exception ex)
             {
-                VNotch.Services.RuntimeLog.Log("MUSIC-VIS-STOP", ex.ToString());
+                VNotch.Services.RuntimeLog.Error("MUSIC-VIS-STOP", ex.ToString());
             }
             finally
             {

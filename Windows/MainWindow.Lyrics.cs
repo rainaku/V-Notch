@@ -44,7 +44,7 @@ public partial class MainWindow
         _syncedTextSource = SyncedTextSource.SpotifyLyrics;
 
         // Only support Spotify
-        if (info.MediaSource != "Spotify")
+        if (info.Platform != MediaPlatform.Spotify)
         {
             HideLyricsWidget();
             return;

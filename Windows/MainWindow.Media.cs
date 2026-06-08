@@ -24,8 +24,6 @@ public partial class MainWindow
     private bool _thumbnailShownForCurrentTrack = false;
     private bool _isThumbnailSwitchActive = false;
 
-    private static readonly string[] _genericTitles = { "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser" };
-
     #region Media Changed Handler
 
     private void OnMediaChanged(object? sender, MediaInfo info)
@@ -74,11 +72,11 @@ public partial class MainWindow
                 CompactTitleMarquee.Text = result.DisplayText.Title;
 
                 // Fetch synced lyrics for Spotify tracks
-                if (result.HasRealTrack && renderedSource == "Spotify")
+                if (result.HasRealTrack && MediaPlatformExtensions.ParsePlatform(renderedSource) == MediaPlatform.Spotify)
                 {
                     FetchLyricsForTrack(info).SafeFireAndForget("LYRICS");
                 }
-                else if (result.HasRealTrack && renderedSource == "YouTube")
+                else if (result.HasRealTrack && MediaPlatformExtensions.ParsePlatform(renderedSource) == MediaPlatform.YouTube)
                 {
                     FetchSubtitlesForTrack(info).SafeFireAndForget("SUBTITLES");
                 }
@@ -93,7 +91,7 @@ public partial class MainWindow
                 TrackArtist.Text = result.DisplayText.Artist;
                 CompactTitleMarquee.Text = result.DisplayText.Title;
 
-                if (result.HasRealTrack && renderedSource == "YouTube"
+                if (result.HasRealTrack && MediaPlatformExtensions.ParsePlatform(renderedSource) == MediaPlatform.YouTube
                     && !string.IsNullOrEmpty(info.YouTubeVideoId))
                 {
                     FetchSubtitlesForTrack(info).SafeFireAndForget("SUBTITLES");
@@ -260,14 +258,14 @@ public partial class MainWindow
             ThumbnailImage.Source = newThumb;
             CompactThumbnail.Source = newThumb;
             SuppressCompactMediaChromeForCountdownCompletion();
-            VNotch.Services.RuntimeLog.Log("THUMB-ANIM", "skipped (countdown completion overlay active)");
+            VNotch.Services.RuntimeLog.Debug("THUMB-ANIM", "skipped (countdown completion overlay active)");
             return;
         }
 
         if (_isAnimating)
         {
             // Queue the transition to run after the expand/collapse animation finishes
-            VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"queued-pending (isAnimating=true) force={force}");
+            VNotch.Services.RuntimeLog.Debug("THUMB-ANIM", () => $"queued-pending (isAnimating=true) force={force}");
             _pendingFlipThumbnail = newThumb;
             return;
         }
@@ -275,7 +273,7 @@ public partial class MainWindow
         {
             // A blur morph is already in progress for the same track (e.g. async thumbnail update) —
             // just update the target thumbnail on the overlay layer instead of restarting.
-            VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
+            VNotch.Services.RuntimeLog.Debug("THUMB-ANIM", () =>
                 $"coalesced (blur morph already active, updating target) force={force}");
             ThumbnailImageNext.Source = newThumb;
             CompactThumbnailNext.Source = newThumb;
@@ -283,17 +281,17 @@ public partial class MainWindow
         }
         if (!force && newThumb != null && ReferenceEquals(ThumbnailImage.Source, newThumb))
         {
-            VNotch.Services.RuntimeLog.Log("THUMB-ANIM", "skipped (same reference, no force)");
+            VNotch.Services.RuntimeLog.Debug("THUMB-ANIM", "skipped (same reference, no force)");
             return;
         } 
         if (!force && _thumbnailShownForCurrentTrack && newThumb != null)
         {
-            VNotch.Services.RuntimeLog.Log("THUMB-ANIM",
+            VNotch.Services.RuntimeLog.Debug("THUMB-ANIM",
                 "skipped (thumbnail already shown for current track, no force)");
             return;
         }
 
-        VNotch.Services.RuntimeLog.Log("THUMB-ANIM", $"BLUR-MORPH-START force={force}");
+        VNotch.Services.RuntimeLog.Debug("THUMB-ANIM", () => $"BLUR-MORPH-START force={force}");
 
         _suppressOutsideClickUntilUtc = DateTime.UtcNow.AddMilliseconds(700);
 

@@ -104,7 +104,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("SETTINGS-SAVE", ex.ToString());
+            RuntimeLog.Error("SETTINGS-SAVE", ex.ToString());
             System.Windows.MessageBox.Show($"Unable to save settings: {ex.Message}", "Error",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }

@@ -568,7 +568,7 @@ public partial class MainWindow
                 }
                 catch (Exception ex)
                 {
-                    RuntimeLog.Log("MEDIA-BG-SUBJECT", ex.ToString());
+                    RuntimeLog.Error("MEDIA-BG-SUBJECT", ex.ToString());
                 }
 
                 // Check if a newer task was started while we were awaiting.
@@ -613,7 +613,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("MEDIA-BG-BLUR", ex.ToString());
+            RuntimeLog.Error("MEDIA-BG-BLUR", ex.ToString());
         }
     }
 

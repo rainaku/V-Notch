@@ -101,7 +101,7 @@ public class VolumeService : IVolumeService
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("VOLUME-GETMUTE", ex.ToString());
+            RuntimeLog.Error("VOLUME-GETMUTE", ex.ToString());
         }
 
         return false;
@@ -117,7 +117,7 @@ public class VolumeService : IVolumeService
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("VOLUME-SETMUTE", ex.ToString());
+            RuntimeLog.Error("VOLUME-SETMUTE", ex.ToString());
         }
     }
 

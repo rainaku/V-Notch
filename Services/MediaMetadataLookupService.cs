@@ -50,7 +50,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("META-YOUTUBE-SEARCH", ex.ToString());
+            RuntimeLog.Error("META-YOUTUBE-SEARCH", ex.ToString());
         }
 
         return null;
@@ -64,7 +64,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         try
         {
             // Build search query: "title artist" for better accuracy
-            string query = string.IsNullOrWhiteSpace(artist) || artist.Equals("YouTube", StringComparison.OrdinalIgnoreCase)
+            string query = string.IsNullOrWhiteSpace(artist) || MediaPlatformExtensions.ParsePlatform(artist) == MediaPlatform.YouTube
                 ? title
                 : $"{title} {artist}";
 
@@ -90,7 +90,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            RuntimeLog.Log("META-YOUTUBE-TITLE-SEARCH", ex.ToString());
+            RuntimeLog.Error("META-YOUTUBE-TITLE-SEARCH", ex.ToString());
         }
 
         return null;
@@ -185,7 +185,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            RuntimeLog.Log("META-YOUTUBE-TITLE-SEARCH-API", ex.ToString());
+            RuntimeLog.Error("META-YOUTUBE-TITLE-SEARCH-API", ex.ToString());
         }
 
         return null;
@@ -539,7 +539,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            RuntimeLog.Log("META-YOUTUBE-TITLE-SEARCH-SCRAPE", ex.ToString());
+            RuntimeLog.Error("META-YOUTUBE-TITLE-SEARCH-SCRAPE", ex.ToString());
         }
 
         return null;
@@ -562,7 +562,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("META-YOUTUBE-URL", ex.ToString());
+            RuntimeLog.Error("META-YOUTUBE-URL", ex.ToString());
         }
 
         return null;
@@ -633,7 +633,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("META-SOUNDCLOUD-URL", ex.ToString());
+            RuntimeLog.Error("META-SOUNDCLOUD-URL", ex.ToString());
         }
 
         return null;
@@ -751,7 +751,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("META-YOUTUBE-API", ex.ToString());
+            RuntimeLog.Error("META-YOUTUBE-API", ex.ToString());
             return null;
         }
     }
@@ -923,8 +923,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             string cleanedArtist = SanitizeSearchText(artist);
             string query = cleanedTitle;
             if (!string.IsNullOrWhiteSpace(artist) &&
-                !artist.Equals("SoundCloud", StringComparison.OrdinalIgnoreCase) &&
-                !artist.Equals("Browser", StringComparison.OrdinalIgnoreCase))
+                MediaPlatformExtensions.ParsePlatform(artist) is not (MediaPlatform.SoundCloud or MediaPlatform.Browser))
             {
                 query = $"{cleanedTitle} {cleanedArtist}".Trim();
             }

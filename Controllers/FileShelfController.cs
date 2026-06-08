@@ -526,7 +526,7 @@ public sealed class FileShelfController : IDisposable
         catch (Exception ex)
         {
             // Directory may not exist, be inaccessible, or on a non-watchable filesystem (network share)
-            RuntimeLog.Log("SHELF-WATCH", ex.ToString());
+            RuntimeLog.Error("SHELF-WATCH", ex.ToString());
             FileWatchFailed?.Invoke(dir, ex);
         }
     }

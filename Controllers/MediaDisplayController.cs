@@ -1,16 +1,12 @@
 using System;
 using System.Windows.Media;
 using VNotch.Models;
+using VNotch.Services;
 
 namespace VNotch.Controllers;
 
 public sealed class MediaDisplayController
 {
-    private static readonly string[] GenericTitles =
-    {
-        "Spotify", "Spotify Premium", "Spotify Free", "YouTube", "SoundCloud", "Browser"
-    };
-
     // ─── State ───
 
     private string _lastAnimatedTrackSignature = "";
@@ -31,18 +27,6 @@ public sealed class MediaDisplayController
     public bool ThumbnailShownForCurrentTrack => _thumbnailShownForCurrentTrack;
     public bool TrackChangeBounceNeeded => _trackChangeBounceNeeded;
     public int ThumbnailSwitchGeneration => _thumbnailSwitchGeneration;
-
-    // ─── Events ───
-
-#pragma warning disable CS0067
-    public event Action<TrackChangeInfo>? NewTrackDetected;
-
-    public event Action<ThumbnailUpdateInfo>? ThumbnailUpdateDetected;
-
-    public event Action? MediaCleared;
-
-    public event Action<MediaInfo>? BackgroundUpdateNeeded;
-#pragma warning restore CS0067
 
     // ─── Core Logic ───
 
@@ -183,7 +167,7 @@ public sealed class MediaDisplayController
     {
         if (info == null) return false;
         if (!info.IsAnyMediaPlaying || string.IsNullOrEmpty(info.CurrentTrack)) return false;
-        if (info.MediaSource == "Browser" && string.IsNullOrEmpty(info.CurrentTrack)) return false;
+        if (info.Platform == MediaPlatform.Browser && string.IsNullOrEmpty(info.CurrentTrack)) return false;
         return true;
     }
 
@@ -219,8 +203,8 @@ public sealed class MediaDisplayController
 
         if (sameTrackAsBefore &&
             !string.IsNullOrEmpty(_lastRenderedMediaSource) &&
-            _lastRenderedMediaSource != "Browser" &&
-            (incomingSource == "" || incomingSource == "Browser"))
+            MediaPlatformExtensions.ParsePlatform(_lastRenderedMediaSource) != MediaPlatform.Browser &&
+            (incomingSource.Length == 0 || MediaPlatformExtensions.ParsePlatform(incomingSource) == MediaPlatform.Browser))
         {
             renderedSource = _lastRenderedMediaSource;
         }
@@ -239,9 +223,7 @@ public sealed class MediaDisplayController
         string artistText;
 
         if (!string.IsNullOrEmpty(info.CurrentArtist) &&
-            info.CurrentArtist != "YouTube" &&
-            info.CurrentArtist != "Browser" &&
-            info.CurrentArtist != "Spotify")
+            MediaPlatformExtensions.ParsePlatform(info.CurrentArtist) is not (MediaPlatform.YouTube or MediaPlatform.Browser or MediaPlatform.Spotify))
         {
             artistText = info.CurrentArtist;
             // Strip YouTube Music's " - Topic" suffix from channel names
@@ -303,10 +285,6 @@ public enum ThumbnailAction
 }
 
 public record DisplayTextResult(string Title, string Artist);
-
-public record TrackChangeInfo(string TrackIdentity, string Title, string Artist, bool IsFirstTrack);
-
-public record ThumbnailUpdateInfo(string TrackIdentity, ImageSource Thumbnail);
 
 public sealed class MediaDisplayResult
 {

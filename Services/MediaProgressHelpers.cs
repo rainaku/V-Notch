@@ -20,7 +20,7 @@ public static void NormalizeStartupSnapshotTimestamp(MediaInfo info)
     }
 public static bool IsLikelyBrowserProgressSource(MediaInfo info)
     {
-        if (string.Equals(info.MediaSource, "YouTube", StringComparison.OrdinalIgnoreCase))
+        if (info.Platform == MediaPlatform.YouTube)
         {
             return true;
         }
@@ -36,12 +36,12 @@ public static bool IsLikelyBrowserProgressSource(MediaInfo info)
             return true;
         }
 
-        if (string.Equals(info.MediaSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
+        if (info.Platform == MediaPlatform.SoundCloud)
         {
             return true;
         }
 
-        if (string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase))
+        if (info.Platform == MediaPlatform.Browser)
         {
             return true;
         }
