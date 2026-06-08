@@ -1,19 +1,27 @@
 using System;
-using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
 
 public partial class MainWindow
 {
-    #region Expanded Widget (Calendar / Clock / Word Clock)
+    // NOTE (mainwindow-mvvm-refactor / Task 5): the analog/word clock widget, the
+    // month-grid clock view build, the clock-view host sizing, and the drag-to-switch
+    // gesture state were relocated to VNotch.Presenters.ClockWidgetPresenter (see
+    // Presenters/ClockWidgetPresenter.cs and the presenter wiring in
+    // MainWindow.ClockView.cs). The members below remain on the shell only because they
+    // are referenced by other partials / XAML that this task must not edit:
+    //   - the widget-mode predicates are read by MainWindow.Lyrics.cs (IsClockWidgetMode),
+    //     MainWindow.MusicWidget.cs and MainWindow.Calendar.cs (IsNonCalendarWidgetMode);
+    //   - ApplyExpandedWidgetMode() is invoked from MainWindow.xaml.cs;
+    //   - the three CalendarWidget_Mouse* handlers are bound in MainWindow.xaml.
+    // They are thin shims delegating to the presenter (behavior-preserving).
 
-    // The order the widget card cycles through when the user drags left/right. Drag
-    // left advances to the next entry, drag right goes back; the list wraps around.
-    private static readonly string[] _expandedWidgetOrder = { "calendar", "clock", "wordclock", "weather", "sysmon" };
+    #region Expanded Widget mode predicates (read by other partials)
+
+    // The widget-mode predicates are pure interpretations of the single source of truth
+    // (_settings.ExpandedWidget); they own no state, so they stay on the shell for the
+    // other partials that read them. The presenter computes the same values internally.
 
     private bool IsClockWidgetMode =>
         string.Equals(_settings.ExpandedWidget, "clock", StringComparison.OrdinalIgnoreCase);
@@ -42,215 +50,24 @@ public partial class MainWindow
     private bool IsNonCalendarWidgetMode => IsAnyClockWidgetMode || IsWeatherWidgetMode || IsSystemMonitorWidgetMode;
 
     /// <summary>
-    /// Applies the user's chosen expanded-notch widget. The month label stays
-    /// visible in the calendar / clock modes; only the calendar day strip is swapped
-    /// for the analog clock, the spelled-out word clock, the weather widget, or the
-    /// system monitor, all of which follow the local system automatically. The greeting
-    /// line is hidden in any non-calendar mode to keep the widget card uncluttered.
+    /// Applies the user's chosen expanded-notch widget. Delegates to
+    /// <see cref="VNotch.Presenters.ClockWidgetPresenter.ApplyExpandedWidgetMode"/>.
+    /// Kept here because it is invoked from MainWindow.xaml.cs.
     /// </summary>
-    private void ApplyExpandedWidgetMode()
-    {
-        if (ClockWidget == null || CalendarStripContainer == null) return;
-
-        bool useAnalogClock = IsClockWidgetMode;
-        bool useWordClock = IsWordClockWidgetMode;
-        bool useWeather = IsWeatherWidgetMode;
-        bool useSystemMonitor = IsSystemMonitorWidgetMode;
-        bool useCalendar = !useAnalogClock && !useWordClock && !useWeather && !useSystemMonitor;
-
-        ClockWidget.Visibility = useAnalogClock ? Visibility.Visible : Visibility.Collapsed;
-        if (WordClockWidget != null)
-            WordClockWidget.Visibility = useWordClock ? Visibility.Visible : Visibility.Collapsed;
-        if (WeatherWidgetContent != null)
-            WeatherWidgetContent.Visibility = useWeather ? Visibility.Visible : Visibility.Collapsed;
-        if (SystemMonitorWidgetContent != null)
-            SystemMonitorWidgetContent.Visibility = useSystemMonitor ? Visibility.Visible : Visibility.Collapsed;
-        CalendarStripContainer.Visibility = useCalendar ? Visibility.Visible : Visibility.Collapsed;
-
-        // The weather and system-monitor widgets carry their own labels and span the full
-        // card, so the month label is hidden in those modes only.
-        if (MonthText != null)
-            MonthText.Visibility = (useWeather || useSystemMonitor) ? Visibility.Collapsed : Visibility.Visible;
-
-        UpdateGreetingVisibilityForWidget();
-    }
-
-    /// <summary>
-    /// Greeting is hidden whenever a non-calendar widget is active; in calendar mode
-    /// it follows the lyrics state (lyrics replace the greeting).
-    /// </summary>
-    private void UpdateGreetingVisibilityForWidget()
-    {
-        if (GreetingSection == null) return;
-
-        bool show = !IsNonCalendarWidgetMode && !_isLyricsActive;
-        GreetingSection.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-    }
+    private void ApplyExpandedWidgetMode() => _clockWidgetPresenter?.ApplyExpandedWidgetMode();
 
     #endregion
 
-    #region Drag-to-switch widget
-
-    private bool _isWidgetDragging;
-    private bool _widgetDragSwitched;
-    private Point _widgetDragStart;
-
-    // How far (px) the pointer must travel horizontally before a switch fires mid-drag,
-    // the smaller intent threshold used to still switch on release, and how little it may
-    // move for the gesture to instead count as a plain tap (collapse).
-    private const double WidgetDragSwitchThreshold = 22.0;
-    private const double WidgetDragIntentThreshold = 12.0;
-    private const double WidgetTapThreshold = 6.0;
+    #region Drag-to-switch widget (XAML-bound handlers → presenter)
 
     private void CalendarWidget_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        // Always swallow the click so it never bubbles up to the notch (which would
-        // collapse it on mouse-down before a drag can start). A plain tap is handled
-        // explicitly on mouse-up below.
-        e.Handled = true;
-
-        // Only block while a transition is actively running; we intentionally do NOT
-        // require _isExpanded here (the widget is only hit-testable while expanded, and
-        // gating on it caused presses to be swallowed without starting a drag).
-        if (_isAnimating || _isSecondaryView) return;
-
-        _isWidgetDragging = true;
-        _widgetDragSwitched = false;
-        _widgetDragStart = e.GetPosition(this);
-        CalendarWidget.CaptureMouse();
-        VNotch.Services.RuntimeLog.Log("WIDGET-DRAG", "down");
-    }
+        => _clockWidgetPresenter?.OnCalendarWidgetMouseLeftButtonDown(e);
 
     private void CalendarWidget_MouseMoveDrag(object sender, MouseEventArgs e)
-    {
-        if (!_isWidgetDragging || _widgetDragSwitched) return;
-
-        double dx = e.GetPosition(this).X - _widgetDragStart.X;
-        if (Math.Abs(dx) < WidgetDragSwitchThreshold) return;
-
-        // Drag left (dx < 0) advances to the next widget; drag right goes back.
-        CycleExpandedWidget(dx < 0 ? 1 : -1);
-        _widgetDragSwitched = true;
-    }
+        => _clockWidgetPresenter?.OnCalendarWidgetMouseMoveDrag(e);
 
     private void CalendarWidget_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_isWidgetDragging) return;
-        _isWidgetDragging = false;
-        if (CalendarWidget.IsMouseCaptured) CalendarWidget.ReleaseMouseCapture();
-        e.Handled = true;
-
-        if (_widgetDragSwitched) return;
-
-        double dx = e.GetPosition(this).X - _widgetDragStart.X;
-        double dy = e.GetPosition(this).Y - _widgetDragStart.Y;
-
-        // A short-but-deliberate horizontal flick that didn't reach the mid-drag
-        // threshold still switches on release.
-        if (Math.Abs(dx) >= WidgetDragIntentThreshold && Math.Abs(dx) > Math.Abs(dy))
-        {
-            CycleExpandedWidget(dx < 0 ? 1 : -1);
-            return;
-        }
-
-        // Otherwise, if the pointer barely moved treat it as a tap.
-        if (Math.Abs(dx) < WidgetTapThreshold && Math.Abs(dy) < WidgetTapThreshold)
-        {
-            // The analog clock widget opens the full clock view on tap; the other
-            // widgets keep the normal click-to-collapse behavior.
-            if (IsClockWidgetMode && _isExpanded && !_isSecondaryView && !_isTimerView)
-            {
-                SwitchToTimerView();
-            }
-            else
-            {
-                CollapseNotch();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Advances the expanded widget by <paramref name="direction"/> steps through
-    /// <see cref="_expandedWidgetOrder"/> (wrapping), applies it with a directional
-    /// slide/fade, and persists the choice so it stays in sync with Settings.
-    /// </summary>
-    private void CycleExpandedWidget(int direction)
-    {
-        int count = _expandedWidgetOrder.Length;
-        int current = Array.FindIndex(_expandedWidgetOrder,
-            w => string.Equals(w, _settings.ExpandedWidget, StringComparison.OrdinalIgnoreCase));
-        if (current < 0) current = 0;
-
-        int next = (((current + direction) % count) + count) % count;
-        if (next == current) return;
-
-        _settings.ExpandedWidget = _expandedWidgetOrder[next];
-
-        AnimateExpandedWidgetSwitch(direction);
-
-        // Persist immediately so the Settings window (and next launch) reflect the
-        // widget picked by dragging.
-        _settingsService.Save(_settings);
-    }
-
-    /// <summary>
-    /// Cross-fades + slides the widget card content while swapping which widget is
-    /// visible, so a drag-switch feels continuous rather than a hard cut.
-    /// </summary>
-    private void AnimateExpandedWidgetSwitch(int direction)
-    {
-        var content = CalendarInnerContent;
-        if (content == null)
-        {
-            ApplyExpandedWidgetMode();
-            return;
-        }
-
-        if (content.RenderTransform is not TranslateTransform translate)
-        {
-            translate = new TranslateTransform();
-            content.RenderTransform = translate;
-        }
-
-        double exitX = direction > 0 ? -16 : 16;
-        double enterX = direction > 0 ? 16 : -16;
-
-        var durOut = new Duration(TimeSpan.FromMilliseconds(130));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(300));
-        int fps = VNotch.Services.AnimationConfig.TargetFps;
-
-        var fadeOut = new DoubleAnimation(1, 0, durOut) { EasingFunction = _easeQuadIn };
-        var slideOut = new DoubleAnimation(0, exitX, durOut) { EasingFunction = _easeQuadIn };
-        Timeline.SetDesiredFrameRate(fadeOut, fps);
-        Timeline.SetDesiredFrameRate(slideOut, fps);
-
-        fadeOut.Completed += (_, _) =>
-        {
-            ApplyExpandedWidgetMode();
-
-            translate.BeginAnimation(TranslateTransform.XProperty, null);
-            translate.X = enterX;
-
-            var fadeIn = new DoubleAnimation(0, 1, durIn) { EasingFunction = _easeExpOut6 };
-            var slideIn = new DoubleAnimation(enterX, 0, durIn) { EasingFunction = _easeExpOut7 };
-            Timeline.SetDesiredFrameRate(fadeIn, fps);
-            Timeline.SetDesiredFrameRate(slideIn, fps);
-
-            fadeIn.Completed += (_, _) =>
-            {
-                content.BeginAnimation(OpacityProperty, null);
-                content.Opacity = 1;
-                translate.BeginAnimation(TranslateTransform.XProperty, null);
-                translate.X = 0;
-            };
-
-            content.BeginAnimation(OpacityProperty, fadeIn);
-            translate.BeginAnimation(TranslateTransform.XProperty, slideIn);
-        };
-
-        content.BeginAnimation(OpacityProperty, fadeOut);
-        translate.BeginAnimation(TranslateTransform.XProperty, slideOut);
-    }
+        => _clockWidgetPresenter?.OnCalendarWidgetMouseLeftButtonUp(e);
 
     #endregion
 }

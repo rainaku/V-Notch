@@ -22,6 +22,11 @@ public sealed class GestureController
     private DateTime _lastTapTime = DateTime.MinValue;
     private bool _gestureTriggered;
 
+    // True for the duration of a shell-level gesture session (from the mouse-down that
+    // begins tracking until the mouse-up that ends it). Owned here so all gesture state
+    // lives in this controller; the shell reads/writes it through a property shim.
+    private bool _isGestureActive;
+
     // ─── Events ───
     public event Action? SwipeLeft;       // → Next track
     public event Action? SwipeRight;      // → Previous track
@@ -113,6 +118,16 @@ public sealed class GestureController
     }
 
     public bool IsTracking => _isTracking;
+
+    /// <summary>
+    /// True while a shell-level gesture session is in progress. Set by the shell on
+    /// mouse-down (after <see cref="BeginTracking"/>) and cleared on mouse-up.
+    /// </summary>
+    public bool IsGestureActive
+    {
+        get => _isGestureActive;
+        set => _isGestureActive = value;
+    }
 
     public bool GestureTriggered => _gestureTriggered;
 

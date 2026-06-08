@@ -21,6 +21,10 @@ public class MediaTimelineSimulator
 
     // ─── Public properties ───
     public bool IsThrottled => _isThrottled;
+
+    // Read-only observability of the throttle tracking state.
+    public TimeSpan LastObservedPosition => _lastObservedPosition;
+    public DateTime LastPositionChangeTime => _lastPositionChangeTime;
     public TimeSpan RecoveredDuration
     {
         get => _recoveredDuration;

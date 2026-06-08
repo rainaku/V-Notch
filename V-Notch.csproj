@@ -52,6 +52,11 @@
     <Compile Remove="Tests\**\*.cs" />
   </ItemGroup>
 
+  <!-- Expose internal helpers to the test project for white-box unit testing. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="VNotch.Tests" />
+  </ItemGroup>
+
   <!-- Copy Introduction Gifs to Output Directory -->
   <ItemGroup>
     <None Include="Introduction\**" CopyToOutputDirectory="PreserveNewest" />

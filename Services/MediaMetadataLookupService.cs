@@ -11,18 +11,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 {
     private static readonly HttpClient _httpClient = new();
 
-    private static readonly HashSet<string> _soundCloudReservedUsers = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "search", "charts", "discover", "stream", "you", "terms", "privacy", "mobile", "upload", "signin",
-        "login", "settings", "jobs", "blog", "developers", "pages", "playlists", "stations", "likes", "messages",
-        "pro", "for-artists", "popular", "tracks", "explore", "featured"
-    };
-
-    private static readonly HashSet<string> _soundCloudReservedTrackSlugs = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "sets", "tracks", "likes", "reposts", "spotlight", "albums", "following", "followers"
-    };
-
     static MediaMetadataLookupService()
     {
         if (_httpClient.DefaultRequestHeaders.UserAgent.Count == 0)
@@ -768,30 +756,10 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         }
     }
     private static string? PickBestThumbnail(JsonElement thumbnails)
-    {
-        foreach (var key in _thumbnailPreference)
-        {
-            if (thumbnails.TryGetProperty(key, out var el) &&
-                el.TryGetProperty("url", out var urlEl))
-            {
-                string? value = urlEl.GetString();
-                if (!string.IsNullOrWhiteSpace(value))
-                    return value;
-            }
-        }
-        return null;
-    }
-
-    private static readonly string[] _thumbnailPreference = { "maxres", "standard", "high", "medium", "default" };
+        => YouTubeMetadataParsing.PickBestThumbnail(thumbnails);
 
     private static bool LooksLikeQuotaExceeded(string body)
-    {
-        if (string.IsNullOrWhiteSpace(body))
-            return false;
-        return body.Contains("quotaExceeded", StringComparison.Ordinal) ||
-               body.Contains("dailyLimitExceeded", StringComparison.Ordinal) ||
-               body.Contains("rateLimitExceeded", StringComparison.Ordinal);
-    }
+        => YouTubeMetadataParsing.LooksLikeQuotaExceeded(body);
 
     // ── Quota cooldown ─────────────────────────────────────────────────────── YouTube Data API quota resets at midnight Pacific Time
     private static long _quotaCooldownUntilTicks;
@@ -897,23 +865,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
     }
 
     private static TimeSpan ParseIso8601Duration(string iso)
-    {
-        try
-        {
-            var match = Regex.Match(iso, @"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?");
-            if (!match.Success) return TimeSpan.Zero;
-
-            int hours = match.Groups[1].Success ? int.Parse(match.Groups[1].Value) : 0;
-            int minutes = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : 0;
-            int seconds = match.Groups[3].Success ? int.Parse(match.Groups[3].Value) : 0;
-
-            return new TimeSpan(hours, minutes, seconds);
-        }
-        catch
-        {
-            return TimeSpan.Zero;
-        }
-    }
+        => YouTubeMetadataParsing.ParseIso8601Duration(iso);
 
     private static string? GetYouTubeApiKey()
     {
@@ -1131,248 +1083,19 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
     }
 
     private static string? ExtractSoundCloudTrackUrl(string rawText)
-    {
-        if (string.IsNullOrWhiteSpace(rawText))
-        {
-            return null;
-        }
-
-        var match = Regex.Match(
-            rawText,
-            @"https?://(?:www\.)?soundcloud\.com/(?<user>[^/\s?#]+)/(?<slug>[^/\s?#]+)",
-            RegexOptions.IgnoreCase);
-
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        return $"https://soundcloud.com/{match.Groups["user"].Value}/{match.Groups["slug"].Value}";
-    }
+        => SoundCloudMatching.ExtractTrackUrl(rawText);
 
     private static string SanitizeSearchText(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        string normalized = value.Replace('\u2013', '-').Replace('\u2014', '-').Trim();
-        normalized = normalized.Trim('[', ']', '(', ')', '"', '\'');
-        normalized = Regex.Replace(normalized, @"\s+", " ");
-        return normalized.Trim();
-    }
+        => SoundCloudMatching.SanitizeSearchText(value);
 
     private static List<(string Url, int Score)> ExtractSoundCloudTrackUrlsFromSearchHtml(string html, string title, string artist)
-    {
-        var result = new List<(string Url, int Score)>();
-        if (string.IsNullOrWhiteSpace(html))
-        {
-            return result;
-        }
-
-        string normalizedTitle = NormalizeForLooseMatch(title.ToLowerInvariant());
-        string normalizedArtist = NormalizeForLooseMatch((artist ?? "").ToLowerInvariant());
-        var scoreMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-        var pathMatches = Regex.Matches(html, @"href=""/(?<path>[^""?#]+)", RegexOptions.IgnoreCase);
-        foreach (Match match in pathMatches)
-        {
-            string path = match.Groups["path"].Value.Replace("\\/", "/").Trim('/');
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                continue;
-            }
-
-            var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (segments.Length != 2)
-            {
-                continue;
-            }
-
-            string user = segments[0];
-            string slug = segments[1];
-            AddSoundCloudCandidate(scoreMap, user, slug, normalizedTitle, normalizedArtist);
-        }
-
-        var absoluteMatches = Regex.Matches(
-            html,
-            @"https?://(?:www\.)?soundcloud\.com/(?<user>[^/\s""'?#]+)/(?<slug>[^/\s""'?#]+)",
-            RegexOptions.IgnoreCase);
-        foreach (Match match in absoluteMatches)
-        {
-            string user = match.Groups["user"].Value;
-            string slug = match.Groups["slug"].Value;
-            AddSoundCloudCandidate(scoreMap, user, slug, normalizedTitle, normalizedArtist);
-        }
-
-        var sorted = new List<KeyValuePair<string, int>>(scoreMap);
-        sorted.Sort((a, b) => b.Value.CompareTo(a.Value));
-
-        foreach (var item in sorted)
-        {
-            result.Add((item.Key, item.Value));
-        }
-
-        return result;
-    }
-
-    private static void AddSoundCloudCandidate(
-        Dictionary<string, int> scoreMap,
-        string user,
-        string slug,
-        string normalizedTitle,
-        string normalizedArtist)
-    {
-        if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(slug))
-        {
-            return;
-        }
-
-        if (user.Contains('.') || slug.Length < 2)
-        {
-            return;
-        }
-
-        if (_soundCloudReservedUsers.Contains(user) || _soundCloudReservedTrackSlugs.Contains(slug))
-        {
-            return;
-        }
-
-        string url = $"https://soundcloud.com/{user}/{slug}";
-        int score = ScoreSoundCloudCandidate(user, slug, normalizedTitle, normalizedArtist);
-        if (scoreMap.TryGetValue(url, out int existing))
-        {
-            if (score > existing)
-            {
-                scoreMap[url] = score;
-            }
-        }
-        else
-        {
-            scoreMap[url] = score;
-        }
-    }
-
-    private static int ScoreSoundCloudCandidate(string user, string slug, string normalizedTitle, string normalizedArtist)
-    {
-        int score = 0;
-        string normalizedSlug = NormalizeForLooseMatch(slug.ToLowerInvariant());
-        string normalizedUser = NormalizeForLooseMatch(user.ToLowerInvariant());
-
-        if (!string.IsNullOrEmpty(normalizedTitle))
-        {
-            if (normalizedSlug.Contains(normalizedTitle, StringComparison.Ordinal) || normalizedTitle.Contains(normalizedSlug, StringComparison.Ordinal))
-            {
-                score += 5;
-            }
-            else
-            {
-                var titleTokens = normalizedTitle.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                foreach (var token in titleTokens)
-                {
-                    if (token.Length >= 3 && normalizedSlug.Contains(token, StringComparison.Ordinal))
-                    {
-                        score += 1;
-                    }
-                }
-            }
-        }
-
-        if (!string.IsNullOrEmpty(normalizedArtist) &&
-            normalizedArtist != "soundcloud" &&
-            normalizedArtist != "browser")
-        {
-            if (normalizedUser.Contains(normalizedArtist, StringComparison.Ordinal) || normalizedArtist.Contains(normalizedUser, StringComparison.Ordinal))
-            {
-                score += 3;
-            }
-        }
-
-        return score;
-    }
+        => SoundCloudMatching.ExtractTrackUrlsFromSearchHtml(html, title, artist);
 
     private static bool IsSoundCloudOEmbedMatch(string expectedTitle, string expectedArtist, string? candidateTitle, string? candidateAuthor, int candidateScore, bool strictMode = false)
-    {
-        string normalizedExpectedTitle = NormalizeForLooseMatch(expectedTitle.ToLowerInvariant());
-        string normalizedExpectedArtist = NormalizeForLooseMatch((expectedArtist ?? "").ToLowerInvariant());
-        string normalizedCandidateTitle = NormalizeForLooseMatch((candidateTitle ?? "").ToLowerInvariant());
-        string normalizedCandidateAuthor = NormalizeForLooseMatch((candidateAuthor ?? "").ToLowerInvariant());
-        int titleOverlap = CountTokenOverlap(normalizedExpectedTitle, normalizedCandidateTitle);
-
-        bool titleMatches = !string.IsNullOrEmpty(normalizedExpectedTitle) &&
-                            !string.IsNullOrEmpty(normalizedCandidateTitle) &&
-                            (normalizedCandidateTitle.Contains(normalizedExpectedTitle, StringComparison.Ordinal) ||
-                             normalizedExpectedTitle.Contains(normalizedCandidateTitle, StringComparison.Ordinal));
-
-        bool artistMatches = string.IsNullOrEmpty(normalizedExpectedArtist) ||
-                             normalizedExpectedArtist == "soundcloud" ||
-                             normalizedExpectedArtist == "browser" ||
-                             (!string.IsNullOrEmpty(normalizedCandidateAuthor) &&
-                              (normalizedCandidateAuthor.Contains(normalizedExpectedArtist, StringComparison.Ordinal) ||
-                               normalizedExpectedArtist.Contains(normalizedCandidateAuthor, StringComparison.Ordinal)));
-
-        if (titleMatches && artistMatches)
-        {
-            return true;
-        }
-
-        if (titleMatches && titleOverlap >= 1)
-        {
-            return true;
-        }
-
-        if (strictMode)
-        {
-            return titleOverlap >= 2 && (artistMatches || candidateScore >= 2);
-        }
-
-        if (artistMatches && (titleOverlap >= 1 || candidateScore >= 2))
-        {
-            return true;
-        }
-
-        return candidateScore >= 3 && titleOverlap >= 1;
-    }
-
-    private static int CountTokenOverlap(string left, string right)
-    {
-        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-        {
-            return 0;
-        }
-
-        var rightTokens = new HashSet<string>(
-            right.Split(' ', StringSplitOptions.RemoveEmptyEntries),
-            StringComparer.Ordinal);
-
-        int overlap = 0;
-        foreach (var token in left.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (token.Length < 2)
-            {
-                continue;
-            }
-
-            if (rightTokens.Contains(token))
-            {
-                overlap++;
-            }
-        }
-
-        return overlap;
-    }
+        => SoundCloudMatching.IsOEmbedMatch(expectedTitle, expectedArtist, candidateTitle, candidateAuthor, candidateScore, strictMode);
 
     private static string NormalizeSoundCloudArtworkUrl(string url)
-    {
-        string normalized = url.Replace("\\u0026", "&").Replace("\\/", "/");
-        if (IsLikelySoundCloudPlaceholderArtworkUrl(normalized))
-        {
-            return normalized;
-        }
-
-        return Regex.Replace(normalized, @"-(?:large|t\d+x\d+)\.", "-t500x500.", RegexOptions.IgnoreCase);
-    }
+        => SoundCloudMatching.NormalizeArtworkUrl(url);
 
     private async Task<(string? ThumbnailUrl, string? Title, string? Author)> TryGetSoundCloudOEmbedAsync(string trackUrl, CancellationToken ct)
     {
@@ -1398,55 +1121,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         }
     }
 
-    private static string NormalizeForLooseMatch(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        string folded = value.Normalize(NormalizationForm.FormD);
-        var sb = new StringBuilder(folded.Length);
-        bool lastWasSpace = false;
-
-        foreach (var ch in folded)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark)
-            {
-                continue;
-            }
-
-            if (char.IsLetterOrDigit(ch))
-            {
-                sb.Append(char.ToLowerInvariant(ch));
-                lastWasSpace = false;
-            }
-            else if (!lastWasSpace)
-            {
-                sb.Append(' ');
-                lastWasSpace = true;
-            }
-        }
-
-        if (sb.Length > 0 && sb[^1] == ' ')
-        {
-            sb.Length--;
-        }
-
-        return sb.ToString();
-    }
-
     private static bool IsLikelySoundCloudPlaceholderArtworkUrl(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return true;
-        }
-
-        string normalized = url.Replace("\\u0026", "&").Replace("\\/", "/").ToLowerInvariant();
-        return normalized.Contains("default_avatar", StringComparison.Ordinal) ||
-               normalized.Contains("/images/default_", StringComparison.Ordinal) ||
-               normalized.Contains("default-soundcloud", StringComparison.Ordinal) ||
-               normalized.Contains("/avatars-", StringComparison.Ordinal);
-    }
+        => MediaHeuristics.IsLikelySoundCloudPlaceholderArtworkUrl(url);
 }

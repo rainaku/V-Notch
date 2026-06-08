@@ -47,8 +47,25 @@ jobs:
           esac
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source (latest code)
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore test project
+        run: dotnet restore Tests/VNotch.Tests.csproj
+
+      - name: Run tests
+        run: dotnet test Tests/VNotch.Tests.csproj --configuration Release --no-restore --verbosity normal
+
   build:
-    needs: setup
+    needs: [setup, test]
     runs-on: windows-latest
     strategy:
       fail-fast: false

@@ -14,7 +14,20 @@ public partial class MainWindow
     #region Gesture Controls
 
     private GestureController _gestureController = null!;
-    private bool _isGestureActive = false;
+
+    // Gesture session state is owned by GestureController; this shim keeps the existing
+    // member name so call sites in this and other partials (SecondaryView, AnimationHelpers)
+    // are unchanged. Same delegation pattern as the _shellState-backed shims.
+    private bool _isGestureActive
+    {
+        get => _gestureController?.IsGestureActive ?? false;
+        set
+        {
+            if (_gestureController != null)
+                _gestureController.IsGestureActive = value;
+        }
+    }
+
     private TranslateTransform? _gestureTranslate;
 
     private void InitializeGestureController()

@@ -44,12 +44,41 @@ public partial class MainWindow : Window
 
     private bool _isDraggingVolume = false;
     private NotchSettings _settings;
-    private bool _isNotchVisible = true;
-    private bool _isHiddenByFullscreen = false;
-    private IntPtr _hwnd;
+
+    // Tier 2 state owner: cross-cutting window / interop / geometry / visibility state.
+    // The legacy field member names below are kept as property shims that delegate here so
+    // existing call sites are unchanged (same pattern as _isAnimating/_isExpanded -> _notchState).
+    private readonly NotchShellState _shellState = new();
+
+    // Visibility / interop shims (single owner = _shellState).
+    private bool _isNotchVisible
+    {
+        get => _shellState.IsNotchVisible;
+        set => _shellState.IsNotchVisible = value;
+    }
+    private bool _isHiddenByFullscreen
+    {
+        get => _shellState.IsHiddenByFullscreen;
+        set => _shellState.IsHiddenByFullscreen = value;
+    }
+
+    // _hwnd is assigned once in MainWindow_Loaded and read by many interop paths and closures
+    // (e.g. ZOrderManager getHwnd: () => _hwnd, FullscreenAutoHideController). A property shim is
+    // safe here: every read passes it by value to P/Invoke (no ref/out usage), and closures capture
+    // `this` and call the getter each time, so they observe the live _shellState.Hwnd value.
+    private IntPtr _hwnd
+    {
+        get => _shellState.Hwnd;
+        set => _shellState.Hwnd = value;
+    }
+
     private HwndSource? _hwndSource;
     private DispatcherTimer? _fullscreenRecheckTimer;
-    private bool _isTrayMenuOpen = false;
+    private bool _isTrayMenuOpen
+    {
+        get => _shellState.IsTrayMenuOpen;
+        set => _shellState.IsTrayMenuOpen = value;
+    }
 
     private readonly BatteryModule _batteryModule;
     private readonly CalendarModule _calendarModule;
@@ -87,17 +116,49 @@ public partial class MainWindow : Window
 
     private bool _isStartupLayoutReady = false;
     private bool _pendingStartupClickToggle = false;
-    private double _collapsedWidth;
-    private double _collapsedHeight;
+    private double _collapsedWidth
+    {
+        get => _shellState.CollapsedWidth;
+        set => _shellState.CollapsedWidth = value;
+    }
+    private double _collapsedHeight
+    {
+        get => _shellState.CollapsedHeight;
+        set => _shellState.CollapsedHeight = value;
+    }
     private bool _modeTransitionPending;
-    private double _expandedWidth = 480;
-    private double _expandedHeight = 147;
-    private double _cornerRadiusCollapsed;
-    private double _cornerRadiusExpanded = 24;
+    private double _expandedWidth
+    {
+        get => _shellState.ExpandedWidth;
+        set => _shellState.ExpandedWidth = value;
+    }
+    private double _expandedHeight
+    {
+        get => _shellState.ExpandedHeight;
+        set => _shellState.ExpandedHeight = value;
+    }
+    private double _cornerRadiusCollapsed
+    {
+        get => _shellState.CornerRadiusCollapsed;
+        set => _shellState.CornerRadiusCollapsed = value;
+    }
+    private double _cornerRadiusExpanded
+    {
+        get => _shellState.CornerRadiusExpanded;
+        set => _shellState.CornerRadiusExpanded = value;
+    }
     private const double NotchWindowHorizontalPadding = 96;
 
-    private int _fixedX = 0;
-    private int _fixedY = 0;
+    private int _fixedX
+    {
+        get => _shellState.FixedX;
+        set => _shellState.FixedX = value;
+    }
+    private int _fixedY
+    {
+        get => _shellState.FixedY;
+        set => _shellState.FixedY = value;
+    }
     private int _windowWidth = 0;
     private int _windowHeight = 0;
 
@@ -125,29 +186,17 @@ public partial class MainWindow : Window
         return brush;
     }
 
-    private bool _calendarInitialized = false;
-    private readonly TextBlock[] _calendarDayNames = new TextBlock[11];
-    private readonly Border[] _calendarDayBorders = new Border[11];
-    private readonly TextBlock[] _calendarDayNumbers = new TextBlock[11];
-
     private bool _isUpdateAvailable = false;
     private UpdateInfo? _availableUpdate = null;
     private bool _isUpdateInstalling = false;
     private DispatcherTimer? _updatePulseTimer;
     private DateTime _updatePulseStartedAtUtc = DateTime.MinValue;
     private bool _isUpdateTooltipOpen = false;
-    private DateTime _suspendTopmostUntilUtc = DateTime.MinValue;
-    
-    private const int CalendarTotalDays = 11;   
-    private const int CalendarVisibleDays = 3;  
-    private const double CalendarCellWidth = 30.0; 
-    private double _calendarScrollX = 0.0;      
-    private int _currentCalendarCenterIdx = 5;  
-    private double _calendarScrollAccumulator = 0; 
-    private DateTime _lastCalendarScrollTime = DateTime.MinValue;
-    private DateTime _lastCalendarUpdate = DateTime.Now;
-    private bool _isMonthAnimating = false;
-    private string _pendingMonthText = string.Empty;
+    private DateTime _suspendTopmostUntilUtc
+    {
+        get => _shellState.SuspendTopmostUntilUtc;
+        set => _shellState.SuspendTopmostUntilUtc = value;
+    }
 
     #endregion
 
@@ -184,7 +233,10 @@ public partial class MainWindow : Window
         AnimationConfig.ReduceMotionChanged += OnReduceMotionChanged;
 
         _calendarModule = calendarModule;
-        _calendarModule.CalendarUpdated += CalendarModule_CalendarUpdated;
+        // Calendar feature now lives in CalendarPresenter (Task 4). It subscribes to
+        // CalendarModule.CalendarUpdated itself and owns all day-cell creation, so we
+        // construct it here instead of wiring a shell handler.
+        InitializeCalendarPresenter();
 
         _bluetoothModule = bluetoothModule;
         _bluetoothModule.DeviceConnected += BluetoothModule_DeviceConnected;
@@ -485,7 +537,7 @@ public partial class MainWindow : Window
         _mediaService.MediaChanged -= OnMediaChanged;
         _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         AnimationConfig.ReduceMotionChanged -= OnReduceMotionChanged;
-        _calendarModule.CalendarUpdated -= CalendarModule_CalendarUpdated;
+        DisposeCalendarPresenter();
         _privacyModule.StateChanged -= PrivacyModule_StateChanged;
         _weatherModule.WeatherUpdated -= WeatherModule_WeatherUpdated;
         _systemMonitorModule.StatsUpdated -= SystemMonitorModule_StatsUpdated;
@@ -567,7 +619,7 @@ public partial class MainWindow : Window
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
     }
 
-    private bool IsEffectivelyNotchVisible => _isNotchVisible && !_isHiddenByFullscreen && !_isHiddenByIdle;
+    private bool IsEffectivelyNotchVisible => _shellState.IsEffectivelyNotchVisible;
 
     private bool _fullscreenSlideVisible = true;
     private bool _isFullscreenSlideAnimating = false;

@@ -13,7 +13,9 @@ public class NotchSettings
     public string LastRunVersion { get; set; } = "";
 
     public int Width { get; set; } = 230;
-    public int DynamicIslandWidth { get; set; } = 210;
+    // Slider-aligned default; matches what existing installs receive from the v3
+    // migration (Round(230 * 1.12 / 10) * 10 = 260) so fresh and upgraded installs agree.
+    public int DynamicIslandWidth { get; set; } = 260;
     public int DynamicIslandHeight { get; set; } = 40;
     public int Height { get; set; } = 32;
     public int CornerRadius { get; set; } = 8;

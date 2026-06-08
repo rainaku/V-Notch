@@ -28,46 +28,8 @@ public sealed class YouTubeLookupResult
             return false;
         }
 
-        string t1 = NormalizeForLooseMatch(Title);
-        string t2 = NormalizeForLooseMatch(otherTitle);
+        string t1 = PlatformDetector.NormalizeForLooseMatch(Title);
+        string t2 = PlatformDetector.NormalizeForLooseMatch(otherTitle);
         return t1.Contains(t2, StringComparison.Ordinal) || t2.Contains(t1, StringComparison.Ordinal);
-    }
-
-    private static string NormalizeForLooseMatch(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        string folded = value.Normalize(NormalizationForm.FormD);
-        var sb = new System.Text.StringBuilder(folded.Length);
-        bool lastWasSpace = false;
-
-        foreach (var ch in folded)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark)
-            {
-                continue;
-            }
-
-            if (char.IsLetterOrDigit(ch))
-            {
-                sb.Append(char.ToLowerInvariant(ch));
-                lastWasSpace = false;
-            }
-            else if (!lastWasSpace)
-            {
-                sb.Append(' ');
-                lastWasSpace = true;
-            }
-        }
-
-        if (sb.Length > 0 && sb[^1] == ' ')
-        {
-            sb.Length--;
-        }
-
-        return sb.ToString();
     }
 }

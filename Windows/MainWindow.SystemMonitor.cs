@@ -1,13 +1,56 @@
+// JOIN: call InitializeSystemMonitorPresenter() in ctor, DisposeSystemMonitorPresenter() in PerformCleanup.
+// When wiring the presenter in, replace the existing
+//   _systemMonitorModule.StatsUpdated += SystemMonitorModule_StatsUpdated;   (ctor)
+//   _systemMonitorModule.StatsUpdated -= SystemMonitorModule_StatsUpdated;   (PerformCleanup)
+// with the Initialize/Dispose calls below, then the bridge handler
+// (SystemMonitorModule_StatsUpdated / UpdateSystemMonitorUI + helpers) becomes dead and can be deleted.
 using System;
 using System.Windows;
 using System.Windows.Media.Animation;
 using VNotch.Models;
+using VNotch.Presenters;
+using VNotch.Services;
 
 namespace VNotch;
 
 public partial class MainWindow
 {
     #region System Monitor Widget
+
+    // Owned system-monitor presenter. Null until InitializeSystemMonitorPresenter() runs (JOIN step).
+    private SystemMonitorPresenter? _systemMonitorPresenter;
+
+    /// <summary>
+    /// Constructs the <see cref="SystemMonitorPresenter"/>, handing it the module, a dispatcher,
+    /// and the typed view-refs for the XAML-named labels and usage bars it owns. The presenter
+    /// subscribes to the module on construction. Idempotent: a second call is a no-op.
+    /// </summary>
+    internal void InitializeSystemMonitorPresenter()
+    {
+        if (_systemMonitorPresenter != null) return;
+
+        var refs = new SystemMonitorViewRefs(
+            SysMonCpuValueText,
+            SysMonCpuBar,
+            SysMonRamValueText,
+            SysMonRamBar,
+            SysMonNetDownText,
+            SysMonNetUpText);
+
+        _systemMonitorPresenter = new SystemMonitorPresenter(_systemMonitorModule, new DispatcherService(Dispatcher), refs);
+    }
+
+    /// <summary>Disposes the system-monitor presenter (unsubscribes from the module). Idempotent.</summary>
+    internal void DisposeSystemMonitorPresenter()
+    {
+        _systemMonitorPresenter?.Dispose();
+        _systemMonitorPresenter = null;
+    }
+
+    // --- Bridge (active until the JOIN step rewires the ctor onto the presenter) -------------
+    // The constructor and PerformCleanup in MainWindow.xaml.cs still reference this handler, so it
+    // stays functional to keep the app building and behaving identically until JOIN switches over.
+    // The routing logic now also lives in SystemMonitorPresenter (the future single owner).
 
     private void SystemMonitorModule_StatsUpdated(object? sender, SystemMonitorInfo e)
     {

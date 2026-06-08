@@ -7,93 +7,82 @@ namespace VNotch;
 
 public partial class MainWindow
 {
-    // How often we re-evaluate whether the notch is empty/idle.
-    private const int IdleHidePollIntervalMs = 500;
+    // ─────────────────────────────────────────────────────────────────────────
+    // Idle auto-hide is owned by IdleAutoHideController (VNotch.Controllers).
+    // This partial keeps only thin hooks: it constructs the controller, wires the
+    // shell-state callbacks the controller needs (the empty/idle predicate, the
+    // visibility apply, the hover-timer stop, and the post-reveal z-order burst),
+    // and forwards the lifecycle calls the shell ctor / ApplySettings make.
+    //
+    // The hidden-by-idle flag still lives on _shellState (Tier 2 owner, Task 1),
+    // so IsEffectivelyNotchVisible composes idle-hide exactly as before.
+    // ─────────────────────────────────────────────────────────────────────────
 
-    private DispatcherTimer? _idleHideTimer;
-    private DateTime _idleSinceUtc = DateTime.MinValue;
+    private IdleAutoHideController? _idleAutoHide;
 
-    // True while the notch is slid out of view because it has been empty/idle.
-    // Composed into IsEffectivelyNotchVisible alongside _isHiddenByFullscreen.
-    private bool _isHiddenByIdle = false;
+    // Shim so the existing shell cleanup touchpoint (`_idleHideTimer?.Stop()` in
+    // PerformCleanup) keeps compiling and behaves identically — it now stops the
+    // timer owned by the controller. Kept read-only; the controller owns the timer.
+    private DispatcherTimer? _idleHideTimer => _idleAutoHide?.Timer;
 
-    private void InitializeIdleAutoHide()
+    /// <summary>
+    /// Preserved name: the shell constructor calls this. Delegates to the controller
+    /// initializer so existing wiring is unchanged.
+    /// </summary>
+    private void InitializeIdleAutoHide() => InitializeIdleAutoHideController();
+
+    /// <summary>
+    /// Constructs the idle auto-hide controller, supplying the shell-side callbacks it
+    /// needs. Keeps all live-state inspection and visual-tree access in the shell.
+    /// </summary>
+    internal void InitializeIdleAutoHideController()
     {
-        _idleHideTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromMilliseconds(IdleHidePollIntervalMs)
-        };
-        _idleHideTimer.Tick += IdleHideTimer_Tick;
+        _idleAutoHide = new IdleAutoHideController(
+            _shellState,
+            getSettings: () => _settings,
+            isNotchEmptyAndIdle: IsNotchEmptyAndIdle,
+            applyVisibilityState: ApplyNotchVisibilityState,
+            stopHoverTimers: () =>
+            {
+                _hoverCollapseTimer.Stop();
+                _hoverThumbnailDelayTimer.Stop();
+            },
+            onRevealed: () =>
+            {
+                TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
+                EnsureTopmost(force: true);
+            });
     }
 
     /// <summary>
     /// Starts or stops the idle watcher based on the current setting. Called from ApplySettings.
+    /// Preserved name; delegates to the controller.
     /// </summary>
-    private void ApplyIdleAutoHideSettings()
+    private void ApplyIdleAutoHideSettings() => _idleAutoHide?.ApplySettings();
+
+    /// <summary>
+    /// Immediately reveals the notch (if hidden by idle) and resets the idle countdown.
+    /// Cheap to call from hot paths such as media updates and compact-pill activity.
+    /// Preserved name; delegates to the controller.
+    /// </summary>
+    private void WakeFromIdle() => _idleAutoHide?.Wake();
+
+    /// <summary>
+    /// Tears down the idle auto-hide controller (stops the timer, unsubscribes Tick).
+    /// </summary>
+    // JOIN: add `DisposeIdleAutoHide();` to PerformCleanup in MainWindow.xaml.cs.
+    // The existing `_idleHideTimer?.Stop()` line already stops the timer through the
+    // shim above, so behavior is preserved even before the join wires full disposal.
+    internal void DisposeIdleAutoHide()
     {
-        if (_idleHideTimer == null) return;
-
-        if (_settings.EnableIdleAutoHide)
-        {
-            _idleSinceUtc = DateTime.MinValue;
-            if (!_idleHideTimer.IsEnabled)
-                _idleHideTimer.Start();
-        }
-        else
-        {
-            _idleHideTimer.Stop();
-            _idleSinceUtc = DateTime.MinValue;
-
-            // Feature turned off while the notch was hidden — bring it back.
-            if (_isHiddenByIdle)
-            {
-                _isHiddenByIdle = false;
-                ApplyNotchVisibilityState();
-                if (IsEffectivelyNotchVisible)
-                {
-                    TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
-                    EnsureTopmost(force: true);
-                }
-            }
-        }
-    }
-
-    private void IdleHideTimer_Tick(object? sender, EventArgs e)
-    {
-        if (!_settings.EnableIdleAutoHide)
-        {
-            _idleHideTimer?.Stop();
-            return;
-        }
-
-        bool idle = IsNotchEmptyAndIdle();
-
-        if (!idle)
-        {
-            // Activity detected — reset the countdown and reveal if we had hidden.
-            _idleSinceUtc = DateTime.MinValue;
-            if (_isHiddenByIdle)
-                WakeFromIdle();
-            return;
-        }
-
-        // Already hidden, nothing more to do.
-        if (_isHiddenByIdle) return;
-
-        if (_idleSinceUtc == DateTime.MinValue)
-        {
-            _idleSinceUtc = DateTime.UtcNow;
-            return;
-        }
-
-        if ((DateTime.UtcNow - _idleSinceUtc).TotalMilliseconds >= _settings.IdleAutoHideDelay)
-        {
-            HideForIdle();
-        }
+        _idleAutoHide?.Dispose();
+        _idleAutoHide = null;
     }
 
     /// <summary>
-    /// The notch counts as empty/idle only when nothing is on screen and the user isn't interacting with it.
+    /// The notch counts as empty/idle only when nothing is on screen and the user isn't
+    /// interacting with it. Stays in the shell: it reads live notch/window state and is
+    /// passed to the controller as the idle predicate.
     /// </summary>
     private bool IsNotchEmptyAndIdle()
     {
@@ -122,43 +111,5 @@ public partial class MainWindow
             return false;
 
         return true;
-    }
-
-    private void HideForIdle()
-    {
-        if (_isHiddenByIdle) return;
-
-        _isHiddenByIdle = true;
-        RuntimeLog.Log("IDLE-HIDE", $"Notch hidden after {_settings.IdleAutoHideDelay}ms idle");
-
-        // Stop any pending hover timers so they don't fight the slide-out.
-        _hoverCollapseTimer.Stop();
-        _hoverThumbnailDelayTimer.Stop();
-
-        ApplyNotchVisibilityState();
-    }
-
-    /// <summary>
-    /// Immediately reveals the notch (if hidden by idle) and resets the idle countdown.
-    /// Cheap to call from hot paths such as media updates and compact-pill activity.
-    /// </summary>
-    private void WakeFromIdle()
-    {
-        if (!_settings.EnableIdleAutoHide) return;
-
-        _idleSinceUtc = DateTime.MinValue;
-
-        if (!_isHiddenByIdle) return;
-
-        _isHiddenByIdle = false;
-        RuntimeLog.Log("IDLE-HIDE", "Notch revealed from idle (activity detected)");
-
-        ApplyNotchVisibilityState();
-
-        if (IsEffectivelyNotchVisible)
-        {
-            TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));
-            EnsureTopmost(force: true);
-        }
     }
 }

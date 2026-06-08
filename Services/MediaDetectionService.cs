@@ -438,44 +438,17 @@ public class MediaDetectionService : IMediaDetectionService
     /// </summary>
     private bool UpdateEmptyMetadataHold(MediaInfo info, string currentSignature)
     {
-        if (string.IsNullOrEmpty(info.CurrentTrack))
-        {
-            if (info.IsAnyMediaPlaying)
-            {
-                if (_emptyMetadataStartTime == DateTime.MinValue)
-                {
-                    _emptyMetadataStartTime = DateTime.Now;
-                }
-                double holdSeconds = (_lastSource == "YouTube" || _lastSource == "Browser") ? 4.0 : 2.5;
-                if ((DateTime.Now - _emptyMetadataStartTime).TotalSeconds < holdSeconds && !string.IsNullOrEmpty(_lastStableTrackSignature))
-                {
-                    return true;
-                }
-            }
-            else
-            {
-                _emptyMetadataStartTime = DateTime.MinValue;
-                _lastStableTrackSignature = "";
-            }
-        }
-        else
-        {
-            _emptyMetadataStartTime = DateTime.MinValue;
-            _lastStableTrackSignature = currentSignature;
-        }
-
-        return false;
+        var r = MediaTimingDecisions.EvaluateEmptyMetadataHold(
+            info.CurrentTrack, info.IsAnyMediaPlaying, currentSignature, _lastSource,
+            _emptyMetadataStartTime, _lastStableTrackSignature, DateTime.Now);
+        _emptyMetadataStartTime = r.emptyStart;
+        _lastStableTrackSignature = r.stableSignature;
+        return r.hold;
     }
 
     /// <summary>True when the track (ignoring artist) differs from the last published track.</summary>
     private bool ComputeIsNewTrackForThumbnail(MediaInfo info)
-    {
-        return !string.IsNullOrEmpty(info.CurrentTrack) &&
-               !string.Equals(
-                   BuildTrackIdentity(info.CurrentTrack, ""),
-                   _lastPublishedTrackOnlyIdentity,
-                   StringComparison.Ordinal);
-    }
+        => PublishedTrackMatcher.IsNewTrackForThumbnail(_lastPublishedTrackOnlyIdentity, info.CurrentTrack);
 
     /// <summary>
     /// Evaluates change-detection flags and, when something meaningful changed, commits the new
@@ -534,32 +507,12 @@ public class MediaDetectionService : IMediaDetectionService
     /// </summary>
     private bool ShouldDebounceNewTrack(MediaInfo info, bool forceRefresh)
     {
-        bool isNewTrack = !string.IsNullOrEmpty(info.CurrentTrack) &&
-                          !string.Equals(
-                              BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist),
-                              _lastPublishedTrackIdentity,
-                              StringComparison.Ordinal);
-
-        if (isNewTrack && !info.IsPlaying && !forceRefresh)
-        {
-            string candidateKey = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
-            if (candidateKey != _pendingNewTrackKey)
-            {
-                _pendingNewTrackKey = candidateKey;
-                _pendingNewTrackSince = DateTime.UtcNow;
-            }
-
-            if ((DateTime.UtcNow - _pendingNewTrackSince).TotalMilliseconds < 600)
-            {
-                return true;
-            }
-        }
-        else
-        {
-            _pendingNewTrackKey = "";
-        }
-
-        return false;
+        var r = MediaTimingDecisions.EvaluateNewTrackDebounce(
+            info.CurrentTrack, info.CurrentArtist, info.IsPlaying, forceRefresh,
+            _lastPublishedTrackIdentity, _pendingNewTrackKey, _pendingNewTrackSince, DateTime.UtcNow);
+        _pendingNewTrackKey = r.pendingKey;
+        _pendingNewTrackSince = r.pendingSince;
+        return r.debounce;
     }
 
     /// <summary>Snapshots the just-published media state into the "last published" tracking fields.</summary>
@@ -1664,62 +1617,22 @@ public class MediaDetectionService : IMediaDetectionService
     private string _stableSourceTrackIdentity = "";
 
     private static string BuildTrackIdentity(string track, string artist)
-    {
-        return $"{track.Trim().ToLowerInvariant()}|{artist.Trim().ToLowerInvariant()}";
-    }
+        => MediaHeuristics.BuildTrackIdentity(track, artist);
 
     private bool IsStillSamePublishedTrack(string expectedTrack, string expectedArtist, string expectedSourceAppId, string expectedSessionInstanceKey = "")
-    {
-        // Session key is the strongest guard — if the session changed, the track is definitely not the same context even if title matches
-        if (!string.IsNullOrEmpty(expectedSessionInstanceKey) &&
-            !string.Equals(_lastPublishedSessionInstanceKey, expectedSessionInstanceKey, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrEmpty(expectedSourceAppId) &&
-            !string.Equals(_lastPublishedSourceAppId, expectedSourceAppId, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        string expectedIdentity = BuildTrackIdentity(expectedTrack, expectedArtist);
-        // Primary check: full track+artist identity must match
-        if (string.Equals(_lastPublishedTrackIdentity, expectedIdentity, StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        // Fallback: track-only match, but ONLY if the artist was unknown at fetch time
-        if (string.IsNullOrEmpty(expectedArtist))
-        {
-            string expectedTrackOnly = BuildTrackIdentity(expectedTrack, "");
-            return string.Equals(_lastPublishedTrackOnlyIdentity, expectedTrackOnly, StringComparison.Ordinal);
-        }
-
-        return false;
-    }
+        => PublishedTrackMatcher.IsSameTrack(
+            new PublishedTrackSnapshot(
+                _lastPublishedTrackIdentity,
+                _lastPublishedTrackOnlyIdentity,
+                _lastPublishedSourceAppId,
+                _lastPublishedSessionInstanceKey),
+            expectedTrack, expectedArtist, expectedSourceAppId, expectedSessionInstanceKey);
 
     private static string BuildSourceOverrideKey(string sessionInstanceKey, string sourceAppId)
-    {
-        if (!string.IsNullOrWhiteSpace(sessionInstanceKey))
-        {
-            return sessionInstanceKey;
-        }
-
-        return IsBrowserSourceApp(sourceAppId) ? string.Empty : sourceAppId ?? string.Empty;
-    }
+        => MediaHeuristics.BuildSourceOverrideKey(sessionInstanceKey, sourceAppId);
 
     private static bool IsTrackCompatibleWithWindowTitle(string track, string windowTitle)
-    {
-        if (string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(windowTitle))
-            return false;
-
-        string normalizedTrack = PlatformDetector.NormalizeForLooseMatch(track);
-        string normalizedWindowTitle = PlatformDetector.NormalizeForLooseMatch(windowTitle);
-        return !string.IsNullOrEmpty(normalizedTrack) &&
-               normalizedWindowTitle.Contains(normalizedTrack, StringComparison.Ordinal);
-    }
+        => MediaHeuristics.IsTrackCompatibleWithWindowTitle(track, windowTitle);
 
     private static bool HasReliablePlatformWindowMatch(IEnumerable<string> windowTitles, string track, string platform)
     {
@@ -1806,9 +1719,7 @@ public class MediaDetectionService : IMediaDetectionService
     }
 
     private static bool IsIgnoredSourceApp(string sourceAppId)
-    {
-        return sourceAppId.Contains("Discord", StringComparison.OrdinalIgnoreCase);
-    }
+        => MediaHeuristics.IsIgnoredSourceApp(sourceAppId);
 
     private static string DetectPlatformHint(IEnumerable<string> windowTitles)
     {
@@ -1821,123 +1732,16 @@ public class MediaDetectionService : IMediaDetectionService
     }
 
     private static bool IsLikelySoundCloudPlaceholderThumbnail(BitmapImage? thumbnail)
-    {
-        if (thumbnail == null || thumbnail.PixelWidth <= 0 || thumbnail.PixelHeight <= 0)
-        {
-            return true;
-        }
-
-        double aspect = (double)thumbnail.PixelWidth / thumbnail.PixelHeight;
-        bool isSquare = Math.Abs(aspect - 1.0) < 0.06;
-        if (!isSquare)
-        {
-            return false;
-        }
-
-        if (thumbnail.PixelWidth <= 320 || thumbnail.PixelHeight <= 320)
-        {
-            return true;
-        }
-
-        return HasLowEntropyMonochromeProfile(thumbnail);
-    }
+        => ThumbnailHeuristics.IsLikelyPlaceholderThumbnail(thumbnail);
 
     private static bool IsLikelySoundCloudArtworkCandidate(BitmapImage? thumbnail)
-    {
-        if (thumbnail == null || thumbnail.PixelWidth <= 0 || thumbnail.PixelHeight <= 0)
-        {
-            return false;
-        }
-
-        double aspect = (double)thumbnail.PixelWidth / thumbnail.PixelHeight;
-        bool isSquare = Math.Abs(aspect - 1.0) < 0.08;
-        if (!isSquare)
-        {
-            return false;
-        }
-
-        return thumbnail.PixelWidth >= 360 &&
-               thumbnail.PixelHeight >= 360 &&
-               !IsLikelySoundCloudPlaceholderThumbnail(thumbnail);
-    }
+        => ThumbnailHeuristics.IsLikelyArtworkCandidate(thumbnail);
 
     private static bool IsLikelySoundCloudPlaceholderArtworkUrl(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return true;
-        }
-
-        string normalized = url.Replace("\\u0026", "&").Replace("\\/", "/").ToLowerInvariant();
-        return normalized.Contains("default_avatar", StringComparison.Ordinal) ||
-               normalized.Contains("/images/default_", StringComparison.Ordinal) ||
-               normalized.Contains("default-soundcloud", StringComparison.Ordinal) ||
-               normalized.Contains("/avatars-", StringComparison.Ordinal);
-    }
+        => MediaHeuristics.IsLikelySoundCloudPlaceholderArtworkUrl(url);
 
     private static bool HasLowEntropyMonochromeProfile(BitmapImage thumbnail)
-    {
-        try
-        {
-            int sampleSize = 24;
-            double scale = Math.Min(
-                1.0,
-                (double)sampleSize / Math.Max(thumbnail.PixelWidth, thumbnail.PixelHeight));
-
-            BitmapSource source = thumbnail;
-            if (scale < 1.0)
-            {
-                var transformed = new TransformedBitmap(thumbnail, new ScaleTransform(scale, scale));
-                transformed.Freeze();
-                source = transformed;
-            }
-
-            var formatted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
-            formatted.Freeze();
-
-            int width = Math.Max(1, formatted.PixelWidth);
-            int height = Math.Max(1, formatted.PixelHeight);
-            int stride = width * 4;
-            byte[] pixels = new byte[stride * height];
-            formatted.CopyPixels(pixels, stride, 0);
-
-            var quantizedBins = new HashSet<int>();
-            double saturationSum = 0;
-            int nearGrayCount = 0;
-            int brightCount = 0;
-            int pixelCount = width * height;
-
-            for (int i = 0; i < pixels.Length; i += 4)
-            {
-                byte b = pixels[i];
-                byte g = pixels[i + 1];
-                byte r = pixels[i + 2];
-
-                int max = Math.Max(r, Math.Max(g, b));
-                int min = Math.Min(r, Math.Min(g, b));
-                int delta = max - min;
-
-                if (delta <= 12) nearGrayCount++;
-                if (max >= 220 && min >= 220) brightCount++;
-
-                quantizedBins.Add(((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5));
-                saturationSum += max == 0 ? 0 : (double)delta / max;
-            }
-
-            double avgSaturation = saturationSum / pixelCount;
-            double grayRatio = (double)nearGrayCount / pixelCount;
-            double brightRatio = (double)brightCount / pixelCount;
-
-            return quantizedBins.Count <= 18 &&
-                   avgSaturation <= 0.08 &&
-                   grayRatio >= 0.84 &&
-                   brightRatio >= 0.02;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+        => ThumbnailHeuristics.HasLowEntropyMonochromeProfile(thumbnail);
 
     private async Task TryGetMediaSessionInfoAsync(MediaInfo info, bool forceRefresh, Func<List<string>> windowTitleFactory)
     {
@@ -2051,110 +1855,26 @@ public class MediaDetectionService : IMediaDetectionService
 
     /// <summary>Maps a session's SourceAppUserModelId to an initial <see cref="MediaInfo.MediaSource"/>.</summary>
     private void ApplyMediaSourceFromAppId(MediaInfo info, string sessionSourceApp)
-    {
-        if (string.IsNullOrEmpty(sessionSourceApp)) return;
-
-        if (sessionSourceApp.Contains("Spotify", StringComparison.OrdinalIgnoreCase))
-        {
-            info.MediaSource = "Spotify";
-            info.IsSpotifyPlaying = true;
-            info.IsSpotifyRunning = true;
-        }
-        else if (sessionSourceApp.Contains("YouTube", StringComparison.OrdinalIgnoreCase))
-        {
-            info.MediaSource = "YouTube";
-            info.IsYouTubeRunning = true;
-        }
-        else if (IsBrowserSourceApp(sessionSourceApp))
-        {
-            info.MediaSource = "Browser";
-        }
-        else if (sessionSourceApp.Contains("Music", StringComparison.OrdinalIgnoreCase) ||
-                 sessionSourceApp.Contains("Apple", StringComparison.OrdinalIgnoreCase) ||
-                 sessionSourceApp.Contains("AppleMusic", StringComparison.OrdinalIgnoreCase))
-        {
-            info.MediaSource = "Apple Music";
-            info.IsAppleMusicRunning = true;
-        }
-        else
-        {
-            info.MediaSource = "Browser";
-        }
-    }
+        => MediaSourceClassifier.ApplyFromAppId(info, sessionSourceApp);
 
     /// <summary>Refines an unresolved Browser source into YouTube / Apple Music / SoundCloud using track metadata.</summary>
     private void RefineMediaSourceFromMetadata(MediaInfo info, string lowerTitle, string lowerArtist, string lowerAlbum)
-    {
-        if (info.MediaSource != "Browser" && !string.IsNullOrEmpty(info.MediaSource)) return;
-
-        bool isYouTube = lowerArtist.Contains("youtube") ||
-                         lowerTitle.Contains("youtube") ||
-                         lowerTitle.EndsWith("- youtube") ||
-                         lowerTitle.EndsWith("– youtube") ||
-                         lowerAlbum.Contains("youtube");
-
-        if (isYouTube)
-        {
-            info.MediaSource = "YouTube";
-            info.IsYouTubeRunning = true;
-        }
-        else if (lowerArtist.Contains("apple music") || lowerTitle.Contains("apple music") || lowerAlbum.Contains("apple music") || lowerAlbum.Contains("music.apple.com"))
-        {
-            info.MediaSource = "Apple Music";
-            info.IsAppleMusicRunning = true;
-        }
-        else if (lowerArtist.Contains("soundcloud") || lowerTitle.Contains("soundcloud") || lowerAlbum.Contains("soundcloud"))
-        {
-            info.MediaSource = "SoundCloud";
-            info.IsSoundCloudRunning = true;
-        }
-    }
+        => MediaSourceClassifier.RefineFromMetadata(info, lowerTitle, lowerArtist, lowerAlbum);
 
     /// <summary>
     /// Detects placeholder/junk SMTC titles (app names, ads, empty). Returns true when the caller
     /// should abort this pass; for YouTube it first clears the track and tags the artist.
     /// </summary>
     private bool TryHandleJunkSessionTitle(MediaInfo info, string sessionTitle, string sessionArtist)
-    {
-        string lowerTitle = sessionTitle.ToLower();
-        string lowerArtist = sessionArtist.ToLower();
-
-        bool isJunkTitle = string.IsNullOrEmpty(sessionTitle) ||
-                           lowerTitle == "spotify" ||
-                           lowerTitle == "advertisement" ||
-                           lowerTitle == "windows media player" ||
-                           lowerTitle == "spotify free" ||
-                           lowerTitle == "spotify premium" ||
-                           lowerTitle == "chrome" ||
-                           lowerTitle == "edge" ||
-                           lowerTitle == "brave" ||
-                           lowerTitle == "opera" ||
-                           lowerTitle == "firefox" ||
-                           (lowerTitle == "youtube" && (string.IsNullOrEmpty(sessionArtist) || lowerArtist == "youtube"));
-
-        if (!isJunkTitle) return false;
-
-        if (info.MediaSource == "YouTube")
-        {
-            info.CurrentTrack = "";
-            info.CurrentArtist = "YouTube";
-        }
-
-        return true;
-    }
+        => MediaSourceClassifier.TryHandleJunkTitle(info, sessionTitle, sessionArtist);
 
     /// <summary>Holds a recently-confirmed artist for browser/YouTube sources that briefly report a generic artist.</summary>
     private void StabilizeArtist(MediaInfo info)
     {
-        if ((info.CurrentArtist == "YouTube" || info.CurrentArtist == "Browser") &&
-            !string.IsNullOrEmpty(_stableArtist) && (DateTime.Now - _lastSourceConfirmedTime).TotalSeconds < 15.0)
-        {
-            info.CurrentArtist = _stableArtist;
-        }
-        else if (!string.IsNullOrEmpty(info.CurrentArtist) && info.CurrentArtist != "YouTube" && info.CurrentArtist != "Browser")
-        {
-            _stableArtist = info.CurrentArtist;
-        }
+        var r = MediaTimingDecisions.EvaluateArtistStabilization(
+            info.CurrentArtist, _stableArtist, _lastSourceConfirmedTime, DateTime.Now);
+        info.CurrentArtist = r.artist;
+        _stableArtist = r.stableArtist;
     }
 
     /// <summary>
@@ -3207,22 +2927,14 @@ public class MediaDetectionService : IMediaDetectionService
     }
 
     // ── Mismatch cache: avoid re-validating the same stale videoId during rapid polling ──
-    private readonly HashSet<string> _mismatchVideoIds = new(StringComparer.Ordinal);
-
     private bool TryGetCachedMismatchVideoId(string videoId)
-    {
-        lock (_mismatchVideoIds) return _mismatchVideoIds.Contains(videoId);
-    }
+        => _videoIds.IsMismatch(videoId);
 
     private void CacheMismatchVideoId(string videoId)
-    {
-        lock (_mismatchVideoIds) _mismatchVideoIds.Add(videoId);
-    }
+        => _videoIds.MarkMismatch(videoId);
 
     private void ClearMismatchCache()
-    {
-        lock (_mismatchVideoIds) _mismatchVideoIds.Clear();
-    }
+        => _videoIds.ClearMismatches();
 
     private Task<string?> TryGetSoundCloudArtworkUrlAsync(string title, string artist = "", bool requireStrongMatch = false, CancellationToken ct = default)
         => _metadataLookup.TryGetSoundCloudArtworkUrlAsync(title, artist, requireStrongMatch, ct);
@@ -3323,84 +3035,19 @@ public class MediaDetectionService : IMediaDetectionService
     }
 
     // ─── Video ID cache per track (persists across browser focus changes) ───
-    private readonly Dictionary<string, string> _videoIdCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly object _videoIdCacheLock = new();
+    private readonly VideoIdCache _videoIds = new();
 
     private void CacheVideoIdForTrack(string? trackIdentity, string videoId)
-    {
-        if (string.IsNullOrEmpty(trackIdentity)) return;
-        lock (_videoIdCacheLock)
-        {
-            _videoIdCache[trackIdentity] = videoId;
-            // Keep cache bounded
-            if (_videoIdCache.Count > 50)
-            {
-                var firstKey = _videoIdCache.Keys.First();
-                _videoIdCache.Remove(firstKey);
-            }
-        }
-    }
+        => _videoIds.Set(trackIdentity, videoId);
 
     private string? GetCachedVideoIdForTrack(string? track)
-    {
-        if (string.IsNullOrEmpty(track)) return null;
-        lock (_videoIdCacheLock)
-        {
-            // Try exact track name match
-            if (_videoIdCache.TryGetValue(track, out var id))
-                return id;
-            // Try track identity match (track + artist combined key)
-            string trackIdentity = BuildTrackIdentity(track, "");
-            if (_videoIdCache.TryGetValue(trackIdentity, out id))
-                return id;
-            return null;
-        }
-    }
+        => _videoIds.Get(track);
 
     private void ForgetVideoIdCacheExceptForTrack(string? currentTrackIdentity)
-    {
-        lock (_videoIdCacheLock)
-        {
-            if (_videoIdCache.Count == 0) return;
-            if (string.IsNullOrEmpty(currentTrackIdentity))
-            {
-                _videoIdCache.Clear();
-                return;
-            }
-
-            var doomed = new List<string>();
-            foreach (var key in _videoIdCache.Keys)
-            {
-                if (!string.Equals(key, currentTrackIdentity, StringComparison.OrdinalIgnoreCase))
-                {
-                    doomed.Add(key);
-                }
-            }
-            foreach (var key in doomed)
-            {
-                _videoIdCache.Remove(key);
-            }
-        }
-    }
+        => _videoIds.ForgetExcept(currentTrackIdentity);
 
     private void EvictVideoIdCacheEntry(string? track, string staleVideoId)
-    {
-        if (string.IsNullOrEmpty(track) || string.IsNullOrEmpty(staleVideoId)) return;
-        lock (_videoIdCacheLock)
-        {
-            string trackIdentity = BuildTrackIdentity(track, "");
-            if (_videoIdCache.TryGetValue(track, out var v1) &&
-                string.Equals(v1, staleVideoId, StringComparison.Ordinal))
-            {
-                _videoIdCache.Remove(track);
-            }
-            if (_videoIdCache.TryGetValue(trackIdentity, out var v2) &&
-                string.Equals(v2, staleVideoId, StringComparison.Ordinal))
-            {
-                _videoIdCache.Remove(trackIdentity);
-            }
-        }
-    }
+        => _videoIds.Evict(track, staleVideoId);
 
     private bool IsLikelyYouTube(MediaInfo info)
     {
@@ -3489,49 +3136,13 @@ public class MediaDetectionService : IMediaDetectionService
 
     private bool ShouldPreserveSoundCloudSourceDuringTrackSwitch(MediaInfo info)
     {
-        if (!string.Equals(info.MediaSource, "Browser", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!string.Equals(_lastSource, "SoundCloud", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(info.CurrentTrack) ||
-            string.IsNullOrWhiteSpace(info.SourceAppId) ||
-            !IsBrowserSourceApp(info.SourceAppId) ||
-            string.IsNullOrWhiteSpace(info.SessionInstanceKey))
-        {
-            return false;
-        }
-
-        if (!string.Equals(_lastPublishedSessionInstanceKey, info.SessionInstanceKey, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if ((DateTime.Now - _lastMetadataChangeTime).TotalSeconds > 3.0)
-        {
-            return false;
-        }
-
-        bool hasYouTubeHint = info.CurrentTrack.Contains("youtube", StringComparison.OrdinalIgnoreCase) ||
-                              info.CurrentArtist.Contains("youtube", StringComparison.OrdinalIgnoreCase);
-        if (hasYouTubeHint)
-        {
-            return false;
-        }
-
-        if (TryGetSessionSourceOverride(info, out var sessionOverride) &&
-            !string.IsNullOrEmpty(sessionOverride) &&
-            !string.Equals(sessionOverride, "SoundCloud", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return true;
+        // The session-override lookup is the only external dependency; resolve it here (a pure read of
+        // session state) and hand the result to the pure decision core.
+        bool hasOverride = TryGetSessionSourceOverride(info, out var sessionOverride);
+        return MediaTimingDecisions.ShouldPreserveSoundCloud(
+            info.MediaSource, info.CurrentTrack, info.CurrentArtist, info.SourceAppId, info.SessionInstanceKey,
+            _lastSource, _lastPublishedSessionInstanceKey, _lastMetadataChangeTime, DateTime.Now,
+            hasOverride, sessionOverride);
     }
 
     private void ApplySimulatedTimeline(MediaInfo info, bool atEndStuck)
@@ -3547,60 +3158,13 @@ public class MediaDetectionService : IMediaDetectionService
     }
 
     private static bool SpotifyTitleContainsTrack(string spotifyWindowTitle, string smtcTrack)
-    {
-        if (string.IsNullOrEmpty(spotifyWindowTitle) || string.IsNullOrEmpty(smtcTrack))
-            return false;
-
-        // Direct match (fast path)
-        if (spotifyWindowTitle.Contains(smtcTrack, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        string normalizedTrack = NormalizeTrackForComparison(smtcTrack);
-        string normalizedTitle = NormalizeTrackForComparison(spotifyWindowTitle);
-
-        if (normalizedTitle.Contains(normalizedTrack, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        // Also try: extract core track name (before parentheses) and check if window title contains it
-        string coreTrack = ExtractCoreTrackName(smtcTrack);
-        if (!string.IsNullOrEmpty(coreTrack) && coreTrack.Length >= 3 &&
-            spotifyWindowTitle.Contains(coreTrack, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return false;
-    }
+        => MediaHeuristics.SpotifyTitleContainsTrack(spotifyWindowTitle, smtcTrack);
 
     private static string NormalizeTrackForComparison(string text)
-    {
-        // Replace " (" or " [" with " - " and remove closing ")" or "]"
-        var result = text
-            .Replace(" (", " - ", StringComparison.Ordinal)
-            .Replace("(", " - ", StringComparison.Ordinal)
-            .Replace(")", "", StringComparison.Ordinal)
-            .Replace(" [", " - ", StringComparison.Ordinal)
-            .Replace("[", " - ", StringComparison.Ordinal)
-            .Replace("]", "", StringComparison.Ordinal);
-        return result.Trim();
-    }
+        => MediaHeuristics.NormalizeTrackForComparison(text);
 
     private static string ExtractCoreTrackName(string track)
-    {
-        int parenIdx = track.IndexOf('(');
-        int bracketIdx = track.IndexOf('[');
-        int cutIdx = -1;
-
-        if (parenIdx > 0 && bracketIdx > 0)
-            cutIdx = Math.Min(parenIdx, bracketIdx);
-        else if (parenIdx > 0)
-            cutIdx = parenIdx;
-        else if (bracketIdx > 0)
-            cutIdx = bracketIdx;
-
-        if (cutIdx > 0)
-            return track.Substring(0, cutIdx).Trim();
-
-        return track;
-    }
+        => MediaHeuristics.ExtractCoreTrackName(track);
 
     private string ExtractVideoTitle(string windowTitle, string platform)
     {

@@ -4,6 +4,8 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "V-Notch", "V-Notch.csproj", "{74A74E6B-C38C-B165-9438-97EF506EBAF0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VNotch.Tests", "Tests\VNotch.Tests.csproj", "{F711319F-95AC-4767-A447-E9CDA8B65468}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +16,10 @@ Global
 		{74A74E6B-C38C-B165-9438-97EF506EBAF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{74A74E6B-C38C-B165-9438-97EF506EBAF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{74A74E6B-C38C-B165-9438-97EF506EBAF0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F711319F-95AC-4767-A447-E9CDA8B65468}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F711319F-95AC-4767-A447-E9CDA8B65468}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F711319F-95AC-4767-A447-E9CDA8B65468}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F711319F-95AC-4767-A447-E9CDA8B65468}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
