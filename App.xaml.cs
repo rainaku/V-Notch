@@ -197,9 +197,9 @@ public partial class App : Application
                 needSave = true;
             }
 
-            if (!settings.HasSeenDynamicIslandIntro)
+            if (!settings.HasSeenLiquidGlassIntro)
             {
-                settings.HasSeenDynamicIslandIntro = true;
+                settings.HasSeenLiquidGlassIntro = true;
                 needSave = true;
 
                 if (needSave)

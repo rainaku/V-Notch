@@ -79,7 +79,7 @@ public partial class IntroducingWindow : Window
 
         try
         {
-            var gifPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Introduction", "DI.gif");
+            var gifPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Introduction", "LG.gif");
             if (System.IO.File.Exists(gifPath))
             {
                 var image = new BitmapImage();

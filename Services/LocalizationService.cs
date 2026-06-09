@@ -112,7 +112,9 @@ public static class Loc
             ["settings.skins"] = "NOTCH SKINS",
             ["settings.skin.default"] = "Default",
             ["settings.skin.liquidglass"] = "Liquid Glass",
+            ["settings.badge.alpha"] = "ALPHA",
             ["settings.glass.preset"] = "Preset",
+            ["settings.glass.advancedWarning"] = "These are advanced settings. DO NOT TOUCH unless you know what you're doing.",
             ["settings.glass.preset.custom"] = "Custom Settings",
             ["settings.glass.preset.frosted"] = "Frosted Glass",
             ["settings.glass.preset.dark"] = "Dark Glass",
@@ -345,8 +347,8 @@ public static class Loc
             ["privacy.cam.inUse"] = "Camera in use",
 
             ["intro.title"] = "INTRODUCING",
-            ["intro.headline"] = "Dynamic Island Mode",
-            ["intro.body"] = "A new floating pill style notch. Enjoy standard status indicators, music player notifications, and beautiful transitions in a detached floating Apple-style design.",
+            ["intro.headline"] = "Liquid Glass Theme",
+            ["intro.body"] = "A new skin that turns the notch into liquid glass — refracting the desktop behind it in real time, with soft chromatic edges, depth, and a frosted blur.",
             ["intro.close"] = "Got it",
         };
     }
@@ -388,7 +390,9 @@ public static class Loc
             ["settings.skins"] = "NGOẠI TRANG",
             ["settings.skin.default"] = "Mặc định",
             ["settings.skin.liquidglass"] = "Liquid Glass",
+            ["settings.badge.alpha"] = "THỬ NGHIỆM",
             ["settings.glass.preset"] = "Cài đặt sẵn",
+            ["settings.glass.advancedWarning"] = "Đây là cài đặt chuyên sâu, ĐỪNG NÊN ĐỘNG VÀO trừ khi bạn biết mình đang làm gì.",
             ["settings.glass.preset.custom"] = "Tùy chỉnh",
             ["settings.glass.preset.frosted"] = "Kính mờ",
             ["settings.glass.preset.dark"] = "Kính tối",
@@ -621,8 +625,8 @@ public static class Loc
             ["privacy.cam.inUse"] = "Đang dùng camera",
 
             ["intro.title"] = "GIỚI THIỆU",
-            ["intro.headline"] = "Chế độ Dynamic Island",
-            ["intro.body"] = "Thiết kế notch dạng viên thuốc nổi mới, bo tròn cả 4 góc và tách khỏi mép màn hình. Tận hưởng hiển thị pin, trình phát nhạc cùng các chuyển động mượt mà mang phong cách Apple.",
+            ["intro.headline"] = "Theme Liquid Glass",
+            ["intro.body"] = "Giao diện mới biến notch thành kính lỏng — khúc xạ nền desktop phía sau theo thời gian thực, với viền tán sắc nhẹ, chiều sâu và lớp kính mờ.",
             ["intro.close"] = "Đã hiểu",
         };
     }

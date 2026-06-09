@@ -248,6 +248,7 @@ public event EventHandler? AnimatedClosing;
         EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics");
         EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint");
         EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles");
+        if (YouTubeSubtitlesAlphaBadge != null) YouTubeSubtitlesAlphaBadge.Text = Loc.Get("settings.badge.alpha");
         EnableYouTubeSubtitlesHint.Text = Loc.Get("settings.enableYouTubeSubtitles.hint");
 
         SubtitlePriorityLabel.Text = Loc.Get("settings.subtitlePriority");
@@ -880,8 +881,7 @@ public event EventHandler? AnimatedClosing;
         {
             if (SkinCombo.Items.Count == 0)
             {
-                SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.default"), Tag = "default" });
-                SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.liquidglass"), Tag = "liquidglass" });
+                PopulateSkinItems();
             }
 
             EnsureGlassPresetItems();
@@ -972,6 +972,15 @@ public event EventHandler? AnimatedClosing;
         PushLivePreview();
     }
 
+    // Populates the skin selector. Plain string items so the selection box renders
+    // the name directly (a custom ItemTemplate isn't applied to the selection box
+    // by this combo's template). The "alpha" badge lives next to the section title.
+    private void PopulateSkinItems()
+    {
+        SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.default"), Tag = "default" });
+        SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.liquidglass"), Tag = "liquidglass" });
+    }
+
     private void GlassConfigSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_isLoadingSettings) return;
@@ -996,18 +1005,19 @@ public event EventHandler? AnimatedClosing;
 
         if (SkinHeader != null) SkinHeader.Text = Loc.Get("settings.skins");
         SkinLabel.Text = Loc.Get("settings.skin");
+        if (SkinAlphaBadge != null) SkinAlphaBadge.Text = Loc.Get("settings.badge.alpha");
         SkinHint.Text = Loc.Get("settings.skin.hint");
 
         int idx = SkinCombo.SelectedIndex;
         bool prev = _isLoadingSettings;
         _isLoadingSettings = true;
         SkinCombo.Items.Clear();
-        SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.default"), Tag = "default" });
-        SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.liquidglass"), Tag = "liquidglass" });
+        PopulateSkinItems();
         SkinCombo.SelectedIndex = idx < 0 ? 0 : idx;
         _isLoadingSettings = prev;
 
         if (GlassPresetLabel != null) GlassPresetLabel.Text = Loc.Get("settings.glass.preset");
+        if (GlassAdvancedWarning != null) GlassAdvancedWarning.Text = Loc.Get("settings.glass.advancedWarning");
         int presetIdx = GlassPresetCombo.SelectedIndex;
         _suppressGlassPresetChange = true;
         GlassPresetCombo.Items.Clear();

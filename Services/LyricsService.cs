@@ -38,36 +38,27 @@ internal sealed class LyricsService : IDisposable
 
         try
         {
-            string encodedTrack = Uri.EscapeDataString(trackName);
-            string encodedArtist = Uri.EscapeDataString(artistName);
-            string url = $"/api/get?track_name={encodedTrack}&artist_name={encodedArtist}&duration={durationSeconds}";
+            // 1. Exact lookup — fastest, but lrclib requires track/artist/duration
+            //    to match closely. Spotify titles often carry suffixes
+            //    ("- Remastered", "(feat. X)") or a slightly different duration,
+            //    so this misses plenty of songs that DO have lyrics.
+            var exact = await TryGetExactAsync(trackName, artistName, durationSeconds, token);
+            if (exact is { Count: > 0 }) return exact;
 
-            RuntimeLog.Log("LYRICS", $"Fetching: {trackName} - {artistName} ({durationSeconds}s)");
+            // 2. Fuzzy search fallback — far more forgiving. Try the raw title
+            //    first, then a cleaned version with the noisy suffixes removed.
+            var searched = await TrySearchAsync(trackName, artistName, durationSeconds, token);
+            if (searched is { Count: > 0 }) return searched;
 
-            var response = await _http.GetAsync(url, token);
-
-            if (!response.IsSuccessStatusCode)
+            string cleanTrack = CleanTitle(trackName);
+            string cleanArtist = CleanArtist(artistName);
+            if (cleanTrack != trackName || cleanArtist != artistName)
             {
-                RuntimeLog.Log("LYRICS", $"HTTP {(int)response.StatusCode} for '{trackName}'");
-                return null;
+                var cleaned = await TrySearchAsync(cleanTrack, cleanArtist, durationSeconds, token);
+                if (cleaned is { Count: > 0 }) return cleaned;
             }
 
-            var json = await response.Content.ReadAsStringAsync(token);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            if (!root.TryGetProperty("syncedLyrics", out var syncedProp) || syncedProp.ValueKind == JsonValueKind.Null)
-            {
-                RuntimeLog.Log("LYRICS", $"No synced lyrics for '{trackName}'");
-                return null;
-            }
-
-            string syncedLyrics = syncedProp.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(syncedLyrics)) return null;
-
-            var lines = ParseLrc(syncedLyrics);
-            RuntimeLog.Log("LYRICS", $"Got {lines.Count} synced lines for '{trackName}'");
-            return lines.Count > 0 ? lines : null;
+            return null;
         }
         catch (OperationCanceledException)
         {
@@ -78,6 +69,120 @@ internal sealed class LyricsService : IDisposable
             RuntimeLog.Log("LYRICS", $"Error: {ex.Message}");
             return null;
         }
+    }
+
+    private async Task<List<LyricLine>?> TryGetExactAsync(string trackName, string artistName, int durationSeconds, CancellationToken token)
+    {
+        string url = $"/api/get?track_name={Uri.EscapeDataString(trackName)}" +
+                     $"&artist_name={Uri.EscapeDataString(artistName)}&duration={durationSeconds}";
+
+        RuntimeLog.Log("LYRICS", $"Fetching (exact): {trackName} - {artistName} ({durationSeconds}s)");
+
+        var response = await _http.GetAsync(url, token);
+        if (!response.IsSuccessStatusCode)
+        {
+            RuntimeLog.Log("LYRICS", $"Exact HTTP {(int)response.StatusCode} for '{trackName}'");
+            return null;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(token);
+        using var doc = JsonDocument.Parse(json);
+        var lines = ExtractSyncedLines(doc.RootElement);
+        if (lines is { Count: > 0 })
+            RuntimeLog.Log("LYRICS", $"Got {lines.Count} synced lines (exact) for '{trackName}'");
+        return lines;
+    }
+
+    private async Task<List<LyricLine>?> TrySearchAsync(string trackName, string artistName, int durationSeconds, CancellationToken token)
+    {
+        string url = $"/api/search?track_name={Uri.EscapeDataString(trackName)}" +
+                     $"&artist_name={Uri.EscapeDataString(artistName)}";
+
+        RuntimeLog.Log("LYRICS", $"Fetching (search): {trackName} - {artistName}");
+
+        var response = await _http.GetAsync(url, token);
+        if (!response.IsSuccessStatusCode)
+        {
+            RuntimeLog.Log("LYRICS", $"Search HTTP {(int)response.StatusCode} for '{trackName}'");
+            return null;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(token);
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            return null;
+
+        // Pick the candidate that actually has synced lyrics and whose duration is
+        // closest to what's playing — guards against matching the wrong edit.
+        JsonElement best = default;
+        bool found = false;
+        int bestDelta = int.MaxValue;
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            if (!item.TryGetProperty("syncedLyrics", out var sp) || sp.ValueKind == JsonValueKind.Null)
+                continue;
+            if (string.IsNullOrWhiteSpace(sp.GetString()))
+                continue;
+
+            int dur = item.TryGetProperty("duration", out var dp) && dp.ValueKind == JsonValueKind.Number
+                ? (int)Math.Round(dp.GetDouble())
+                : 0;
+            int delta = dur > 0 ? Math.Abs(dur - durationSeconds) : 0;
+
+            if (!found || delta < bestDelta)
+            {
+                best = item;
+                bestDelta = delta;
+                found = true;
+            }
+        }
+
+        if (!found) return null;
+
+        var lines = ExtractSyncedLines(best);
+        if (lines is { Count: > 0 })
+            RuntimeLog.Log("LYRICS", $"Got {lines.Count} synced lines (search, Δ{bestDelta}s) for '{trackName}'");
+        return lines;
+    }
+
+    private static List<LyricLine>? ExtractSyncedLines(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object) return null;
+        if (!element.TryGetProperty("syncedLyrics", out var syncedProp) || syncedProp.ValueKind == JsonValueKind.Null)
+            return null;
+
+        string syncedLyrics = syncedProp.GetString() ?? "";
+        if (string.IsNullOrWhiteSpace(syncedLyrics)) return null;
+
+        var lines = ParseLrc(syncedLyrics);
+        return lines.Count > 0 ? lines : null;
+    }
+
+    private static string CleanTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return title;
+
+        // Drop bracketed/parenthesised extras and "- Remastered/Live/Version" tails
+        // that Spotify appends but lrclib's catalogue usually omits.
+        string s = System.Text.RegularExpressions.Regex.Replace(title, @"\s*[\(\[][^\)\]]*[\)\]]", "");
+        int dash = s.IndexOf(" - ", StringComparison.Ordinal);
+        if (dash > 0) s = s[..dash];
+        return s.Trim().Length == 0 ? title.Trim() : s.Trim();
+    }
+
+    private static string CleanArtist(string artist)
+    {
+        if (string.IsNullOrWhiteSpace(artist)) return artist;
+
+        // Use only the primary artist (before "feat.", "&", "," , "x").
+        string s = artist;
+        foreach (var sep in new[] { " feat.", " ft.", " featuring", " & ", ", ", " x " })
+        {
+            int idx = s.IndexOf(sep, StringComparison.OrdinalIgnoreCase);
+            if (idx > 0) s = s[..idx];
+        }
+        return s.Trim().Length == 0 ? artist.Trim() : s.Trim();
     }
 
     public void Reset()

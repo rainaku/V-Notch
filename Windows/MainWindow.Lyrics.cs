@@ -476,7 +476,7 @@ public partial class MainWindow
             };
             CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
 
-            if (!IsClockWidgetMode)
+            if (!IsNonCalendarWidgetMode && !_isLyricsActive)
             {
                 GreetingSection.Visibility = Visibility.Visible;
                 GreetingSection.Opacity = 0;

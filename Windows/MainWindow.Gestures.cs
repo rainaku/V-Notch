@@ -26,6 +26,25 @@ public partial class MainWindow
     }
 
     private TranslateTransform? _gestureTranslate;
+    private TranslateTransform? _gestureShadowTranslate;
+
+    // Lazily wire matching translate transforms onto the visible notch body and its
+    // separate shadow shape so a gesture drag moves both as one. Without the shadow
+    // side, the (now dark) drop shadow stays put and shows as a black crescent when
+    // the pill slides over it.
+    private void EnsureGestureTransforms()
+    {
+        if (_gestureTranslate is not TranslateTransform)
+        {
+            _gestureTranslate = NotchBorder.RenderTransform as TranslateTransform ?? new TranslateTransform(0, 0);
+            NotchBorder.RenderTransform = _gestureTranslate;
+        }
+        if (_gestureShadowTranslate is not TranslateTransform)
+        {
+            _gestureShadowTranslate = NotchBorderShadow.RenderTransform as TranslateTransform ?? new TranslateTransform(0, 0);
+            NotchBorderShadow.RenderTransform = _gestureShadowTranslate;
+        }
+    }
 
     private void InitializeGestureController()
     {
@@ -229,17 +248,10 @@ public partial class MainWindow
         double dampened = deltaX * 0.3;
         double clamped = Math.Clamp(dampened, -20, 20);
 
-        if (_gestureTranslate == null)
-        {
-            _gestureTranslate = NotchBorder.RenderTransform as TranslateTransform;
-            if (_gestureTranslate == null)
-            {
-                _gestureTranslate = new TranslateTransform(0, 0);
-                NotchBorder.RenderTransform = _gestureTranslate;
-            }
-        }
+        EnsureGestureTransforms();
 
-        _gestureTranslate.X = clamped;
+        _gestureTranslate!.X = clamped;
+        _gestureShadowTranslate!.X = clamped;
     }
 
     private void AnimateGestureSnapBack()
@@ -255,22 +267,20 @@ public partial class MainWindow
         {
             _gestureTranslate.BeginAnimation(TranslateTransform.XProperty, null);
             _gestureTranslate.X = 0;
+            if (_gestureShadowTranslate != null)
+            {
+                _gestureShadowTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+                _gestureShadowTranslate.X = 0;
+            }
         };
 
         _gestureTranslate.BeginAnimation(TranslateTransform.XProperty, snapBack);
+        _gestureShadowTranslate?.BeginAnimation(TranslateTransform.XProperty, snapBack);
     }
 
     private void PlayGestureSwipeFeedback(bool isLeft)
     {
-        if (_gestureTranslate == null)
-        {
-            _gestureTranslate = NotchBorder.RenderTransform as TranslateTransform;
-            if (_gestureTranslate == null)
-            {
-                _gestureTranslate = new TranslateTransform(0, 0);
-                NotchBorder.RenderTransform = _gestureTranslate;
-            }
-        }
+        EnsureGestureTransforms();
 
         double target = isLeft ? -12 : 12;
 
@@ -285,11 +295,14 @@ public partial class MainWindow
 
         flick.Completed += (s, e) =>
         {
-            _gestureTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+            _gestureTranslate!.BeginAnimation(TranslateTransform.XProperty, null);
             _gestureTranslate.X = 0;
+            _gestureShadowTranslate!.BeginAnimation(TranslateTransform.XProperty, null);
+            _gestureShadowTranslate.X = 0;
         };
 
-        _gestureTranslate.BeginAnimation(TranslateTransform.XProperty, flick);
+        _gestureTranslate!.BeginAnimation(TranslateTransform.XProperty, flick);
+        _gestureShadowTranslate!.BeginAnimation(TranslateTransform.XProperty, flick);
 
         var pulse = new DoubleAnimationUsingKeyFrames();
         pulse.KeyFrames.Add(new EasingDoubleKeyFrame(0.96,

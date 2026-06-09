@@ -22,7 +22,7 @@
     <DebugType>embedded</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <Version>1.8</Version>
+    <Version>1.8.0</Version>
     <Authors>rainaku</Authors>
     <Company>V-Notch</Company>
     <Product>V-Notch</Product>
