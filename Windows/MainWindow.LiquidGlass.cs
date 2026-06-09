@@ -143,7 +143,9 @@ public partial class MainWindow
     private static readonly SolidColorBrush _glassDashStroke = Frozen(0x40, 255, 255, 255);
     private static readonly SolidColorBrush _defaultPanelBg = Frozen(0xFF, 0x1A, 0x1A, 0x1A);
     private static readonly SolidColorBrush _defaultDashStroke = Frozen(0xFF, 0x33, 0x33, 0x33);
-    private static readonly SolidColorBrush _cameraOverlayDefault = Frozen(0x40, 0, 0, 0);
+    // The idle camera box should read the same as the file tray (both #1A1A1A);
+    // the camera-icon overlay therefore adds no extra dark wash.
+    private static readonly SolidColorBrush _cameraOverlayDefault = Frozen(0x00, 0, 0, 0);
 
     private static SolidColorBrush Frozen(byte a, byte r, byte g, byte b)
     {

@@ -15,7 +15,7 @@ public partial class MainWindow
 {
 
     #region Notch Expand/Collapse
-    private enum LastExpandedView { Primary, Secondary, Timer }
+    private enum LastExpandedView { Primary, Secondary, Timer, Audio }
     private LastExpandedView _lastExpandedViewBeforeCollapse = LastExpandedView.Primary;
 
     private double ExpandedContentRestY => _settings.EnableDynamicIslandMode ? 8.5 : 4;
@@ -541,7 +541,7 @@ public partial class MainWindow
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
 
-            if (_settings.ReopenLastViewOnExpand && !_isSecondaryView && !_isTimerView)
+            if (_settings.ReopenLastViewOnExpand && !_isSecondaryView && !_isTimerView && !_isAudioView)
             {
                 if (_lastExpandedViewBeforeCollapse == LastExpandedView.Secondary)
                 {
@@ -550,6 +550,10 @@ public partial class MainWindow
                 else if (_lastExpandedViewBeforeCollapse == LastExpandedView.Timer)
                 {
                     SwitchToTimerView();
+                }
+                else if (_lastExpandedViewBeforeCollapse == LastExpandedView.Audio)
+                {
+                    SwitchToAudioView();
                 }
             }
         };
@@ -575,11 +579,13 @@ public partial class MainWindow
     {
         if (_isAnimating || !_isExpanded || _isGreetingActive) return;
 
-        _lastExpandedViewBeforeCollapse = _isTimerView
-            ? LastExpandedView.Timer
-            : _isSecondaryView
-                ? LastExpandedView.Secondary
-                : LastExpandedView.Primary;
+        _lastExpandedViewBeforeCollapse = _isAudioView
+            ? LastExpandedView.Audio
+            : _isTimerView
+                ? LastExpandedView.Timer
+                : _isSecondaryView
+                    ? LastExpandedView.Secondary
+                    : LastExpandedView.Primary;
 
         if (_isSecondaryView)
         {

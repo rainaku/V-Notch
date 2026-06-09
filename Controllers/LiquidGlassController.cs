@@ -339,17 +339,77 @@ public sealed class LiquidGlassController
     private long _lastOverlayCheckTicks;
     private bool _overlayActiveCached;
 
+    // Cache for the cheap per-frame foreground probe so we don't open a process
+    // handle every frame while the foreground window is unchanged.
+    private IntPtr _fgProbeHwnd;
+    private bool _fgProbeResult;
+
     /// <summary>
-    /// True while a screenshot/snip overlay appears to own the foreground. Throttled
-    /// so the per-frame cost stays negligible.
+    /// True while a screenshot/snip overlay appears to own the foreground.
     /// </summary>
+    /// <remarks>
+    /// A cheap per-frame probe of the foreground window catches Win+Shift+S the
+    /// instant its host takes focus, so we hold the last good frame BEFORE any
+    /// dimmed overlay frame can be captured (the dim sliding in was what produced
+    /// the one-off vertical jolt). A throttled full window enumeration backs it up
+    /// for overlays that never become foreground.
+    /// </remarks>
     private bool IsCaptureOverlayActive()
     {
+        if (ForegroundIsCaptureTool())
+        {
+            _overlayActiveCached = true;
+            _lastOverlayCheckTicks = Environment.TickCount64;
+            return true;
+        }
+
         long now = Environment.TickCount64;
         if (now - _lastOverlayCheckTicks < 120) return _overlayActiveCached;
         _lastOverlayCheckTicks = now;
         _overlayActiveCached = DetectCaptureOverlay();
         return _overlayActiveCached;
+    }
+
+    /// <summary>Cheap check: does the current foreground window belong to a known
+    /// snip/screenshot tool? Result is cached per-HWND so the process lookup runs
+    /// only when the foreground window actually changes.</summary>
+    private bool ForegroundIsCaptureTool()
+    {
+        IntPtr fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero) return false;
+        if (fg == _fgProbeHwnd) return _fgProbeResult;
+
+        _fgProbeHwnd = fg;
+        _fgProbeResult = false;
+        try
+        {
+            var sb = new StringBuilder(128);
+            if (GetClassName(fg, sb, sb.Capacity) > 0 &&
+                sb.ToString().IndexOf("ScreenClipping", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _fgProbeResult = true;
+                return true;
+            }
+
+            GetWindowThreadProcessId(fg, out uint pid);
+            if (pid != 0)
+            {
+                string name = SafeProcessName(pid);
+                for (int i = 0; i < _captureProcessNames.Length; i++)
+                {
+                    if (string.Equals(name, _captureProcessNames[i], StringComparison.OrdinalIgnoreCase))
+                    {
+                        _fgProbeResult = true;
+                        return true;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Treat probe failures as "not a capture tool"; the enum backup covers it.
+        }
+        return _fgProbeResult;
     }
 
     private static bool DetectCaptureOverlay()

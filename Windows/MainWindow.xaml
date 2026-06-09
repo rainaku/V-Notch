@@ -2553,7 +2553,7 @@
                                     </Image.Effect>
                                 </Image>
 
-                                <Border x:Name="CameraOverlay" Background="#40000000">
+                                <Border x:Name="CameraOverlay" Background="Transparent">
                                     <Viewbox Width="28" Height="28" Stretch="Uniform"
                                              VerticalAlignment="Center" HorizontalAlignment="Center"
                                              Margin="0,-2,0,0">
