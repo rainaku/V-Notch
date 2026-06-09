@@ -7,14 +7,12 @@ public class NotchSettings
 {
     public const string SystemBatteryDeviceId = "";
     public const string AutoBluetoothBatteryDeviceId = "__auto_bluetooth__";
-    
+
     public int SettingsVersion { get; set; } = 0;
 
     public string LastRunVersion { get; set; } = "";
 
     public int Width { get; set; } = 230;
-    // Slider-aligned default; matches what existing installs receive from the v3
-    // migration (Round(230 * 1.12 / 10) * 10 = 260) so fresh and upgraded installs agree.
     public int DynamicIslandWidth { get; set; } = 260;
     public int DynamicIslandHeight { get; set; } = 40;
     public int Height { get; set; } = 32;
@@ -25,11 +23,11 @@ public class NotchSettings
     public bool EnableBlurEffects { get; set; } = true;
     public int AnimationFps { get; set; } = 144;
 
-    public int MonitorIndex { get; set; } = 0; 
+    public int MonitorIndex { get; set; } = 0;
 
-    public string CameraDeviceId { get; set; } = ""; // Empty = auto-detect first available
-    public string VisualizerAudioDeviceId { get; set; } = ""; // Empty = default render endpoint
-    public string BatteryDeviceId { get; set; } = SystemBatteryDeviceId; // Empty = system battery
+    public string CameraDeviceId { get; set; } = "";
+    public string VisualizerAudioDeviceId { get; set; } = "";
+    public string BatteryDeviceId { get; set; } = SystemBatteryDeviceId;
 
     public bool AutoStart { get; set; } = true;
     public bool EnableHoverExpand { get; set; } = false;
@@ -41,9 +39,9 @@ public class NotchSettings
     public double AnimationSpeed { get; set; } = 2.0;
     public bool EnableBounceEffect { get; set; } = true;
 
-    public int HoverExpandDelay { get; set; } = 500; 
-    public int HoverCollapseDelay { get; set; } = 500; 
-    public int HoverZoneMargin { get; set; } = 60; 
+    public int HoverExpandDelay { get; set; } = 500;
+    public int HoverCollapseDelay { get; set; } = 500;
+    public int HoverZoneMargin { get; set; } = 60;
 
     public double CompactExpandMultiplier { get; set; } = 1.2;
     public double MediumExpandMultiplier { get; set; } = 1.8;
@@ -51,22 +49,21 @@ public class NotchSettings
 
     public bool EnableShadow { get; set; } = true;
     public bool EnableGlowOnHover { get; set; } = true;
-    public string NotchStyle { get; set; } = "default"; 
+    public string NotchStyle { get; set; } = "default";
 
     public bool EnableDynamicIslandMode { get; set; } = false;
 
     public bool HideOnExclusiveFullscreen { get; set; } = true;
     public bool HideOnWindowedFullscreen { get; set; } = true;
 
-    // Automatically slide the notch out of view when it sits empty/idle for a while.
     public bool EnableIdleAutoHide { get; set; } = false;
-    public int IdleAutoHideDelay { get; set; } = 5000; // ms of continuous idle before hiding
+    public int IdleAutoHideDelay { get; set; } = 5000;
 
     public bool ShowMusicNotifications { get; set; } = true;
     public bool ShowSystemNotifications { get; set; } = true;
 
     public bool ShowBatteryIndicator { get; set; } = true;
-    public int NotificationDuration { get; set; } = 5000; 
+    public int NotificationDuration { get; set; } = 5000;
 
     public bool EnableSmartCrop { get; set; } = true;
 
@@ -86,22 +83,20 @@ public class NotchSettings
 
     public bool EnableYouTubeApi { get; set; } = false;
 
-    // Encrypted at rest via Windows DPAPI (see DpapiJsonConverter); kept as plaintext in memory.
     [JsonConverter(typeof(VNotch.Services.DpapiJsonConverter))]
     public string YouTubeApiKey { get; set; } = "";
 
     public string SubtitlePriority { get; set; } = "native,english,auto";
 
-    public string Language { get; set; } = "en"; // "en" or "vi"
+    public string Language { get; set; } = "en";
 
-    public string ExpandedWidget { get; set; } = "calendar"; // "calendar", "clock", "wordclock", "weather" or "sysmon"
+    public string ExpandedWidget { get; set; } = "calendar";
 
     public bool HasSeenDynamicIslandIntro { get; set; } = false;
 
     [JsonIgnore]
     public bool IsDirty { get; set; } = false;
 
-    // ─── Cached property list for reflection-based Clone ───
     private static readonly PropertyInfo[] _cloneableProperties = Array.FindAll(
         typeof(NotchSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance),
         p => p.CanRead && p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);

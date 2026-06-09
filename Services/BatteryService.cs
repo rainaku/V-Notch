@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -30,12 +30,11 @@ public static class BatteryService
                 info.Percentage = status.BatteryLifePercent == 255 ? 100 : status.BatteryLifePercent;
                 info.IsCharging = status.ACLineStatus == 1;
                 info.IsPluggedIn = status.ACLineStatus == 1;
-                info.HasBattery = status.BatteryFlag != 128; 
+                info.HasBattery = status.BatteryFlag != 128;
 
-                // SystemStatusFlag bit 0 set => battery saver is on.
                 info.IsBatterySaver = (status.SystemStatusFlag & 0x01) != 0;
 
-                if (status.BatteryFlag == 8) 
+                if (status.BatteryFlag == 8)
                 {
                     info.IsCharging = true;
                 }

@@ -8,7 +8,6 @@ namespace VNotch.Tests;
 
 public class ThumbnailHeuristicsTests
 {
-    // ── Bitmap fixtures (built in-memory, encoded to PNG, reloaded as a real BitmapImage) ──
 
     private static BitmapImage FromPixels(int width, int height, byte[] bgra)
     {
@@ -28,7 +27,6 @@ public class ThumbnailHeuristicsTests
         return bmp;
     }
 
-    /// <summary>Solid single-color image.</summary>
     private static BitmapImage Solid(int width, int height, byte r, byte g, byte b)
     {
         var px = new byte[width * height * 4];
@@ -39,7 +37,6 @@ public class ThumbnailHeuristicsTests
         return FromPixels(width, height, px);
     }
 
-    /// <summary>High-saturation red/blue checkerboard — clearly real, colorful artwork.</summary>
     private static BitmapImage Colorful(int width, int height)
     {
         var px = new byte[width * height * 4];
@@ -49,9 +46,9 @@ public class ThumbnailHeuristicsTests
             {
                 int i = (y * width + x) * 4;
                 bool red = ((x / 8) + (y / 8)) % 2 == 0;
-                px[i] = (byte)(red ? 0 : 255);     // B
-                px[i + 1] = 0;                      // G
-                px[i + 2] = (byte)(red ? 255 : 0);  // R
+                px[i] = (byte)(red ? 0 : 255);
+                px[i + 1] = 0;
+                px[i + 2] = (byte)(red ? 255 : 0);
                 px[i + 3] = 255;
             }
         }
@@ -69,14 +66,12 @@ public class ThumbnailHeuristicsTests
     [Fact]
     public void Placeholder_SmallSquare_True()
     {
-        // Square but <= 320px → treated as placeholder regardless of content.
         Assert.True(ThumbnailHeuristics.IsLikelyPlaceholderThumbnail(Colorful(200, 200)));
     }
 
     [Fact]
     public void Placeholder_NonSquare_False()
     {
-        // Wide aspect ratio is real media art, not a placeholder tile.
         Assert.False(ThumbnailHeuristics.IsLikelyPlaceholderThumbnail(Colorful(640, 320)));
     }
 
@@ -111,7 +106,6 @@ public class ThumbnailHeuristicsTests
     [Fact]
     public void Candidate_TooSmall_False()
     {
-        // 300x300 is square and colorful but below the 360px minimum.
         Assert.False(ThumbnailHeuristics.IsLikelyArtworkCandidate(Colorful(300, 300)));
     }
 
@@ -124,7 +118,6 @@ public class ThumbnailHeuristicsTests
     [Fact]
     public void Candidate_LargeGraySquare_False()
     {
-        // Large square but low-entropy gray → it's a placeholder, not a candidate.
         Assert.False(ThumbnailHeuristics.IsLikelyArtworkCandidate(Solid(500, 500, 235, 235, 235)));
     }
 
@@ -147,7 +140,6 @@ public class ThumbnailHeuristicsTests
     [Fact]
     public void MonochromeProfile_SolidBlack_False()
     {
-        // Black is monochrome but not bright enough to meet the brightness gate.
         Assert.False(ThumbnailHeuristics.HasLowEntropyMonochromeProfile(Solid(400, 400, 0, 0, 0)));
     }
 
@@ -155,7 +147,6 @@ public class ThumbnailHeuristicsTests
 
     #region DecideSmtcThumbnail
 
-    // A wide 16:9-ish frame that displays fine for a stable track but is rejected on a fresh one.
     private static readonly ThumbnailHeuristics.SmtcThumbnailInputs WideYouTube = new()
     {
         IsYouTubeLikeSource = true,
@@ -181,7 +172,6 @@ public class ThumbnailHeuristicsTests
     [Fact]
     public void Decide_YouTubeWideFrame_StableTrackWithVerifiedThumb_Accepts()
     {
-        // Not a track change and a verified YouTube thumb already exists → the wide frame is accepted.
         Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Accept,
             ThumbnailHeuristics.DecideSmtcThumbnail(WideYouTube with
             {
@@ -194,7 +184,6 @@ public class ThumbnailHeuristicsTests
     [Fact]
     public void Decide_YouTubeWideFrame_StableTrackNoVerifiedThumb_Skips()
     {
-        // Stable track but no verified lookup yet → prefer waiting for the verified thumbnail.
         Assert.Equal(ThumbnailHeuristics.SmtcThumbnailDecision.Skip,
             ThumbnailHeuristics.DecideSmtcThumbnail(WideYouTube with { RecentTrackChange = true, CachedThumbnailIsNull = false }));
     }
@@ -246,7 +235,6 @@ public class ThumbnailHeuristicsTests
     [Fact]
     public void Decide_SmallSquareGenericIcon_Skips()
     {
-        // Browser/YouTube small square (<=300) on a track change → favicon-like generic icon, skipped.
         var inputs = new ThumbnailHeuristics.SmtcThumbnailInputs
         {
             IsBrowserOrYouTubePlatform = true,
@@ -261,8 +249,6 @@ public class ThumbnailHeuristicsTests
     [Fact]
     public void Decide_UnchangedYouTubeTrackWithoutVerifiedThumb_Skips()
     {
-        // Square SMTC art on a stable YouTube track where no verified lookup exists yet →
-        // prefer waiting for the verified lookup, so skip.
         var inputs = new ThumbnailHeuristics.SmtcThumbnailInputs
         {
             IsYouTubeLikeSource = true,

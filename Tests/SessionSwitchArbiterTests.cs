@@ -5,8 +5,6 @@ namespace VNotch.Tests;
 
 public class SessionSwitchArbiterTests
 {
-    // All-gates-pass baseline: a non-premium current session, still playing, within the hold window,
-    // and a candidate that is neither OS-current, recently-started, nor fresher. This holds.
     private static readonly SessionSwitchInputs HoldBaseline = new()
     {
         CurrentIsPremium = false,
@@ -67,7 +65,6 @@ public class SessionSwitchArbiterTests
     {
         var premium = HoldBaseline with { CurrentIsPremium = true };
 
-        // Past the non-premium window but still within the premium window.
         Assert.True(SessionSwitchArbiter.ShouldHoldCurrentSession(premium with { PendingElapsedSeconds = 2.0 }));
         Assert.True(SessionSwitchArbiter.ShouldHoldCurrentSession(premium with { PendingElapsedSeconds = 3.9 }));
         Assert.False(SessionSwitchArbiter.ShouldHoldCurrentSession(premium with { PendingElapsedSeconds = 4.0 }));

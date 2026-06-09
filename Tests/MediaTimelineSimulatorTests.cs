@@ -48,7 +48,7 @@ public class MediaTimelineSimulatorTests
         var firstTime = _sim.LastPositionChangeTime;
 
         Thread.Sleep(10);
-        _sim.UpdateObservedPosition(TimeSpan.FromSeconds(5)); // Same value
+        _sim.UpdateObservedPosition(TimeSpan.FromSeconds(5));
 
         Assert.Equal(firstTime, _sim.LastPositionChangeTime);
     }
@@ -60,7 +60,6 @@ public class MediaTimelineSimulatorTests
     [Fact]
     public void IsPositionStuck_InitialState_True()
     {
-        // LastPositionChangeTime is DateTime.MinValue, so any threshold will be exceeded
         Assert.True(_sim.IsPositionStuck(TimeSpan.FromSeconds(1)));
     }
 
@@ -110,7 +109,7 @@ public class MediaTimelineSimulatorTests
         _sim.RecoveredDuration = TimeSpan.FromMinutes(5);
         _sim.ResetRecoveredData();
 
-        Assert.True(_sim.IsThrottled); // Still throttled
+        Assert.True(_sim.IsThrottled);
         Assert.Equal(TimeSpan.Zero, _sim.RecoveredDuration);
     }
 
@@ -138,7 +137,6 @@ public class MediaTimelineSimulatorTests
         var info = CreateMediaInfo(position: TimeSpan.FromSeconds(30), duration: TimeSpan.FromMinutes(5));
         _sim.ApplySimulatedTimeline(info, atEndStuck: false);
 
-        // Position should be >= 30s (wall clock elapsed since first call)
         Assert.True(info.Position >= TimeSpan.FromSeconds(30));
     }
 
@@ -149,10 +147,8 @@ public class MediaTimelineSimulatorTests
 
         var info = CreateMediaInfo(position: TimeSpan.FromSeconds(179), duration: TimeSpan.FromMinutes(3));
 
-        // Simulate some time passing
         _sim.ApplySimulatedTimeline(info, atEndStuck: false);
 
-        // Should not exceed duration
         Assert.True(info.Position <= TimeSpan.FromMinutes(3));
     }
 
@@ -191,7 +187,7 @@ public class MediaTimelineSimulatorTests
     public void TryExitThrottleIfPositionResumed_RecentChange_ExitsThrottle()
     {
         _sim.EnterThrottledMode();
-        _sim.UpdateObservedPosition(TimeSpan.FromSeconds(50)); // Recent change
+        _sim.UpdateObservedPosition(TimeSpan.FromSeconds(50));
 
         bool exited = _sim.TryExitThrottleIfPositionResumed(TimeSpan.FromSeconds(1));
 
@@ -213,7 +209,6 @@ public class MediaTimelineSimulatorTests
     public void TryExitThrottleIfStalled_LongStall_ExitsThrottle()
     {
         _sim.EnterThrottledMode();
-        // LastPositionChangeTime is DateTime.MinValue — stalled for "infinite" time
 
         bool exited = _sim.TryExitThrottleIfStalled(TimeSpan.FromSeconds(3));
 
@@ -225,7 +220,7 @@ public class MediaTimelineSimulatorTests
     public void TryExitThrottleIfStalled_RecentChange_DoesNotExit()
     {
         _sim.EnterThrottledMode();
-        _sim.UpdateObservedPosition(TimeSpan.FromSeconds(10)); // Recent
+        _sim.UpdateObservedPosition(TimeSpan.FromSeconds(10));
 
         bool exited = _sim.TryExitThrottleIfStalled(TimeSpan.FromSeconds(30));
 

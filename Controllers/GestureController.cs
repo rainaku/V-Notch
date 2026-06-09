@@ -5,15 +5,13 @@ namespace VNotch.Controllers;
 
 public sealed class GestureController
 {
-    // ─── Configuration ───
-    private const double HorizontalSwipeThreshold = 40.0;   // px needed to trigger horizontal swipe
-    private const double VerticalSwipeThreshold = 35.0;     // px needed to trigger vertical swipe
-    private const double DirectionLockRatio = 1.6;          // horizontal must be 1.6x vertical to count as horizontal
-    private const int DoubleTapMaxMs = 350;                 // max ms between taps for double-tap
-    private const int SwipeCooldownMs = 400;                // cooldown between consecutive swipes
-    private const double DeadZone = 4.0;                    // ignore micro-movements below this
+    private const double HorizontalSwipeThreshold = 40.0;
+    private const double VerticalSwipeThreshold = 35.0;
+    private const double DirectionLockRatio = 1.6;
+    private const int DoubleTapMaxMs = 350;
+    private const int SwipeCooldownMs = 400;
+    private const double DeadZone = 4.0;
 
-    // ─── State ───
     private bool _isTracking;
     private Point _startPoint;
     private double _accumulatedX;
@@ -22,16 +20,12 @@ public sealed class GestureController
     private DateTime _lastTapTime = DateTime.MinValue;
     private bool _gestureTriggered;
 
-    // True for the duration of a shell-level gesture session (from the mouse-down that
-    // begins tracking until the mouse-up that ends it). Owned here so all gesture state
-    // lives in this controller; the shell reads/writes it through a property shim.
     private bool _isGestureActive;
 
-    // ─── Events ───
-    public event Action? SwipeLeft;       // → Next track
-    public event Action? SwipeRight;      // → Previous track
-    public event Action? SwipeDown;       // → Open File Shelf
-    public event Action? DoubleTap;       // → Play/Pause
+    public event Action? SwipeLeft;
+    public event Action? SwipeRight;
+    public event Action? SwipeDown;
+    public event Action? DoubleTap;
 
     public void BeginTracking(Point position)
     {
@@ -55,13 +49,10 @@ public sealed class GestureController
         double absX = Math.Abs(_accumulatedX);
         double absY = Math.Abs(_accumulatedY);
 
-        // Dead zone — ignore tiny movements
         if (absX < DeadZone && absY < DeadZone) return false;
 
-        // Check cooldown
         if ((DateTime.UtcNow - _lastSwipeTime).TotalMilliseconds < SwipeCooldownMs) return false;
 
-        // Horizontal swipe detection
         if (absX >= HorizontalSwipeThreshold && absX > absY * DirectionLockRatio)
         {
             _gestureTriggered = true;
@@ -75,7 +66,6 @@ public sealed class GestureController
             return true;
         }
 
-        // Vertical swipe down detection
         if (absY >= VerticalSwipeThreshold && _accumulatedY > 0 && absY > absX * DirectionLockRatio)
         {
             _gestureTriggered = true;
@@ -94,16 +84,15 @@ public sealed class GestureController
 
         if (_gestureTriggered) return false;
 
-        // If movement was minimal, treat as a tap
         double totalMovement = Math.Abs(position.X - _startPoint.X) + Math.Abs(position.Y - _startPoint.Y);
         if (totalMovement < DeadZone * 2)
         {
             var now = DateTime.UtcNow;
             if ((now - _lastTapTime).TotalMilliseconds <= DoubleTapMaxMs)
             {
-                _lastTapTime = DateTime.MinValue; // Reset to prevent triple-tap
+                _lastTapTime = DateTime.MinValue;
                 DoubleTap?.Invoke();
-                return true; // Consumed as double-tap
+                return true;
             }
             _lastTapTime = now;
         }
@@ -119,10 +108,6 @@ public sealed class GestureController
 
     public bool IsTracking => _isTracking;
 
-    /// <summary>
-    /// True while a shell-level gesture session is in progress. Set by the shell on
-    /// mouse-down (after <see cref="BeginTracking"/>) and cleared on mouse-up.
-    /// </summary>
     public bool IsGestureActive
     {
         get => _isGestureActive;

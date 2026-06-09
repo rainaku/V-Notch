@@ -25,9 +25,6 @@ public partial class MainWindow
 {
     #region Camera Logic
 
-    // Capture pipeline (WinRT MediaCapture/FrameReader, device selection, lifecycle
-    // serialization, throttling, buffer reuse) lives in this controller now. This partial
-    // keeps only the WPF concerns: section animation, window sizing and frame rendering.
     private readonly WebcamCaptureController _camera = new();
 
     private bool _cameraPreviewMorphPending = false;
@@ -37,8 +34,6 @@ public partial class MainWindow
     private WriteableBitmap? _cameraWriteableBitmap;
     private bool _cameraFrameDispatchPending = false;
 
-    // Read-only delegating views over the capture controller so existing cross-file callers
-    // (PrivacyIndicators, Timer, SecondaryView, AudioView, Animation) stay unchanged.
     private bool _isCameraActive => _camera.IsActive;
     private bool IsCameraPreviewLifecycleActive => _camera.IsLifecycleActive;
 
@@ -109,7 +104,6 @@ public partial class MainWindow
         double h = CameraSection.ActualHeight;
         if (w <= 0 || h <= 0) return;
 
-        // Apply corner radius and use a RectangleGeometry clip to ensure all corners are rounded
         CameraSection.CornerRadius = new CornerRadius(radius);
         var clipRect = new RectangleGeometry(new System.Windows.Rect(0, 0, w, h), radius, radius);
         CameraSection.Clip = clipRect;
@@ -161,15 +155,11 @@ public partial class MainWindow
             }
             targetWidth = Math.Max(compactWidth, targetWidth);
 
-            // Target height = target width to make it square
             double targetHeight = targetWidth;
 
-            // Calculate new notch height to fit the square camera
-            // SecondaryContent margin: top=30, bottom=12 => 42 total vertical margin
-            double notchTargetHeight = targetHeight + 30 + 12 + 2; // camera height + margins + border
-            double currentNotchHeight = _expandedHeight; // NotchBorder is at expanded height when in secondary view
+            double notchTargetHeight = targetHeight + 30 + 12 + 2;
+            double currentNotchHeight = _expandedHeight;
 
-            // Resize window to fit the new notch height
             double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
             double newWindowHeightDip = notchTargetHeight + 80;
             this.Height = newWindowHeightDip;
@@ -177,9 +167,8 @@ public partial class MainWindow
             if (_hwnd != IntPtr.Zero)
                 SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
 
-            // Animate NotchBorder height
             NotchBorder.BeginAnimation(HeightProperty, null);
-            NotchBorder.Height = currentNotchHeight; // Set local value before starting new animation
+            NotchBorder.Height = currentNotchHeight;
             var notchHeightAnim = MakeAnim(currentNotchHeight, notchTargetHeight, duration, easing, null);
             NotchBorder.BeginAnimation(HeightProperty, notchHeightAnim, HandoffBehavior.SnapshotAndReplace);
 
@@ -236,7 +225,6 @@ public partial class MainWindow
                 FileShelf.Opacity = 0;
                 FileShelf.Visibility = Visibility.Collapsed;
 
-                // Finalize NotchBorder height
                 NotchBorder.BeginAnimation(HeightProperty, null);
                 NotchBorder.Height = notchTargetHeight;
             };
@@ -278,7 +266,6 @@ public partial class MainWindow
         Grid.SetColumnSpan(CameraSection, 2);
         Panel.SetZIndex(CameraSection, 10);
 
-        // Animate NotchBorder height back to expanded height
         double collapseNotchHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
         NotchBorder.BeginAnimation(HeightProperty, null);
         var notchHeightCollapseAnim = MakeAnim(collapseNotchHeight, _expandedHeight, duration, easing, null);
@@ -286,7 +273,6 @@ public partial class MainWindow
         {
             NotchBorder.BeginAnimation(HeightProperty, null);
             NotchBorder.Height = _expandedHeight;
-            // Resize window back
             double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
             double windowHeightDip = _expandedHeight + 80;
             this.Height = windowHeightDip;
@@ -356,7 +342,6 @@ public partial class MainWindow
         CameraSectionScale.ScaleX = 1.0;
         CameraSectionScale.ScaleY = 1.0;
 
-        // Reset NotchBorder height only if it was expanded beyond normal for camera
         double currentNotchH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : NotchBorder.Height;
         if (currentNotchH > _expandedHeight + 1)
         {
@@ -396,10 +381,10 @@ public partial class MainWindow
 
     private void CameraSection_Click(object sender, MouseButtonEventArgs e)
     {
-        e.Handled = true; 
+        e.Handled = true;
 
         if (_isAnimating || !_isSecondaryView) return;
-        if (_camera.IsStarting || _camera.IsStopping) return; // block rapid clicks
+        if (_camera.IsStarting || _camera.IsStopping) return;
 
         if (!_isCameraActive)
         {
@@ -429,9 +414,6 @@ public partial class MainWindow
             PrimeCameraPreviewMorphIn();
             CameraErrorOverlay.Visibility = Visibility.Collapsed;
 
-            // The capture controller owns device selection, lifecycle serialization and the
-            // background init; we only supply the device id and a callback describing whether the
-            // surrounding view still wants the preview (was the inline _isSecondaryView check).
             string? error = await _camera.StartAsync(_settings.CameraDeviceId, () => _isSecondaryView);
             if (error != null)
             {
@@ -494,7 +476,6 @@ public partial class MainWindow
 
     private void OnCameraFrameAvailable(byte[] buffer, int w, int h)
     {
-        // Coalesce: skip if the previous frame has not been rendered yet.
         if (_cameraFrameDispatchPending)
             return;
 
@@ -529,7 +510,6 @@ public partial class MainWindow
 
     private async Task StopCameraPreview()
     {
-        // Detaches the reader and stops frame flow immediately; returns false if already stopping.
         if (!_camera.TryBeginGracefulStop(out int fadeToken, out var reader, out var capture))
             return;
 
@@ -607,7 +587,7 @@ public partial class MainWindow
             CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             CameraPreviewBlur.Radius = _settings.EnableBlurEffects ? 16.0 : 0.0;
             CameraPreviewImage.Source = null;
-            _cameraWriteableBitmap = null; // ← FIX: Ensure bitmap is cleared after animation
+            _cameraWriteableBitmap = null;
         };
         CameraPreviewImage.BeginAnimation(OpacityProperty, previewFadeOut, HandoffBehavior.SnapshotAndReplace);
         CameraOverlay.BeginAnimation(OpacityProperty, overlayFadeIn, HandoffBehavior.SnapshotAndReplace);
@@ -615,7 +595,6 @@ public partial class MainWindow
         CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, previewScaleOutY, HandoffBehavior.SnapshotAndReplace);
         CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, previewBlurOut, HandoffBehavior.SnapshotAndReplace);
 
-            // â”€â”€â”€ Offload heavy stop/dispose to background thread â”€â”€â”€
             await Task.Run(async () =>
             {
                 try
@@ -627,7 +606,7 @@ public partial class MainWindow
                     }
                     capture?.Dispose();
                 }
-                catch { /* swallow dispose errors */ }
+                catch { }
             });
         }
         catch (Exception ex)
@@ -643,4 +622,3 @@ public partial class MainWindow
 
     #endregion
 }
-

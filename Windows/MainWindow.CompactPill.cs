@@ -13,7 +13,6 @@ public partial class MainWindow
 
     private bool TryAcquireCompactSlot(CompactPillSlot slot, out int token)
     {
-        // A compact pill wants the stage — reveal the notch if it's hidden by idle.
         WakeFromIdle();
 
         var result = _compactPillArbiter.TryAcquire(slot);
@@ -60,10 +59,6 @@ public partial class MainWindow
 
         var anim = new DoubleAnimation
         {
-            // Start from the actual current width (the live animated value) rather than
-            // clearing to the base property first — otherwise, if a collapse from the
-            // clock/audio view is still in flight, the base Width is the wide view width
-            // and clearing snaps the notch out to that width for a frame before shrinking.
             From = NotchBorder.ActualWidth,
             To = targetWidth,
             Duration = duration,

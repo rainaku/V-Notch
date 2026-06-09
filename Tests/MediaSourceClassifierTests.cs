@@ -78,7 +78,7 @@ public class MediaSourceClassifierTests
     {
         var info = new MediaInfo { MediaSource = "Spotify" };
         MediaSourceClassifier.RefineFromMetadata(info, "anything youtube", "", "");
-        Assert.Equal("Spotify", info.MediaSource); // unchanged
+        Assert.Equal("Spotify", info.MediaSource);
     }
 
     [Theory]
@@ -146,7 +146,6 @@ public class MediaSourceClassifierTests
     [Fact]
     public void TryHandleJunkTitle_YouTubeTitleWithRealArtist_NotJunk()
     {
-        // "youtube" title is only junk when the artist is also empty/youtube.
         var info = new MediaInfo();
         Assert.False(MediaSourceClassifier.TryHandleJunkTitle(info, "youtube", "Rick Astley"));
     }
@@ -176,7 +175,7 @@ public class MediaSourceClassifierTests
         bool handled = MediaSourceClassifier.TryHandleJunkTitle(info, "spotify", "");
 
         Assert.True(handled);
-        Assert.Equal("keepme", info.CurrentTrack); // untouched
+        Assert.Equal("keepme", info.CurrentTrack);
     }
 
     #endregion
@@ -247,7 +246,6 @@ public class MediaSourceClassifierTests
     [Fact]
     public void DetectFromWindowTitles_AlreadyYouTube_IsNoOp()
     {
-        // Pre-resolved YouTube source short-circuits the scan, so a SoundCloud window can't override it.
         var info = new MediaInfo { MediaSource = "YouTube" };
         MediaSourceClassifier.DetectFromWindowTitles(info, new[] { "Track - SoundCloud" }, "", "", hasTrack: false);
 
@@ -257,12 +255,11 @@ public class MediaSourceClassifierTests
     [Fact]
     public void DetectFromWindowTitles_HasTrack_SkipsTitlesThatDoNotMatchTrack()
     {
-        // With hasTrack=true, only window titles containing the current track are considered.
         var info = new MediaInfo { MediaSource = "Browser", CurrentTrack = "My Song" };
         MediaSourceClassifier.DetectFromWindowTitles(
             info, new[] { "Unrelated tab - SoundCloud" }, trackTitleLower: "my song", trackTitleNormalized: "", hasTrack: true);
 
-        Assert.Equal("Browser", info.MediaSource); // no matching title → unchanged
+        Assert.Equal("Browser", info.MediaSource);
     }
 
     [Fact]

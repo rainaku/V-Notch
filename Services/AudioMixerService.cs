@@ -10,18 +10,16 @@ using NAudio.CoreAudioApi.Interfaces;
 
 namespace VNotch.Services;
 
-/// <summary>One application entry in the per-app volume mixer.</summary>
 public sealed class AudioSessionInfo
 {
     public uint ProcessId { get; init; }
     public string DisplayName { get; init; } = "";
-    public float Volume { get; set; }          // 0..1
+    public float Volume { get; set; }
     public bool IsMuted { get; set; }
     public bool IsSystemSounds { get; init; }
     public ImageSource? Icon { get; init; }
 }
 
-/// <summary>A selectable audio output (render) endpoint.</summary>
 public sealed class AudioDeviceInfo
 {
     public string Id { get; init; } = "";
@@ -36,35 +34,20 @@ public enum SpatialAudioMode
     DolbyAtmos
 }
 
-
 public sealed class AudioMixerService : IDisposable
 {
-    // Fast-path cache for rapid volume drags: resolve a session once, reuse for a few seconds.
     private SimpleAudioVolume? _setCacheVolume;
     private uint _setCachePid = uint.MaxValue;
     private DateTime _setCacheAtUtc = DateTime.MinValue;
     private const double SetCacheLifetimeMs = 3000;
 
-    // Shared device enumerator reused across the read-only listing calls below.
-    // Creating an MMDeviceEnumerator (CoCreateInstance) on every call is measurably
-    // costly when these refresh on a poll loop. These listing methods are only ever
-    // invoked from background Task.Run threads (see MainWindow.AudioView.Builders.cs),
-    // so a single enumerator guarded by _enumLock stays on consistent MTA threads.
-    // GetDefaultAudioEndpoint/EnumerateAudioEndPoints still query live state per call,
-    // so caching the enumerator does NOT cause stale device/default results.
     private MMDeviceEnumerator? _enumerator;
     private readonly object _enumLock = new();
 
-    // Resolved per-app name + icon cache keyed by PID. ResolveProcess is expensive
-    // (Process.GetProcessById + FileVersionInfo + icon extraction) and the same apps
-    // reappear on every icon-enriched refresh. Icons are frozen by FileIconProvider so
-    // they are safe to reuse from the UI thread. Access is serialized via _enumLock.
     private readonly Dictionary<uint, (string Name, ImageSource? Icon)> _iconCache = new();
 
-    /// <summary>Caller must hold <see cref="_enumLock"/>.</summary>
     private MMDeviceEnumerator GetEnumeratorLocked() => _enumerator ??= new MMDeviceEnumerator();
 
-    /// <summary>Drops the cached enumerator so the next call recreates it (self-heal on error).</summary>
     private void DisposeEnumerator()
     {
         if (_enumerator != null)
@@ -133,7 +116,6 @@ public sealed class AudioMixerService : IDisposable
                         else
                         {
                             ResolveProcess(pid, session, out name, out icon);
-                            // Cache once we have a usable name (icon may legitimately be null).
                             if (!string.IsNullOrWhiteSpace(name))
                                 _iconCache[pid] = (name, icon);
                         }
@@ -177,16 +159,13 @@ public sealed class AudioMixerService : IDisposable
 
     private static string ResolveProcessNameFast(uint pid, AudioSessionControl session)
     {
-        // Fast path: avoid opening the process (Process.GetProcessById/ProcessName is
-        // surprisingly costly when repeated). Use the free session metadata; the rich
-        // name is filled in later by the background enrichment pass.
         try
         {
             string display = session.DisplayName;
             if (!string.IsNullOrWhiteSpace(display) && !display.StartsWith("@"))
                 return display;
         }
-        catch { /* best-effort: session metadata may be unavailable; fall back to "App" */ }
+        catch { }
         return "App";
     }
 
@@ -215,7 +194,7 @@ public sealed class AudioMixerService : IDisposable
             if (string.IsNullOrWhiteSpace(name))
                 name = process.ProcessName;
         }
-        catch { /* best-effort process resolve: process may have exited or be inaccessible */ }
+        catch { }
 
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -238,7 +217,6 @@ public sealed class AudioMixerService : IDisposable
     {
         float target = Math.Clamp(volume, 0f, 1f);
 
-        // Fast path: reuse the cached session for rapid drags.
         if (_setCacheVolume != null && _setCachePid == processId &&
             (DateTime.UtcNow - _setCacheAtUtc).TotalMilliseconds < SetCacheLifetimeMs)
         {
@@ -274,11 +252,6 @@ public sealed class AudioMixerService : IDisposable
         }, keepAlive: false);
     }
 
-    /// <summary>
-    /// Finds the render session matching <paramref name="processId"/> (pid 0 = system
-    /// sounds) and runs <paramref name="action"/> against its SimpleAudioVolume.
-    /// Must be called on the same apartment that will reuse the cached volume.
-    /// </summary>
     private bool ResolveSimpleVolume(uint processId, Func<SimpleAudioVolume, bool> action, bool keepAlive)
     {
         try
@@ -304,7 +277,7 @@ public sealed class AudioMixerService : IDisposable
                     if (!keepAlive) sv.Dispose();
                     return result;
                 }
-                catch { /* best-effort: this session may have ended; try the next one */ }
+                catch { }
             }
         }
         catch (Exception ex)
@@ -323,8 +296,6 @@ public sealed class AudioMixerService : IDisposable
         }
         _setCachePid = uint.MaxValue;
     }
-
-    // ─── Output devices ───
 
     public List<AudioDeviceInfo> GetOutputDevices()
     {
@@ -375,8 +346,6 @@ public sealed class AudioMixerService : IDisposable
     {
         return SetDefaultEndpointInternal(deviceId);
     }
-
-    // ─── Input (capture) device ───
 
     public float GetCaptureVolume()
     {
@@ -499,15 +468,13 @@ public sealed class AudioMixerService : IDisposable
         }
     }
 
-    // ─── Spatial audio (best-effort read of the active spatial APO) ───
-
     public SpatialAudioMode GetSpatialAudioMode()
     {
         try
         {
             using var enumerator = new MMDeviceEnumerator();
             using var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            string id = device.ID; // e.g. {0.0.0.00000000}.{guid}
+            string id = device.ID;
             string guid = ExtractEndpointGuid(id);
             if (string.IsNullOrEmpty(guid)) return SpatialAudioMode.Off;
 
@@ -517,9 +484,9 @@ public sealed class AudioMixerService : IDisposable
             if (string.IsNullOrWhiteSpace(value))
                 return SpatialAudioMode.Off;
 
-            if (value.Contains("a44d5fd2", StringComparison.OrdinalIgnoreCase)) // Windows Sonic
+            if (value.Contains("a44d5fd2", StringComparison.OrdinalIgnoreCase))
                 return SpatialAudioMode.WindowsSonic;
-            if (value.Contains("265d4a5e", StringComparison.OrdinalIgnoreCase) || // Dolby Atmos for Headphones
+            if (value.Contains("265d4a5e", StringComparison.OrdinalIgnoreCase) ||
                 value.Contains("dolby", StringComparison.OrdinalIgnoreCase))
                 return SpatialAudioMode.DolbyAtmos;
 
@@ -534,8 +501,6 @@ public sealed class AudioMixerService : IDisposable
 
     private static string ExtractEndpointGuid(string deviceId)
     {
-        // Device ID looks like "{0.0.0.00000000}.{b3f8fa53-...}"; the registry uses
-        // the trailing endpoint GUID in braces.
         int idx = deviceId.LastIndexOf('}');
         int open = deviceId.LastIndexOf('{');
         if (open >= 0 && idx > open)
@@ -559,10 +524,6 @@ public sealed class AudioMixerService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Releases the cached per-app session COM objects. Call when the audio view
-    /// closes so we don't hold render-session references while the view is idle.
-    /// </summary>
     public void ReleaseSessionCache() => ReleaseSessions();
 
     #region IPolicyConfig COM interop

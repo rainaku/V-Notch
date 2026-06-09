@@ -1,11 +1,5 @@
 namespace VNotch.Services;
 
-/// <summary>
-/// Thread-safe, in-memory cache of resolved YouTube video ids keyed by track (identity), plus a
-/// blocklist of video ids already found to mismatch their track. Extracted from
-/// <see cref="MediaDetectionService"/> so the bounded-eviction and lookup-fallback rules can be
-/// unit-tested without any SMTC/Win32 dependency.
-/// </summary>
 internal sealed class VideoIdCache
 {
     private const int Capacity = 50;
@@ -13,23 +7,19 @@ internal sealed class VideoIdCache
     private readonly Dictionary<string, string> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
-    // Video ids that were validated against a track and found stale; skipped during rapid polling.
     private readonly HashSet<string> _mismatch = new(StringComparer.Ordinal);
 
-    /// <summary>Number of cached track→id entries (test/observability hook).</summary>
     public int Count
     {
         get { lock (_lock) return _cache.Count; }
     }
 
-    /// <summary>Stores a video id for a track identity, evicting an arbitrary entry past capacity.</summary>
     public void Set(string? trackIdentity, string videoId)
     {
         if (string.IsNullOrEmpty(trackIdentity)) return;
         lock (_lock)
         {
             _cache[trackIdentity] = videoId;
-            // Keep cache bounded
             if (_cache.Count > Capacity)
             {
                 var firstKey = _cache.Keys.First();
@@ -38,16 +28,13 @@ internal sealed class VideoIdCache
         }
     }
 
-    /// <summary>Looks up by exact track name first, then by the track-only identity key.</summary>
     public string? Get(string? track)
     {
         if (string.IsNullOrEmpty(track)) return null;
         lock (_lock)
         {
-            // Try exact track name match
             if (_cache.TryGetValue(track, out var id))
                 return id;
-            // Try track identity match (track + artist combined key)
             string trackIdentity = MediaHeuristics.BuildTrackIdentity(track, "");
             if (_cache.TryGetValue(trackIdentity, out id))
                 return id;
@@ -55,7 +42,6 @@ internal sealed class VideoIdCache
         }
     }
 
-    /// <summary>Drops every entry except the one for the given identity (or clears all when null/empty).</summary>
     public void ForgetExcept(string? currentTrackIdentity)
     {
         lock (_lock)
@@ -82,7 +68,6 @@ internal sealed class VideoIdCache
         }
     }
 
-    /// <summary>Removes the cached id for a track (both exact and identity keys) only if it matches the stale id.</summary>
     public void Evict(string? track, string staleVideoId)
     {
         if (string.IsNullOrEmpty(track) || string.IsNullOrEmpty(staleVideoId)) return;
@@ -101,8 +86,6 @@ internal sealed class VideoIdCache
             }
         }
     }
-
-    // ── Mismatch blocklist ──
 
     public bool IsMismatch(string videoId)
     {

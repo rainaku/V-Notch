@@ -1,4 +1,4 @@
-﻿using System.Windows.Media.Imaging;
+using System.Windows.Media.Imaging;
 using VNotch.Services;
 
 namespace VNotch.Models;
@@ -40,7 +40,6 @@ public bool IsThumbnailOnlyUpdate { get; set; }
     public double Progress => Duration.TotalSeconds > 0 ? Position.TotalSeconds / Duration.TotalSeconds : 0;
     public bool HasTimeline => Duration.TotalSeconds > 0 && !IsIndeterminate;
 
-    /// <summary>Strongly-typed view of <see cref="MediaSource"/>, parsed case-insensitively.</summary>
     public MediaPlatform Platform => MediaPlatformExtensions.ParsePlatform(MediaSource);
 
     public bool IsVideoSource => Platform is MediaPlatform.YouTube or MediaPlatform.Browser

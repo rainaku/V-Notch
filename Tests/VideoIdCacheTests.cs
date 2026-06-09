@@ -19,7 +19,6 @@ public class VideoIdCacheTests
     [Fact]
     public void Get_ByTrackOnlyIdentity_WhenStoredUnderIdentityKey()
     {
-        // Stored under the "track|" identity form; Get(track) should fall back to it.
         _cache.Set("bohemian rhapsody|", "id-via-identity");
         Assert.Equal("id-via-identity", _cache.Get("Bohemian Rhapsody"));
     }
@@ -50,7 +49,7 @@ public class VideoIdCacheTests
     public void Set_IsCaseInsensitiveOnKey()
     {
         _cache.Set("Song", "id1");
-        _cache.Set("song", "id2"); // same key (OrdinalIgnoreCase) → overwrite
+        _cache.Set("song", "id2");
         Assert.Equal(1, _cache.Count);
         Assert.Equal("id2", _cache.Get("SONG"));
     }
@@ -67,7 +66,6 @@ public class VideoIdCacheTests
             _cache.Set($"track-{i}", $"id-{i}");
         }
 
-        // Capacity is 50; the cache must never grow beyond it.
         Assert.Equal(50, _cache.Count);
     }
 
@@ -116,7 +114,7 @@ public class VideoIdCacheTests
     public void Evict_KeepsEntry_WhenIdDiffersFromStale()
     {
         _cache.Set("song", "fresh");
-        _cache.Evict("song", "stale"); // different id — must not remove
+        _cache.Evict("song", "stale");
         Assert.Equal("fresh", _cache.Get("song"));
     }
 
@@ -145,7 +143,7 @@ public class VideoIdCacheTests
     public void Mismatch_IsCaseSensitive()
     {
         _cache.MarkMismatch("Vid");
-        Assert.False(_cache.IsMismatch("vid")); // Ordinal — different case is a different id
+        Assert.False(_cache.IsMismatch("vid"));
     }
 
     [Fact]

@@ -8,13 +8,13 @@ namespace VNotch.Services;
 
 public static class SettingsMigrator
 {
-    
+
     public const int CurrentVersion = 7;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
         {
-            
+
             [0] = root =>
             {
                 if (!root.ContainsKey(nameof(NotchSettings.NotchStyle)))

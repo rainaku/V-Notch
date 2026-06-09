@@ -17,7 +17,6 @@ public class PlatformDetectorTests
     [Fact]
     public void DetectFromWindowTitles_YouTubeOnly_ReturnsUnknown()
     {
-        // "youtube" alone (no track) should not match
         var titles = new[] { "youtube" };
         Assert.Equal(MediaPlatform.Unknown, PlatformDetector.DetectFromWindowTitles(titles));
     }

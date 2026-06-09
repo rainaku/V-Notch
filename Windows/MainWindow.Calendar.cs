@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using VNotch.Modules;
@@ -10,7 +10,6 @@ namespace VNotch;
 public partial class MainWindow
 {
     private CalendarPresenter? _calendarPresenter;
-
 
     internal void InitializeCalendarPresenter()
     {
@@ -52,14 +51,11 @@ public partial class MainWindow
         _calendarPresenter = new CalendarPresenter(_calendarModule, new DispatcherService(Dispatcher), refs);
     }
 
-    // JOIN: call in PerformCleanup (single idempotent teardown path).
     internal void DisposeCalendarPresenter()
     {
         _calendarPresenter?.Dispose();
         _calendarPresenter = null;
     }
-
-    // --- XAML-wired event handlers (CalendarWidget in MainWindow.xaml) forward to presenter ---
 
     private void CalendarWidget_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
         => _calendarPresenter?.HandleMouseEnter();
@@ -69,8 +65,6 @@ public partial class MainWindow
 
     private void CalendarWidget_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         => _calendarPresenter?.HandleMouseWheel(e);
-
-    // --- Methods consumed by other (non-editable) partials ---
 
     private void UpdateCalendarInfo() => _calendarPresenter?.UpdateCalendarInfo();
 

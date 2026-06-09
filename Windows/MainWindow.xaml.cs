@@ -45,12 +45,8 @@ public partial class MainWindow : Window
     private bool _isDraggingVolume = false;
     private NotchSettings _settings;
 
-    // Tier 2 state owner: cross-cutting window / interop / geometry / visibility state.
-    // The legacy field member names below are kept as property shims that delegate here so
-    // existing call sites are unchanged (same pattern as _isAnimating/_isExpanded -> _notchState).
     private readonly NotchShellState _shellState = new();
 
-    // Visibility / interop shims (single owner = _shellState).
     private bool _isNotchVisible
     {
         get => _shellState.IsNotchVisible;
@@ -62,10 +58,6 @@ public partial class MainWindow : Window
         set => _shellState.IsHiddenByFullscreen = value;
     }
 
-    // _hwnd is assigned once in MainWindow_Loaded and read by many interop paths and closures
-    // (e.g. ZOrderManager getHwnd: () => _hwnd, FullscreenAutoHideController). A property shim is
-    // safe here: every read passes it by value to P/Invoke (no ref/out usage), and closures capture
-    // `this` and call the getter each time, so they observe the live _shellState.Hwnd value.
     private IntPtr _hwnd
     {
         get => _shellState.Hwnd;
@@ -98,16 +90,12 @@ public partial class MainWindow : Window
     private DragDropController _dragDropController = null!;
     private readonly TimerManager _timerManager;
 
-    // _isAnimating guards ALL animations (expand, collapse, view switch, file delete).
-    // Backed by NotchStateManager so the hot flag has a single owner; the member name is
-    // kept so all ~20 call sites are unchanged.
     private bool _isAnimating
     {
         get => _notchState.IsAnimating;
         set => _notchState.IsAnimating = value;
     }
 
-    // Logical state reads delegate to the state machine
     private bool _isExpanded
     {
         get => _notchState.IsExpanded;
@@ -233,9 +221,6 @@ public partial class MainWindow : Window
         AnimationConfig.ReduceMotionChanged += OnReduceMotionChanged;
 
         _calendarModule = calendarModule;
-        // Calendar feature now lives in CalendarPresenter (Task 4). It subscribes to
-        // CalendarModule.CalendarUpdated itself and owns all day-cell creation, so we
-        // construct it here instead of wiring a shell handler.
         InitializeCalendarPresenter();
 
         _bluetoothModule = bluetoothModule;
@@ -290,7 +275,6 @@ public partial class MainWindow : Window
             _hoverCollapseTimer.Stop();
             if (_isExpanded && !NotchWrapper.IsMouseOver)
             {
-                // Final safety check: don't collapse if still in grace period
                 if (DateTime.UtcNow < _suppressHoverCollapseUntilUtc)
                 {
                     RuntimeLog.Log("COLLAPSE-BLOCKED",
@@ -405,39 +389,29 @@ public partial class MainWindow : Window
             PlayAppearAnimation();
         }
 
-        // Pre-build the clock-view month grid off the critical path so the first time
-        // the user opens the clock view there is no element-creation hitch.
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
         {
             BuildClockViewCalendar();
-            // Warm the audio snapshot so the first open of the volume view is instant.
             PrewarmAudioSnapshot();
         }));
 
-        // Start media service after layout is fully measured to avoid zero ActualWidth/Height on first update.
         Dispatcher.BeginInvoke(new Action(() =>
         {
             UpdateLayout();
             UpdateNotchClip();
             UpdateMediaBackgroundFootprint();
 
-            // Pre-warm layout of hidden content elements so first-time animations get correct ActualWidth/Height and TransformToAncestor results
             PreWarmHiddenContentLayout();
 
             _isStartupLayoutReady = true;
             _pendingStartupClickToggle = false;
 
-            // Delay media/module start if greeting is active — they will start after greeting completes
             if (!_isGreetingActive)
             {
                 _mediaService.Start();
                 _moduleHost.StartAll();
             }
 
-            // One-shot, post-startup trim: a *non-blocking, optimized* collect lets the runtime
-            // reclaim the transient startup allocations, then we return freed pages to the OS.
-            // (Intentionally not Aggressive/blocking + WaitForPendingFinalizers — that caused a
-            // visible GC pause and only masked, never fixed, real leaks.)
             Task.Delay(3000).ContinueWith(_ =>
             {
                 GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
@@ -522,11 +496,6 @@ public partial class MainWindow : Window
 
     private bool _cleanedUp;
 
-    /// <summary>
-    /// Single, idempotent teardown for all timers, hooks, event subscriptions and
-    /// disposable resources owned by the window. Safe to call multiple times and from
-    /// multiple shutdown paths (OnClosed, Exit, Restart).
-    /// </summary>
     private void PerformCleanup()
     {
         if (_cleanedUp) return;
@@ -630,16 +599,13 @@ public partial class MainWindow : Window
 
         bool shouldBeVisible = IsEffectivelyNotchVisible;
 
-        // Already in target state and idle — nothing to do.
         if (shouldBeVisible == _fullscreenSlideVisible && !_isFullscreenSlideAnimating) return;
 
-        // Mid-animation flip (user toggled twice quickly): cancel current animation and re-target
         _fullscreenSlideVisible = shouldBeVisible;
         _isFullscreenSlideAnimating = true;
 
         double slideDistance = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight + 10 : _collapsedHeight + 10;
 
-        // Capture current Y (in case we are interrupting an in-flight slide) before clearing the running animation.
         double currentY = NotchContainerTranslate.Y;
         NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
         NotchContainerTranslate.Y = currentY;
@@ -647,7 +613,6 @@ public partial class MainWindow : Window
         if (shouldBeVisible)
         {
             NotchContainer.Visibility = Visibility.Visible;
-            // If the notch was fully off-screen, start from -slideDistance
             if (currentY > 0 || currentY < -slideDistance)
             {
                 NotchContainerTranslate.Y = -slideDistance;
@@ -662,7 +627,6 @@ public partial class MainWindow : Window
             AnimateNotchSlide(toY: -slideDistance, durationMs: 250, easeOut: false, onComplete: () =>
             {
                 _isFullscreenSlideAnimating = false;
-                // Only collapse the container if we're still meant to be hidden; an interrupting show may have re-enabled visibility before the hide animation completed
                 if (!_fullscreenSlideVisible)
                 {
                     NotchContainer.Visibility = Visibility.Collapsed;
@@ -717,7 +681,6 @@ public partial class MainWindow : Window
 
         ApplyNotchVisibilityState();
 
-        // Pause/resume ambient loops based on the new visibility.
         RefreshAmbientAnimations();
 
         if (!_isHiddenByFullscreen && _isNotchVisible)
@@ -757,7 +720,7 @@ public partial class MainWindow : Window
 
     private void UpdateZOrderTimerInterval()
     {
-        
+
     }
 
     private void StartZOrderWatchdog()
@@ -813,7 +776,6 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Track and force show all hidden content elements that animations depend on for measure/transform calculations.
             var elementsToWarm = new System.Collections.Generic.List<(FrameworkElement Element, Visibility Original, double Opacity)>();
 
             void Track(FrameworkElement? el)
@@ -825,7 +787,6 @@ public partial class MainWindow : Window
                 el.Visibility = Visibility.Visible;
             }
 
-            // Content panels that animations transform / measure
             Track(ExpandedContent);
             Track(SecondaryContent);
             Track(MusicCompactContent);
@@ -834,22 +795,18 @@ public partial class MainWindow : Window
             Track(LyricsWidget);
             Track(LyricsBlurBackground);
 
-            // Hover info & nav icons (used by hover/secondary view animations)
             Track(CompactHoverInfo);
             Track(NavIconsPanel);
             Track(NavIconsBackground);
 
-            // Battery & status (used by reveal animations)
             Track(BatterySection);
             Track(SettingsButton);
 
-            // Apply the same dimensions ExpandNotch will use later, so child layouts (especially ThumbnailBorder which determines the flying-thumb target) get the same coordinates as the real expanded state
             double prevExpandedWidth = ExpandedContent.Width;
             double prevExpandedHeight = ExpandedContent.Height;
             ExpandedContent.Width = _expandedWidth - 16;
             ExpandedContent.Height = _expandedHeight - 10;
 
-            // Also temporarily resize the notch border itself so any TransformToAncestor calculations resolve against the final expanded dimensions
             double prevNotchWidth = NotchBorder.Width;
             double prevNotchHeight = NotchBorder.Height;
             NotchBorder.Width = _expandedWidth;
@@ -857,7 +814,6 @@ public partial class MainWindow : Window
 
             UpdateLayout();
 
-            // Pre-compute thumbnail expand target now that real layout is settled
             if (TryComputeThumbnailExpandTarget(out var target))
             {
                 _cachedThumbnailExpandTarget = target;
@@ -867,14 +823,12 @@ public partial class MainWindow : Window
             AnimationThumbnailBorder.CacheMode ??= new System.Windows.Media.BitmapCache(2.0);
             SettingsButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
 
-            // Pre-warm blur effects by setting radius to 0 (allocates shader resources without visual impact)
             if (ThumbnailOutBlur != null) { ThumbnailOutBlur.Radius = 0; }
             if (ThumbnailNextBlur != null) { ThumbnailNextBlur.Radius = 0; }
             if (CompactThumbnailOutBlur != null) { CompactThumbnailOutBlur.Radius = 0; }
             if (CompactThumbnailNextBlur != null) { CompactThumbnailNextBlur.Radius = 0; }
             if (CollapsedContentBlur != null) { CollapsedContentBlur.Radius = 0; }
 
-            // Pre-create and freeze thumbnail expand/collapse animations so first expand doesn't JIT-compile them
             var thumbDur = new Duration(TimeSpan.FromMilliseconds(500));
             var thumbEase = _easeExpOut6;
             var thumbDelay = TimeSpan.FromMilliseconds(30);
@@ -922,7 +876,6 @@ public partial class MainWindow : Window
                 _cachedThumbRectCollapse.Freeze();
             }
 
-            // Pre-warm the thumbnail switch layers (Next/Out) so first crossfade doesn't allocate
             ThumbnailImageNext.Opacity = 0;
             CompactThumbnailNext.Opacity = 0;
             ThumbnailNextScale.ScaleX = 1.0;
@@ -956,7 +909,6 @@ public partial class MainWindow : Window
         var screen = System.Windows.Forms.Screen.PrimaryScreen;
         if (screen == null) return;
 
-        // GetDpiForWindow returns the DPI (96 = 100%, 144 = 150%, 192 = 200%, etc.)
         double dpiScale = 1.0;
         if (_hwnd != IntPtr.Zero)
         {
@@ -964,32 +916,20 @@ public partial class MainWindow : Window
             if (dpi > 0) dpiScale = dpi / 96.0;
         }
 
-        // Window dimensions in DIPs (for WPF layout)
-        // The shadow wrapper includes 11px ears on each side and a 20px blur. Keep
-        // enough transparent window surface so the side shadow is not clipped.
-        //
-        // Size the window for the WIDEST surface we ever show (the clock view). The window
-        // is then never resized/moved horizontally at runtime — resizing a centered,
-        // transparent window mid-animation makes the notch visibly snap sideways and back.
-        // The extra width is just transparent, click-through margin around the notch.
         double notchSurfaceWidth = Math.Max(Math.Max(_expandedWidth, _clockViewWidth), _audioViewWidth);
         double windowWidthDip = notchSurfaceWidth + NotchWindowHorizontalPadding;
         double windowHeightDip = _expandedHeight + 80;
 
-        // Physical pixel dimensions for SetWindowPos
         _windowWidth = (int)Math.Round(windowWidthDip * dpiScale);
         _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
 
-        // Screen.Bounds is in physical pixels, so center using physical pixel width
         _fixedX = screen.Bounds.Left + (screen.Bounds.Width - _windowWidth) / 2;
         _fixedY = 0;
 
-        // WPF Width/Height must be in DIPs
         this.Width = windowWidthDip;
         this.Height = windowHeightDip;
         SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
 
-        // Monitor for the notch may have changed (display add/remove, resolution change)
         if (_hwnd != IntPtr.Zero)
         {
             UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
@@ -1005,7 +945,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         double notchW = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
         double notchH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight;
 
-        // Get DPI scale to convert physical pixel positions to WPF DIPs
         double dpiScale = 1.0;
         if (_hwnd != IntPtr.Zero)
         {
@@ -1013,7 +952,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             if (dpi > 0) dpiScale = dpi / 96.0;
         }
 
-        // _fixedX/_fixedY are in physical pixels; convert to DIPs for WPF coordinate space
         double winLeft = _fixedX / dpiScale;
         double winTop = _fixedY / dpiScale;
         double winWidth = _windowWidth / dpiScale;
@@ -1041,7 +979,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
             bool languageChanged = newSettings.Language != _settings.Language;
-            // Detect a notch <-> Dynamic Island switch so ApplySettings can animate the transition.
             _modeTransitionPending = newSettings.EnableDynamicIslandMode != _settings.EnableDynamicIslandMode;
             string oldSubtitlePriority = _settings.SubtitlePriority ?? "";
             _settings = newSettings.Clone();
@@ -1051,7 +988,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             ApplySettings(sizeChanged);
             UpdateBatteryInfo();
 
-            // Sync subtitle language priority to the service and re-fetch if changed
             _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
 
             bool priorityChanged = !string.Equals(oldSubtitlePriority, _settings.SubtitlePriority, StringComparison.Ordinal);
@@ -1066,7 +1002,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                     _youtubeSubtitleService.Reset();
                     _lyricsTrackKey = "";
                     _syncedTextSource = SyncedTextSource.None;
-                    // Create a minimal MediaInfo with the known video ID for re-fetch
                     var refetchInfo = _currentMediaInfo ?? new VNotch.Models.MediaInfo();
                     if (string.IsNullOrEmpty(refetchInfo.YouTubeVideoId))
                         refetchInfo.YouTubeVideoId = _lastKnownYouTubeVideoId;
@@ -1092,14 +1027,12 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
-            // Reset scale to 1.0 before bouncing to prevent leftover expanded state
             NotchScale.ScaleX = 1.0;            NotchScale.ScaleY = 1.0;
             NotchShadowScale.ScaleX = 1.0;
             NotchShadowScale.ScaleY = 1.0;
 
             if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
-            // Reset animation state that may have been left dirty
             _isAnimating = false;
 
             var bounceAnim = new DoubleAnimationUsingKeyFrames();
@@ -1140,7 +1073,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             _hoverCollapseTimer.Stop();
         }
 
-        // Re-evaluate fullscreen hide state in case user toggled the HideOnExclusiveFullscreen / HideOnWindowedFullscreen options.
         if (_hwnd != IntPtr.Zero)
         {
             UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
@@ -1152,24 +1084,19 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         _cornerRadiusCollapsed = GetCollapsedCornerRadius();
         _cachedThumbnailExpandTarget = null;
 
-        // A notch <-> Dynamic Island switch is animated only when collapsed and already laid out.
         bool willModeTransition = _modeTransitionPending
                                   && !_isExpanded && !_isAnimating
                                   && NotchBorder.ActualWidth > 0 && NotchBorder.ActualHeight > 0;
         _modeTransitionPending = false;
 
-        // When transitioning, the margin/ears are animated by AnimateModeTransition rather than snapped.
         ApplyDynamicIslandLayout(animateTransition: willModeTransition);
 
-        // Only update visual dimensions when collapsed to avoid a 1-frame glitch
         if (!_isExpanded && !_isAnimating)
         {
-            // Clear held animations so the new local value takes effect
             NotchBorder.BeginAnimation(WidthProperty, null);
             NotchBorder.BeginAnimation(HeightProperty, null);
             this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
-            // On first boot (ActualWidth is 0), set dimensions immediately without animation to ensure layout is measured correctly before any other animations run
             bool isFirstLayout = NotchBorder.ActualWidth <= 0 || NotchBorder.ActualHeight <= 0;
             int fps = VNotch.Services.AnimationConfig.TargetFps;
 
@@ -1192,11 +1119,9 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
             else if (_isModeTransitioning)
             {
-                // A mode transition is already in flight; let it own the geometry until it finalizes.
             }
             else
             {
-            // Animate to new size for a smooth live-preview feel
             var dur = _dur200;
             var easing = _easeExpOut6;
 
@@ -1227,7 +1152,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             NotchBorder.BeginAnimation(WidthProperty, widthAnim);
             NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
-            // Animate corner radius via the dependency property (updates all related borders)
             double currentRadius = NotchBorder.CornerRadius.BottomLeft;
             double targetRadius = _cornerRadiusCollapsed;
             if (Math.Abs(targetRadius - currentRadius) > 0.5)
@@ -1255,7 +1179,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             UpdateNotchClip();
             UpdateMediaBackgroundFootprint();
 
-            // Subtle scale pulse to give tactile feedback while dragging size sliders
             if (animatePulse)
             {
                 NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -1305,7 +1228,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             FetchLyricsForTrack(_currentMediaInfo).SafeFireAndForget("LYRICS");
         }
 
-        // React to YouTube subtitles toggle: same pattern as Spotify lyrics.
         if (!_settings.EnableYouTubeSubtitles)
         {
             if (_isLyricsActive && _syncedTextSource == SyncedTextSource.YouTubeSubtitles)
@@ -1328,7 +1250,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
         }
 
-        // Configure smart thumbnail cropping (ONNX/YOLOv8n)
         _mediaService.ArtworkService.ConfigureSmartCrop(_settings.EnableSmartCrop);
 
         if (_hwnd != IntPtr.Zero)
@@ -1430,8 +1351,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         bool islandMode = _settings.EnableDynamicIslandMode;
 
-        // During a notch <-> island switch the top margin and ears are driven by AnimateModeTransition,
-        // so skip the instant snap here and let the animation own them until it finalizes.
         if (!animateTransition)
         {
             if (NotchContainer != null)
@@ -1456,9 +1375,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void ApplyDynamicIslandContentAlignment(bool islandMode)
     {
-        // StatusBar lives inside ExpandedContent, which nudges all its children down by
-        // ExpandedContentRestY in Dynamic Island mode. The nav icons live outside that nudge,
-        // so cancel it here to keep battery/update/settings level with the nav icons.
         if (StatusBarTranslate != null)
         {
             StatusBarTranslate.Y = -ExpandedContentRestY;
@@ -1527,7 +1443,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             return;
         }
 
-        // Don't open notch while actively dragging the volume slider
         if (_isDraggingVolumeIndicator)
         {
             e.Handled = true;
@@ -1544,7 +1459,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             DismissVolumeIndicatorImmediate();
         }
 
-        // Try gesture tracking when collapsed with media playing
         if (TryBeginGesture(e))
         {
             e.Handled = true;
@@ -1618,7 +1532,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         if (_isExpanded && !_isAnimating && !_isSecondaryView)
         {
-            // Suppress hover-collapse if we're in the grace period after expand/thumbnail animation
             if (DateTime.UtcNow < _suppressHoverCollapseUntilUtc)
             {
                 RuntimeLog.Log("COLLAPSE-BLOCKED",
@@ -1666,7 +1579,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             if (_settings.DisableMouseLeaveAutoClose) return;
             if (_isExpanded && !_isAnimating && !_isSecondaryView)
             {
-                // Suppress hover-collapse if we're in the grace period after expand/thumbnail animation
                 if (DateTime.UtcNow < _suppressHoverCollapseUntilUtc)
                 {
                     RuntimeLog.Log("COLLAPSE-BLOCKED",
@@ -1752,7 +1664,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
             catch
             {
-                // Keep thumbnail bounds if hover info is between layouts.
             }
         }
 
@@ -1824,7 +1735,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void SettingsButton_MouseEnter(object sender, MouseEventArgs e)
     {
-        // Enable bitmap caching to prevent sub-pixel jitter during scale/rotate
         SettingsButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
         AnimateSettingsHover(true);
     }
@@ -1900,7 +1810,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         if (_isMusicExpanded) SyncVolumeFromActiveSession();
         EnsureTopmost();
 
-        // Every ~2 minutes (4 ticks × 30s), trim working set when idle
         if (++_trimTickCounter >= 4)        {
             _trimTickCounter = 0;
             if (!_isExpanded && !_isMusicExpanded && !_isAnimating)
@@ -1927,10 +1836,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     {
         if (MediaBackground == null || MediaBackground2 == null || NotchBorder == null) return;
 
-        // The media-background blur is hidden in the clock/timer view, so there is no
-        // point recomputing (and re-animating) its footprint on every frame while the
-        // notch resizes — doing so spawns a storm of competing animations and makes the
-        // clock-view enter transition stutter.
         if (_isTimerView) return;
 
         double notchLength = NotchContent?.ActualWidth > 0
@@ -1945,9 +1850,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         double primaryBreadth = Math.Clamp(notchBreadth * 1.24, 140.0, 220.0);
         double secondaryBreadth = primaryBreadth * 0.82;
 
-        // Animate size changes to prevent jarring position shifts during blur crossfade.
-        // When the notch resizes (e.g., track title changes width), the blur container
-        // should smoothly transition rather than snapping to the new size.
         var dur = TimeSpan.FromMilliseconds(350);
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
 
@@ -1962,7 +1864,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         var current = (double)((FrameworkElement)target).GetValue(prop);
         if (double.IsNaN(current) || Math.Abs(current - to) < 0.5)
         {
-            // No meaningful change or first time — set directly.
             ((FrameworkElement)target).BeginAnimation(prop, null);
             ((FrameworkElement)target).SetValue(prop, to);
             return;
@@ -1992,7 +1893,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
         {
-            // Top-left corner
             if (rTop > 0)
             {
                 ctx.BeginFigure(new Point(rTop, 0), true, true);
@@ -2005,21 +1905,18 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
                 ctx.LineTo(new Point(w, 0), true, false);
             }
 
-            // Right edge → bottom-right corner
             ctx.LineTo(new Point(w, h - rBottom), true, false);
             if (rBottom > 0)
                 ctx.ArcTo(new Point(w - rBottom, h), new Size(rBottom, rBottom), 0, false, SweepDirection.Clockwise, true, false);
             else
                 ctx.LineTo(new Point(w, h), true, false);
 
-            // Bottom edge → bottom-left corner
             ctx.LineTo(new Point(rBottom, h), true, false);
             if (rBottom > 0)
                 ctx.ArcTo(new Point(0, h - rBottom), new Size(rBottom, rBottom), 0, false, SweepDirection.Clockwise, true, false);
             else
                 ctx.LineTo(new Point(0, h), true, false);
 
-            // Left edge → close back into top-left
             if (rTop > 0)
             {
                 ctx.LineTo(new Point(0, rTop), true, false);
@@ -2060,7 +1957,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         ApplyNotchVisibilityState();
 
-        // Pause/resume ambient loops based on the new visibility.
         RefreshAmbientAnimations();
 
         if (_isNotchVisible)
@@ -2094,8 +1990,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
             if (!string.IsNullOrEmpty(exePath))
             {
-                // Relaunch via a detached cmd that waits ~1s, so the old process
-                // is gone and the single-instance mutex is released first.
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "cmd.exe",
@@ -2117,9 +2011,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
     private void CleanupBeforeShutdown()
     {
-        // Delegates to the single canonical teardown so shutdown paths can never
-        // diverge from OnClosed (previously this block leaked several timers,
-        // the camera controller, module host, gesture controller, etc.).
         PerformCleanup();
     }
 

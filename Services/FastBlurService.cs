@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -8,7 +8,7 @@ namespace VNotch.Services;
 
 public static class FastBlurService
 {
-    
+
     public static async Task<BitmapSource?> GetBlurredImageAsync(BitmapSource source, int downscaleWidth = 64, int blurRadius = 4)
     {
         if (source == null) return null;
@@ -23,15 +23,15 @@ public static class FastBlurService
                 blurRadius = Math.Clamp(blurRadius, 1, 20);
 
                 var formattedBitmap = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
-                
+
                 var smallBitmap = new TransformedBitmap(formattedBitmap, new ScaleTransform((double)width / formattedBitmap.PixelWidth, (double)height / formattedBitmap.PixelHeight));
-                
+
                 int stride = width * 4;
                 byte[] pixels = new byte[height * stride];
                 smallBitmap.CopyPixels(pixels, stride, 0);
 
                 byte[] target = new byte[pixels.Length];
-                
+
                 int passes = 2;
                 for (int i = 0; i < passes; i++)
                 {
@@ -44,7 +44,7 @@ public static class FastBlurService
                 var writeableBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
                 writeableBitmap.WritePixels(new Int32Rect(0, 0, width, height), pixels, stride, 0);
                 writeableBitmap.Freeze();
-                
+
                 return (BitmapSource)writeableBitmap;
             }
             catch
@@ -58,16 +58,13 @@ public static class FastBlurService
     {
         for (int i = 0; i < pixels.Length; i += 4)
         {
-            pixels[i] = (byte)(pixels[i] * factor);     
-            pixels[i + 1] = (byte)(pixels[i + 1] * factor); 
-            pixels[i + 2] = (byte)(pixels[i + 2] * factor); 
-            
+            pixels[i] = (byte)(pixels[i] * factor);
+            pixels[i + 1] = (byte)(pixels[i + 1] * factor);
+            pixels[i + 2] = (byte)(pixels[i + 2] * factor);
+
         }
     }
 
-    // Sliding-window (running-sum) box blur: O(w*h) per pass, independent of radius.
-    // Produces bit-identical output to the naive per-pixel accumulation: same
-    // clamp-to-edge border handling and the same fixed window size (2*radius+1).
     private static void BoxBlurHorizontal(byte[] source, byte[] target, int w, int h, int radius)
     {
         int window = 2 * radius + 1;
@@ -76,7 +73,6 @@ public static class FastBlurService
         {
             int pBase = y * w * 4;
 
-            // Seed the window for x = 0: indices clamp(0 + dx) for dx in [-radius, radius].
             int sumB = 0, sumG = 0, sumR = 0, sumA = 0;
             for (int dx = -radius; dx <= radius; dx++)
             {
@@ -96,7 +92,6 @@ public static class FastBlurService
                 target[t + 2] = (byte)(sumR / window);
                 target[t + 3] = (byte)(sumA / window);
 
-                // Slide to x+1: drop clamp(x - radius), add clamp(x + 1 + radius).
                 int outX = x - radius;
                 outX = outX < 0 ? 0 : (outX >= w ? w - 1 : outX);
                 int inX = x + 1 + radius;
@@ -121,7 +116,6 @@ public static class FastBlurService
         {
             int col = x * 4;
 
-            // Seed the window for y = 0: indices clamp(0 + dy) for dy in [-radius, radius].
             int sumB = 0, sumG = 0, sumR = 0, sumA = 0;
             for (int dy = -radius; dy <= radius; dy++)
             {

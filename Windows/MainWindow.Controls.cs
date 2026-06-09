@@ -31,7 +31,6 @@ public partial class MainWindow
             UpdatePlayPauseIcon();
             PlayButtonPressAnimation(PlayPauseButton);
 
-            // Immediately notify progress engine so bar stops/resumes without waiting for SMTC
             _progressEngine.NotifyUserPlayPause(_isPlaying);
 
             await _mediaService.PlayPauseAsync();
@@ -124,7 +123,6 @@ public partial class MainWindow
             UpdatePlayPauseIcon();
             PlayButtonPressAnimation(InlinePlayPauseButton);
 
-            // Immediately notify progress engine so bar stops/resumes without waiting for SMTC
             _progressEngine.NotifyUserPlayPause(_isPlaying);
 
             await _mediaService.PlayPauseAsync();
@@ -197,7 +195,6 @@ public partial class MainWindow
             _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(3);
             _progressEngine.NotifyUserSeek(TimeSpan.Zero);
 
-            // Animate the rewind so the user sees the bar slide back to 0 instead of snapping
             AnimateProgressRewindTo(0);
         }
         catch (Exception ex)
@@ -231,12 +228,10 @@ public partial class MainWindow
         if (_settings.EnableGestureControls && !_isExpanded && !_isMusicExpanded &&
             _currentMediaInfo != null && _currentMediaInfo.IsAnyMediaPlaying && !_isAnimating)
         {
-            // Don't handle here — let event bubble up to NotchWrapper for gesture tracking
             return;
         }
 
         e.Handled = true;
-        // Click on compact thumbnail (hover state) → expand the notch
         if (!_isExpanded && !_isAnimating)
         {
             ExpandNotch();
@@ -261,7 +256,6 @@ public partial class MainWindow
     {
         if (sender is Border button && button.RenderTransform is ScaleTransform transform)
         {
-            // Enable bitmap caching during scale animation to prevent sub-pixel jitter
             button.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
 
             var animX = new DoubleAnimation(transform.ScaleX, 1.18, _dur150) { EasingFunction = _easeQuadOut };
@@ -282,7 +276,6 @@ public partial class MainWindow
             Timeline.SetDesiredFrameRate(animX, VNotch.Services.AnimationConfig.TargetFps);
             Timeline.SetDesiredFrameRate(animY, VNotch.Services.AnimationConfig.TargetFps);
 
-            // Clear bitmap cache after animation completes to save memory
             animX.Completed += (_, _) =>
             {
                 if (!button.IsMouseOver)
@@ -299,7 +292,7 @@ public partial class MainWindow
     #region Volume Control
 
     private float _currentVolume = 0.5f;
-    private const float VolumeScrollStep = 0.05f; // 5% per scroll tick
+    private const float VolumeScrollStep = 0.05f;
     private const double CompactVolumeImmediateWheelDelta = 120.0;
     private const double CompactVolumeSmoothActivationDelta = 240.0;
     private const double CompactVolumeWheelSessionResetMs = 450.0;
@@ -379,7 +372,6 @@ public partial class MainWindow
 
     private void AdjustVolumeByScroll(int delta)
     {
-        // Sync current volume from system only once per scroll session
         if (!_volumeSynced)
         {
             if (_mediaService.TryGetCurrentSessionVolume(out float vol, out _))
@@ -389,22 +381,18 @@ public partial class MainWindow
             _volumeSynced = true;
         }
 
-        // Proportional: 120 delta (one tick) = VolumeScrollStep
         float step = (delta / 120f) * VolumeScrollStep;
         float newVolume = Math.Clamp(_currentVolume + step, 0f, 1f);
         _currentVolume = newVolume;
 
-        // Update visual indicator instantly
         ShowVolumeIndicator(newVolume);
 
-        // Apply volume to system on thread pool (non-blocking)
         float volumeToSet = newVolume;
         System.Threading.ThreadPool.QueueUserWorkItem(_ =>
         {
             _mediaService.TrySetCurrentSessionVolume(volumeToSet);
         });
 
-        // Update expanded UI if visible
         if (_isExpanded)
         {
             VolumeBarScale.ScaleX = newVolume;
@@ -415,7 +403,6 @@ public partial class MainWindow
     {
         if (VolumeIndicatorContainer == null || VolumeIndicatorFill == null) return;
         if (!_isMusicCompactMode) return;
-        // CRITICAL: never run the compact-mode volume UI when the notch is expanded
         if (_isExpanded || _isAnimating) return;
 
         if (!_isVolumeIndicatorActive)
@@ -427,51 +414,41 @@ public partial class MainWindow
             _volumeIndicatorToken = token;
         }
 
-        // ─── First time showing: hide compact content ───
         if (!_isVolumeIndicatorActive)
         {
             _isVolumeIndicatorActive = true;
 
-            // Hide privacy dot while volume bar is active
             SuppressPrivacyDot();
 
-            // Reset thumbnail hover state if active (animate back smoothly)
             if (_isCompactThumbnailHovered)
             {
                 _isCompactThumbnailHovered = false;
                 _compactThumbnailHoverLeaveTimer.Stop();
 
-                // Animate notch size from hover → collapsed+20 (volume expanded size)
                 NotchBorder.BeginAnimation(HeightProperty, null);
                 AnimateCompactWidth(_collapsedWidth + 20, _dur400, _easeExpOut6, _volumeIndicatorToken);
                 var heightAnim = MakeAnim(_collapsedHeight, _dur400, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
                 NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
-                // Animate thumbnail scale back to 1
                 var thumbScaleAnim = MakeAnim(1.0, _dur350, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, thumbScaleAnim);
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, thumbScaleAnim);
 
-                // Fade out hover info
                 CompactHoverInfo.BeginAnimation(OpacityProperty, null);
                 var hoverFadeOut = MakeAnim(0.0, _dur200, _easeQuadOut);
                 hoverFadeOut.Completed += (s, e) => CompactHoverInfo.Visibility = Visibility.Collapsed;
                 CompactHoverInfo.BeginAnimation(OpacityProperty, hoverFadeOut);
 
-                // Animate corner radius back
                 AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(400));
             }
             else
             {
-                // Normal case: expand notch slightly for volume bar
                 AnimateCompactWidth(_collapsedWidth + 20, _dur350, _easeExpOut6, _volumeIndicatorToken);
             }
 
-            // Set initial fill width immediately (no animation from 0)
             double initContainerWidth = _collapsedWidth - 32;
             VolumeIndicatorFill.Width = Math.Max(0, initContainerWidth * volume);
 
-            // Fade out MusicViz + thumbnail smoothly
             MusicViz.BeginAnimation(OpacityProperty, null);
             var vizOut = MakeAnim(1.0, 0.0, _dur200, _easeQuadOut);
             vizOut.Completed += (s, e) =>
@@ -490,7 +467,6 @@ public partial class MainWindow
             };
             CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbOut);
 
-            // Show indicator container with fade in (slightly delayed)
             VolumeIndicatorContainer.Visibility = Visibility.Visible;
             VolumeIndicatorContainer.Opacity = 0;
             VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
@@ -498,7 +474,6 @@ public partial class MainWindow
             VolumeIndicatorContainer.BeginAnimation(OpacityProperty, indicatorIn);
         }
 
-        // ─── Update fill width directly — instant, no animation ───
         double containerWidth = VolumeIndicatorContainer.ActualWidth;
         if (containerWidth <= 0)
         {
@@ -506,7 +481,6 @@ public partial class MainWindow
         }
         VolumeIndicatorFill.Width = Math.Max(0, containerWidth * volume);
 
-        // ─── Reset hide timer (reuse instance) ───
         if (_volumeIndicatorHideTimer == null)
         {
             _volumeIndicatorHideTimer = new DispatcherTimer
@@ -534,10 +508,8 @@ public partial class MainWindow
         _compactPillArbiter.Release(token);
         _volumeIndicatorToken = 0;
 
-        // Restore privacy dot
         RestorePrivacyDotVisibility();
 
-        // If the notch is expanded (user opened it while volume indicator was visible), don't drive the compact-mode shrink animation — that would collapse the expanded view's width mid-flight
         if (_isExpanded || _isAnimating)
         {
             VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
@@ -546,10 +518,8 @@ public partial class MainWindow
             return;
         }
 
-        // Notch shrink back to collapsed width via the arbitered width helper.
         AnimateCompactWidth(_collapsedWidth, _dur350, _easeExpOut6, 0);
 
-        // Fade out indicator
         VolumeIndicatorContainer.BeginAnimation(OpacityProperty, null);
         var fadeOut = MakeAnim(1.0, 0.0, _dur250, _easeQuadOut);
         fadeOut.Completed += (s, e) =>
@@ -559,7 +529,6 @@ public partial class MainWindow
         };
         VolumeIndicatorContainer.BeginAnimation(OpacityProperty, fadeOut);
 
-        // Restore thumbnail (only if clipboard notification is not active)
         if (!_isClipboardPeekActive)
         {
             CompactThumbnailBorder.Visibility = Visibility.Visible;
@@ -569,7 +538,6 @@ public partial class MainWindow
             CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbIn);
         }
 
-        // Restore MusicViz (only if clipboard notification is not active)
         if (!_isClipboardPeekActive)
         {
             ShowMusicVisualizer(duration: _dur100);
@@ -619,7 +587,6 @@ public partial class MainWindow
         VolumeIndicatorContainer.CaptureMouse();
         SetVolumeFromIndicatorPosition(e);
 
-        // Stop the hide timer while dragging
         _volumeIndicatorHideTimer?.Stop();
     }
 
@@ -637,7 +604,6 @@ public partial class MainWindow
         _isDraggingVolumeIndicator = false;
         VolumeIndicatorContainer.ReleaseMouseCapture();
 
-        // Restart hide timer
         _volumeIndicatorHideTimer?.Stop();
         _volumeIndicatorHideTimer?.Start();
     }
@@ -651,10 +617,8 @@ public partial class MainWindow
         float newVolume = (float)Math.Clamp(pos.X / containerWidth, 0.0, 1.0);
         _currentVolume = newVolume;
 
-        // Update visual
         VolumeIndicatorFill.Width = Math.Max(0, containerWidth * newVolume);
 
-        // Apply to system on thread pool
         float volumeToSet = newVolume;
         System.Threading.ThreadPool.QueueUserWorkItem(_ =>
         {
@@ -731,7 +695,6 @@ public partial class MainWindow
         VolumeBarScale.ScaleX = newVolume;
         UpdateVolumeIcon(newVolume, false);
 
-        // Apply to system on thread pool (non-blocking) for real-time responsiveness
         float volumeToSet = newVolume;
         System.Threading.ThreadPool.QueueUserWorkItem(_ =>
         {

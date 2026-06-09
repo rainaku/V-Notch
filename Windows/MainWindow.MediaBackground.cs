@@ -41,7 +41,6 @@ public partial class MainWindow
             return;
         }
 
-        // If thumbnail is temporarily null (e
         if (info.Thumbnail == null)
         {
             return;
@@ -51,7 +50,6 @@ public partial class MainWindow
         var dominantColor = palette.Main;
         var subColor = palette.Sub;
 
-        // Use track identity without MediaSource to avoid false "new track" detection when background fetches change MediaSource (e
         string currentTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
         bool isNewTrack = _lastTrackId != null && _lastTrackId != currentTrackId;
         _lastTrackId = currentTrackId;
@@ -65,7 +63,6 @@ public partial class MainWindow
 
         UpdateBlurredBackgroundAsync(info.Thumbnail, allowInterimThumbnail: forceRefresh || isNewTrack).SafeFireAndForget("MEDIA-BG-BLUR");
 
-        // Detect overly bright thumbnails and apply dimming overlay
         double brightnessDimOpacity = DynamicIslandColorExtractor.GetBrightnessDimOverlay(info.Thumbnail);
         var dimOverlayAnim = new DoubleAnimation
         {
@@ -84,7 +81,6 @@ public partial class MainWindow
         _lastDominantColor = dominantColor;
         _lastSubColor = subColor;
 
-        // Lift dark dominant colors so the blur layer remains visible on the dark UI
         var liftedDominant = LiftDarkColor(dominantColor);
         var liftedSub = LiftDarkColor(subColor);
 
@@ -109,10 +105,9 @@ public partial class MainWindow
         double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh))
             ? DynamicIslandColorExtractor.GetAdaptiveBlurOpacity(dominantLuminance, _settings.MediaBlurBrightnessBoost)
             : 0;
-        // For dark thumbnails, boost the tint opacity further so the lifted color tint is more present in the final blend (otherwise the bright blurred image dominates and the color barely shows through)
         if (targetOpacity > 0 && dominantLuminance < 0.25)
         {
-            double darknessBoost = 1.0 + (0.25 - dominantLuminance) * 1.4; // up to ×1.35
+            double darknessBoost = 1.0 + (0.25 - dominantLuminance) * 1.4;
             targetOpacity = Math.Min(targetOpacity * darknessBoost, 0.95);
         }
         int animationVersion = ++_mediaBackgroundAnimationVersion;
@@ -153,7 +148,6 @@ public partial class MainWindow
         EnsureUnfrozen(RemainingTimeText.Foreground, c => RemainingTimeText.Foreground = new SolidColorBrush(c ?? Color.FromRgb(136, 136, 136)));
         EnsureUnfrozen(CompactTitleMarquee.Foreground, c => CompactTitleMarquee.Foreground = new SolidColorBrush(c ?? Colors.White));
 
-        // Progress bar gradient: bright color at start → darkened 35% at end
         _progressBarVibrantColor = vibrantTargetColor;
         var progressDarkColor = Color.FromArgb(
             vibrantTargetColor.A,
@@ -198,7 +192,6 @@ public partial class MainWindow
         EnsureUnfrozen(VolumeIcon.Foreground, c => VolumeIcon.Foreground = new SolidColorBrush(c ?? Color.FromRgb(136, 136, 136)));
         ((SolidColorBrush)VolumeIcon.Foreground).BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
-        // Volume bar gradient: bright color at start → darkened at end
         var volStartAnim = new ColorAnimation
         {
             To = vibrantTargetColor,
@@ -214,7 +207,6 @@ public partial class MainWindow
         VolumeBarGradientStart.BeginAnimation(GradientStop.ColorProperty, volStartAnim);
         VolumeBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, volEndAnim);
 
-        // Volume scroll indicator (center bar shown when scrolling on collapsed notch)
         if (VolumeIndicatorFill != null)
         {
             var volIndStartAnim = new ColorAnimation
@@ -268,12 +260,10 @@ public partial class MainWindow
         double v = max;
         double s = max > 0 ? (max - min) / max : 0;
 
-        // Already bright enough — keep as is
         if (v >= 0.55) return c;
 
-        // Compute target V based on how dark the color is
         double targetV;
-        if (v < 0.20)        targetV = 0.55;  // very dark → lift to medium-bright
+        if (v < 0.20)        targetV = 0.55;
         else if (v < 0.35)   targetV = 0.55;
         else if (v < 0.50)   targetV = 0.55;
         else                 targetV = v;
@@ -290,14 +280,9 @@ public partial class MainWindow
 
     private void FadeToBlackThenUpdate(MediaInfo info)
     {
-        // ─── SYNC with thumbnail switch timing ───
-        // Thumbnail switch: old fades out over ~420ms, new fades in starting at 180ms.
-        // We sync the blur: fade out old blur over 400ms (matches thumbnail out),
-        // then when new blur arrives, it fades in quickly (via CrossfadeBlurredBackground).
         _isFadingTrack = false;
         _suppressNextBlurDissolve = false;
 
-        // Immediately start fading out the current blur layer — synced with thumbnail fade-out.
         int version = ++_blurCrossfadeVersion;
         var activeImg = _blurBackIsActive ? MediaBackgroundImageBack : MediaBackgroundImage;
         var activeImg2 = _blurBackIsActive ? MediaBackgroundImageBack2 : MediaBackgroundImage2;
@@ -308,7 +293,6 @@ public partial class MainWindow
         activeImg.Opacity = currentOpacity;
         activeImg2.Opacity = currentOpacity;
 
-        // Fade out over 400ms — matches thumbnail out animation timing.
         var fadeOut = new DoubleAnimation
         {
             From = currentOpacity,
@@ -332,8 +316,6 @@ public partial class MainWindow
         activeImg.BeginAnimation(OpacityProperty, fadeOut);
         activeImg2.BeginAnimation(OpacityProperty, fadeOut);
 
-        // Force a blur update with the new thumbnail — when ready, CrossfadeBlurredBackground
-        // will fade in the new blur (the old is already fading out / gone by then).
         _lastBlurThumbnailRef = null;
         UpdateMediaBackground(info, forceRefresh: true);
     }
@@ -342,9 +324,6 @@ public partial class MainWindow
     {
         HideMediaBackgroundOverlay();
 
-        // When in timer/clock or audio (sound mixer) view, preserve progress bar gradient &
-        // tint so they're ready when switching back to main view (otherwise e.g. the compact
-        // volume bar loses its media color after closing the mixer).
         if (_isTimerView || _isAudioView) return;
 
         var defaultColorAnim = new ColorAnimation
@@ -404,11 +383,6 @@ public partial class MainWindow
         ResetUnfrozenFill(InlineNextArrow2);
     }
 
-    /// <summary>
-    /// Fades out only the blur overlay (MediaBackground) without resetting
-    /// progress bar gradient colors or UI tint. Used when switching to timer/clock view
-    /// so that colors are preserved when returning to main view.
-    /// </summary>
     private void HideMediaBackgroundOverlay()
     {
         if (MediaBackground.Opacity == 0 && MediaBackground.Visibility != Visibility.Visible) return;
@@ -495,7 +469,6 @@ public partial class MainWindow
 
         bool fadeInProgress = (DateTime.UtcNow - _lastMediaBackgroundFadeStartUtc).TotalMilliseconds < 600;
 
-        // A collapsed layer is a definite paint failure — always recover.
         bool visibilityFailed =
             MediaBackground.Visibility != Visibility.Visible ||
             MediaBackground2.Visibility != Visibility.Visible;
@@ -538,11 +511,6 @@ public partial class MainWindow
                 return;
             }
 
-            // Skip small/interim thumbnails — wait for the final high-res version.
-            // Small thumbnails (< 200px) are typically SMTC placeholders that will be
-            // replaced by a better fetch shortly. Generating blur from these causes a
-            // visible "position shift" when the real thumbnail arrives with different
-            // subject detection results.
             bool hasExistingBlur = MediaBackgroundImage.Source != null || MediaBackgroundImageBack.Source != null;
             if (!allowInterimThumbnail && hasExistingBlur && thumbnail.PixelWidth < 200 && thumbnail.PixelHeight < 200)
             {
@@ -552,7 +520,6 @@ public partial class MainWindow
 
             _lastBlurThumbnailRef = thumbnail;
 
-            // Version gate: discard stale results from previous async blur tasks.
             int taskVersion = ++_blurTaskVersion;
 
             RuntimeLog.Log("BLUR-CROSSFADE", $"START taskVer={taskVersion} thumb={thumbnail.PixelWidth}x{thumbnail.PixelHeight} subjectBlur={_settings.EnableSubjectBlur}");
@@ -571,7 +538,6 @@ public partial class MainWindow
                     RuntimeLog.Error("MEDIA-BG-SUBJECT", ex.ToString());
                 }
 
-                // Check if a newer task was started while we were awaiting.
                 if (taskVersion != _blurTaskVersion)
                 {
                     RuntimeLog.Log("BLUR-CROSSFADE", $"DISCARDED (stale after subject) taskVer={taskVersion} current={_blurTaskVersion}");
@@ -587,7 +553,6 @@ public partial class MainWindow
                 blurredImage = await FastBlurService.GetBlurredImageAsync(thumbnail);
             }
 
-            // Discard result if a newer blur task was started during our await.
             if (taskVersion != _blurTaskVersion)
             {
                 RuntimeLog.Log("BLUR-CROSSFADE", $"DISCARDED (stale after blur) taskVer={taskVersion} current={_blurTaskVersion}");
@@ -619,14 +584,12 @@ public partial class MainWindow
 
     private void ApplyBlurredBackgroundImmediate(BitmapSource blurred)
     {
-        // Cancel any in-flight crossfade and reset both sets of layers to a clean state.
         ++_blurCrossfadeVersion;
         MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
 
-        // Always apply to front layer and reset back layer.
         _blurBackIsActive = false;
         MediaBackgroundImage.Source = blurred;
         MediaBackgroundImage2.Source = blurred;
@@ -640,10 +603,8 @@ public partial class MainWindow
 
     private void ScheduleBlurredBackgroundDissolve(BitmapSource blurred)
     {
-        // Always keep the latest result; the timer below picks the freshest one when it fires.
         _pendingBlurResult = blurred;
 
-        // If old blur is already faded out, skip debounce and crossfade immediately.
         var activeImg = _blurBackIsActive ? MediaBackgroundImageBack : MediaBackgroundImage;
         if (activeImg.Opacity < 0.05 || activeImg.Source == null)
         {
@@ -674,23 +635,19 @@ public partial class MainWindow
         _blurDissolveDebounce.Start();
     }
 
-    private bool _blurBackIsActive = false; // tracks which layer currently shows the active blur
+    private bool _blurBackIsActive = false;
 
     private void CrossfadeBlurredBackground(BitmapSource blurred)
     {
         int version = ++_blurCrossfadeVersion;
 
-        // Determine which layer is currently active (showing the old image)
-        // and which is the target (will receive the new image).
         var activeImg = _blurBackIsActive ? MediaBackgroundImageBack : MediaBackgroundImage;
         var activeImg2 = _blurBackIsActive ? MediaBackgroundImageBack2 : MediaBackgroundImage2;
         var targetImg = _blurBackIsActive ? MediaBackgroundImage : MediaBackgroundImageBack;
         var targetImg2 = _blurBackIsActive ? MediaBackgroundImage2 : MediaBackgroundImageBack2;
 
-        // ─── Transform 1: Setup — capture state, stage new image ───
         double activeOpacity = activeImg.Opacity;
 
-        // Cancel in-flight animations and restore captured values (no visual snap).
         MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
         MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
@@ -701,14 +658,9 @@ public partial class MainWindow
         targetImg.Opacity = 0.0;
         targetImg2.Opacity = 0.0;
 
-        // Stage new image on target layer.
         targetImg.Source = blurred;
         targetImg2.Source = blurred;
 
-        // ─── Transform 2: Dissolve animation ───
-        // If old blur is already gone (faded out by FadeToBlackThenUpdate), use a faster
-        // fade-in to sync with the thumbnail appearing (~440ms from overlap point).
-        // Otherwise use standard dissolve timing.
         bool oldAlreadyGone = activeOpacity < 0.05 || activeImg.Source == null;
         var dur = oldAlreadyGone ? TimeSpan.FromMilliseconds(380) : TimeSpan.FromMilliseconds(550);
         var ease = new CubicEase { EasingMode = oldAlreadyGone ? EasingMode.EaseOut : EasingMode.EaseInOut };
@@ -723,24 +675,20 @@ public partial class MainWindow
         {
             if (version != _blurCrossfadeVersion) return;
 
-            // Set local values to match animation end BEFORE removing animations.
             activeImg.Opacity = 0.0;
             activeImg2.Opacity = 0.0;
             targetImg.Opacity = 1.0;
             targetImg2.Opacity = 1.0;
 
-            // Remove animations — no snap since local values match end state.
             MediaBackgroundImage.BeginAnimation(OpacityProperty, null);
             MediaBackgroundImage2.BeginAnimation(OpacityProperty, null);
             MediaBackgroundImageBack.BeginAnimation(OpacityProperty, null);
             MediaBackgroundImageBack2.BeginAnimation(OpacityProperty, null);
 
-            // Clear old layer — no source swap, no position shift.
             activeImg.Source = null;
             activeImg2.Source = null;
         };
 
-        // Flip active layer for next crossfade.
         _blurBackIsActive = !_blurBackIsActive;
 
         targetImg.BeginAnimation(OpacityProperty, fadeIn);
@@ -757,22 +705,19 @@ public partial class MainWindow
     {
         _currentVibrantColor = vibrantColor;
 
-        // Subtle tint: blend vibrant color lightly into white (15% tint)
         const double tintStrength = 0.15;
         var tintedWhite = Color.FromRgb(
             (byte)(255 - (255 - vibrantColor.R) * tintStrength),
             (byte)(255 - (255 - vibrantColor.G) * tintStrength),
             (byte)(255 - (255 - vibrantColor.B) * tintStrength));
 
-        // Artist: same tint but at reduced opacity (matches the original 75% alpha)
         var tintedArtist = Color.FromArgb(
-            191, // 0xBF = 75% opacity
+            191,
             tintedWhite.R, tintedWhite.G, tintedWhite.B);
 
         var colorAnim = new ColorAnimation { To = tintedWhite, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
         var artistColorAnim = new ColorAnimation { To = tintedArtist, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
 
-        // Title
         if (Resources["TrackTitleGradient"] is LinearGradientBrush titleBrush)
         {
             foreach (var stop in titleBrush.GradientStops)
@@ -785,15 +730,12 @@ public partial class MainWindow
                 stop.BeginAnimation(GradientStop.ColorProperty, colorAnim);
         }
 
-        // Artist
         AnimateForegroundColor(TrackArtist, artistColorAnim);
         AnimateForegroundColor(TrackArtistNext, artistColorAnim);
 
-        // Lyrics
         AnimateForegroundColor(LyricTextA, artistColorAnim);
         AnimateForegroundColor(LyricTextB, artistColorAnim);
 
-        // Media control icons (prev/play/pause/next)
         AnimatePathFillAndStroke(PrevArrow0, colorAnim);
         AnimatePathFillAndStroke(PrevArrow1, colorAnim);
         AnimatePathFillAndStroke(PrevArrow2, colorAnim);
@@ -849,7 +791,6 @@ public partial class MainWindow
 
     private void StopTitleGradientShift()
     {
-        // No-op: shimmer animation removed, kept for call-site compatibility
     }
 
     private void ResetTitleGradientToWhite()
@@ -865,7 +806,7 @@ public partial class MainWindow
 
         var artistWhiteAnim = new ColorAnimation
         {
-            To = Color.FromArgb(191, 255, 255, 255), // #BFFFFFFF
+            To = Color.FromArgb(191, 255, 255, 255),
             Duration = TimeSpan.FromMilliseconds(400)
         };
 
@@ -881,15 +822,12 @@ public partial class MainWindow
                 stop.BeginAnimation(GradientStop.ColorProperty, whiteAnim);
         }
 
-        // Reset artist
         AnimateForegroundColor(TrackArtist, artistWhiteAnim);
         AnimateForegroundColor(TrackArtistNext, artistWhiteAnim);
 
-        // Reset lyrics
         AnimateForegroundColor(LyricTextA, artistWhiteAnim);
         AnimateForegroundColor(LyricTextB, artistWhiteAnim);
 
-        // Reset media controls
         AnimatePathFillAndStroke(PrevArrow0, whiteAnim);
         AnimatePathFillAndStroke(PrevArrow1, whiteAnim);
         AnimatePathFillAndStroke(PrevArrow2, whiteAnim);

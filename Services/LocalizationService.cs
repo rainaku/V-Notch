@@ -79,7 +79,6 @@ public static class Loc
     {
         _strings["en"] = new Dictionary<string, string>
         {
-            // ─── Settings Window ───
             ["settings.title"] = "SETTINGS",
             ["settings.subtitle"] = "",
             ["settings.searchPlaceholder"] = "Search settings...",
@@ -220,7 +219,6 @@ public static class Loc
             ["settings.btn.apply"] = "Apply",
             ["settings.btn.save"] = "Save",
 
-            // ─── Tray Menu ───
             ["tray.hide"] = "Hide Notch",
             ["tray.show"] = "Show Notch",
             ["tray.reset"] = "Reset position",
@@ -228,7 +226,6 @@ public static class Loc
             ["tray.restart"] = "Restart app",
             ["tray.exit"] = "Exit",
 
-            // ─── File Shelf ───
             ["shelf.placeholder"] = "Drag files here for temporary storage",
             ["shelf.full"] = "Shelf full ({0}/{1}). Remove files before adding more.",
             ["shelf.unlockHint"] = "Drop to unlock upload limit",
@@ -241,7 +238,6 @@ public static class Loc
             ["shelf.noFiles"] = "No files detected.",
             ["shelf.exceedsLimit"] = "Shelf limit is {0} files. Only {1} slot(s) left.",
 
-            // ─── Setup Wizard ───
             ["setup.title"] = "V-Notch Setup",
             ["setup.step.language"] = "01  Language",
             ["setup.step.welcome"] = "02  Welcome",
@@ -281,7 +277,6 @@ public static class Loc
             ["setup.cancel.warningTitle"] = "You can go back and continue setup, or confirm to exit now.",
             ["setup.cancel.warningBody"] = "Choose Keep setup to return to the current step, or Cancel setup to close the installer.",
 
-            // ─── Errors / Messages ───
             ["error.title"] = "V-Notch Error",
             ["error.unexpected"] = "An unexpected error occurred: {0}",
             ["error.alreadyRunning"] = "V-Notch is already running!",
@@ -290,7 +285,6 @@ public static class Loc
             ["error.updateError"] = "Update process failed unexpectedly. Please try again.",
             ["error.updateErrorTitle"] = "Update Error",
 
-            // ─── Update Notification ───
             ["update.version"] = "Version v{0}",
             ["update.clickToInstall"] = "Click to download & install",
             ["update.preparing"] = "Preparing download...",
@@ -300,7 +294,6 @@ public static class Loc
             ["update.pleaseWait"] = "Please wait...",
             ["update.installingTitle"] = "Installing Update",
 
-            // ─── Misc ───
             ["greeting.morning"] = "Good morning",
             ["greeting.afternoon"] = "Good afternoon",
             ["greeting.evening"] = "Good evening",
@@ -310,20 +303,16 @@ public static class Loc
             ["notch.camera.retry"] = "click to try again",
             ["clipboard.copied"] = "Copied",
 
-            // ─── Bluetooth ───
             ["bluetooth.connected"] = "Connected",
             ["bluetooth.disconnected"] = "Disconnected",
 
-            // ─── Battery ───
             ["battery.charging"] = "Charging",
             ["battery.fullyCharged"] = "Fully charged",
             ["battery.onBattery"] = "On battery",
 
-            // ─── Privacy Indicators ───
             ["privacy.mic.inUse"] = "Microphone in use",
             ["privacy.cam.inUse"] = "Camera in use",
 
-            // ─── Introducing Window ───
             ["intro.title"] = "INTRODUCING",
             ["intro.headline"] = "Dynamic Island Mode",
             ["intro.body"] = "A new floating pill style notch. Enjoy standard status indicators, music player notifications, and beautiful transitions in a detached floating Apple-style design.",
@@ -335,7 +324,6 @@ public static class Loc
     {
         _strings["vi"] = new Dictionary<string, string>
         {
-            // ─── Settings Window ───
             ["settings.title"] = "CÀI ĐẶT",
             ["settings.subtitle"] = "",
             ["settings.searchPlaceholder"] = "Tìm kiếm cài đặt...",
@@ -476,7 +464,6 @@ public static class Loc
             ["settings.btn.apply"] = "Áp dụng",
             ["settings.btn.save"] = "Lưu",
 
-            // ─── Tray Menu ───
             ["tray.hide"] = "Ẩn Notch",
             ["tray.show"] = "Hiện Notch",
             ["tray.reset"] = "Đặt lại vị trí",
@@ -484,7 +471,6 @@ public static class Loc
             ["tray.restart"] = "Khởi động lại ứng dụng",
             ["tray.exit"] = "Thoát",
 
-            // ─── File Shelf ───
             ["shelf.placeholder"] = "Kéo thả file vào đây để lưu tạm",
             ["shelf.full"] = "Shelf đầy ({0}/{1}). Xóa file trước khi thêm mới.",
             ["shelf.unlockHint"] = "Thả để mở khóa giới hạn tải lên",
@@ -497,7 +483,6 @@ public static class Loc
             ["shelf.noFiles"] = "Không phát hiện file nào.",
             ["shelf.exceedsLimit"] = "Giới hạn shelf là {0} file. Chỉ còn {1} chỗ trống.",
 
-            // ─── Setup Wizard ───
             ["setup.title"] = "Cài đặt V-Notch",
             ["setup.step.language"] = "01  Ngôn ngữ",
             ["setup.step.welcome"] = "02  Chào mừng",
@@ -537,7 +522,6 @@ public static class Loc
             ["setup.cancel.warningTitle"] = "Bạn có thể quay lại và tiếp tục, hoặc xác nhận thoát ngay.",
             ["setup.cancel.warningBody"] = "Chọn Tiếp tục cài đặt để quay lại bước hiện tại, hoặc Hủy cài đặt để đóng trình cài đặt.",
 
-            // ─── Errors / Messages ───
             ["error.title"] = "Lỗi V-Notch",
             ["error.unexpected"] = "Đã xảy ra lỗi không mong muốn: {0}",
             ["error.alreadyRunning"] = "V-Notch đang chạy rồi!",
@@ -546,7 +530,6 @@ public static class Loc
             ["error.updateError"] = "Quá trình cập nhật gặp lỗi. Vui lòng thử lại.",
             ["error.updateErrorTitle"] = "Lỗi cập nhật",
 
-            // ─── Update Notification ───
             ["update.version"] = "Phiên bản v{0}",
             ["update.clickToInstall"] = "Nhấn để tải và cài đặt",
             ["update.preparing"] = "Đang chuẩn bị tải...",
@@ -556,7 +539,6 @@ public static class Loc
             ["update.pleaseWait"] = "Vui lòng chờ...",
             ["update.installingTitle"] = "Đang cài đặt bản cập nhật",
 
-            // ─── Misc ───
             ["greeting.morning"] = "Chào buổi sáng",
             ["greeting.afternoon"] = "Chào buổi chiều",
             ["greeting.evening"] = "Chào buổi tối",
@@ -566,20 +548,16 @@ public static class Loc
             ["notch.camera.retry"] = "nhấn để thử lại",
             ["clipboard.copied"] = "Đã sao chép",
 
-            // ─── Bluetooth ───
             ["bluetooth.connected"] = "Đã kết nối",
             ["bluetooth.disconnected"] = "Đã ngắt kết nối",
 
-            // ─── Battery ───
             ["battery.charging"] = "Đang sạc",
             ["battery.fullyCharged"] = "Đã sạc đầy",
             ["battery.onBattery"] = "Dùng pin",
 
-            // ─── Privacy Indicators ───
             ["privacy.mic.inUse"] = "Đang dùng micro",
             ["privacy.cam.inUse"] = "Đang dùng camera",
 
-            // ─── Introducing Window ───
             ["intro.title"] = "GIỚI THIỆU",
             ["intro.headline"] = "Chế độ Dynamic Island",
             ["intro.body"] = "Thiết kế notch dạng viên thuốc nổi mới, bo tròn cả 4 góc và tách khỏi mép màn hình. Tận hưởng hiển thị pin, trình phát nhạc cùng các chuyển động mượt mà mang phong cách Apple.",

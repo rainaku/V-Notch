@@ -7,7 +7,6 @@ public class TimelinePositionSolverTests
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
-    // A simple, fresh, paused-position baseline: 3-minute track, position 30s, timeline just updated.
     private static TimelineSolveInputs Baseline => new()
     {
         StartTime = TimeSpan.Zero,
@@ -48,13 +47,12 @@ public class TimelinePositionSolverTests
     {
         var r = TimelinePositionSolver.Solve(Baseline);
         Assert.Equal(TimeSpan.FromSeconds(30), r.Position);
-        Assert.Equal(Now, r.LastUpdatedUtc); // no force-start, no compensation
+        Assert.Equal(Now, r.LastUpdatedUtc);
     }
 
     [Fact]
     public void NewTrackNearEnd_SnapsToStart()
     {
-        // Position within 800ms of the end on a new track → reset to zero and force-start.
         var r = TimelinePositionSolver.Solve(Baseline with
         {
             IsNewTrack = true,
@@ -62,21 +60,20 @@ public class TimelinePositionSolverTests
         });
 
         Assert.Equal(TimeSpan.Zero, r.Position);
-        Assert.False(r.IsIndeterminate); // explicitly cleared
-        Assert.Equal(Now, r.LastUpdatedUtc); // force-start anchors to now
+        Assert.False(r.IsIndeterminate);
+        Assert.Equal(Now, r.LastUpdatedUtc);
     }
 
     [Fact]
     public void BrowserNewTrack_SuspiciousCarryOverWithStaleTimeline_ResetsToStart()
     {
-        // A browser track that "starts" at 90s with a stale (>900ms) timeline is a carried-over position.
         var r = TimelinePositionSolver.Solve(Baseline with
         {
             IsBrowserTimelineTrack = true,
             IsNewTrack = true,
             IsPlaying = true,
             Position = TimeSpan.FromSeconds(90),
-            LastUpdatedUtc = Now - TimeSpan.FromSeconds(2), // stale
+            LastUpdatedUtc = Now - TimeSpan.FromSeconds(2),
         });
 
         Assert.Equal(TimeSpan.Zero, r.Position);
@@ -86,17 +83,15 @@ public class TimelinePositionSolverTests
     [Fact]
     public void BrowserNewTrack_FreshTimeline_KeepsPosition()
     {
-        // Same carried-over position but a fresh timeline (<900ms) is trusted → no reset.
         var r = TimelinePositionSolver.Solve(Baseline with
         {
             IsBrowserTimelineTrack = true,
             IsNewTrack = true,
             IsPlaying = true,
             Position = TimeSpan.FromSeconds(90),
-            LastUpdatedUtc = Now - TimeSpan.FromMilliseconds(300), // fresh
+            LastUpdatedUtc = Now - TimeSpan.FromMilliseconds(300),
         });
 
-        // Position is compensated forward by the 300ms latency (>100ms gate) rather than reset.
         Assert.True(r.Position >= TimeSpan.FromSeconds(90));
         Assert.True(r.Position < TimeSpan.FromSeconds(91));
     }
@@ -104,7 +99,6 @@ public class TimelinePositionSolverTests
     [Fact]
     public void Playing_CompensatesForTimelineLatency()
     {
-        // Playing, timeline updated 2s ago at rate 1.0 → position advances ~2s.
         var r = TimelinePositionSolver.Solve(Baseline with
         {
             IsPlaying = true,
@@ -113,7 +107,7 @@ public class TimelinePositionSolverTests
         });
 
         Assert.Equal(32.0, r.Position.TotalSeconds, 2);
-        Assert.Equal(Now, r.LastUpdatedUtc); // compensation re-anchors last-updated to now
+        Assert.Equal(Now, r.LastUpdatedUtc);
     }
 
     [Fact]
@@ -127,30 +121,26 @@ public class TimelinePositionSolverTests
             LastUpdatedUtc = Now - TimeSpan.FromSeconds(2),
         });
 
-        // 2s latency * 2.0 rate = ~4s advance.
         Assert.Equal(34.0, r.Position.TotalSeconds, 2);
     }
 
     [Fact]
     public void Playing_CompensationCappedAt95PercentOfDuration()
     {
-        // Huge latency would overshoot the end; compensation is capped at 95% of duration.
         var r = TimelinePositionSolver.Solve(Baseline with
         {
             IsPlaying = true,
-            IsInitialOrBigChange = true, // widens the compensation window to duration+5s
+            IsInitialOrBigChange = true,
             Position = TimeSpan.FromSeconds(150),
             LastUpdatedUtc = Now - TimeSpan.FromSeconds(120),
         });
 
-        // 95% of 180s = 171s.
         Assert.Equal(171.0, r.Position.TotalSeconds, 2);
     }
 
     [Fact]
     public void Playing_SmallLatencyBelowGate_NoCompensation()
     {
-        // Latency <= 100ms is ignored.
         var r = TimelinePositionSolver.Solve(Baseline with
         {
             IsPlaying = true,
@@ -164,7 +154,6 @@ public class TimelinePositionSolverTests
     [Fact]
     public void Playing_StaleBeyondWindow_NoCompensation()
     {
-        // Non-initial, non-browser: window is 15s. A 20s-old timeline is out of window → ignored.
         var r = TimelinePositionSolver.Solve(Baseline with
         {
             IsPlaying = true,
@@ -173,7 +162,7 @@ public class TimelinePositionSolverTests
         });
 
         Assert.Equal(TimeSpan.FromSeconds(30), r.Position);
-        Assert.Equal(Now - TimeSpan.FromSeconds(20), r.LastUpdatedUtc); // unchanged
+        Assert.Equal(Now - TimeSpan.FromSeconds(20), r.LastUpdatedUtc);
     }
 
     [Fact]
@@ -181,7 +170,7 @@ public class TimelinePositionSolverTests
     {
         var r = TimelinePositionSolver.Solve(Baseline with
         {
-            Position = TimeSpan.FromMinutes(5), // beyond the 3-minute duration
+            Position = TimeSpan.FromMinutes(5),
         });
 
         Assert.Equal(TimeSpan.FromMinutes(3), r.Position);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
@@ -27,9 +27,8 @@ internal sealed class LyricsService : IDisposable
     public async Task<List<LyricLine>?> FetchSyncedLyricsAsync(string trackName, string artistName, int durationSeconds)
     {
         string fetchKey = $"{trackName}|{artistName}|{durationSeconds}";
-        if (fetchKey == _lastFetchKey) return null; // Already fetched for this track
+        if (fetchKey == _lastFetchKey) return null;
 
-        // Cancel any in-flight request
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
@@ -101,7 +100,6 @@ internal sealed class LyricsService : IDisposable
             string timestamp = line[1..closeBracket];
             string text = line[(closeBracket + 1)..].Trim();
 
-            // Skip empty/instrumental lines
             if (string.IsNullOrWhiteSpace(text)) continue;
 
             if (TryParseTimestamp(timestamp, out var time))
@@ -118,7 +116,6 @@ internal sealed class LyricsService : IDisposable
     {
         result = TimeSpan.Zero;
 
-        // Format: mm:ss.xx or mm:ss.xxx
         int colonIdx = ts.IndexOf(':');
         int dotIdx = ts.IndexOf('.');
         if (colonIdx < 1 || dotIdx < colonIdx) return false;
@@ -132,7 +129,6 @@ internal sealed class LyricsService : IDisposable
         if (!int.TryParse(fracStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out int frac))
             return false;
 
-        // Normalize to milliseconds
         int ms = fracStr.Length switch
         {
             1 => frac * 100,

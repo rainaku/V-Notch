@@ -3,17 +3,10 @@ using System.Text.RegularExpressions;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Pure YouTube metadata parsing helpers extracted from <see cref="MediaMetadataLookupService"/>.
-/// Deterministic from their arguments (a parsed <see cref="JsonElement"/> or a string), so they are
-/// directly unit-testable without any HTTP access.
-/// </summary>
 internal static class YouTubeMetadataParsing
 {
-    // Preference order for YouTube Data API thumbnail sizes (best first).
     private static readonly string[] ThumbnailPreference = { "maxres", "standard", "high", "medium", "default" };
 
-    /// <summary>Picks the best available thumbnail URL from a Data API <c>thumbnails</c> object, or null.</summary>
     public static string? PickBestThumbnail(JsonElement thumbnails)
     {
         foreach (var key in ThumbnailPreference)
@@ -29,7 +22,6 @@ internal static class YouTubeMetadataParsing
         return null;
     }
 
-    /// <summary>True when a YouTube Data API error body indicates the daily quota / rate limit was hit.</summary>
     public static bool LooksLikeQuotaExceeded(string body)
     {
         if (string.IsNullOrWhiteSpace(body))
@@ -39,7 +31,6 @@ internal static class YouTubeMetadataParsing
                body.Contains("rateLimitExceeded", StringComparison.Ordinal);
     }
 
-    /// <summary>Parses an ISO-8601 duration (e.g. <c>PT3M20S</c>) into a <see cref="TimeSpan"/>; <see cref="TimeSpan.Zero"/> on failure.</summary>
     public static TimeSpan ParseIso8601Duration(string iso)
     {
         try

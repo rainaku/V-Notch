@@ -71,8 +71,7 @@ public class UpdateService : IUpdateService
             var latestVersion = root.GetProperty("tag_name").GetString()?.TrimStart('v') ?? "";
             var publishedAt = root.GetProperty("published_at").GetDateTime();
             var releaseNotes = root.GetProperty("body").GetString() ?? "";
-            
-            // Find installer asset
+
             string downloadUrl = "";
             if (root.TryGetProperty("assets", out var assets))
             {
@@ -121,7 +120,6 @@ public class UpdateService : IUpdateService
 
             var tempPath = Path.Combine(Path.GetTempPath(), "V-Notch-Setup.exe");
 
-            // Download installer with progress reporting.
             using var response = await _httpClient.GetAsync(
                 updateInfo.DownloadUrl,
                 HttpCompletionOption.ResponseHeadersRead,
@@ -159,8 +157,6 @@ public class UpdateService : IUpdateService
                 progress?.Report(100);
             }
 
-            // Run the user-level bootstrapper. Do not elevate here: elevation can make the
-            // downloaded setup appear disconnected from the current desktop session.
             var startInfo = new ProcessStartInfo
             {
                 FileName = tempPath,
@@ -174,14 +170,12 @@ public class UpdateService : IUpdateService
                 return false;
             }
 
-            // If user cancels setup, auto-start V-Notch again.
             var currentExe = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
             if (!string.IsNullOrWhiteSpace(currentExe))
             {
                 StartRestartWatcherOnCancel(installerProcess.Id, currentExe);
             }
 
-            // Close current application
             Application.Current.Shutdown();
 
             return true;
@@ -206,7 +200,6 @@ public class UpdateService : IUpdateService
             var escapedAppPath = EscapePowerShellSingleQuoted(appExePath);
             var escapedWatcherPath = EscapePowerShellSingleQuoted(watcherPath);
 
-            // NSIS commonly returns exit code 1 when user cancels.
             var script = $@"
 try {{
     $p = Get-Process -Id {installerPid} -ErrorAction Stop

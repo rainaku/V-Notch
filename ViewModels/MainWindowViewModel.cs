@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Windows.Media.Imaging;
 using VNotch.Models;
@@ -440,7 +440,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            // Use absolute seek with the locally predicted position to avoid drift between UI and SMTC's stale timeline position.
             await _mediaService.SeekToAbsoluteAsync(newPos);
         }
         catch (Exception ex)

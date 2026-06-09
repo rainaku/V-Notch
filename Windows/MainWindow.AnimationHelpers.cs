@@ -20,7 +20,6 @@ public partial class MainWindow
     {
         if (_isExpanded || _isAnimating || _isGreetingActive) return;
 
-        // Don't reset hover visuals while a gesture drag is active — the user is still interacting
         if (!isHovered && _isGestureActive) return;
 
         double targetScale = isHovered ? 1.08 : 1.0;
@@ -36,7 +35,6 @@ public partial class MainWindow
     {
         if (_isExpanded || _isAnimating || _isGreetingActive) return;
 
-        // Don't reset hover visuals while a gesture drag is active
         if (!isHovered && _isGestureActive) return;
 
         ResetAnimationThumbnailOverlay();
@@ -57,7 +55,7 @@ public partial class MainWindow
             ? _collapsedHeight + (islandMode ? 22 : 36)
             : _collapsedHeight;
         double infoOpacity = isHovered ? 1 : 0;
-        
+
         var duration = isHovered ? _dur500 : _dur350;
         var easing = isHovered ? (IEasingFunction)_easeThumbSpring : _easeExpOut6;
         int animFps = VNotch.Services.AnimationConfig.TargetFps;
@@ -86,13 +84,9 @@ public partial class MainWindow
         {
             CompactHoverInfo.Visibility = Visibility.Visible;
 
-            // Finalize layout so the title container width and (custom font) text metrics are set
-            // before centering, otherwise the title visibly jumps once layout settles.
             CompactHoverInfo.UpdateLayout();
             UpdateCompactMarquee();
 
-            // Re-validate on the next layout tick (width is already pinned) so any tiny correction
-            // happens during the fade-in instead of as a jerk at the end of the width animation.
             QueueCompactMarqueeRefresh();
         }
 
@@ -117,8 +111,6 @@ public partial class MainWindow
             : _cornerRadiusCollapsed;
         AnimateCornerRadius(radius, duration.TimeSpan);
 
-        // Dynamic Island scales from the top edge, so add radius as the artwork grows
-        // instead of leaving the enlarged thumbnail looking squared-off.
         double thumbRadius = isHovered && islandMode ? 8 : 6;
         double startThumbRadius = CompactThumbnailBorder.CornerRadius.TopLeft;
         if (Math.Abs(thumbRadius - startThumbRadius) > 0.1)
@@ -132,11 +124,11 @@ public partial class MainWindow
     private void UpdateCompactMarquee()
     {
         if (_currentMediaInfo == null) return;
-        
+
         CompactTitleMarquee.Text = _currentMediaInfo.CurrentTrack;
         CompactTitleMarqueeTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         CompactTitleMarquee.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        
+
         double textWidth = CompactTitleMarquee.DesiredSize.Width;
 
         double containerWidth = GetCompactTitleContainerWidth();
@@ -152,15 +144,15 @@ public partial class MainWindow
 
         if (textWidth > containerWidth + marqueeTriggerOverflow && containerWidth > 0)
         {
-            
+
             CompactHoverInfo.OpacityMask = CompactMarqueeFadeBrush;
             MarqueeController.StartMarqueeAnimation(CompactTitleMarqueeTranslate, textWidth - containerWidth + 12);
         }
         else
         {
-            
+
             CompactHoverInfo.OpacityMask = null;
-            
+
             CompactTitleMarqueeTranslate.BeginAnimation(TranslateTransform.XProperty, null);
             CompactTitleMarqueeTranslate.X = Math.Max(0, (containerWidth - textWidth) / 2);
         }
@@ -317,14 +309,11 @@ public partial class MainWindow
         button.RenderTransform = transform;
         button.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        // Cancel any in-progress animations
         transform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         transform.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
-        // Phase 1: Quick squish down (haptic press feel)
         var squish = MakeAnim(1d, 0.82d, _dur80, _easeQuadIn, null);
 
-        // Phase 2: Spring bounce back with overshoot (haptic release)
         var bounce = new DoubleAnimation(0.82, 1.0, _dur250)
         {
             EasingFunction = _easeHapticBounce,
@@ -349,11 +338,7 @@ public partial class MainWindow
 
     private void PlayNextSkipAnimation(System.Windows.Shapes.Path arrow0, System.Windows.Shapes.Path arrow1, System.Windows.Shapes.Path arrow2)
     {
-        // Conveyor belt effect for "next/forward":
-        // arrow1 (visible center) slides out to the right + fades out
-        // arrow0 (hidden, behind) slides in from left + fades in
-        // arrow2 stays hidden
-        const double slideDistance = 220; // in 512-unit canvas space
+        const double slideDistance = 220;
 
         var arrow1Transform = arrow1.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow1.RenderTransform = arrow1Transform;
@@ -374,7 +359,6 @@ public partial class MainWindow
 
         fadeOut1.Completed += (s, e) =>
         {
-            // Reset: arrow1 back to visible resting state
             arrow1Transform.X = 0;
             arrow1.Opacity = 1;
             arrow0Transform.X = 0;
@@ -394,11 +378,7 @@ public partial class MainWindow
 
     private void PlayPrevSkipAnimation(System.Windows.Shapes.Path arrow0, System.Windows.Shapes.Path arrow1, System.Windows.Shapes.Path arrow2)
     {
-        // Conveyor belt effect for "prev/backward":
-        // arrow2 (visible center) slides out to the left + fades out
-        // arrow0 (hidden, behind) slides in from right + fades in
-        // arrow1 stays hidden
-        const double slideDistance = 220; // in 512-unit canvas space
+        const double slideDistance = 220;
 
         var arrow2Transform = arrow2.RenderTransform as TranslateTransform ?? new TranslateTransform();
         arrow2.RenderTransform = arrow2Transform;
@@ -419,7 +399,6 @@ public partial class MainWindow
 
         fadeOut2.Completed += (s, e) =>
         {
-            // Reset: arrow2 back to visible resting state
             arrow2Transform.X = 0;
             arrow2.Opacity = 1;
             arrow0Transform.X = 0;
@@ -434,12 +413,10 @@ public partial class MainWindow
 
     private void PlayAppearAnimation()
     {
-        // Only show greeting if enabled in settings
         bool showGreeting = _settings.EnableHelloGreeting;
 
         if (showGreeting)
         {
-            // Mark greeting active immediately so deferred init won't start media/modules
             _isGreetingActive = true;
             _isAnimating = true;
         }
@@ -458,7 +435,6 @@ public partial class MainWindow
         {
             opacityAnim.Completed += (s, e) =>
             {
-                // Start greeting animation after notch appears
                 PlayGreetingAnimation();
             };
         }
@@ -519,11 +495,6 @@ public partial class MainWindow
             : new CornerRadius(0, 0, radius, radius);
     }
 
-    // ─── Notch <-> Dynamic Island transition ───
-    // A single eased parameter (0 = notch attached to the top edge, 1 = floating island)
-    // drives width, height, top/bottom corner radius, the detach margin and the ear fade
-    // together so the two states morph into each other instead of snapping.
-
     private bool _isModeTransitioning;
     private double _mtNotchW, _mtNotchH, _mtNotchBottomR;
     private double _mtIslandW, _mtIslandH, _mtIslandR;
@@ -545,10 +516,10 @@ public partial class MainWindow
 
         double width = w._mtNotchW + (w._mtIslandW - w._mtNotchW) * t;
         double height = w._mtNotchH + (w._mtIslandH - w._mtNotchH) * t;
-        double topRadius = w._mtIslandR * t;                                  // 0 (notch) -> islandR
+        double topRadius = w._mtIslandR * t;
         double bottomRadius = w._mtNotchBottomR + (w._mtIslandR - w._mtNotchBottomR) * t;
-        double marginTop = DynamicIslandTopMargin * t;                        // 0 -> detached
-        double earOpacity = 1.0 - t;                                          // ears fade out toward island
+        double marginTop = DynamicIslandTopMargin * t;
+        double earOpacity = 1.0 - t;
 
         w.ApplyModeTransitionFrame(width, height, topRadius, bottomRadius, marginTop, earOpacity);
     }
@@ -557,7 +528,6 @@ public partial class MainWindow
     {
         bool toIsland = _settings.EnableDynamicIslandMode;
 
-        // Endpoints are independent of the current mode (both derived from the base settings).
         _mtNotchW = _settings.Width;
         _mtNotchH = _settings.Height;
         _mtNotchBottomR = _settings.CornerRadius;
@@ -568,22 +538,17 @@ public partial class MainWindow
 
         _isModeTransitioning = true;
 
-        // Ears must be present to fade; opacity is driven by the animation frame.
         if (LeftEar != null) LeftEar.Visibility = Visibility.Visible;
         if (RightEar != null) RightEar.Visibility = Visibility.Visible;
         if (LeftShadowEar != null) LeftShadowEar.Visibility = Visibility.Visible;
         if (RightShadowEar != null) RightShadowEar.Visibility = Visibility.Visible;
 
-        // Clear any held size/corner animations so our per-frame writes take effect.
         NotchBorder.BeginAnimation(WidthProperty, null);
         NotchBorder.BeginAnimation(HeightProperty, null);
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
         double from = toIsland ? 0.0 : 1.0;
         double to = toIsland ? 1.0 : 0.0;
-        // Base value = destination so that when the animation stops (FillBehavior.Stop) the
-        // property reverts to the end state, not the start — the explicit From/To still starts
-        // the visible animation at `from`, and no render happens before BeginAnimation overrides it.
         ModeTransitionT = to;
 
         var anim = new DoubleAnimation(from, to, _dur450)
@@ -634,7 +599,6 @@ public partial class MainWindow
     {
         _isModeTransitioning = false;
 
-        // Snap to the exact destination values so subsequent expand/collapse uses correct geometry.
         NotchBorder.Width = _collapsedWidth;
         NotchBorder.Height = _collapsedHeight;
 
@@ -653,7 +617,6 @@ public partial class MainWindow
             NotchContainer.Margin = new Thickness(m.Left, toIsland ? DynamicIslandTopMargin : 0, m.Right, m.Bottom);
         }
 
-        // Reset ear opacity and snap visibility to the destination state.
         var earVis = toIsland ? Visibility.Collapsed : Visibility.Visible;
         if (LeftEar != null) { LeftEar.Opacity = 1; LeftEar.Visibility = earVis; }
         if (RightEar != null) { RightEar.Opacity = 1; RightEar.Visibility = earVis; }
@@ -724,12 +687,10 @@ public partial class MainWindow
     {
         double startRadius = NotchBorder.CornerRadius.BottomLeft;
 
-        // Cancel any in-progress corner radius animation
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
         if (Math.Abs(targetRadius - startRadius) < 0.5) return;
 
-        // Set local value to the captured visual state so there's no jump
         CurrentCornerRadius = startRadius;
 
         var anim = MakeAnim(startRadius, targetRadius, new Duration(duration), _easeExpOut6, null);
@@ -784,14 +745,13 @@ public partial class MainWindow
         double surroundOpacity = isHovered ? 0.45 : 1.0;
         double timeScale = isHovered ? 1.22 : 1.0;
         double timeTranslateY = isHovered ? 3.0 : 0.0;
-        
+
         var duration = TimeSpan.FromMilliseconds(isHovered ? 350 : 250);
         var easing = (IEasingFunction)(isHovered
             ? new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut }
             : new CubicEase { EasingMode = EasingMode.EaseOut });
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        // Progress bar — animate height directly (preserves corner radius proportions)
         ProgressBarContainer.BeginAnimation(MarginProperty, null);
         double barHeight = isHovered ? 10 : 4;
         var heightAnim = new DoubleAnimation { To = barHeight, Duration = duration, EasingFunction = easing };
@@ -802,14 +762,12 @@ public partial class MainWindow
         ProgressBar.BeginAnimation(HeightProperty, heightAnim);
         ProgressBarMainScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
 
-        // Animate clip radius to keep rounded ends (half of height)
         double barRadius = barHeight / 2.0;
         var clipRadiusAnim = new DoubleAnimation { To = barRadius, Duration = duration, EasingFunction = easing };
         Timeline.SetDesiredFrameRate(clipRadiusAnim, fps);
         ProgressBarClip.BeginAnimation(RectangleGeometry.RadiusXProperty, clipRadiusAnim);
         ProgressBarClip.BeginAnimation(RectangleGeometry.RadiusYProperty, clipRadiusAnim);
 
-        // Time text — scale + translate down
         if (_currentTimeHoverTransform == null)
         {
             _currentTimeHoverScale = new ScaleTransform(1, 1);
@@ -843,7 +801,6 @@ public partial class MainWindow
         _remainingTimeHoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, timeScaleAnim);
         _remainingTimeHoverTranslate!.BeginAnimation(TranslateTransform.YProperty, timeTranslateAnim);
 
-        // Blur & dim controls only (not title/artist)
         var blurAnim = new DoubleAnimation { To = blurRadius, Duration = duration, EasingFunction = easing };
         var dimAnim = new DoubleAnimation { To = surroundOpacity, Duration = duration, EasingFunction = easing };
         Timeline.SetDesiredFrameRate(blurAnim, fps);
@@ -955,7 +912,6 @@ public partial class MainWindow
         };
         Timeline.SetDesiredFrameRate(settingsRotateAnim, animFps);
 
-        // Update notification animation (with 30ms stagger when showing, between battery and settings)
         if (_isUpdateAvailable && UpdateNotificationButton != null)
         {
             var updateOpacityAnim = new DoubleAnimation
@@ -978,7 +934,6 @@ public partial class MainWindow
 
             if (show)
             {
-                // Reset and start pulse before reveal; don't depend on Completed timing.
                 if (UpdateIconBrush != null)
                 {
                     UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
@@ -998,11 +953,9 @@ public partial class MainWindow
             UpdateNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, updateTranslateAnim);
         }
 
-        // Apply animations
         BatterySection.BeginAnimation(OpacityProperty, batteryOpacityAnim);
         BatteryTranslate.BeginAnimation(TranslateTransform.YProperty, batteryTranslateAnim);
 
-        // NavIconsPanel (icons themselves) always animate with expand/collapse — independent of battery setting
         var navOpacityAnim = new DoubleAnimation
         {
             To = show ? 1.0 : 0.0,
@@ -1022,7 +975,6 @@ public partial class MainWindow
         NavIconsPanel.BeginAnimation(OpacityProperty, navOpacityAnim);
         NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, navTranslateAnim);
 
-        // NavIconsBackground (black border) only in secondary view
         if (_isSecondaryView)
         {
             var navBgOpacityAnim = new DoubleAnimation
@@ -1061,7 +1013,6 @@ public void PlaySettingsEjectAnimation()
         var ejectDur = TimeSpan.FromMilliseconds(150);
         var springDur = TimeSpan.FromMilliseconds(600);
 
-        // Notch width: expand then spring back
         double currentWidth = _collapsedWidth;
         double peakWidth = currentWidth + 40;
 
@@ -1074,7 +1025,6 @@ public void PlaySettingsEjectAnimation()
             _easeSoftSpring));
         Timeline.SetDesiredFrameRate(widthAnim, fps);
 
-        // Notch height: expand then spring back
         double currentHeight = _collapsedHeight;
         double peakHeight = currentHeight + 8;
 
@@ -1087,7 +1037,6 @@ public void PlaySettingsEjectAnimation()
             _easeSoftSpring));
         Timeline.SetDesiredFrameRate(heightAnim, fps);
 
-        // ScaleY: brief stretch downward (ejecting)
         var scaleY = new DoubleAnimationUsingKeyFrames();
         scaleY.KeyFrames.Add(new EasingDoubleKeyFrame(1.15,
             KeyTime.FromTimeSpan(ejectDur),
@@ -1108,7 +1057,6 @@ public void PlaySettingsAbsorbAnimation()
 
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        // Cancel any in-progress animations on the notch
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -1119,9 +1067,8 @@ public void PlaySettingsAbsorbAnimation()
         var openDur = TimeSpan.FromMilliseconds(200);
         var springDur = TimeSpan.FromMilliseconds(700);
 
-        // --- Notch width: expand wider then spring back ---
         double currentWidth = _collapsedWidth;
-        double peakWidth = currentWidth + 60; 
+        double peakWidth = currentWidth + 60;
 
         var widthAnim = new DoubleAnimationUsingKeyFrames { BeginTime = absorbDelay };
         widthAnim.KeyFrames.Add(new EasingDoubleKeyFrame(peakWidth,
@@ -1132,7 +1079,6 @@ public void PlaySettingsAbsorbAnimation()
             _easeSoftSpring));
         Timeline.SetDesiredFrameRate(widthAnim, fps);
 
-        // --- Notch height: expand slightly then spring back ---
         double currentHeight = _collapsedHeight;
         double peakHeight = currentHeight + 10;
 
@@ -1145,7 +1091,6 @@ public void PlaySettingsAbsorbAnimation()
             _easeSoftSpring));
         Timeline.SetDesiredFrameRate(heightAnim, fps);
 
-        // --- Corner radius: open up (larger radius = more rounded/open) then back ---
         double currentRadius = _cornerRadiusCollapsed;
         double peakRadius = currentRadius + 6;
 
@@ -1158,7 +1103,6 @@ public void PlaySettingsAbsorbAnimation()
             _easeSoftSpring));
         Timeline.SetDesiredFrameRate(radiusAnim, fps);
 
-        // --- Subtle scale Y stretch (notch "breathes in") ---
         var scaleY = new DoubleAnimationUsingKeyFrames { BeginTime = absorbDelay };
         scaleY.KeyFrames.Add(new EasingDoubleKeyFrame(1.12,
             KeyTime.FromTimeSpan(openDur),
@@ -1179,30 +1123,21 @@ public void PlaySettingsAbsorbAnimation()
 
     #region Apple-Style Collapse Fade Out
 
-    /// <summary>
-    /// Fade out UI elements with Apple-style staggered timing before notch collapse.
-    /// Elements fade out in waves with blur effects for smooth, natural motion.
-    /// Only animates elements that are currently visible to avoid breaking existing logic.
-    /// </summary>
     private void AnimateExpandedContentFadeOut()
     {
-        // Safety: Only run if we're actually in expanded state with visible content
         if (!_isExpanded || ExpandedContent.Visibility != Visibility.Visible) return;
 
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        // Apple-style timing: fast fade with slight stagger
         var baseDuration = new Duration(TimeSpan.FromMilliseconds(180));
-        var easing = _easeQuadIn; // Fast ease-in for disappearing elements
+        var easing = _easeQuadIn;
 
-        // ─── Wave 1: Media controls and interactive elements (fade first) ───
         var wave1Delay = TimeSpan.Zero;
 
-        // Media control buttons - only fade if visible and opacity is not already 0
         if (PlayPauseButton != null && PlayPauseButton.Visibility == Visibility.Visible)
         {
             double currentOpacity = PlayPauseButton.Opacity;
-            if (currentOpacity > 0.01) // Only animate if actually visible
+            if (currentOpacity > 0.01)
             {
                 PlayPauseButton.BeginAnimation(OpacityProperty, null);
                 var fadeAnim = MakeAnim(currentOpacity, 0, baseDuration, easing, wave1Delay);
@@ -1235,7 +1170,6 @@ public void PlaySettingsAbsorbAnimation()
             }
         }
 
-        // ─── Wave 2: Progress bar (fades early to feel responsive) ───
         var wave2Delay = TimeSpan.FromMilliseconds(20);
 
         if (ProgressBarContainer != null && ProgressBarContainer.Visibility == Visibility.Visible)
@@ -1262,7 +1196,6 @@ public void PlaySettingsAbsorbAnimation()
             }
         }
 
-        // ─── Wave 3: Calendar widget ───
         var wave3Delay = TimeSpan.FromMilliseconds(40);
 
         if (CalendarWidget != null && CalendarWidget.Visibility == Visibility.Visible)
@@ -1277,7 +1210,6 @@ public void PlaySettingsAbsorbAnimation()
             }
         }
 
-        // ─── Wave 4: Lyrics (if active) ───
         if (_isLyricsActive && LyricsBlurBackground != null && LyricsBlurBackground.Visibility == Visibility.Visible)
         {
             double currentOpacity = LyricsBlurBackground.Opacity;
@@ -1291,7 +1223,6 @@ public void PlaySettingsAbsorbAnimation()
             }
         }
 
-        // ─── Music Visualizer fade out (if visible) ───
         if (MusicViz != null && MusicViz.Visibility == Visibility.Visible)
         {
             double currentOpacity = MusicViz.Opacity;
@@ -1305,15 +1236,8 @@ public void PlaySettingsAbsorbAnimation()
         }
     }
 
-    /// <summary>
-    /// Restore UI element opacity after collapse animation completes.
-    /// Ensures elements are visible when notch expands again.
-    /// This is called during expand to reset any fade-out state.
-    /// </summary>
     private void RestoreExpandedContentOpacity()
     {
-        // Stop any ongoing fade animations and restore full opacity
-        // Only restore if element exists - don't force visibility changes
         if (PlayPauseButton != null)
         {
             PlayPauseButton.BeginAnimation(OpacityProperty, null);
@@ -1363,23 +1287,16 @@ public void PlaySettingsAbsorbAnimation()
                 MusicViz.Opacity = 1.0;
         }
 
-        // Lyrics opacity is handled separately in ExpandNotch's completion handler
     }
 
-    /// <summary>
-    /// Apple-style staggered fade out for timer/clock view elements.
-    /// Countdown display, buttons, and progress fade in waves before container animates.
-    /// </summary>
     private void AnimateTimerContentFadeOut()
     {
-        // Safety: Only run if timer content is actually visible
         if (TimerContent == null || TimerContent.Visibility != Visibility.Visible) return;
 
         int fps = VNotch.Services.AnimationConfig.TargetFps;
         var baseDuration = new Duration(TimeSpan.FromMilliseconds(160));
         var easing = _easeQuadIn;
 
-        // ─── Wave 1: Countdown display (main timer text) ───
         if (CountdownDisplay != null && CountdownDisplay.Visibility == Visibility.Visible)
         {
             double currentOpacity = CountdownDisplay.Opacity;
@@ -1392,7 +1309,6 @@ public void PlaySettingsAbsorbAnimation()
             }
         }
 
-        // ─── Wave 2: Progress fill and display panel ───
         var wave2Delay = TimeSpan.FromMilliseconds(25);
 
         if (CountdownProgressFill != null && CountdownProgressFill.Visibility == Visibility.Visible)
@@ -1419,7 +1335,6 @@ public void PlaySettingsAbsorbAnimation()
             }
         }
 
-        // ─── Wave 3: Control buttons (start, reset, plus, minus) ───
         var wave3Delay = TimeSpan.FromMilliseconds(40);
 
         if (CountdownStartBtn != null && CountdownStartBtn.Visibility == Visibility.Visible)
@@ -1471,13 +1386,8 @@ public void PlaySettingsAbsorbAnimation()
         }
     }
 
-    /// <summary>
-    /// Restore timer/clock view element opacity when switching to timer view.
-    /// Ensures all countdown elements are visible and ready for animation.
-    /// </summary>
     private void RestoreTimerContentOpacity()
     {
-        // Restore all timer elements to full opacity
         if (CountdownDisplay != null)
         {
             CountdownDisplay.BeginAnimation(OpacityProperty, null);

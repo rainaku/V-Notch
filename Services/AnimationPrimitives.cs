@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Media.Animation;
 
@@ -23,11 +23,9 @@ internal static class AnimationPrimitives
     public static readonly CubicBezierEase _easeAppleOut =
         Freeze(new CubicBezierEase(0.32, 0.72, 0.0, 1.0) { EasingMode = EasingMode.EaseIn });
 
-    // Symmetric ease-in-out for crossfades / size changes.
     public static readonly CubicBezierEase _easeAppleInOut =
         Freeze(new CubicBezierEase(0.4, 0.0, 0.2, 1.0) { EasingMode = EasingMode.EaseIn });
 
-    // Quick exit curve for outgoing content.
     public static readonly CubicBezierEase _easeAppleIn =
         Freeze(new CubicBezierEase(0.4, 0.0, 1.0, 1.0) { EasingMode = EasingMode.EaseIn });
 
@@ -121,7 +119,6 @@ internal sealed class CubicBezierEase : EasingFunctionBase
         return Sample(t, Y1, Y2);
     }
 
-    // Newton-Raphson from the input as the initial guess; clamped against degenerate points.
     private double SolveForT(double x)
     {
         double t = x;

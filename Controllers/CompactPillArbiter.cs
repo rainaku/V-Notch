@@ -5,11 +5,11 @@ namespace VNotch.Controllers;
 public enum CompactPillSlot
 {
     None       = 0,
-    Clipboard  = 1, // "Copied" flash
-    Volume     = 2, // Volume scrub indicator
-    Bluetooth  = 3, // Connect / disconnect toast
-    Charging   = 4, // Plugged / unplugged glance
-    Greeting   = 5  // Startup "Hello" handwriting
+    Clipboard  = 1,
+    Volume     = 2,
+    Bluetooth  = 3,
+    Charging   = 4,
+    Greeting   = 5
 }
 
 public sealed class CompactPillArbiter
@@ -55,7 +55,6 @@ public sealed class CompactPillArbiter
         {
             if (_activeSlot != CompactPillSlot.None && (int)slot < (int)_activeSlot)
             {
-                // A higher-priority overlay is already showing — reject.
                 return new AcquireResult(false, _activeSlot, 0);
             }
 

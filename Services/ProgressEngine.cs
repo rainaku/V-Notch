@@ -19,12 +19,12 @@ public struct ProgressSnapshot
     public TimeSpan Position;
     public TimeSpan Duration;
     public bool IsPlaying;
-    public bool IsYouTube;  // Actually means "IsBrowserSource" - includes YouTube, SoundCloud, Spotify Web, and all browser-based media
+    public bool IsYouTube;
     public double PlaybackRate;
     public bool IsSeekEnabled;
     public bool IsIndeterminate;
     public DateTime Timestamp;
-    public long SequenceNumber;  
+    public long SequenceNumber;
 }
 
 public struct UiProgressFrame
@@ -33,7 +33,7 @@ public struct UiProgressFrame
     public TimeSpan Duration;
     public bool ShowIndeterminate;
     public ProgressState State;
-    public bool DurationJustChanged;  
+    public bool DurationJustChanged;
 }
 
 public class ProgressEngine
@@ -48,12 +48,12 @@ public class ProgressEngine
     private double _playbackRate = 1.0;
     private bool _isIndeterminate;
     private bool _isSeekEnabled;
-    private bool _durationJustChanged = false;  
-    private bool _isYouTube = false;  // Track if source is browser-based  
+    private bool _durationJustChanged = false;
+    private bool _isYouTube = false;
 
     private DateTime _lastSnapshotTimestampUtc = DateTime.MinValue;
-    private long _lastSnapshotSequence = -1;  
-    private TimeSpan _lastSnapshotPosition = TimeSpan.Zero;  // Track last snapshot position
+    private long _lastSnapshotSequence = -1;
+    private TimeSpan _lastSnapshotPosition = TimeSpan.Zero;
     private DateTime _seekDebounceEndUtc = DateTime.MinValue;
     private DateTime _allowBackwardUntilUtc = DateTime.MinValue;
     private DateTime _seekPauseGraceUntilUtc = DateTime.MinValue;
@@ -64,7 +64,7 @@ public class ProgressEngine
     private static readonly TimeSpan SnapshotOutOfOrderTolerance = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan PauseBackstepTolerance = TimeSpan.FromMilliseconds(450);
     private static readonly TimeSpan ResumeBackstepTolerance = TimeSpan.FromMilliseconds(350);
-    
+
     private static readonly TimeSpan IgnoreCorrectionThreshold = TimeSpan.FromMilliseconds(60);
     private static readonly TimeSpan SmoothCorrectionThreshold = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SmoothBackwardCap = TimeSpan.FromMilliseconds(400);
@@ -86,7 +86,6 @@ public class ProgressEngine
                 : snapshot.Timestamp.ToUniversalTime();
             TimeSpan effectiveSnapshotPosition = GetEffectiveSnapshotPosition(snapshot, snapshotTsUtc, nowUtc);
 
-            // ── Diagnostic: log every snapshot with key state ──
             TimeSpan snapshotAge = nowUtc - snapshotTsUtc;
             TimeSpan currentPredictedForLog = _baseTimeUtc != DateTime.MinValue ? PredictPosition(nowUtc) : TimeSpan.FromSeconds(-1);
             RuntimeLog.Log("PROGRESS-ENGINE-SNAP",
@@ -107,8 +106,7 @@ public class ProgressEngine
                 RuntimeLog.Log("PROGRESS-ENGINE-REJECT", $"timestamp out-of-order: snapshot={snapshotTsUtc:O} < last={_lastSnapshotTimestampUtc:O}");
                 return;
             }
-            
-            // Reject duplicate snapshots (same timestamp AND same position) This prevents stale snapshots from being reused and causing backward jumps
+
             if (_lastSnapshotTimestampUtc != DateTime.MinValue &&
                 snapshotTsUtc == _lastSnapshotTimestampUtc &&
                 Math.Abs((snapshot.Position - _lastSnapshotPosition).TotalSeconds) < 0.01)
@@ -122,22 +120,17 @@ public class ProgressEngine
                 var currentPredicted = PredictPosition(nowUtc);
                 var snapshotPredicted = effectiveSnapshotPosition;
                 var backwardDiff = currentPredicted - snapshotPredicted;
-                
-                bool likelySessionSwitch = snapshot.Duration > TimeSpan.Zero && 
+
+                bool likelySessionSwitch = snapshot.Duration > TimeSpan.Zero &&
                     Math.Abs((snapshot.Duration - _duration).TotalSeconds) > Math.Max(5.0, _duration.TotalSeconds * 0.1);
-                
-                // User seek detection: large backward jump in position Must be more tolerant than backward threshold to avoid false rejections
-                bool likelyUserSeekBackward = backwardDiff.TotalSeconds > 5.0 && 
+
+                bool likelyUserSeekBackward = backwardDiff.TotalSeconds > 5.0 &&
                     Math.Abs((effectiveSnapshotPosition - _basePosition).TotalSeconds) > 5.0;
-                
+
                 bool isFalseZeroGlitch = effectiveSnapshotPosition.TotalSeconds < 1.0 &&
                     currentPredicted.TotalSeconds > 15.0 &&
                     _duration.TotalSeconds > 0;
 
-                // A zero report that arrives once the track has essentially reached its end is a
-                // genuine loop/replay (e.g. a single Spotify song on repeat), NOT an SMTC glitch.
-                // Without this carve-out the loop-to-zero snapshot is rejected, so the bar keeps
-                // predicting past the end and only snaps back seconds later (or never).
                 bool predictedAtTrackEnd = _duration > TimeSpan.Zero &&
                     currentPredicted.TotalSeconds >= _duration.TotalSeconds - 2.0;
 
@@ -148,10 +141,9 @@ public class ProgressEngine
                         $"rawPos={snapshot.Position.TotalSeconds:F2}s — rejecting SMTC zero report");
                     return;
                 }
-                
-                // Platform-aware backward threshold Browser sources have higher latency but need balance Too high (3
+
                 double backwardThreshold = snapshot.IsYouTube ? 2.0 : 0.5;
-                
+
                 if (backwardDiff.TotalSeconds > backwardThreshold && !likelySessionSwitch && !likelyUserSeekBackward)
                 {
                     RuntimeLog.Log("PROGRESS-ENGINE-REJECT",
@@ -166,13 +158,12 @@ public class ProgressEngine
             {
                 _lastSnapshotTimestampUtc = snapshotTsUtc;
             }
-            
+
             if (snapshot.SequenceNumber > _lastSnapshotSequence)
             {
                 _lastSnapshotSequence = snapshot.SequenceNumber;
             }
-            
-            // Track last snapshot position for duplicate detection
+
             _lastSnapshotPosition = snapshot.Position;
 
             TimeSpan previousDuration = _duration;
@@ -183,7 +174,7 @@ public class ProgressEngine
 
             _isIndeterminate = snapshot.IsIndeterminate;
             _isSeekEnabled = snapshot.IsSeekEnabled;
-            _isYouTube = snapshot.IsYouTube;  // Update platform flag
+            _isYouTube = snapshot.IsYouTube;
 
             var reportedRate = snapshot.PlaybackRate;
             if (double.IsNaN(reportedRate) || double.IsInfinity(reportedRate) || reportedRate <= 0)
@@ -206,8 +197,8 @@ public class ProgressEngine
             }
 
             bool durationChanged = DidDurationChange(previousDuration, _duration);
-            _durationJustChanged = durationChanged;  
-            
+            _durationJustChanged = durationChanged;
+
             if (durationChanged && snapshot.IsPlaying)
             {
                 TimeSpan predictedAtDurationChange = ClampPosition(PredictPosition(nowUtc));
@@ -232,7 +223,6 @@ public class ProgressEngine
 
             if (!snapshot.IsPlaying)
             {
-                // Core fix: many sources briefly report "paused/changing" right after seek while playback actually continues
                 bool inSeekStabilizationWindow = nowUtc < _seekDebounceEndUtc || nowUtc < _seekPauseGraceUntilUtc;
                 if (inSeekStabilizationWindow && _state == ProgressState.Seeking)
                 {
@@ -247,7 +237,6 @@ public class ProgressEngine
 
                 TimeSpan pausedPos = ClampPosition(snapshot.Position);
 
-                // Additional core fix: debounce transient single-frame pause glitches (commonly observed on Spotify/browser bridge) before committing Paused state
                 if (_isPlaying || _state == ProgressState.Playing || _state == ProgressState.Seeking)
                 {
                     TimeSpan predictedAtPending = ClampPosition(PredictPosition(nowUtc));
@@ -262,7 +251,6 @@ public class ProgressEngine
                         _pendingPauseStartedUtc = nowUtc;
                         _pendingPausePosition = pausedPos;
 
-                        // Soft-freeze: lock prediction to the current position so the UI stops advancing immediately on the first pause snapshot.
                         _isPlaying = false;
                         _basePosition = pausedPos;
                         _baseTimeUtc = nowUtc;
@@ -270,7 +258,6 @@ public class ProgressEngine
                     }
 
                     _pendingPausePosition = pausedPos;
-                    // Keep the soft-freeze anchor up to date so any jitter doesn't leak through.
                     _isPlaying = false;
                     _basePosition = pausedPos;
                     _baseTimeUtc = nowUtc;
@@ -302,7 +289,7 @@ public class ProgressEngine
                 _state = ProgressState.Paused;
                 _basePosition = pausedPos;
                 _baseTimeUtc = nowUtc;
-                
+
                 _seekDebounceEndUtc = DateTime.MinValue;
                 _seekPauseGraceUntilUtc = DateTime.MinValue;
                 _pendingPauseConfirmation = false;
@@ -341,13 +328,13 @@ public class ProgressEngine
                 _seekPauseGraceUntilUtc = DateTime.MinValue;
                 _pendingPauseConfirmation = false;
                 _pendingPauseStartedUtc = DateTime.MinValue;
-                
+
                 return;
             }
 
             if (nowUtc < _seekDebounceEndUtc)
             {
-                
+
                 return;
             }
 
@@ -369,14 +356,11 @@ public class ProgressEngine
 
             if (absDiffSeconds < SmoothCorrectionThreshold.TotalSeconds)
             {
-                // For non-browser sources (Spotify), never pull position backward during playback
                 if (!_isYouTube && diff < TimeSpan.Zero)
                 {
-                    // Instead of snapping backward, slightly slow down by nudging base forward less aggressively
                     double slowdownFactor = 0.15;
                     double nudge = diff.TotalSeconds * slowdownFactor;
                     double correctedSeconds = predictedNow.TotalSeconds + nudge;
-                    // Never go below current predicted minus a tiny threshold
                     double minAllowed = predictedNow.TotalSeconds - 0.05;
                     if (correctedSeconds < minAllowed)
                         correctedSeconds = minAllowed;
@@ -414,7 +398,6 @@ public class ProgressEngine
                 return;
             }
 
-            // ── LARGE CORRECTION (>= 2s diff) — this is the most likely cause of visible backward jumps ──
             RuntimeLog.Log("PROGRESS-ENGINE-CORRECT",
                 $"*** LARGE-SNAP: predicted={predictedNow.TotalSeconds:F2}s observed={observedPos.TotalSeconds:F2}s " +
                 $"diff={diff.TotalSeconds:F2}s direction={(diff < TimeSpan.Zero ? "BACKWARD" : "forward")} " +
@@ -459,7 +442,6 @@ public class ProgressEngine
 
             if (!isPlaying && _isPlaying)
             {
-                // User pressed pause — freeze at current predicted position
                 _basePosition = ClampPosition(PredictPosition(nowUtc));
                 _baseTimeUtc = nowUtc;
                 _isPlaying = false;
@@ -469,7 +451,6 @@ public class ProgressEngine
             }
             else if (isPlaying && !_isPlaying)
             {
-                // User pressed play — resume from current position
                 _baseTimeUtc = nowUtc;
                 _isPlaying = true;
                 _state = ProgressState.Playing;
@@ -499,7 +480,6 @@ public class ProgressEngine
             return effectivePosition;
         }
 
-        // For native apps, cap compensation at a shorter window since MediaDetectionService already handles most compensation
         TimeSpan maxCompensationWindow = snapshot.IsYouTube
             ? TimeSpan.FromMinutes(2)
             : TimeSpan.FromSeconds(10);
@@ -545,7 +525,6 @@ public class ProgressEngine
             return snapshot.Position;
         }
 
-        // Log significant compensation for diagnostics
         double compensationAmount = (effectivePosition - snapshot.Position).TotalSeconds;
         if (compensationAmount > 3.0)
         {
@@ -570,11 +549,11 @@ public class ProgressEngine
             _playbackRate = 1.0;
             _isIndeterminate = false;
             _isSeekEnabled = false;
-            _durationJustChanged = false;  
-            _isYouTube = false;  // Reset platform flag
+            _durationJustChanged = false;
+            _isYouTube = false;
             _lastSnapshotTimestampUtc = DateTime.MinValue;
-            _lastSnapshotSequence = -1;  
-            _lastSnapshotPosition = TimeSpan.Zero;  // Reset last position
+            _lastSnapshotSequence = -1;
+            _lastSnapshotPosition = TimeSpan.Zero;
             _seekDebounceEndUtc = DateTime.MinValue;
             _allowBackwardUntilUtc = DateTime.MinValue;
             _seekPauseGraceUntilUtc = DateTime.MinValue;
@@ -592,7 +571,7 @@ public class ProgressEngine
             TimeSpan pos = ClampPosition(PredictPosition(nowUtc));
 
             bool durationChanged = _durationJustChanged;
-            _durationJustChanged = false;  
+            _durationJustChanged = false;
 
             return new UiProgressFrame
             {
@@ -628,20 +607,19 @@ public class ProgressEngine
 
     private bool DidDurationChange(TimeSpan previous, TimeSpan current)
     {
-        
+
         if (previous <= TimeSpan.Zero || current <= TimeSpan.Zero)
         {
             return false;
         }
 
         double diffSec = Math.Abs((current - previous).TotalSeconds);
-        
-        // Platform-aware threshold: Browser sources have unstable duration → higher threshold (5% or 3s) Native apps have stable duration → lower threshold (2% or 1s)
-        double percentThreshold = _isYouTube ? 0.05 : 0.02;  // 5% for browser, 2% for native
-        double absoluteThreshold = _isYouTube ? 3.0 : 1.0;   // 3s for browser, 1s for native
-        
+
+        double percentThreshold = _isYouTube ? 0.05 : 0.02;
+        double absoluteThreshold = _isYouTube ? 3.0 : 1.0;
+
         double minMeaningfulDelta = Math.Max(absoluteThreshold, previous.TotalSeconds * percentThreshold);
-        
+
         return diffSec >= minMeaningfulDelta;
     }
 

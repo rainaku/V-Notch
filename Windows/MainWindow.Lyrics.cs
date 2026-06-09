@@ -29,7 +29,6 @@ public partial class MainWindow
 
     private async Task FetchLyricsForTrack(MediaInfo info)
     {
-        // Honor user setting — Spotify lyrics can be disabled
         if (!_settings.EnableSpotifyLyrics)
         {
             HideLyricsWidget();
@@ -38,19 +37,16 @@ public partial class MainWindow
 
         string trackKey = $"{info.CurrentTrack}|{info.CurrentArtist}";
 
-        // Don't re-fetch for the same track
         if (trackKey == _lyricsTrackKey) return;
         _lyricsTrackKey = trackKey;
         _syncedTextSource = SyncedTextSource.SpotifyLyrics;
 
-        // Only support Spotify
         if (info.Platform != MediaPlatform.Spotify)
         {
             HideLyricsWidget();
             return;
         }
 
-        // Clear old lyrics data immediately
         _currentLyrics = null;
         _currentLyricIndex = -1;
 
@@ -69,13 +65,11 @@ public partial class MainWindow
         }
 
         int durationSec = (int)info.Duration.TotalSeconds;
-        // If duration is 0 (not yet known), use a reasonable default
         if (durationSec <= 0) durationSec = 240;
 
         var lyrics = await _lyricsService.FetchSyncedLyricsAsync(
             info.CurrentTrack, info.CurrentArtist, durationSec);
 
-        // Verify we're still on the same track after async
         if (trackKey != _lyricsTrackKey) return;
 
         ApplySyncedLines(lyrics, info);
@@ -83,7 +77,6 @@ public partial class MainWindow
 
     private async Task FetchSubtitlesForTrack(MediaInfo info, bool force = false)
     {
-        // Honor user setting — YouTube subtitles can be disabled
         if (!_settings.EnableYouTubeSubtitles)
         {
             HideLyricsWidget();
@@ -93,7 +86,6 @@ public partial class MainWindow
         if (string.IsNullOrEmpty(info.YouTubeVideoId))
             return;
 
-        // Persist the video ID so we can re-fetch when subtitle priority changes
         _lastKnownYouTubeVideoId = info.YouTubeVideoId;
 
         string trackKey = $"yt:{info.YouTubeVideoId}";
@@ -101,7 +93,6 @@ public partial class MainWindow
         _lyricsTrackKey = trackKey;
         _syncedTextSource = SyncedTextSource.YouTubeSubtitles;
 
-        // Clear old data immediately
         _currentLyrics = null;
         _currentLyricIndex = -1;
 
@@ -121,7 +112,6 @@ public partial class MainWindow
 
         var subtitles = await _youtubeSubtitleService.FetchSubtitlesAsync(info.YouTubeVideoId, force: force);
 
-        // Verify we're still on the same video after async
         if (trackKey != _lyricsTrackKey) return;
 
         ApplySyncedLines(subtitles, info, isYouTube: true);
@@ -142,11 +132,9 @@ public partial class MainWindow
 
         if (!_isLyricsActive)
         {
-            // First time showing for this session
             ShowLyricsWidget();
         }
 
-        // Check if position is already past the first line (e.g. app boot mid-song)
         Dispatcher.Invoke(() =>
         {
             int idx = FindCurrentLyricIndex();
@@ -173,7 +161,6 @@ public partial class MainWindow
         TimeSpan position;
         if (_currentMediaInfo.IsPlaying && _currentMediaInfo.Duration.TotalSeconds > 0)
         {
-            // Use ProgressEngine for accurate position without a hard elapsed-time cap
             var frame = _progressEngine.GetUiFrame();
             if (frame.Duration.TotalSeconds > 0 && frame.State == ProgressState.Playing)
             {
@@ -203,7 +190,6 @@ public partial class MainWindow
         LyricsPlaceholderArtist.Text = artist;
         LyricsPlaceholderPanel.Visibility = Visibility.Visible;
 
-        // Hide lyric text lines so they don't overlap
         LyricTextA.BeginAnimation(OpacityProperty, null);
         LyricTextB.BeginAnimation(OpacityProperty, null);
         LyricTextA.Opacity = 0;
@@ -255,12 +241,10 @@ public partial class MainWindow
             var frame = _progressEngine.GetUiFrame();
             if (frame.Duration.TotalSeconds > 0 && frame.State == ProgressState.Playing)
             {
-                // ProgressEngine predicts position continuously without a time cap
                 position = frame.Position;
             }
             else
             {
-                // Fallback: manual elapsed calculation with a generous cap
                 var elapsed = DateTimeOffset.UtcNow - _currentMediaInfo.LastUpdated.ToUniversalTime();
                 if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
                 if (elapsed > TimeSpan.FromMinutes(10)) elapsed = TimeSpan.FromMinutes(10);
@@ -283,7 +267,6 @@ public partial class MainWindow
 
         if (newIndex != _currentLyricIndex && newIndex >= 0)
         {
-            // Hide placeholder when first real lyric appears
             if (_currentLyricIndex < 0)
                 HideLyricsPlaceholder();
 
@@ -293,16 +276,13 @@ public partial class MainWindow
         }
         else if (newIndex < 0 && _currentLyricIndex >= 0)
         {
-            // Seeked back before first lyric — show placeholder again
             _currentLyricIndex = -1;
             if (_syncedTextSource == SyncedTextSource.YouTubeSubtitles && _currentMediaInfo != null)
             {
-                // For YouTube, show the channel name — not the full video title
                 ShowLyricsPlaceholder(_currentMediaInfo.CurrentArtist, "");
             }
             else
             {
-                // For Spotify, _lyricsTrackKey is "track|artist"
                 string trackKey = _lyricsTrackKey;
                 string[] parts = trackKey.Split('|', 2);
                 if (parts.Length == 2)
@@ -315,10 +295,8 @@ public partial class MainWindow
     {
         if (_currentLyrics == null || _currentLyrics.Count == 0) return -1;
 
-        // If before the first line
         if (position < _currentLyrics[0].Time) return -1;
 
-        // Binary search for the last line whose time <= position
         int lo = 0, hi = _currentLyrics.Count - 1;
         int result = 0;
 
@@ -343,7 +321,6 @@ public partial class MainWindow
     {
         if (LyricTextA == null || LyricTextB == null) return;
 
-        // Determine which TextBlock is currently active
         bool useA = LyricTextA.Opacity > 0.5;
         TextBlock outgoing = useA ? LyricTextA : LyricTextB;
         TextBlock incoming = useA ? LyricTextB : LyricTextA;
@@ -352,13 +329,11 @@ public partial class MainWindow
 
         incoming.Text = newText;
 
-        // Cancel any in-flight animations to prevent overlap
         outgoing.BeginAnimation(OpacityProperty, null);
         outTransform.BeginAnimation(TranslateTransform.YProperty, null);
         incoming.BeginAnimation(OpacityProperty, null);
         inTransform.BeginAnimation(TranslateTransform.YProperty, null);
 
-        // Reset positions
         outgoing.Opacity = 1;
         outTransform.Y = 0;
         incoming.Opacity = 0;
@@ -371,7 +346,6 @@ public partial class MainWindow
         var easeOut = new ExponentialEase { Exponent = 5, EasingMode = EasingMode.EaseOut };
         var easeIn = new CubicEase { EasingMode = EasingMode.EaseIn };
 
-        // Outgoing: slide up + fade out
         var fadeOut = new DoubleAnimation(1, 0, outDur) { EasingFunction = easeIn };
         var slideOut = new DoubleAnimation(0, -14, outDur) { EasingFunction = easeIn };
         Timeline.SetDesiredFrameRate(fadeOut, fps);
@@ -380,7 +354,6 @@ public partial class MainWindow
         outgoing.BeginAnimation(OpacityProperty, fadeOut);
         outTransform.BeginAnimation(TranslateTransform.YProperty, slideOut);
 
-        // Incoming: slide up from below + fade in (with slight delay for stagger effect)
         var fadeIn = new DoubleAnimation(0, 1, inDur) { EasingFunction = easeOut, BeginTime = inDelay };
         var slideIn = new DoubleAnimation(14, 0, inDur) { EasingFunction = easeOut, BeginTime = inDelay };
         Timeline.SetDesiredFrameRate(fadeIn, fps);
@@ -395,10 +368,8 @@ public partial class MainWindow
         if (_isLyricsActive) return;
         _isLyricsActive = true;
 
-        // Hide calendar with fade, show lyrics
         Dispatcher.Invoke(() =>
         {
-            // Fade out calendar
             var fadeOutCalendar = new DoubleAnimation(CalendarWidget.Opacity, 0, new Duration(TimeSpan.FromMilliseconds(250)))
             {
                 EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseIn }
@@ -410,7 +381,6 @@ public partial class MainWindow
             };
             CalendarWidget.BeginAnimation(OpacityProperty, fadeOutCalendar);
 
-            // Fade out greeting
             var fadeOutGreeting = new DoubleAnimation(GreetingSection.Opacity, 0, new Duration(TimeSpan.FromMilliseconds(250)))
             {
                 EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseIn }
@@ -422,7 +392,6 @@ public partial class MainWindow
             };
             GreetingSection.BeginAnimation(OpacityProperty, fadeOutGreeting);
 
-            // Cancel any pending fade-out and show lyrics
             LyricsWidget.BeginAnimation(OpacityProperty, null);
             LyricsWidget.Visibility = Visibility.Visible;
             LyricsWidget.Opacity = 0;
@@ -434,7 +403,6 @@ public partial class MainWindow
             };
             LyricsWidget.BeginAnimation(OpacityProperty, fadeIn);
 
-            // Show lyrics blur background
             if (_settings.EnableBlurEffects && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
@@ -461,21 +429,18 @@ public partial class MainWindow
 
         Dispatcher.Invoke(() =>
         {
-            // Fade out lyrics
             var fadeOutLyrics = new DoubleAnimation(LyricsWidget.Opacity, 0, new Duration(TimeSpan.FromMilliseconds(300)))
             {
                 EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseIn }
             };
             fadeOutLyrics.Completed += (s, e) =>
             {
-                // If lyrics were re-activated while fading out, don't collapse
                 if (_isLyricsActive) return;
 
                 LyricsWidget.Visibility = Visibility.Collapsed;
                 LyricsWidget.BeginAnimation(OpacityProperty, null);
                 LyricsWidget.Opacity = 0;
 
-                // Reset lyric text and placeholder
                 if (LyricTextA != null) LyricTextA.Text = "";
                 if (LyricTextB != null) LyricTextB.Text = "";
                 if (LyricsPlaceholderPanel != null)
@@ -487,7 +452,6 @@ public partial class MainWindow
             };
             LyricsWidget.BeginAnimation(OpacityProperty, fadeOutLyrics);
 
-            // Fade out lyrics blur background
             if (LyricsBlurBackground != null && LyricsBlurBackground.Visibility == Visibility.Visible)
             {
                 var fadeOutBlur = new DoubleAnimation(LyricsBlurBackground.Opacity, 0, new Duration(TimeSpan.FromMilliseconds(400)))
@@ -503,7 +467,6 @@ public partial class MainWindow
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeOutBlur);
             }
 
-            // Fade in calendar (delayed slightly so lyrics fades first)
             CalendarWidget.Visibility = Visibility.Visible;
             CalendarWidget.Opacity = 0;
             var fadeInCalendar = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(350)))

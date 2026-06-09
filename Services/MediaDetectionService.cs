@@ -65,7 +65,6 @@ public class MediaDetectionService : IMediaDetectionService
     private int _thumbnailFetchGeneration = 0;
     private static readonly TimeSpan SoundCloudArtworkRetryInterval = TimeSpan.FromSeconds(1.1);
 
-    // ─── Published-state snapshot (set by CommitPublishedState) ───
     private string _lastSource = "";
     private bool _lastIsPlaying = false;
     private bool _lastIsThrottled = false;
@@ -77,7 +76,6 @@ public class MediaDetectionService : IMediaDetectionService
     private string _lastPublishedSourceAppId = "";
     private string _lastPublishedSessionInstanceKey = "";
 
-    // ─── Source/artist stabilization state ───
     private DateTime _lastSourceConfirmedTime = DateTime.MinValue;
     private string _stableSource = "";
     private string _stableArtist = "";
@@ -108,11 +106,9 @@ public class MediaDetectionService : IMediaDetectionService
 
     private GlobalSystemMediaTransportControlsSession? GetActiveSession()
     {
-        // Priority: use the session that matches what's currently displayed to the user
         if (_activeDisplaySession != null)
             return _activeDisplaySession;
 
-        // Fallback: if _activeDisplaySession hasn't been set yet (e
         if (!string.IsNullOrEmpty(_lastPublishedSourceAppId))
         {
             var match = FindSessionBySourceAppId(_lastPublishedSourceAppId);
@@ -147,13 +143,13 @@ public class MediaDetectionService : IMediaDetectionService
     }
 
     private GlobalSystemMediaTransportControlsSession? _currentSession;
-    private GlobalSystemMediaTransportControlsSession? _activeDisplaySession; 
+    private GlobalSystemMediaTransportControlsSession? _activeDisplaySession;
     private DateTime _lastSessionSwitchTime = DateTime.MinValue;
 
     public void Start()
     {
         if (_disposed) return;
-        if (_sessionManager != null) return; // already started
+        if (_sessionManager != null) return;
 
         _startupProgressSyncUntilUtc = DateTime.UtcNow.AddSeconds(5);
 
@@ -291,7 +287,7 @@ public class MediaDetectionService : IMediaDetectionService
         {
             try
             {
-                
+
                 await Task.Delay(50, ct);
                 var types = change;
                 while (_changeChannel.Reader.TryRead(out var extra))
@@ -352,7 +348,7 @@ public class MediaDetectionService : IMediaDetectionService
     private void UpdateDetectionMode(MediaInfo info)
     {
         var oldMode = _currentMode;
-        
+
         if (!info.IsAnyMediaPlaying || string.IsNullOrEmpty(info.CurrentTrack))
         {
             _currentMode = DetectionMode.Idle;
@@ -365,7 +361,7 @@ public class MediaDetectionService : IMediaDetectionService
         {
             _currentMode = DetectionMode.EventDriven;
         }
-        
+
         if (oldMode != _currentMode)
         {
             RuntimeLog.Debug("MEDIA-MODE", () => $"Detection mode: {oldMode} -> {_currentMode} (Playing={info.IsAnyMediaPlaying}, Track='{info.CurrentTrack}', Throttled={info.IsThrottled})");
@@ -415,7 +411,6 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    /// <summary>Resets per-track stable state whenever the SMTC track name changes.</summary>
     private void TrackNameChangeBookkeeping(MediaInfo info)
     {
         if (info.CurrentTrack == _lastTrackName) return;
@@ -431,10 +426,6 @@ public class MediaDetectionService : IMediaDetectionService
         if (_timelineSimulator.IsThrottled) _timelineSimulator.Reset();
     }
 
-    /// <summary>
-    /// Keeps the SoundCloud source sticky during a track switch when window titles confirm a
-    /// SoundCloud tab and rule out YouTube.
-    /// </summary>
     private void PreserveSoundCloudSourceIfNeeded(MediaInfo info, ref List<string>? windowTitles)
     {
         if (!ShouldPreserveSoundCloudSourceDuringTrackSwitch(info)) return;
@@ -450,10 +441,6 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    /// <summary>
-    /// Maintains the empty-metadata grace window. Returns true when the current (empty) pass
-    /// should be deferred to avoid flickering during brief metadata gaps.
-    /// </summary>
     private bool UpdateEmptyMetadataHold(MediaInfo info, string currentSignature)
     {
         var r = MediaTimingDecisions.EvaluateEmptyMetadataHold(
@@ -464,15 +451,9 @@ public class MediaDetectionService : IMediaDetectionService
         return r.hold;
     }
 
-    /// <summary>True when the track (ignoring artist) differs from the last published track.</summary>
     private bool ComputeIsNewTrackForThumbnail(MediaInfo info)
         => PublishedTrackMatcher.IsNewTrackForThumbnail(_lastPublishedTrackOnlyIdentity, info.CurrentTrack);
 
-    /// <summary>
-    /// Evaluates change-detection flags and, when something meaningful changed, commits the new
-    /// state and fires <see cref="MediaChanged"/>. Returns false when the caller should return
-    /// early (i.e. skip the thumbnail fetch) due to an empty-track hold or new-track debounce.
-    /// </summary>
     private async Task<bool> TryPublishMediaChangeAsync(MediaInfo info, string currentSignature, bool isNewTrackForThumbnail, bool forceRefresh)
     {
         bool metadataChanged = currentSignature != _lastPublishedSignature;
@@ -489,7 +470,7 @@ public class MediaDetectionService : IMediaDetectionService
 
         if (!(forceRefresh || metadataChanged || playbackChanged || sourceChanged || (significantJump && !info.IsThrottled) || seekCapabilityChanged || throttleChanged || startupTimelineSync))
         {
-            return true; // nothing meaningful changed; continue to thumbnail fetch
+            return true;
         }
 
         bool shouldHoldEmptyTrack = string.IsNullOrEmpty(info.CurrentTrack) && info.IsAnyMediaPlaying;
@@ -519,10 +500,6 @@ public class MediaDetectionService : IMediaDetectionService
         return true;
     }
 
-    /// <summary>
-    /// Debounces a not-yet-playing new track for 600ms so a paused scrub doesn't publish
-    /// prematurely. Returns true when publishing should be deferred this pass.
-    /// </summary>
     private bool ShouldDebounceNewTrack(MediaInfo info, bool forceRefresh)
     {
         var r = MediaTimingDecisions.EvaluateNewTrackDebounce(
@@ -533,7 +510,6 @@ public class MediaDetectionService : IMediaDetectionService
         return r.debounce;
     }
 
-    /// <summary>Snapshots the just-published media state into the "last published" tracking fields.</summary>
     private void CommitPublishedState(MediaInfo info, string currentSignature)
     {
         _lastPublishedSignature = currentSignature;
@@ -549,20 +525,14 @@ public class MediaDetectionService : IMediaDetectionService
         _lastPublishedSessionInstanceKey = info.SessionInstanceKey ?? "";
     }
 
-    /// <summary>
-    /// For YouTube/Browser sources about to fetch a better thumbnail, suppresses intermediate
-    /// or stale wide thumbnails to avoid flashing 2-3 different images on a publish.
-    /// </summary>
     private void SuppressIntermediateYouTubeThumbnail(MediaInfo info, bool isNewTrackForThumbnail)
     {
-        // For YouTube sources where we're about to fetch a better thumbnail, suppress ALL intermediate thumbnails to avoid showing 2-3 different images
         bool willFetchYouTubeThumbnail = (info.Platform == MediaPlatform.YouTube || (info.Platform == MediaPlatform.Browser && IsLikelyYouTube(info)))
             && !string.IsNullOrEmpty(info.CurrentTrack)
             && !isNewTrackForThumbnail
             && (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120)
             && (_cachedThumbnail == null || _cachedThumbnail.PixelWidth < 200);
 
-        // Don't suppress SMTC thumbnail if it's already high-quality square artwork (album art)
         bool hasGoodSmtcArtwork = false;
         if (willFetchYouTubeThumbnail && info.Thumbnail != null && info.Thumbnail.PixelWidth >= 200)
         {
@@ -572,7 +542,6 @@ public class MediaDetectionService : IMediaDetectionService
 
         if (willFetchYouTubeThumbnail && !hasGoodSmtcArtwork)
         {
-            // Suppress any intermediate thumbnail until YouTube fetch completes
             if (isNewTrackForThumbnail)
             {
                 info.Thumbnail = null;
@@ -587,7 +556,6 @@ public class MediaDetectionService : IMediaDetectionService
             }
         }
 
-        // On new track for YouTube/Browser: suppress stale wide SMTC thumbnails (from old tab)
         if (isNewTrackForThumbnail &&
             (info.Platform == MediaPlatform.YouTube || (info.Platform == MediaPlatform.Browser && IsLikelyYouTube(info))) &&
             info.Thumbnail != null)
@@ -603,7 +571,6 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    /// <summary>Raises <see cref="MediaChanged"/> on the UI dispatcher.</summary>
     private async Task FireMediaChangedAsync(MediaInfo info)
     {
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
@@ -621,14 +588,10 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-
     private void ApplyWindowTitleFallback(MediaInfo info, ref List<string>? windowTitles)
     {
             bool needsFallback = !info.IsAnyMediaPlaying || (string.IsNullOrEmpty(info.CurrentTrack) && info.Platform == MediaPlatform.Browser) || info.Platform == MediaPlatform.Browser || string.IsNullOrEmpty(info.MediaSource);
 
-            // Also scan window titles if we recently had a YouTube/Browser source but SMTC
-            // session was lost (e.g. page refresh). This recovers the title from the browser
-            // window while SMTC is being re-established.
             bool recentlyHadMedia = !info.IsAnyMediaPlaying &&
                                     (MediaPlatformExtensions.ParsePlatform(_lastSource) == MediaPlatform.YouTube || MediaPlatformExtensions.ParsePlatform(_lastSource) == MediaPlatform.Browser || MediaPlatformExtensions.ParsePlatform(_lastSource) == MediaPlatform.SoundCloud) &&
                                     _emptyMetadataStartTime != DateTime.MinValue &&
@@ -666,8 +629,7 @@ public class MediaDetectionService : IMediaDetectionService
                     foreach (var title in windowTitles)
                     {
                         var lowerTitle = title.ToLower();
-                        
-                        // YouTube detection
+
                         if (lowerTitle.Contains("youtube") && !lowerTitle.StartsWith("youtube -") && lowerTitle != "youtube")
                         {
                             if (!info.IsSpotifyPlaying && string.IsNullOrEmpty(info.MediaSource))
@@ -681,8 +643,7 @@ public class MediaDetectionService : IMediaDetectionService
                                 break;
                             }
                         }
-                        
-                        // SoundCloud detection
+
                         if (lowerTitle.Contains("soundcloud") && !lowerTitle.StartsWith("soundcloud -") && lowerTitle != "soundcloud")
                         {
                             if (!info.IsSpotifyPlaying && string.IsNullOrEmpty(info.MediaSource))
@@ -691,37 +652,27 @@ public class MediaDetectionService : IMediaDetectionService
                                 info.MediaSource = MediaPlatform.SoundCloud.ToDisplayString();
                                 info.IsSoundCloudRunning = true;
 
-                                // Extract track info from window title
-                                // Format can be either "Artist - Track" or "Track - Artist"
                                 string extractedTitle = ExtractVideoTitle(title, "SoundCloud");
                                 if (extractedTitle.Contains(" - "))
                                 {
-                                    // Use last " - " to split: artist names can contain " - "
                                     int lastSep = extractedTitle.LastIndexOf(" - ", StringComparison.Ordinal);
                                     string firstPart = extractedTitle.Substring(0, lastSep).Trim();
                                     string secondPart = extractedTitle.Substring(lastSep + 3).Trim();
 
-                                    // ─── Smart format detection ───
-                                    // Heuristic: If first part is very short (1-2 words) and second part is longer,
-                                    // it's likely "Track - Artist" format
                                     int firstWordCount = firstPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
                                     int secondWordCount = secondPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
 
-                                    // If first part is short (≤3 words) and second part has "by" or is much longer,
-                                    // assume "Track - Artist" format
                                     bool likelyTrackFirst = (firstWordCount <= 3 && secondWordCount > firstWordCount) ||
                                                            secondPart.StartsWith("by ", StringComparison.OrdinalIgnoreCase) ||
                                                            secondPart.Contains(" by ", StringComparison.OrdinalIgnoreCase);
 
                                     if (likelyTrackFirst)
                                     {
-                                        // "Track - Artist" format
                                         info.CurrentTrack = firstPart;
                                         info.CurrentArtist = secondPart;
                                     }
                                     else
                                     {
-                                        // "Artist - Track" format (traditional)
                                         info.CurrentArtist = firstPart;
                                         info.CurrentTrack = secondPart;
                                     }
@@ -732,7 +683,6 @@ public class MediaDetectionService : IMediaDetectionService
                                     info.CurrentArtist = "SoundCloud";
                                 }
 
-                                // Mark for thumbnail fetch
                                 SetSessionSourceOverride(info, MediaPlatform.SoundCloud.ToDisplayString());
 
                                 break;
@@ -756,7 +706,6 @@ public class MediaDetectionService : IMediaDetectionService
                 bool positionStuck = _timelineSimulator.IsPositionStuck(TimeSpan.FromSeconds(1.5));
                 bool atEndStuck = _timelineSimulator.IsAtEndStuck(progress, _lastMetadataChangeTime, TimeSpan.FromSeconds(1.2));
 
-                // When simulated position reaches or exceeds duration while still "playing", the track has likely ended and YouTube auto-played the next one
                 if (progress >= 1.0 && info.Duration.TotalSeconds > 0 && _timelineSimulator.IsThrottled)
                 {
                     _timelineSimulator.Reset();
@@ -797,26 +746,20 @@ public class MediaDetectionService : IMediaDetectionService
                                     string firstPart = extractedTitle.Substring(0, lastSep).Trim();
                                     string secondPart = extractedTitle.Substring(lastSep + 3).Trim();
 
-                                    // ─── Smart format detection ───
-                                    // Heuristic: Detect "Track - Artist" vs "Artist - Track" format
                                     int firstWordCount = firstPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
                                     int secondWordCount = secondPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
 
-                                    // If first part is short (≤3 words) and second part has "by" or is much longer,
-                                    // assume "Track - Artist" format
                                     bool likelyTrackFirst = (firstWordCount <= 3 && secondWordCount > firstWordCount) ||
                                                            secondPart.StartsWith("by ", StringComparison.OrdinalIgnoreCase) ||
                                                            secondPart.Contains(" by ", StringComparison.OrdinalIgnoreCase);
 
                                     if (likelyTrackFirst)
                                     {
-                                        // "Track - Artist" format
                                         trackName = firstPart;
                                         artistName = secondPart;
                                     }
                                     else
                                     {
-                                        // "Artist - Track" format (traditional)
                                         trackName = secondPart;
                                         artistName = firstPart;
                                     }
@@ -896,7 +839,6 @@ public class MediaDetectionService : IMediaDetectionService
                                                 TryGetSessionSourceOverride(info, out var sourceOverride) &&
                                                 MediaPlatformExtensions.ParsePlatform(sourceOverride) == MediaPlatform.SoundCloud;
 
-            // Hard gate against SoundCloud probing: if any visible browser tab currently shows a YouTube URL, the SMTC "Browser" source is categorically YouTube
             bool browserHasYouTubeTabOpen = false;
             if (info.Platform == MediaPlatform.Browser && !hasSoundCloudSessionOverride)
             {
@@ -910,7 +852,7 @@ public class MediaDetectionService : IMediaDetectionService
                         browserHasYouTubeTabOpen = true;
                     }
                 }
-                catch { /* best effort */ }
+                catch { }
             }
 
             var sourcePlan = ThumbnailFetchPlanner.ClassifySources(new ThumbnailSourceInputs
@@ -936,7 +878,6 @@ public class MediaDetectionService : IMediaDetectionService
             bool needsFetch = forceFetchForTrackChange || (info.Thumbnail == null || info.Thumbnail.PixelWidth < 120);
             if (_timelineSimulator.IsThrottled && _timelineSimulator.RecoveredThumbnail != null && !forceFetchForTrackChange) needsFetch = false;
 
-            // ── Track-change invalidation ──────────────────────────────────── Before kicking off a YouTube fetch for a NEW track, drop any cached browser URLs and any per-track videoId entry that does not belong to the new track
             if (forceFetchForTrackChange)
             {
                 _windowTitleScanner.InvalidateUrlCaches();
@@ -944,16 +885,13 @@ public class MediaDetectionService : IMediaDetectionService
                 ForgetVideoIdCacheExceptForTrack(BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist));
             }
 
-            // If we already have a good cached thumbnail for the SAME track, don't re-fetch
             if (needsFetch && !forceFetchForTrackChange && _cachedThumbnail != null && _cachedThumbnail.PixelWidth >= 200)
             {
                 needsFetch = false;
-                // Use the cached thumbnail instead of the SMTC one
                 info.Thumbnail = _cachedThumbnail;
                 _timelineSimulator.RecoveredThumbnail = _cachedThumbnail;
             }
 
-            // Skip YouTube thumbnail fetch when SMTC already provides high-quality artwork
             if (needsFetch && info.Thumbnail != null && info.Thumbnail.PixelWidth >= 200)
             {
                 double thumbAspect = (double)info.Thumbnail.PixelWidth / info.Thumbnail.PixelHeight;
@@ -961,11 +899,9 @@ public class MediaDetectionService : IMediaDetectionService
                 bool isTopicChannel = !string.IsNullOrEmpty(info.CurrentArtist) &&
                                       info.CurrentArtist.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase);
 
-                // If SMTC provides a near-square thumbnail (album art), keep it
                 if (isNearSquare || isTopicChannel)
                 {
                     needsFetch = false;
-                    // Topic channels provide album art — always center crop. Near-square images also center crop (already album art).
                     RuntimeLog.Debug("MEDIA-THUMB-CROP", () =>
                         $"path=initial-smtc track='{info.CurrentTrack}' artist='{info.CurrentArtist}' source='{info.MediaSource}' " +
                         $"thumb={info.Thumbnail.PixelWidth}x{info.Thumbnail.PixelHeight} aspect={thumbAspect:F2} " +
@@ -1030,7 +966,7 @@ public class MediaDetectionService : IMediaDetectionService
                     string sourceAppDuringFetch = info.SourceAppId ?? "";
                     string sessionKeyDuringFetch = info.SessionInstanceKey ?? "";
                     int thumbGenAtStart = Volatile.Read(ref _thumbnailFetchGeneration);
-                    
+
                     bool requireStrongMatch = true;
 
                     _ = Task.Run(() => FetchSoundCloudThumbnailAsync(info, token, trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch, thumbGenAtStart, fetchGeneration, requireStrongMatch), token);
@@ -1049,45 +985,36 @@ public class MediaDetectionService : IMediaDetectionService
                     try
                     {
                         string? videoId = shouldForceThumbFetch ? null : info.YouTubeVideoId;
-                        // When the YouTube Data API is enabled the lookup returns a high-quality thumbnail URL (snippet
                         string? preferredThumbnailUrl = null;
                         int retryCount = 0;
                         bool titleSearchAttempted = false;
 
-                        // Mismatch cache is intentionally NOT cleared per-pass
-
-                        // ─── Priority 1: Extract video ID from ANY browser window URL ─── Scans all browser windows, not just foreground
                         if (string.IsNullOrEmpty(videoId))
                         {
                             videoId = TryExtractVideoIdFromAnyBrowserUrl();
                         }
 
-                        // ─── Priority 2: Foreground browser URL (legacy, fast path) ───
                         if (string.IsNullOrEmpty(videoId))
                         {
                             videoId = TryExtractVideoIdFromBrowserUrl();
                         }
 
-                        // ─── Priority 3: Use cached browser URL for this track ───
                         if (string.IsNullOrEmpty(videoId))
                         {
                             videoId = GetCachedVideoIdForTrack(trackDuringFetch);
                         }
 
-                        // If the videoId we picked up (from any source) is in the per-track mismatch blocklist, skip it now so we don't burn another oEmbed/Data-API round trip just to discover the same stale id again
                         if (!string.IsNullOrEmpty(videoId) && TryGetCachedMismatchVideoId(videoId!))
                         {
                             videoId = null;
                         }
 
-                        // If we got a video ID from browser URL, enrich with metadata via the metadata lookup service (Data API when enabled, oEmbed otherwise)
                         if (!string.IsNullOrEmpty(videoId) && videoId != info.YouTubeVideoId)
                         {
                             string ytUrl = $"https://www.youtube.com/watch?v={videoId}";
                             var urlResult = await _metadataLookup.TryGetYouTubeVideoInfoFromUrlAsync(ytUrl, token);
                             if (urlResult != null)
                             {
-                                // ─── Validate: does the resolved video match the currently playing track? ───
                                 bool videoMatchesTrack = urlResult.TitleMatches(trackDuringFetch) ||
                                                         (!string.IsNullOrEmpty(urlResult.Author) &&
                                                          !string.IsNullOrEmpty(artistDuringFetch) &&
@@ -1134,7 +1061,6 @@ public class MediaDetectionService : IMediaDetectionService
                             }
                             else if (shouldForceThumbFetch)
                             {
-                                // oEmbed/API failed to respond — cannot validate this videoId
                                 RuntimeLog.Debug("META-YOUTUBE-API", () =>
                                     $"validation-failed: oEmbed returned null for videoId={videoId} track='{trackDuringFetch}' -> discarding unvalidated videoId");
                                 videoId = null;
@@ -1143,7 +1069,6 @@ public class MediaDetectionService : IMediaDetectionService
 
                         while (retryCount < 3 && !token.IsCancellationRequested)
                         {
-                            // ─── Fallback: check if title itself contains a video ID or URL ───
                             if (string.IsNullOrEmpty(videoId))
                             {
                                 var result = await TryGetYouTubeVideoIdWithInfoAsync(trackDuringFetch, artistDuringFetch);
@@ -1184,7 +1109,6 @@ public class MediaDetectionService : IMediaDetectionService
                                 }
                             }
 
-                            // ─── Last-resort fallback: search YouTube by track title ─── When the browser tab is in the background, HelpText never updates so URL-based extraction always returns the previous video's ID
                             if (string.IsNullOrEmpty(videoId) && !titleSearchAttempted)
                             {
                                 titleSearchAttempted = true;
@@ -1229,7 +1153,7 @@ public class MediaDetectionService : IMediaDetectionService
                             {
                                 info.YouTubeVideoId = videoId;
 
-                                if (!string.IsNullOrEmpty(_stableArtist) && 
+                                if (!string.IsNullOrEmpty(_stableArtist) &&
                                     _stableArtist != "YouTube" &&
                                     IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                 {
@@ -1248,12 +1172,11 @@ public class MediaDetectionService : IMediaDetectionService
                                     }
                                 }
 
-                                if (needsBetterThumb || info.Platform == MediaPlatform.YouTube) 
+                                if (needsBetterThumb || info.Platform == MediaPlatform.YouTube)
                                 {
                                     BitmapImage? frameBitmap = null;
                                     string thumbnailUrl;
 
-                                    // ─── Preferred path: thumbnail URL from YouTube Data API ─── The API already picked the highest-resolution variant that actually exists for this video, so we don't need to probe
                                     if (!string.IsNullOrWhiteSpace(preferredThumbnailUrl))
                                     {
                                         thumbnailUrl = preferredThumbnailUrl!;
@@ -1262,18 +1185,15 @@ public class MediaDetectionService : IMediaDetectionService
                                             frameBitmap = null;
                                     }
 
-                                    // Try maxresdefault first (1280x720) - best quality for ONNX smart crop
                                     if (frameBitmap == null)
                                     {
                                         thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/maxresdefault.jpg";
                                         frameBitmap = await DownloadImageAsync(thumbnailUrl);
 
-                                        // maxresdefault may return a small placeholder (120x90) for videos without HD thumbnail
                                         if (frameBitmap != null && frameBitmap.PixelWidth < 400)
                                             frameBitmap = null;
                                     }
 
-                                    // Fallback to sddefault (640x480)
                                     if (frameBitmap == null)
                                     {
                                         thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/sddefault.jpg";
@@ -1282,14 +1202,12 @@ public class MediaDetectionService : IMediaDetectionService
                                             frameBitmap = null;
                                     }
 
-                                    // Fallback to hqdefault (480x360)
                                     if (frameBitmap == null)
                                     {
                                         thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/hqdefault.jpg";
                                         frameBitmap = await DownloadImageAsync(thumbnailUrl);
                                     }
 
-                                    // Last resort: mqdefault (320x180)
                                     if (frameBitmap == null)
                                     {
                                         thumbnailUrl = $"https://i.ytimg.com/vi/{videoId}/mqdefault.jpg";
@@ -1299,7 +1217,7 @@ public class MediaDetectionService : IMediaDetectionService
                                     if (frameBitmap != null && !token.IsCancellationRequested)
                                     {
                                         if (Volatile.Read(ref _thumbnailFetchGeneration) != generationAtStart)
-                                            break; // Track/session changed since fetch started — discard
+                                            break;
 
                                         if (IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                         {
@@ -1342,11 +1260,10 @@ public class MediaDetectionService : IMediaDetectionService
                                 !token.IsCancellationRequested &&
                                 IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                             {
-                                // When videoId was discarded due to mismatch, the browser hasn't navigated yet
                                 if (videoId == null)
                                 {
                                     const int pollIntervalMs = 200;
-                                    const int maxPolls = 5; // 5 × 200ms = 1s — keep short since background tabs rarely update HelpText
+                                    const int maxPolls = 5;
                                     bool resolved = false;
 
                                     for (int poll = 0; poll < maxPolls && !token.IsCancellationRequested; poll++)
@@ -1355,7 +1272,6 @@ public class MediaDetectionService : IMediaDetectionService
                                         if (!IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
                                             break;
 
-                                        // Force the scanner to re-read browser tabs each poll iteration
                                         _windowTitleScanner.InvalidateUrlCaches();
 
                                         string? polledId = TryExtractVideoIdFromAnyBrowserUrl();
@@ -1364,11 +1280,9 @@ public class MediaDetectionService : IMediaDetectionService
                                         if (string.IsNullOrEmpty(polledId))
                                             continue;
 
-                                        // Same stale videoId — browser hasn't navigated yet
                                         if (TryGetCachedMismatchVideoId(polledId))
                                             continue;
 
-                                        // New videoId! Validate it.
                                         string pollUrl = $"https://www.youtube.com/watch?v={polledId}";
                                         var pollResult = await _metadataLookup.TryGetYouTubeVideoInfoFromUrlAsync(pollUrl, token);
                                         if (pollResult == null)
@@ -1385,7 +1299,6 @@ public class MediaDetectionService : IMediaDetectionService
                                             continue;
                                         }
 
-                                        // Match! Apply metadata.
                                         videoId = polledId;
                                         info.MediaSource = MediaPlatform.YouTube.ToDisplayString();
                                         info.IsYouTubeRunning = true;
@@ -1415,11 +1328,9 @@ public class MediaDetectionService : IMediaDetectionService
 
                                     if (!resolved)
                                     {
-                                        // Browser HelpText never updated (common when YouTube tab is in the background and auto-plays next track without a full page navigation)
                                         videoId = null;
                                         preferredThumbnailUrl = null;
 
-                                        // ─── Immediate title-search: don't wait for another retry ─── The polling loop already wasted ~1s. Search by title now.
                                         if (!token.IsCancellationRequested &&
                                             !titleSearchAttempted &&
                                             IsStillSamePublishedTrack(trackDuringFetch, artistDuringFetch, sourceAppDuringFetch, sessionKeyDuringFetch))
@@ -1481,7 +1392,6 @@ public class MediaDetectionService : IMediaDetectionService
     {
                         try
                         {
-                            // ─── Priority 1: Try to get artwork directly from browser URL ───
                             string? artworkUrl = null;
                             string? browserSoundCloudUrl = TryExtractSoundCloudUrlFromAnyBrowser();
                             if (!string.IsNullOrEmpty(browserSoundCloudUrl))
@@ -1489,7 +1399,6 @@ public class MediaDetectionService : IMediaDetectionService
                                 artworkUrl = await TryGetSoundCloudArtworkFromUrlAsync(browserSoundCloudUrl, token);
                             }
 
-                            // ─── Priority 2: Fallback to title-based search ───
                             if (string.IsNullOrEmpty(artworkUrl) || IsLikelySoundCloudPlaceholderArtworkUrl(artworkUrl))
                             {
                                 artworkUrl = await TryGetSoundCloudArtworkUrlAsync(trackDuringFetch, artistDuringFetch, requireStrongMatch, token);
@@ -1515,13 +1424,11 @@ public class MediaDetectionService : IMediaDetectionService
                                 return;
                             }
 
-                            // Generation changed — track or session switched since fetch started
                             if (Volatile.Read(ref _thumbnailFetchGeneration) != thumbGenAtStart)
                             {
                                 return;
                             }
 
-                            // ── YouTube guard ────────────────────────────── If the current track was already resolved as YouTube (either via SMTC source upgrade or via a verified YouTube thumbnail in cache) by the time this background SoundCloud fetch completes, do NOT overwrite the YouTube artwork with a SoundCloud placeholder
                             if (info.Platform == MediaPlatform.YouTube ||
                                 IsLikelyYouTube(info) ||
                                 MediaPlatformExtensions.ParsePlatform(_cachedThumbnailSource) == MediaPlatform.YouTube)
@@ -1670,7 +1577,7 @@ public class MediaDetectionService : IMediaDetectionService
     private static string BuildSessionInstanceKey(GlobalSystemMediaTransportControlsSession session)
     {
         string sourceApp = session.SourceAppUserModelId ?? "";
-        
+
         int instanceHash = RuntimeHelpers.GetHashCode(session);
         return $"{sourceApp}|{instanceHash}";
     }
@@ -1698,7 +1605,6 @@ public class MediaDetectionService : IMediaDetectionService
         catch (Exception ex)
         {
             RuntimeLog.Error("MEDIA-SESSION-PRESENT", ex.ToString());
-            // On error, assume present to avoid thrashing the fast path.
             return true;
         }
 
@@ -1776,7 +1682,6 @@ public class MediaDetectionService : IMediaDetectionService
                 ApplySpotifyGroundTruthCorrection(info, spotifyGroundTruth, ref mediaProperties);
 
             var currentSignature = info.GetSignature();
-            // Use track+artist identity (without MediaSource) to decide if the *actual track* changed
             string currentTrackOnlyIdentityForThumb = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
             bool trackChangedForThisPass = InvalidateThumbnailStateIfTrackChanged(currentTrackOnlyIdentityForThumb);
 
@@ -1796,11 +1701,6 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    /// <summary>
-    /// Switches the actively-displayed SMTC session, re-wiring event subscriptions and
-    /// clearing all per-session thumbnail/fetch state to prevent stale artwork from leaking
-    /// across sessions.
-    /// </summary>
     private void SwitchActiveDisplaySessionIfNeeded(GlobalSystemMediaTransportControlsSession session)
     {
         if (_activeDisplaySession == session) return;
@@ -1834,7 +1734,6 @@ public class MediaDetectionService : IMediaDetectionService
 
         _lastTrackSignature = "";
         _lastThumbTrackIdentity = "";
-        // Session switched — aggressively clear all thumbnail state to prevent stale thumbnails from a previous session leaking into the new one
         _cachedThumbnail = null;
         _cachedThumbnailSource = "";
         _timelineSimulator.RecoveredThumbnail = null;
@@ -1845,22 +1744,15 @@ public class MediaDetectionService : IMediaDetectionService
         Interlocked.Increment(ref _thumbnailFetchGeneration);
     }
 
-    /// <summary>Maps a session's SourceAppUserModelId to an initial <see cref="MediaInfo.MediaSource"/>.</summary>
     private void ApplyMediaSourceFromAppId(MediaInfo info, string sessionSourceApp)
         => MediaSourceClassifier.ApplyFromAppId(info, sessionSourceApp);
 
-    /// <summary>Refines an unresolved Browser source into YouTube / Apple Music / SoundCloud using track metadata.</summary>
     private void RefineMediaSourceFromMetadata(MediaInfo info, string lowerTitle, string lowerArtist, string lowerAlbum)
         => MediaSourceClassifier.RefineFromMetadata(info, lowerTitle, lowerArtist, lowerAlbum);
 
-    /// <summary>
-    /// Detects placeholder/junk SMTC titles (app names, ads, empty). Returns true when the caller
-    /// should abort this pass; for YouTube it first clears the track and tags the artist.
-    /// </summary>
     private bool TryHandleJunkSessionTitle(MediaInfo info, string sessionTitle, string sessionArtist)
         => MediaSourceClassifier.TryHandleJunkTitle(info, sessionTitle, sessionArtist);
 
-    /// <summary>Holds a recently-confirmed artist for browser/YouTube sources that briefly report a generic artist.</summary>
     private void StabilizeArtist(MediaInfo info)
     {
         var r = MediaTimingDecisions.EvaluateArtistStabilization(
@@ -1869,11 +1761,6 @@ public class MediaDetectionService : IMediaDetectionService
         _stableArtist = r.stableArtist;
     }
 
-    /// <summary>
-    /// Corrects stale or mis-split Spotify SMTC metadata against the Spotify window title
-    /// (ground truth). When a correction is applied, the SMTC media properties are dropped so
-    /// downstream thumbnail logic refetches against the corrected track.
-    /// </summary>
     private void ApplySpotifyGroundTruthCorrection(MediaInfo info, string? spotifyGroundTruth, ref GlobalSystemMediaTransportControlsSessionMediaProperties? mediaProperties)
     {
         bool isStaleSMTC = false;
@@ -1918,7 +1805,6 @@ public class MediaDetectionService : IMediaDetectionService
 
             if (!needsCorrection && !string.IsNullOrEmpty(info.CurrentTrack))
             {
-                // Use SMTC artist (which is clean) to split window title correctly
                 string artistPrefix = info.CurrentArtist + " - ";
                 if (spotifyGroundTruth.StartsWith(artistPrefix, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1949,10 +1835,6 @@ public class MediaDetectionService : IMediaDetectionService
         }
     }
 
-    /// <summary>
-    /// Clears cached thumbnail/fetch state when the track identity differs from the last pass.
-    /// Returns whether the track changed during this pass.
-    /// </summary>
     private bool InvalidateThumbnailStateIfTrackChanged(string currentTrackOnlyIdentityForThumb)
     {
         bool trackChangedForThisPass = !string.Equals(currentTrackOnlyIdentityForThumb, _lastThumbTrackIdentity, StringComparison.Ordinal);
@@ -1970,7 +1852,6 @@ public class MediaDetectionService : IMediaDetectionService
         return trackChangedForThisPass;
     }
 
-    /// <summary>Re-reads the session's playback info as the authoritative final state for this pass.</summary>
     private void ApplyFinalPlaybackInfo(MediaInfo info, GlobalSystemMediaTransportControlsSession? session)
     {
         try
@@ -2168,12 +2049,10 @@ public class MediaDetectionService : IMediaDetectionService
             if (!trackChangedForThisPass && _cachedThumbnail != null &&
                 (hasVerifiedYouTubeThumb || hasVerifiedSoundCloudThumbGlobal))
             {
-                // Same track, already have a verified high-quality thumbnail from YouTube/SoundCloud API — don't let the SMTC thumbnail overwrite it
                 info.Thumbnail = _cachedThumbnail;
             }
             else if (!trackChangedForThisPass && _cachedThumbnail != null)
             {
-                // Same track (by title+artist) — reuse cached thumbnail regardless of forceRefresh or MediaSource flip-flop
                 info.Thumbnail = _cachedThumbnail;
             }
             else
@@ -2214,7 +2093,6 @@ public class MediaDetectionService : IMediaDetectionService
                                         $"Rejecting stale SMTC thumbnail on track change: " +
                                         $"track='{info.CurrentTrack}' source='{info.MediaSource}' " +
                                         $"thumb={newBitmap.PixelWidth}x{newBitmap.PixelHeight} aspect={(double)newBitmap.PixelWidth / newBitmap.PixelHeight:F2}");
-                                    // Don't cache the stale thumbnail — leave info.Thumbnail as null so the verified lookup provides the correct one
                                     info.Thumbnail = null;
                                 }
                                 else if (thumbDecision == ThumbnailHeuristics.SmtcThumbnailDecision.Accept)
@@ -2258,14 +2136,14 @@ public class MediaDetectionService : IMediaDetectionService
                 var timeline = session?.GetTimelineProperties();
                 if (timeline != null)
                 {
-                    
+
                     bool isInitialOrBigChange = forceRefresh ||
                                                _lastTrackSignature == "" ||
                                                (DateTime.Now - _lastMetadataChangeTime).TotalSeconds < 4.0;
 
                     if (isInitialOrBigChange)
                     {
-                        
+
                         await Task.Delay(120);
                         timeline = session?.GetTimelineProperties() ?? timeline;
                     }
@@ -2462,7 +2340,6 @@ public class MediaDetectionService : IMediaDetectionService
 
                             bool isOsCurrent = osCurrentId == sourceApp;
 
-                            // Reduce OS-current bonus for browser sessions when a dedicated music app is actively playing
                             bool isDedicatedMusicAppPlaying = false;
                             if (isOsCurrent && (isBrowser || isYouTube))
                             {
@@ -2481,7 +2358,7 @@ public class MediaDetectionService : IMediaDetectionService
                                             }
                                         }
                                     }
-                                    catch { /* best-effort: a session may vanish mid-scan; skip it */ }
+                                    catch { }
                                 }
                             }
 
@@ -2654,12 +2531,12 @@ public class MediaDetectionService : IMediaDetectionService
                         {
                             var timelineAge = (DateTimeOffset.UtcNow - bestTimeline.LastUpdatedTime).TotalSeconds;
                             hasFreshTimeline = timelineAge >= 0 && timelineAge < 2.0;
-                            
+
                             var currentTimeline = _activeDisplaySession.GetTimelineProperties();
                             if (currentTimeline != null && hasFreshTimeline)
                             {
                                 var currentTimelineAge = (DateTimeOffset.UtcNow - currentTimeline.LastUpdatedTime).TotalSeconds;
-                                
+
                                 if (currentTimelineAge - timelineAge > 3.0)
                                 {
                                     RuntimeLog.Debug("MEDIA-SESSION", () => $"Switching session: fresh timeline New={timelineAge:F1}s vs Current={currentTimelineAge:F1}s");
@@ -2737,7 +2614,6 @@ public class MediaDetectionService : IMediaDetectionService
         return res?.Id;
     }
 
-    // ── Mismatch cache: avoid re-validating the same stale videoId during rapid polling ──
     private bool TryGetCachedMismatchVideoId(string videoId)
         => _videoIds.IsMismatch(videoId);
 
@@ -2772,7 +2648,6 @@ public class MediaDetectionService : IMediaDetectionService
             string? url = _windowTitleScanner.TryGetBrowserUrl();
             if (string.IsNullOrEmpty(url)) return null;
 
-            // Match youtube.com/watch?v=VIDEO_ID or youtu.be/VIDEO_ID or music.youtube.com
             var match = System.Text.RegularExpressions.Regex.Match(url,
                 @"(?:youtube\.com/watch\?.*v=|youtu\.be/|music\.youtube\.com/watch\?.*v=)([a-zA-Z0-9_-]{11})");
 
@@ -2780,7 +2655,6 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 string videoId = match.Groups[1].Value;
                 System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted video ID from browser URL: {videoId}");
-                // NOTE: Do NOT cache here
                 return videoId;
             }
         }
@@ -2806,7 +2680,6 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 string videoId = match.Groups[1].Value;
                 System.Diagnostics.Debug.WriteLine($"[MediaDetection] Extracted video ID from background browser: {videoId}");
-                // See TryExtractVideoIdFromBrowserUrl: do NOT cache pre-validation.
                 return videoId;
             }
         }
@@ -2827,7 +2700,6 @@ public class MediaDetectionService : IMediaDetectionService
 
             if (url.Contains("soundcloud.com/", StringComparison.OrdinalIgnoreCase))
             {
-                // Validate it's a track URL (user/track format)
                 var match = System.Text.RegularExpressions.Regex.Match(url,
                     @"soundcloud\.com/([^/\s?#]+)/([^/\s?#]+)");
                 if (match.Success)
@@ -2845,7 +2717,6 @@ public class MediaDetectionService : IMediaDetectionService
         return null;
     }
 
-    // ─── Video ID cache per track (persists across browser focus changes) ───
     private readonly VideoIdCache _videoIds = new();
 
     private void CacheVideoIdForTrack(string? trackIdentity, string videoId)
@@ -2887,7 +2758,6 @@ public class MediaDetectionService : IMediaDetectionService
             info.CurrentArtist.Equals("YouTube", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // ── Window-title fallback ───────────────────────────────────────────── SMTC reports browser-hosted media as "Browser" (not "YouTube") until we've seen a successful URL/oEmbed lookup that lets us cache an override
         if (info.Platform == MediaPlatform.Browser && !string.IsNullOrEmpty(info.CurrentTrack))
         {
             try
@@ -2908,7 +2778,6 @@ public class MediaDetectionService : IMediaDetectionService
             }
             catch
             {
-                // Window enumeration is best-effort; treat failure as "no hint".
             }
         }
 
@@ -2922,7 +2791,6 @@ public class MediaDetectionService : IMediaDetectionService
         string trackIdentity = BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist);
         string trackOnlyIdentity = BuildTrackIdentity(info.CurrentTrack, "");
 
-        // Check source cache — populated from previous confirmed lookups
         if (_sourceCache.TryGet(trackIdentity, out var cachedSource) ||
             _sourceCache.TryGet(trackOnlyIdentity, out cachedSource))
         {
@@ -2934,7 +2802,6 @@ public class MediaDetectionService : IMediaDetectionService
             }
         }
 
-        // Check session override — set when a browser session was previously confirmed as YouTube/SoundCloud
         if (TryGetSessionSourceOverride(info, out var sessionOverride) &&
             !string.IsNullOrEmpty(sessionOverride) &&
             MediaPlatformExtensions.ParsePlatform(sessionOverride) != MediaPlatform.Spotify)
@@ -2947,8 +2814,6 @@ public class MediaDetectionService : IMediaDetectionService
 
     private bool ShouldPreserveSoundCloudSourceDuringTrackSwitch(MediaInfo info)
     {
-        // The session-override lookup is the only external dependency; resolve it here (a pure read of
-        // session state) and hand the result to the pure decision core.
         bool hasOverride = TryGetSessionSourceOverride(info, out var sessionOverride);
         return MediaTimingDecisions.ShouldPreserveSoundCloud(
             info.MediaSource, info.CurrentTrack, info.CurrentArtist, info.SourceAppId, info.SessionInstanceKey,
@@ -3062,4 +2927,3 @@ public enum DetectionMode
     EventDriven,
     ThrottledMedia
 }
-

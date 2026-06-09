@@ -1,10 +1,10 @@
-﻿using VNotch.Models;
+using VNotch.Models;
 
 namespace VNotch.Services;
 
 public interface IMediaDetectionService : IDisposable
 {
-    
+
     event EventHandler<MediaInfo>? MediaChanged;
 
     void Start();

@@ -18,25 +18,8 @@ public partial class MainWindow
     private enum LastExpandedView { Primary, Secondary, Timer }
     private LastExpandedView _lastExpandedViewBeforeCollapse = LastExpandedView.Primary;
 
-    /// <summary>
-    /// The resting Y offset of <see cref="ExpandedContent"/>. In Dynamic Island mode it's a
-    /// small nudge (matching the taller island). In notch mode the expanded surface is 10px
-    /// taller than the content needs, so we push the content down here to keep the bottom
-    /// spacing equal to the side margin. The status bar cancels this shift (see
-    /// ApplyDynamicIslandContentAlignment) so the top icons stay put. Tune this single number
-    /// to change the content's vertical resting position.
-    /// </summary>
-    /// <summary>
-    /// Resting Y offset of <see cref="ExpandedContent"/>. Dynamic Island keeps a small
-    /// downward nudge; notch mode rests at 0 since the bottom spacing is now provided by the
-    /// ExpandedContent bottom margin (matching the side margin).
-    /// </summary>
     private double ExpandedContentRestY => _settings.EnableDynamicIslandMode ? 8.5 : 4;
 
-    /// <summary>
-    /// Restores <see cref="ExpandedContent"/> to its canonical resting transform after a
-    /// view transition: the small Dynamic-Island Y offset, or no transform in notch mode.
-    /// </summary>
     private void ApplyExpandedContentRestTransform()
     {
         if (ExpandedContent == null) return;
@@ -44,12 +27,6 @@ public partial class MainWindow
         ExpandedContent.RenderTransform = restY != 0 ? new TranslateTransform(0, restY) : null;
     }
 
-    /// <summary>
-    /// Forces ExpandedContent to a final, measured layout and recomputes its width-dependent
-    /// sub-layouts (progress section + media marquee) before a return-to-main-view reveal or its
-    /// BitmapCache snapshot. Without this the progress bar and title/artist marquee — both derived
-    /// from MediaWidgetContainer.ActualWidth — are revealed at stale positions for a frame and jump.
-    /// </summary>
     private void PrepareExpandedContentLayoutForReveal()
     {
         if (ExpandedContent == null) return;
@@ -99,13 +76,9 @@ public partial class MainWindow
 
             ConfigureAnimationThumbnailRestSlot();
 
-            // The overlay's layout slot is aligned with the real compact thumbnail rest slot.
-            // Keeping it fixed makes the translate math stable while the notch height animates.
             var overlayMargin = AnimationThumbnailBorder.Margin;
             double targetX = thumbPos.X - overlayMargin.Left;
-            
-            // Adjust the Y-coordinate to align with the final static expanded state (which is shifted by target translation)
-            // regardless of the current rendering transform of ExpandedContent during measurement.
+
             double currentTranslationY = GetCurrentExpandedContentTranslationY();
             double contentTargetY = ExpandedContentRestY;
             double targetY = (thumbPos.Y - currentTranslationY) + contentTargetY - overlayMargin.Top;
@@ -269,7 +242,6 @@ public partial class MainWindow
         UpdateZOrderTimerInterval();
         EnsureTopmost();
 
-        // Capture current visual size before cancelling hover animations (prevents snap-back jitter)
         double currentWidth = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
         double currentHeight = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight;
 
@@ -277,7 +249,6 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(HeightProperty, null);
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
-        // Set local value to current visual size so expand animation starts from here (no snap)
         NotchBorder.Width = currentWidth;
         NotchBorder.Height = currentHeight;
 
@@ -347,14 +318,12 @@ public partial class MainWindow
         ExpandedContent.Opacity = 0;
         ExpandedContent.Visibility = Visibility.Visible;
 
-        // Hide lyrics blur during expand to prevent visual artifacts, will show after completion
         if (_isLyricsActive && LyricsBlurBackground != null)
         {
             LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
             LyricsBlurBackground.Opacity = 0;
             LyricsBlurBackground.Visibility = Visibility.Collapsed;
         }
-        // Force layout pass so ThumbnailBorder gets actual dimensions for target compute
         ExpandedContent.Width = _expandedWidth - 16;
         ExpandedContent.Height = _expandedHeight - 10;
         ExpandedContent.UpdateLayout();
@@ -390,7 +359,6 @@ public partial class MainWindow
             var cachedExpandTarget = _cachedThumbnailExpandTarget;
             if (!cachedExpandTarget.HasValue)
             {
-                // Temporarily resize NotchBorder and ExpandedContent so that layout computations (TransformToAncestor) yield correct target coordinates
                 double prevNotchWidth = NotchBorder.Width;
                 double prevNotchHeight = NotchBorder.Height;
                 double prevExpandedWidth = ExpandedContent.Width;
@@ -401,7 +369,6 @@ public partial class MainWindow
                 ExpandedContent.Width = _expandedWidth - 16;
                 ExpandedContent.Height = _expandedHeight - 10;
 
-                // Force layout update synchronously to measure exact dimensions of children
                 UpdateLayout();
 
                 if (TryComputeThumbnailExpandTarget(out var computedTarget))
@@ -410,19 +377,16 @@ public partial class MainWindow
                     cachedExpandTarget = computedTarget;
                 }
 
-                // Restore original sizes so that start values for animations are correct
                 NotchBorder.Width = prevNotchWidth;
                 NotchBorder.Height = prevNotchHeight;
                 ExpandedContent.Width = prevExpandedWidth;
                 ExpandedContent.Height = prevExpandedHeight;
-                
-                // Update layout again to restore the collapsed state geometry for the animations to start from
+
                 UpdateLayout();
             }
 
             if (!cachedExpandTarget.HasValue)
             {
-                // No animation overlay possible — keep compact thumbnail visible until expand completes, then expanded view takes over.
                 ResetAnimationThumbnailOverlay();
                 if (CompactThumbnailBorder != null) CompactThumbnailBorder.Opacity = 1;
                 if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
@@ -505,7 +469,6 @@ public partial class MainWindow
             UpdateCalendarInfo();
             ShowMediaBackground();
 
-            // Show lyrics blur now that layout is stable
             if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
@@ -519,13 +482,11 @@ public partial class MainWindow
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeIn);
             }
 
-            // Immediately sync lyrics display to current position (skip placeholder if already past first lyric)
             if (_isLyricsActive)
             {
                 UpdateLyricsDisplay();
             }
-            
-            // Start progress bar catch-up animation BEFORE RenderProgressBar to prevent the snap-to-position that would set _progressDisplayRatio > 0 and cause StartProgressCatchUpAnimation to bail out
+
             StartProgressCatchUpAnimation();
             RenderProgressBar();
 
@@ -556,20 +517,17 @@ public partial class MainWindow
                 }
             }
 
-            // Always restore opacity — it may have been set to 0 during expand animation even if _isMusicCompactMode changed during the animation
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
             if (CompactThumbnailBorder != null && !_isClipboardPeekActive && !suppressCompactThumbnailMotion)
             {
                 CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
                 CompactThumbnailBorder.Visibility = Visibility.Visible;
                 CompactThumbnailBorder.Opacity = 1;
-                // Reset thumbnail scale after expand completes (was left at hover scale during transition)
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
                 CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
                 CompactThumbnailScale.ScaleX = 1.0;
                 CompactThumbnailScale.ScaleY = 1.0;
 
-                // Reset compact thumbnail morph state (may have been left mid-morph by CancelThumbnailSwitchForExpand)
                 CompactThumbnailOutScale.ScaleX = 1.0;
                 CompactThumbnailOutScale.ScaleY = 1.0;
                 CompactThumbnailOutBlur.Radius = 0.0;
@@ -583,8 +541,6 @@ public partial class MainWindow
             CollapsedContent.Visibility = Visibility.Collapsed;
             MusicCompactContent.Visibility = Visibility.Collapsed;
 
-            // Restore the view that was active before the last collapse, if enabled.
-            // Mirrors how the clock view restores: expand to primary, then switch.
             if (_settings.ReopenLastViewOnExpand && !_isSecondaryView && !_isTimerView)
             {
                 if (_lastExpandedViewBeforeCollapse == LastExpandedView.Secondary)
@@ -619,10 +575,6 @@ public partial class MainWindow
     {
         if (_isAnimating || !_isExpanded || _isGreetingActive) return;
 
-        // Capture the active view FIRST, before any teardown. Deactivation fires two
-        // collapse triggers (WM_ACTIVATEAPP + Deactivated) and the view teardown below
-        // can flip _isSecondaryView/_isTimerView before a later capture point would run,
-        // which previously lost the shelf state needed to reopen it.
         _lastExpandedViewBeforeCollapse = _isTimerView
             ? LastExpandedView.Timer
             : _isSecondaryView
@@ -658,7 +610,6 @@ public partial class MainWindow
 
         AnimateStatusBarReveal(false);
 
-        // Immediately hide nav icons to prevent them staying visible during collapse
         NavIconsBackground.BeginAnimation(OpacityProperty, null);
         NavIconsBackground.Opacity = 0;
         NavIconsBackground.Visibility = Visibility.Collapsed;
@@ -666,7 +617,6 @@ public partial class MainWindow
         NavIconsPanel.Opacity = 0;
         NavIconsPanel.Visibility = Visibility.Collapsed;
 
-        // If collapsing from secondary/timer view, animate that surface out while the notch returns to compact.
         bool wasSecondary = _isSecondaryView;
         bool wasTimer = _isTimerView;
         bool wasAudio = _isAudioView;
@@ -737,7 +687,6 @@ public partial class MainWindow
             TimerContent.RenderTransform = timerGroup;
             TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-            // Delay container fade to let internal elements fade first
             var timerFadeOut = MakeAnim(TimerContent.Opacity, 0, _dur200, _easeQuadIn, TimeSpan.FromMilliseconds(60));
             var timerSlideDown = MakeAnim(0, 12, _dur250, _easeQuadIn, TimeSpan.FromMilliseconds(60));
             var timerScaleDown = MakeAnim(1, 0.95, _dur250, _easeQuadIn, TimeSpan.FromMilliseconds(60));
@@ -795,7 +744,6 @@ public partial class MainWindow
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         ResetAnimationThumbnailOverlay();
 
-        // Cancel any in-progress corner radius animation to prevent jitter
         this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
         ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -850,11 +798,6 @@ public partial class MainWindow
         contentToHide.Visibility = Visibility.Collapsed;
         contentToHide.Opacity = 0;
 
-        // Skip the 0.8 -> 1.0 zoom spring for the music-compact pill. That spring scales the
-        // whole MusicCompactContent around its center with an overshooting ease, which drags the
-        // right-edge MusicViz off its rest slot and desyncs it from the thumbnail morph (the
-        // thumbnail uses its own overlay + spring to a precise target). Letting the pill content
-        // sit at scale 1.0 keeps MusicViz pinned to its layout slot while it fades in.
         bool skipContentZoom = _isMusicCompactMode;
         var showGroup = new TransformGroup();
         var showScale = new ScaleTransform(skipContentZoom ? 1.0 : 0.8, skipContentZoom ? 1.0 : 0.8);
@@ -870,16 +813,12 @@ public partial class MainWindow
         double contentBlurRadius = _settings.EnableBlurEffects ? 24 : 0;
         var blurOutAnim = MakeAnim(0, contentBlurRadius, _dur350, _easeQuadIn);
         var blurInAnim = MakeAnim(contentBlurRadius, 0, _dur500, _easePowerOut3);
-        
+
         CollapsedContentBlur.Radius = contentBlurRadius;
         MusicCompactContentBlur.Radius = contentBlurRadius;
 
         if (_isMusicCompactMode && ThumbnailImage.Source != null && !suppressCompactThumbnailMotion)
         {
-            // Hide both real thumbnails immediately to prevent double-thumbnail during crossfade.
-            // Use Hidden (not Collapsed) for the compact thumbnail so its 22px layout slot stays
-            // reserved — collapsing it shrinks row 0 to the visualizer height, which makes the
-            // center-aligned MusicViz jump ~2.5px when the slot is restored at the end of collapse.
             if (CompactThumbnailBorder != null)
             {
                 CompactThumbnailBorder.Opacity = 0;
@@ -964,8 +903,6 @@ public partial class MainWindow
             NotchBorder.IsHitTestVisible = true;
             UpdateProgressTimerState();
 
-            // Collapsing straight out of the widened clock view: shrink the host window
-            // back to its standard footprint now that the notch is compact again.
             if (wasTimer || wasAudio)
             {
                 RestoreExpandedWindowSize();
@@ -992,10 +929,8 @@ public partial class MainWindow
                 BluetoothDisconnectNotification.Visibility = Visibility.Collapsed;
                 _isBluetoothNotificationVisible = false;
             }
-            // Drop any compact-pill slot — the expanded view will repaint freshly.
             _compactPillArbiter.ForceClear();
 
-            // Safety: ensure nav icons are always hidden in collapsed state
             NavIconsPanel.BeginAnimation(OpacityProperty, null);
             NavIconsPanel.Opacity = 0;
             NavIconsPanel.Visibility = Visibility.Collapsed;
@@ -1036,13 +971,11 @@ public partial class MainWindow
             }
             if (ThumbnailBorder != null) ThumbnailBorder.Opacity = 1;
 
-            // Ensure MusicViz is properly positioned after collapse
             if (_isMusicCompactMode && _currentMediaInfo?.IsPlaying == true && !_isClipboardPeekActive && !_isVolumeIndicatorActive && !suppressCompactThumbnailMotion)
             {
                 ShowMusicVisualizer(animate: false);
             }
 
-            // Force layout update to fix any positioning drift from width animation
             MusicCompactContent.InvalidateArrange();
             MusicCompactContent.UpdateLayout();
 

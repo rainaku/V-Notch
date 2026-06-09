@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 namespace VNotch.Services;
 public static class PlatformDetector
 {
-    // ─── App ID → Platform mapping ───
 
     private static readonly (string Pattern, MediaPlatform Platform)[] AppIdRules =
     {
@@ -28,8 +27,6 @@ public static class PlatformDetector
         ("Browser", MediaPlatform.Browser),
     };
 
-    // ─── Window title separators to strip ───
-
     private static readonly string[] TitleSeparators =
     {
         " - YouTube", " – YouTube", " - SoundCloud", " | Facebook",
@@ -40,7 +37,6 @@ public static class PlatformDetector
         " - Browser", " – Current browser"
     };
 
-    // ─── Public API ───
 public static MediaPlatform DetectFromAppId(string? sourceAppId)
     {
         if (string.IsNullOrEmpty(sourceAppId))
@@ -153,14 +149,10 @@ public static string ExtractTitleFromWindow(string windowTitle, string platformF
     {
         var title = windowTitle;
 
-        // Strip notification count prefix: (3) or (10+)
         title = Regex.Replace(title, @"^\(\d+\+?\)\s*", "");
-        // Strip play/pause emoji prefix
         title = Regex.Replace(title, @"^[▶⏸▶️⏸️\s]*", "");
-        // Strip timestamp prefix
         title = Regex.Replace(title, @"^[▶⏸\s\d:]+\|", "").Trim();
 
-        // Strip platform suffixes
         foreach (var sep in TitleSeparators)
         {
             int idx = title.IndexOf(sep, StringComparison.OrdinalIgnoreCase);
@@ -172,17 +164,12 @@ public static string ExtractTitleFromWindow(string windowTitle, string platformF
 
         title = title.Trim();
 
-        // Strip trailing separators
         title = Regex.Replace(title, @"\s+[\-\|–•]\s*$", "");
 
         return string.IsNullOrEmpty(title) ? platformFallback : title;
     }
 public static (string Artist, string Track) ParseSpotifyTitle(string title)
     {
-        // Spotify window title format is "Artist - Track".
-        // Artist names with multiple artists use commas (e.g. "kidsai, BeepBeepChild"),
-        // so the FIRST " - " is the separator between artist and track.
-        // Track names can contain " - " (e.g. "NHIEULUC - Remix Version").
         int firstSep = title.IndexOf(" - ", StringComparison.Ordinal);
         if (firstSep > 0)
         {
@@ -229,7 +216,6 @@ public static string NormalizeForLooseMatch(string value)
     }
 }
 
-// ─── Platform Enum ───
 public enum MediaPlatform
 {
     Unknown,

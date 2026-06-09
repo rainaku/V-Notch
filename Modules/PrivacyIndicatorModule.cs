@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using VNotch.Services;
 
 namespace VNotch.Modules;
@@ -6,7 +6,7 @@ namespace VNotch.Modules;
 public class PrivacyIndicatorModule : NotchModuleBase
 {
     public override string ModuleName => "PrivacyIndicator";
-    public override TimeSpan? TickInterval => null; // Event-driven via service timer
+    public override TimeSpan? TickInterval => null;
 
     private readonly PrivacyIndicatorService _service;
 
@@ -33,7 +33,6 @@ public class PrivacyIndicatorModule : NotchModuleBase
 
     protected override void OnTick()
     {
-        // No-op: event-driven via PrivacyIndicatorService internal timer
     }
 
     protected override void OnDispose()

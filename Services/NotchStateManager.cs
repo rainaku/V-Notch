@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using VNotch.Models;
 
 namespace VNotch.Services;
@@ -27,23 +27,12 @@ public class NotchStateManager
     public bool IsSecondaryView => CurrentState == NotchState.SecondaryView;
     public bool IsTransitioning => CurrentState is NotchState.Expanding or NotchState.Collapsing or NotchState.MusicExpanding or NotchState.MusicCollapsing;
 
-    // ─── Overlay view-state flags ───
-    // Independent of the core state-machine enum above. These were previously loose
-    // booleans living on the MainWindow god-class and read/written across ~30 partial
-    // files. Centralizing them here gives the hot shared view-state a single owner that
-    // controllers can coordinate through, instead of reaching into MainWindow fields.
-    // Toggled on the UI thread only (same as the original fields).
-
-    /// <summary>Guards ALL animations (expand, collapse, view switch, file delete).</summary>
     public bool IsAnimating { get; set; }
 
-    /// <summary>Whether the lyrics overlay is currently active.</summary>
     public bool IsLyricsActive { get; set; }
 
-    /// <summary>Whether the clock/timer surface is currently shown.</summary>
     public bool IsTimerView { get; set; }
 
-    /// <summary>Whether the audio-mixer view is currently shown.</summary>
     public bool IsAudioView { get; set; }
 
     public bool CanTransitionTo(NotchState target)
@@ -79,7 +68,6 @@ public bool TryTransitionTo(NotchState target)
             _lastTransitionUtc = DateTime.UtcNow;
         }
 
-        // Fire event outside lock to avoid deadlocks
         StateChanged?.Invoke(this, new NotchStateChangedEventArgs(_previousState, target));
         return true;
     }
@@ -122,8 +110,6 @@ public NotchState GetCollapseTarget()
         };
     }
 
-    // ─── Legacy compatibility methods (used by NotchManager) ───
-
     public bool CanExpand() => CurrentState == NotchState.Collapsed;
     public bool CanCollapse() => IsExpanded || IsMusicExpanded;
 
@@ -140,8 +126,6 @@ public NotchState GetCollapseTarget()
     }
 }
 
-// ─── Enums ───
-
 public enum NotchState
 {
 Collapsed,
@@ -156,16 +140,12 @@ MusicCollapsing,
 Hidden
 }
 
-// ─── Expand Mode (legacy, used by NotchManager/INotchManager) ───
-
 public enum NotchExpandMode
 {
     Compact,
     Medium,
     Large
 }
-
-// ─── Event Args ───
 
 public class NotchStateChangedEventArgs : EventArgs
 {

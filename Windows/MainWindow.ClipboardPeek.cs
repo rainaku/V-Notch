@@ -50,7 +50,6 @@ public partial class MainWindow
     }
     private void PlayClipboardPeek()
     {
-        // ─── Gentle scale bounce (only when collapsed and not animating) ───
         if (!_isExpanded && !_isAnimating)
         {
             NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -81,7 +80,6 @@ public partial class MainWindow
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, bounceY);
         }
 
-        // ─── Equalizer → Checkmark + "Copied" text (only in compact music mode) ───
         if (_isMusicCompactMode && !_isExpanded)
         {
             ShowClipboardCopiedState();
@@ -95,15 +93,12 @@ public partial class MainWindow
         _clipboardPeekToken = token;
         _isClipboardPeekActive = true;
 
-        // Hide privacy dot during clipboard notification
         SuppressPrivacyDot();
 
-        // Update text with localization
         ClipboardCopiedText.Text = Loc.Get("clipboard.copied");
 
         CancelThumbnailSwitchAnimations();
 
-        // Fade-out thumbnail smoothly
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -115,7 +110,6 @@ public partial class MainWindow
         };
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbFadeOut);
 
-        // Fade-out MusicViz smoothly
         MusicViz.BeginAnimation(OpacityProperty, null);
         var vizFadeOut = MakeAnim(1.0, 0.0, _dur150, _easeQuadOut);
         vizFadeOut.Completed += (s, e) =>
@@ -125,12 +119,10 @@ public partial class MainWindow
         };
         MusicViz.BeginAnimation(OpacityProperty, vizFadeOut);
 
-        // Hide compact hover info if visible
         CompactHoverInfo.BeginAnimation(OpacityProperty, null);
         CompactHoverInfo.Opacity = 0;
         CompactHoverInfo.Visibility = Visibility.Collapsed;
 
-        // ─── Show checkmark icon with scale-in spring ───
         ClipboardCheckIcon.Visibility = Visibility.Visible;
         ClipboardCheckIcon.BeginAnimation(OpacityProperty, null);
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -147,7 +139,6 @@ public partial class MainWindow
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, checkScaleIn);
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleYProperty, checkScaleIn);
 
-        // ─── Show "Copied" text with slide-in from left ───
         ClipboardCopiedText.Visibility = Visibility.Visible;
         ClipboardCopiedText.BeginAnimation(OpacityProperty, null);
         ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, null);
@@ -161,7 +152,6 @@ public partial class MainWindow
         ClipboardCopiedText.BeginAnimation(OpacityProperty, textFadeIn);
         ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, textSlideIn);
 
-        // ─── Schedule revert ───
         _clipboardRevertTimer?.Stop();
         _clipboardRevertTimer = new DispatcherTimer
         {
@@ -181,10 +171,8 @@ public partial class MainWindow
         _compactPillArbiter.Release(token);
         _clipboardPeekToken = 0;
 
-        // Restore privacy dot
         RestorePrivacyDotVisibility();
 
-        // ─── Checkmark: scale 1→0.5 + fade out (reverse of scale-in spring) ───
         ClipboardCheckIcon.BeginAnimation(OpacityProperty, null);
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -203,7 +191,6 @@ public partial class MainWindow
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, checkScaleOut);
         ClipboardCheckScale.BeginAnimation(ScaleTransform.ScaleYProperty, checkScaleOut);
 
-        // ─── Text: slide 0→-8 + fade out (reverse of slide-in) ───
         ClipboardCopiedText.BeginAnimation(OpacityProperty, null);
         ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, null);
 
@@ -220,7 +207,6 @@ public partial class MainWindow
         ClipboardCopiedText.BeginAnimation(OpacityProperty, textFadeOut);
         ClipboardCopiedTranslate.BeginAnimation(TranslateTransform.XProperty, textSlideOut);
 
-        // ─── Restore thumbnail with fade-in (reverse of fade-out) ───
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -231,7 +217,6 @@ public partial class MainWindow
         var thumbFadeIn = MakeAnim(0.0, 1.0, _dur200, _easeQuadOut);
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, thumbFadeIn);
 
-        // ─── MusicViz: fade in (reverse of fade out) ───
         ShowMusicVisualizer(duration: _dur100);
     }
 
@@ -254,7 +239,6 @@ public partial class MainWindow
         ClipboardCopiedText.Opacity = 0;
         ClipboardCopiedText.Visibility = Visibility.Collapsed;
 
-        // Caller (the arbiter) is taking over the privacy dot; nothing to restore here.
     }
 
     #endregion

@@ -29,7 +29,6 @@ public static class BitmapBufferPool
     {
         if (stream == null) return;
 
-        // Don't pool streams that grew too large (> 1MB) — let GC reclaim them
         if (stream.Capacity > 1024 * 1024)
             return;
 
@@ -40,8 +39,6 @@ public static class BitmapBufferPool
             _streamPool.Add(stream);
         }
     }
-
-    // ─── Pixel Buffer Pool (delegates to ArrayPool) ───
 
     public static byte[] RentPixelBuffer(int width, int height)
     {
@@ -54,8 +51,6 @@ public static class BitmapBufferPool
         if (buffer != null)
             ArrayPool<byte>.Shared.Return(buffer);
     }
-
-    // ─── BitmapImage Creation (zero-copy from WriteableBitmap) ───
 
     public static BitmapImage? CreateCroppedBitmapImage(BitmapSource source, Int32Rect cropRect)
     {
@@ -71,11 +66,9 @@ public static class BitmapBufferPool
 
         try
         {
-            // Crop the source
             var cropped = new CroppedBitmap(source, cropRect);
             cropped.Freeze();
 
-            // Ensure BGRA32 format
             BitmapSource cropSource = cropped;
             if (cropped.Format != PixelFormats.Bgra32)
             {
@@ -84,13 +77,11 @@ public static class BitmapBufferPool
                 cropSource = converted;
             }
 
-            // Copy pixels into pooled buffer
             pixels = ArrayPool<byte>.Shared.Rent(stride * cropH);
             cropSource.CopyPixels(new Int32Rect(0, 0, cropW, cropH), pixels, stride, 0);
 
             ms = RentStream();
 
-            // BMP header for BGRA32 (fastest encode — no compression)
             WriteBmpToStream(ms, pixels, cropW, cropH, stride);
 
             ms.Position = 0;
@@ -147,62 +138,51 @@ public static class BitmapBufferPool
         }
     }
 
-    // ─── BMP Writer (fastest possible encode for BGRA32) ───
-
     private static void WriteBmpToStream(MemoryStream ms, byte[] pixels, int width, int height, int stride)
     {
-        // BMP with BITMAPV4HEADER for BGRA32 support
         const int bmpHeaderSize = 14;
-        const int dibHeaderSize = 108; // BITMAPV4HEADER
+        const int dibHeaderSize = 108;
         int pixelDataSize = stride * height;
         int fileSize = bmpHeaderSize + dibHeaderSize + pixelDataSize;
 
-        // Ensure stream has capacity
         if (ms.Capacity < fileSize)
             ms.Capacity = fileSize;
 
         var writer = new BinaryWriter(ms);
 
-        // ─── BMP File Header (14 bytes) ───
         writer.Write((byte)'B');
         writer.Write((byte)'M');
-        writer.Write(fileSize);          // File size
-        writer.Write((short)0);          // Reserved
-        writer.Write((short)0);          // Reserved
-        writer.Write(bmpHeaderSize + dibHeaderSize); // Pixel data offset
+        writer.Write(fileSize);
+        writer.Write((short)0);
+        writer.Write((short)0);
+        writer.Write(bmpHeaderSize + dibHeaderSize);
 
-        // ─── BITMAPV4HEADER (108 bytes) ───
-        writer.Write(dibHeaderSize);     // Header size
-        writer.Write(width);             // Width
-        writer.Write(-height);           // Height (negative = top-down)
-        writer.Write((short)1);          // Planes
-        writer.Write((short)32);         // Bits per pixel
-        writer.Write(3);                 // Compression = BI_BITFIELDS
-        writer.Write(pixelDataSize);     // Image size
-        writer.Write(3780);              // X pixels per meter (~96 DPI)
-        writer.Write(3780);              // Y pixels per meter
-        writer.Write(0);                 // Colors used
-        writer.Write(0);                 // Important colors
+        writer.Write(dibHeaderSize);
+        writer.Write(width);
+        writer.Write(-height);
+        writer.Write((short)1);
+        writer.Write((short)32);
+        writer.Write(3);
+        writer.Write(pixelDataSize);
+        writer.Write(3780);
+        writer.Write(3780);
+        writer.Write(0);
+        writer.Write(0);
 
-        // Channel masks (BGRA32)
-        writer.Write(0x00FF0000);        // Red mask
-        writer.Write(0x0000FF00);        // Green mask
-        writer.Write(0x000000FF);        // Blue mask
-        writer.Write(unchecked((int)0xFF000000)); // Alpha mask
+        writer.Write(0x00FF0000);
+        writer.Write(0x0000FF00);
+        writer.Write(0x000000FF);
+        writer.Write(unchecked((int)0xFF000000));
 
-        // Color space type (LCS_sRGB)
-        writer.Write(0x73524742);        // 'sRGB'
+        writer.Write(0x73524742);
 
-        // CIEXYZTRIPLE endpoints (36 bytes of zeros)
         for (int i = 0; i < 9; i++)
             writer.Write(0);
 
-        // Gamma values (12 bytes of zeros)
-        writer.Write(0); // Red gamma
-        writer.Write(0); // Green gamma
-        writer.Write(0); // Blue gamma
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(0);
 
-        // ─── Pixel Data ───
         writer.Write(pixels, 0, pixelDataSize);
         writer.Flush();
     }

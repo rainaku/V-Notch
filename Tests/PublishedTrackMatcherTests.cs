@@ -24,7 +24,6 @@ public class PublishedTrackMatcherTests
     [Fact]
     public void IsSameTrack_SessionKeyMismatch_False()
     {
-        // Session key is the strongest guard; a mismatch wins even if the identity matches.
         var last = Snapshot(trackIdentity: "song|artist", sessionInstanceKey: "session-A");
         Assert.False(PublishedTrackMatcher.IsSameTrack(last, "Song", "Artist", "", "session-B"));
     }
@@ -53,7 +52,6 @@ public class PublishedTrackMatcherTests
     [Fact]
     public void IsSameTrack_TrackOnlyFallback_WhenArtistUnknown()
     {
-        // Full identity differs, but artist is empty so the track-only key is allowed to match.
         var last = Snapshot(trackIdentity: "song|someartist", trackOnlyIdentity: "song|");
         Assert.True(PublishedTrackMatcher.IsSameTrack(last, "Song", "", "", ""));
     }

@@ -4,11 +4,6 @@ using System.Text.Json.Serialization;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// JSON converter that keeps a string property as plaintext in memory but encrypts it at rest
-/// via <see cref="DataProtection"/> (Windows DPAPI). Apply with
-/// <c>[JsonConverter(typeof(DpapiJsonConverter))]</c> on the property.
-/// </summary>
 public sealed class DpapiJsonConverter : JsonConverter<string>
 {
     public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

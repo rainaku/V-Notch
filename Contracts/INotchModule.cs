@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 
 namespace VNotch.Contracts;
 
 public interface INotchModule : IDisposable
 {
-    
+
     string ModuleName { get; }
 
     TimeSpan? TickInterval { get; }

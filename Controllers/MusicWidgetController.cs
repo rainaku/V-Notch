@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using VNotch.Services;
 
 namespace VNotch.Controllers;
@@ -73,8 +73,6 @@ public sealed class MusicWidgetController
             ? _musicWidgetSmallWidth
             : (expandedContentWidth / 3.0) - 8;
     }
-
-    // ─── Progress Layout Calculations ───
 
     public record ProgressLayout(
         double ContainerHeight,

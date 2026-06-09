@@ -85,13 +85,11 @@ public event EventHandler? AnimatedClosing;
                 return true;
             }
 
-            // Don't let window drag intercept the subtitle priority drag-reorder area
             if (source is FrameworkElement fe)
             {
                 if (fe.Name == "SubtitlePriorityItems")
                     return true;
 
-                // Nav sidebar items are clickable Borders with a Tag
                 if (fe is Border border && border.Tag is string tag &&
                     (tag == "Searching" || tag == "Appearance" || tag == "Behavior" || tag == "Devices" ||
                      tag == "System" || tag == "Advanced" || tag == "Performance" ||
@@ -145,7 +143,6 @@ public event EventHandler? AnimatedClosing;
         MonitorCombo.ItemsSource = monitors;
         MonitorCombo.SelectedIndex = Math.Min(_settings.MonitorIndex, monitors.Length - 1);
 
-        // Camera device combo
         LoadCameraDevices().SafeFireAndForget("SETTINGS-CAMERA-DEVICES");
         SetVisualizerAudioDevicePlaceholder();
 
@@ -163,16 +160,13 @@ public event EventHandler? AnimatedClosing;
         CopyShelfClipboardCheck.IsChecked = _settings.CopyShelfFilesToClipboard;
         ShowBatteryCheck.IsChecked = _settings.ShowBatteryIndicator;
 
-        // Language combo
         LanguageCombo.Items.Clear();
         LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "English", Tag = "en" });
         LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "Tiếng Việt", Tag = "vi" });
         LanguageCombo.SelectedIndex = _settings.Language == "vi" ? 1 : 0;
 
-        // Expanded widget combo
         PopulateWidgetCombo();
 
-        // YouTube API
         YouTubeApiCheck.IsChecked = _settings.EnableYouTubeApi;
         YouTubeApiKeyPasswordBox.Password = _settings.YouTubeApiKey;
         YouTubeApiKeyTextBox.Text = _settings.YouTubeApiKey;
@@ -197,12 +191,10 @@ public event EventHandler? AnimatedClosing;
     }
     private void ApplyLocalization()
     {
-        // Header
         SettingsTitleText.Text = Loc.Get("settings.title");
         SettingsSubtitleText.Text = Loc.Get("settings.subtitle");
         SearchPlaceholder.Text = Loc.Get("settings.searchPlaceholder");
 
-        // Section headers
         AppearanceHeader.Text = Loc.Get("settings.appearance");
         BehaviorHeader.Text = Loc.Get("settings.behavior");
         UpdatesHeader.Text = Loc.Get("settings.updates");
@@ -213,7 +205,6 @@ public event EventHandler? AnimatedClosing;
         SearchingHeader.Text = Loc.Get("settings.searching");
         SearchingEmptyText.Text = Loc.Get("settings.search.noResults");
 
-        // Nav items
         NavSearchingText.Text = Loc.Get("settings.searching");
         NavAppearanceText.Text = Loc.Get("settings.nav.appearance");
         NavBehaviorText.Text = Loc.Get("settings.nav.behavior");
@@ -224,7 +215,6 @@ public event EventHandler? AnimatedClosing;
         NavDonatingText.Text = Loc.Get("settings.nav.donating");
         NavUpdatesText.Text = Loc.Get("settings.nav.updates");
 
-        // Appearance labels & hints
         ExpandedWidgetLabel.Text = Loc.Get("settings.expandedWidget");
         ExpandedWidgetHint.Text = Loc.Get("settings.expandedWidget.hint");
         RepopulateWidgetComboPreservingSelection();
@@ -259,12 +249,11 @@ public event EventHandler? AnimatedClosing;
 
         SubtitlePriorityLabel.Text = Loc.Get("settings.subtitlePriority");
         SubtitlePriorityHint.Text = Loc.Get("settings.subtitlePriority.hint");
-        LoadSubtitlePriority(); // Refresh display names for new language
+        LoadSubtitlePriority();
 
         DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode");
         DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint");
 
-        // Behavior labels & hints
         HoverExpandCheck.Content = Loc.Get("settings.hoverExpand");
         HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint");
         ExpandDelayLabel.Text = Loc.Get("settings.expandDelay");
@@ -281,7 +270,6 @@ public event EventHandler? AnimatedClosing;
         IdleAutoHideDelaySlider.Description = Loc.Get("settings.idleAutoHideDelay.hint");
         IdleAutoHideDelayKeywords.Text = Loc.Get("settings.idleAutoHideDelay.keywords");
 
-        // Updates & Report Bug
         CheckUpdateButton.Content = Loc.Get("settings.checkUpdate");
         UpdateStatusText.Text = Loc.Get("settings.upToDate");
         CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion());
@@ -292,7 +280,6 @@ public event EventHandler? AnimatedClosing;
         ClearCacheLabel.Text = Loc.Get("settings.clearCache");
         ClearCacheHint.Text = Loc.Get("settings.clearCache.hint");
 
-        // Display
         MonitorLabel.Text = Loc.Get("settings.activeMonitor");
         MonitorHint.Text = Loc.Get("settings.activeMonitor.hint");
         CameraLabel.Text = Loc.Get("settings.camera");
@@ -308,12 +295,10 @@ public event EventHandler? AnimatedClosing;
             SetVisualizerAudioDevicePlaceholder();
         }
 
-        // Footer buttons
         ResetButton.Content = Loc.Get("settings.btn.reset");
         ApplyButton.Content = Loc.Get("settings.btn.apply");
         SaveButton.Content = Loc.Get("settings.btn.save");
 
-        // System checkboxes & hints
         HelloGreetingCheck.Content = Loc.Get("settings.helloGreeting");
         HelloGreetingHint.Text = Loc.Get("settings.helloGreeting.hint");
         AutoStartCheck.Content = Loc.Get("settings.autoStart");
@@ -334,14 +319,12 @@ public event EventHandler? AnimatedClosing;
         ShowBatteryHint.Text = Loc.Get("settings.showBattery.hint");
         LanguageLabel.Text = Loc.Get("settings.language");
         LanguageHint.Text = Loc.Get("settings.language.hint");
-        // Advanced
         AdvancedHeader.Text = Loc.Get("settings.advanced");
         YouTubeApiCheck.Content = Loc.Get("settings.youtubeApi");
         YouTubeApiHint.Text = Loc.Get("settings.youtubeApi.hint");
         YouTubeApiKeyLabel.Text = Loc.Get("settings.youtubeApiKey");
         YouTubeApiKeyHint.Text = Loc.Get("settings.youtubeApiKey.hint");
 
-        // Performance
         AnimationFpsLabel.Text = Loc.Get("settings.animationFps");
         AnimationFpsSlider.Label = Loc.Get("settings.animationFps");
         AnimationFpsSlider.Description = Loc.Get("settings.animationFps.hint");
@@ -352,7 +335,6 @@ public event EventHandler? AnimatedClosing;
         EnableSmartCropCheck.Content = Loc.Get("settings.enableSmartCrop");
         EnableSmartCropHint.Text = Loc.Get("settings.enableSmartCrop.hint");
 
-        // Donating
         DonatingTitle.Text = Loc.Get("settings.donating.title");
         DonatingDescription.Text = Loc.Get("settings.donating.description");
         DonatePaypalButton.Content = Loc.Get("settings.donating.paypal");
@@ -459,7 +441,6 @@ public event EventHandler? AnimatedClosing;
         var keys = (_settings.SubtitlePriority ?? "native,english,auto")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        // Ensure all 3 modes are present
         var allKeys = new[] { "native", "english", "auto" };
         var ordered = keys.Where(k => allKeys.Contains(k)).ToList();
         foreach (var k in allKeys)
@@ -491,7 +472,7 @@ public event EventHandler? AnimatedClosing;
     {
         _subtitleDragStart = e.GetPosition(null);
         _subtitleIsDragging = false;
-        e.Handled = true; // Prevent window DragMove from intercepting
+        e.Handled = true;
     }
 
     private void SubtitlePriorityItem_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
@@ -540,14 +521,12 @@ public event EventHandler? AnimatedClosing;
         var draggedItem = e.Data.GetData("SubtitlePriorityItem") as SubtitlePriorityItem;
         if (draggedItem == null) return;
 
-        // Find drop target
         var dropPos = e.GetPosition(SubtitlePriorityItems);
         int newIndex = GetSubtitleDropIndex(dropPos);
 
         int oldIndex = _subtitleItems.IndexOf(draggedItem);
         if (oldIndex < 0 || oldIndex == newIndex) return;
 
-        // Capture positions before move for animation
         var positions = new Dictionary<SubtitlePriorityItem, double>();
         for (int i = 0; i < _subtitleItems.Count; i++)
         {
@@ -558,7 +537,6 @@ public event EventHandler? AnimatedClosing;
 
         _subtitleItems.Move(oldIndex, newIndex);
 
-        // Animate items sliding to new positions
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
         {
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
@@ -587,7 +565,6 @@ public event EventHandler? AnimatedClosing;
                     translate.BeginAnimation(TranslateTransform.YProperty, anim);
                 }
 
-                // Scale pop on the moved item
                 if (item == draggedItem)
                 {
                     var scale = container.RenderTransform as ScaleTransform;
@@ -611,7 +588,6 @@ public event EventHandler? AnimatedClosing;
             }
         });
 
-        // Persist immediately so the new priority takes effect right away
         ApplySettingsFromUi(persist: true);
     }
 
@@ -647,7 +623,6 @@ public event EventHandler? AnimatedClosing;
 
     private void UpdateDynamicIslandDependentControls(bool islandEnabled)
     {
-        // Lock the length slider when Dynamic Island mode is off — it only affects the floating pill.
         if (DynamicIslandWidthSlider == null || DynamicIslandHeightSlider == null) return;
 
         double targetOpacity = islandEnabled ? 1.0 : 0.4;
@@ -659,7 +634,6 @@ public event EventHandler? AnimatedClosing;
 
     private void UpdateLyricsDependentControls(bool lyricsEnabled)
     {
-        // Dim & disable the dark overlay slider when lyrics are off, since it only affects the lyrics background.
         if (DarkOverlayLabel == null) return;
 
         double targetOpacity = lyricsEnabled ? 1.0 : 0.45;
@@ -674,8 +648,6 @@ public event EventHandler? AnimatedClosing;
 
     private void UpdateYouTubeSubtitlesDependentControls(bool subtitlesEnabled)
     {
-        // Dim & block the Subtitle Language section when YouTube subtitles are off,
-        // since the language priority only applies to YouTube captions.
         if (SubtitlePriorityRow == null) return;
 
         SubtitlePriorityRow.Opacity = subtitlesEnabled ? 1.0 : 0.45;
@@ -765,7 +737,7 @@ public event EventHandler? AnimatedClosing;
         if (WidgetCombo == null) return;
 
         bool wasLoading = _isLoadingSettings;
-        _isLoadingSettings = true; // suppress SelectionChanged side effects during rebuild
+        _isLoadingSettings = true;
         PopulateWidgetCombo();
         _isLoadingSettings = wasLoading;
     }
@@ -792,7 +764,6 @@ public event EventHandler? AnimatedClosing;
     private void YouTubeApiKeyPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
     {
         if (_isLoadingSettings) return;
-        // Sync to hidden TextBox
         if (YouTubeApiKeyTextBox.Visibility == Visibility.Collapsed)
             YouTubeApiKeyTextBox.Text = YouTubeApiKeyPasswordBox.Password;
         UpdateYouTubeApiKeyStatus();
@@ -801,7 +772,6 @@ public event EventHandler? AnimatedClosing;
     private void YouTubeApiKeyTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         if (_isLoadingSettings) return;
-        // Sync to PasswordBox
         if (YouTubeApiKeyTextBox.Visibility == Visibility.Visible)
             YouTubeApiKeyPasswordBox.Password = YouTubeApiKeyTextBox.Text;
         UpdateYouTubeApiKeyStatus();
@@ -822,7 +792,6 @@ public event EventHandler? AnimatedClosing;
             YouTubeApiKeyPasswordBox.Visibility = Visibility.Collapsed;
             YouTubeApiKeyTextBox.Visibility = Visibility.Visible;
 
-            // Animate: eye open → eye closed
             var fadeOutOpen = new DoubleAnimation(1, 0, duration) { EasingFunction = easeOut };
             var fadeInClosed = new DoubleAnimation(0, 1, duration) { EasingFunction = easeOut, BeginTime = TimeSpan.FromMilliseconds(100) };
             EyeOpenIcon.BeginAnimation(OpacityProperty, fadeOutOpen);
@@ -834,7 +803,6 @@ public event EventHandler? AnimatedClosing;
             YouTubeApiKeyTextBox.Visibility = Visibility.Collapsed;
             YouTubeApiKeyPasswordBox.Visibility = Visibility.Visible;
 
-            // Animate: eye closed → eye open
             var fadeOutClosed = new DoubleAnimation(1, 0, duration) { EasingFunction = easeOut };
             var fadeInOpen = new DoubleAnimation(0, 1, duration) { EasingFunction = easeOut, BeginTime = TimeSpan.FromMilliseconds(100) };
             EyeClosedIcon.BeginAnimation(OpacityProperty, fadeOutClosed);
@@ -880,15 +848,12 @@ public event EventHandler? AnimatedClosing;
         int staggerMs = 0;
         const int staggerStep = 12;
 
-        // Collect all text elements that need animated update
         var textUpdates = new (FrameworkElement element, Action update)[]
         {
-            // Header
             (SettingsTitleText, () => SettingsTitleText.Text = Loc.Get("settings.title")),
             (SettingsSubtitleText, () => SettingsSubtitleText.Text = Loc.Get("settings.subtitle")),
             (SearchPlaceholder, () => SearchPlaceholder.Text = Loc.Get("settings.searchPlaceholder")),
 
-            // Section headers
             (AppearanceHeader, () => AppearanceHeader.Text = Loc.Get("settings.appearance")),
             (BehaviorHeader, () => BehaviorHeader.Text = Loc.Get("settings.behavior")),
             (UpdatesHeader, () => UpdatesHeader.Text = Loc.Get("settings.updates")),
@@ -899,7 +864,6 @@ public event EventHandler? AnimatedClosing;
             (SearchingHeader, () => SearchingHeader.Text = Loc.Get("settings.searching")),
             (SearchingEmptyText, () => SearchingEmptyText.Text = Loc.Get("settings.search.noResults")),
 
-            // Nav items
             (NavSearchingText, () => NavSearchingText.Text = Loc.Get("settings.searching")),
             (NavAppearanceText, () => NavAppearanceText.Text = Loc.Get("settings.nav.appearance")),
             (NavBehaviorText, () => NavBehaviorText.Text = Loc.Get("settings.nav.behavior")),
@@ -910,7 +874,6 @@ public event EventHandler? AnimatedClosing;
             (NavDonatingText, () => NavDonatingText.Text = Loc.Get("settings.nav.donating")),
             (NavUpdatesText, () => NavUpdatesText.Text = Loc.Get("settings.nav.updates")),
 
-            // Appearance
             (ExpandedWidgetLabel, () => { ExpandedWidgetLabel.Text = Loc.Get("settings.expandedWidget"); ExpandedWidgetHint.Text = Loc.Get("settings.expandedWidget.hint"); RepopulateWidgetComboPreservingSelection(); }),
             (WidthLabel, () => { WidthLabel.Text = Loc.Get("settings.width"); WidthSlider.Label = Loc.Get("settings.width"); WidthSlider.Description = Loc.Get("settings.width.hint"); }),
             (DynamicIslandWidthLabel, () => { DynamicIslandWidthLabel.Text = Loc.Get("settings.dynamicIslandWidth"); DynamicIslandWidthSlider.Label = Loc.Get("settings.dynamicIslandWidth"); DynamicIslandWidthSlider.Description = Loc.Get("settings.dynamicIslandWidth.hint"); }),
@@ -925,7 +888,6 @@ public event EventHandler? AnimatedClosing;
             (DynamicIslandModeCheck, () => DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode")),
             (DynamicIslandModeHint, () => DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint")),
 
-            // Behavior
             (HoverExpandHint, () => HoverExpandHint.Text = Loc.Get("settings.hoverExpand.hint")),
             (ExpandDelayLabel, () => { ExpandDelayLabel.Text = Loc.Get("settings.expandDelay"); HoverDelaySlider.Label = Loc.Get("settings.expandDelay"); HoverDelaySlider.Description = Loc.Get("settings.expandDelay.hint"); }),
             (DisableMouseLeaveAutoCloseHint, () => DisableMouseLeaveAutoCloseHint.Text = Loc.Get("settings.disableAutoClose.hint")),
@@ -933,7 +895,6 @@ public event EventHandler? AnimatedClosing;
             (IdleAutoHideHint, () => IdleAutoHideHint.Text = Loc.Get("settings.idleAutoHide.hint")),
             (IdleAutoHideDelaySlider, () => { IdleAutoHideDelaySlider.Label = Loc.Get("settings.idleAutoHideDelay"); IdleAutoHideDelaySlider.Description = Loc.Get("settings.idleAutoHideDelay.hint"); }),
 
-            // Updates
             (UpdateStatusText, () => UpdateStatusText.Text = Loc.Get("settings.upToDate")),
             (CurrentVersionText, () => CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion())),
             (ReportBugLabel, () => ReportBugLabel.Text = Loc.Get("settings.reportBug")),
@@ -943,7 +904,6 @@ public event EventHandler? AnimatedClosing;
             (ClearCacheLabel, () => ClearCacheLabel.Text = Loc.Get("settings.clearCache")),
             (ClearCacheHint, () => ClearCacheHint.Text = Loc.Get("settings.clearCache.hint")),
 
-            // Display
             (MonitorLabel, () => MonitorLabel.Text = Loc.Get("settings.activeMonitor")),
             (MonitorHint, () => MonitorHint.Text = Loc.Get("settings.activeMonitor.hint")),
             (CameraLabel, () => CameraLabel.Text = Loc.Get("settings.camera")),
@@ -955,7 +915,6 @@ public event EventHandler? AnimatedClosing;
                 LoadVisualizerAudioDevices().SafeFireAndForget("SETTINGS-VIS-AUDIO");
             }),
 
-            // System
             (AutoStartHint, () => AutoStartHint.Text = Loc.Get("settings.autoStart.hint")),
             (HelloGreetingHint, () => HelloGreetingHint.Text = Loc.Get("settings.helloGreeting.hint")),
             (HideOnExclusiveFullscreenHint, () => HideOnExclusiveFullscreenHint.Text = Loc.Get("settings.hideExclusiveFs.hint")),
@@ -967,26 +926,22 @@ public event EventHandler? AnimatedClosing;
             (LanguageLabel, () => LanguageLabel.Text = Loc.Get("settings.language")),
             (LanguageHint, () => LanguageHint.Text = Loc.Get("settings.language.hint")),
 
-            // Advanced
             (AdvancedHeader, () => AdvancedHeader.Text = Loc.Get("settings.advanced")),
             (YouTubeApiHint, () => YouTubeApiHint.Text = Loc.Get("settings.youtubeApi.hint")),
             (YouTubeApiKeyLabel, () => YouTubeApiKeyLabel.Text = Loc.Get("settings.youtubeApiKey")),
             (YouTubeApiKeyHint, () => YouTubeApiKeyHint.Text = Loc.Get("settings.youtubeApiKey.hint")),
 
-            // Performance
             (AnimationFpsLabel, () => { AnimationFpsLabel.Text = Loc.Get("settings.animationFps"); AnimationFpsSlider.Label = Loc.Get("settings.animationFps"); AnimationFpsSlider.Description = Loc.Get("settings.animationFps.hint"); }),
             (EnableBlurEffectsHint, () => EnableBlurEffectsHint.Text = Loc.Get("settings.enableBlurEffects.hint")),
             (EnableSubjectBlurHint, () => EnableSubjectBlurHint.Text = Loc.Get("settings.enableSubjectBlur.hint")),
             (EnableSmartCropHint, () => EnableSmartCropHint.Text = Loc.Get("settings.enableSmartCrop.hint")),
 
-            // Donating
             (DonatingTitle, () => DonatingTitle.Text = Loc.Get("settings.donating.title")),
             (DonatingDescription, () => DonatingDescription.Text = Loc.Get("settings.donating.description")),
             (DonatingBankTitle, () => DonatingBankTitle.Text = Loc.Get("settings.donating.bank")),
             (DonatingBankHint, () => DonatingBankHint.Text = Loc.Get("settings.donating.bank.hint")),
         };
 
-        // Also update buttons (ContentControl-based, animate parent)
         AnimateContentChange(CheckUpdateButton, () => CheckUpdateButton.Content = Loc.Get("settings.checkUpdate"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(DonatePaypalButton, () => DonatePaypalButton.Content = Loc.Get("settings.donating.paypal"), staggerMs, easeOut, fps, slideDist);
@@ -998,7 +953,6 @@ public event EventHandler? AnimatedClosing;
         AnimateContentChange(SaveButton, () => SaveButton.Content = Loc.Get("settings.btn.save"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
 
-        // Checkboxes (Content property)
         AnimateContentChange(AutoStartCheck, () => AutoStartCheck.Content = Loc.Get("settings.autoStart"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(HelloGreetingCheck, () => HelloGreetingCheck.Content = Loc.Get("settings.helloGreeting"), staggerMs, easeOut, fps, slideDist);
@@ -1058,7 +1012,6 @@ public event EventHandler? AnimatedClosing;
         element.BeginAnimation(OpacityProperty, null);
         translate.BeginAnimation(TranslateTransform.XProperty, null);
 
-        // Phase 1: fade out + slide left
         var fadeOut = new DoubleAnimation
         {
             To = 0,
@@ -1081,7 +1034,6 @@ public event EventHandler? AnimatedClosing;
         {
             updateText();
 
-            // Phase 2: Slide in from right
             translate.X = 14;
 
             var fadeIn = new DoubleAnimation
@@ -1183,7 +1135,6 @@ private void PushLivePreview()
 
         var totalDur = TimeSpan.FromMilliseconds(650);
 
-        // Get actual notch dimensions from owner
         double notchLeft = 0, notchTop = 0, notchW = 230, notchH = 32, notchRadius = 8;
         if (Owner is MainWindow mainWindow)
         {
@@ -1195,25 +1146,16 @@ private void PushLivePreview()
             notchRadius = rect.CornerRadius;
         }
 
-        // Calculate scale factors: notch size / settings shell size
-        double shellWidth = ActualWidth > 0 ? ActualWidth - 36 : 824; // 860 - 2*18 margin
+        double shellWidth = ActualWidth > 0 ? ActualWidth - 36 : 824;
         double shellHeight = ActualHeight > 0 ? ActualHeight - 36 : 584;
         double startScaleX = Math.Max(0.02, notchW / shellWidth);
         double startScaleY = Math.Max(0.02, notchH / shellHeight);
         double startRadius = Math.Max(notchRadius, 12);
 
-        // --- Start from notch-sized state ---
         MainShell.Opacity = 1.0;
         MainShell.RenderTransformOrigin = new Point(0.5, 0.0);
         MainShell.Effect = null;
 
-        // Rasterize the heavy 9-panel content tree once and let the GPU composite the scale
-        // animation against that bitmap, instead of re-laying-out/re-rastering it every frame.
-        // The cache lives on the inner ShellContent grid (NOT MainShell): the entrance also
-        // animates MainShell.CornerRadius every frame, which would invalidate a cache placed
-        // on the border itself. The border chrome (corner radius) is cheap to redraw live;
-        // the content is what's expensive. RenderAtScale=1 renders at full size so text stays
-        // crisp when scaled down to notch size and back up. Removed in expandX.Completed.
         ShellContent.CacheMode = new System.Windows.Media.BitmapCache { RenderAtScale = 1.0 };
         ShellScale.ScaleX = startScaleX;
         ShellScale.ScaleY = startScaleY;
@@ -1221,29 +1163,24 @@ private void PushLivePreview()
         MainShell.CornerRadius = new CornerRadius(startRadius);
         FooterBar.CornerRadius = new CornerRadius(0, 0, startRadius, startRadius);
 
-        // Save final position
         double finalLeft = Left;
         double finalTop = Top;
 
-        // Start position: aligned with notch
         Left = notchLeft + notchW / 2.0 - ActualWidth / 2.0;
         Top = notchTop;
 
-        // --- Expand ScaleX ---
         var expandX = new DoubleAnimation(startScaleX, 1.0, totalDur)
         {
             EasingFunction = easeOutStrong
         };
         Timeline.SetDesiredFrameRate(expandX, fps);
 
-        // --- Expand ScaleY ---
         var expandY = new DoubleAnimation(startScaleY, 1.0, totalDur)
         {
             EasingFunction = easeOutStrong
         };
         Timeline.SetDesiredFrameRate(expandY, fps);
 
-        // --- CornerRadius: from notch radius to 24 ---
         _shellCornerRadius = startRadius;
         var cornerAnim = new DoubleAnimation(startRadius, 24, totalDur)
         {
@@ -1251,7 +1188,6 @@ private void PushLivePreview()
         };
         Timeline.SetDesiredFrameRate(cornerAnim, fps);
 
-        // --- Move window from notch to final position ---
         var moveTop = new DoubleAnimation(Top, finalTop, totalDur)
         {
             EasingFunction = easeOutStrong
@@ -1264,21 +1200,11 @@ private void PushLivePreview()
         };
         Timeline.SetDesiredFrameRate(moveLeft, fps);
 
-        // Restore drop shadow after expand completes.
-        // The two expensive teardown steps are split across frames to avoid a single-frame
-        // spike at the end of the animation: dropping the cache forces the 9-panel tree back
-        // to live vector rendering, and attaching a blur=30 DropShadowEffect rasterizes the
-        // whole shell for the first time. Doing both on the Completed frame causes a visible
-        // hitch, so the shadow is deferred to a later Render-priority tick and faded in.
         expandX.Completed += (s, e) =>
         {
-            // Frame 1: drop the bitmap cache so the live (vector) tree renders crisply at
-            // rest and interactions aren't cached.
             ShellContent.CacheMode = null;
             MainShell.RenderTransformOrigin = new Point(0.5, 0.5);
 
-            // Frame 2+: attach the shadow once the cache teardown has settled, and fade it
-            // in so its first (expensive) rasterization doesn't pop in one frame.
             Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
             {
                 var shadow = new System.Windows.Media.Effects.DropShadowEffect
@@ -1299,28 +1225,23 @@ private void PushLivePreview()
             }));
         };
 
-        // Start all animations
         ShellScale.BeginAnimation(ScaleTransform.ScaleXProperty, expandX);
         ShellScale.BeginAnimation(ScaleTransform.ScaleYProperty, expandY);
         this.BeginAnimation(ShellCornerRadiusProperty, cornerAnim);
         this.BeginAnimation(TopProperty, moveTop);
         this.BeginAnimation(LeftProperty, moveLeft);
 
-        // --- Staggered content reveal ---
         int contentDelay = 250;
         AnimateEntranceItem(SettingsHeader, HeaderTranslate, contentDelay);
 
-        // Social icons stagger (appear shortly after header)
         int socialDelay = contentDelay + 80;
         AnimateSocialIcon(SocialWebsite, SocialWebsiteTranslate, socialDelay);
         AnimateSocialIcon(SocialGitHub, SocialGitHubTranslate, socialDelay + 60);
         AnimateSocialIcon(SocialFacebook, SocialFacebookTranslate, socialDelay + 120);
         AnimateSocialIcon(SocialDiscord, SocialDiscordTranslate, socialDelay + 180);
 
-        // Nav panel
         AnimateEntranceItem(NavPanel, NavPanelTranslate, contentDelay + 40);
 
-        // Active content card only
         AnimateActivePanel(_activeNav);
 
         AnimateEntranceItem(FooterBar, FooterTranslate, contentDelay + 160);
@@ -1432,7 +1353,6 @@ private void PushLivePreview()
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        // If the user dragged sliders (live preview), revert the notch to the last-persisted state before closing.
         RevertLivePreviewIfNeeded();
         CloseWithAnimation();
     }
@@ -1510,7 +1430,6 @@ private void RevertLivePreviewIfNeeded()
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "V-Notch");
         var baseDir = AppContext.BaseDirectory;
 
-        // Files to delete (cache/logs, NOT settings.json)
         var filesToDelete = new[]
         {
             Path.Combine(appData, "source_cache.json"),
@@ -1528,15 +1447,14 @@ private void RevertLivePreviewIfNeeded()
                     deletedCount++;
                 }
             }
-            catch { /* skip locked files */ }
+            catch { }
         }
 
-        // Also delete any .corrupt backup files in appData
         try
         {
             foreach (var corrupt in Directory.GetFiles(appData, "settings.corrupt-*.json"))
             {
-                try { File.Delete(corrupt); deletedCount++; } catch { /* skip locked/again-corrupt file */ }
+                try { File.Delete(corrupt); deletedCount++; } catch { }
             }
         }
         catch (Exception ex)
@@ -1561,11 +1479,9 @@ private void RevertLivePreviewIfNeeded()
     }
 private void CloseWithAnimation()
     {
-        // Prevent double-trigger
         if (_isClosing) return;
         _isClosing = true;
 
-        // Fire event so the notch can start its absorb animation in sync
         AnimatedClosing?.Invoke(this, EventArgs.Empty);
 
         var easeIn = new ExponentialEase { EasingMode = EasingMode.EaseIn, Exponent = 6 };
@@ -1575,7 +1491,6 @@ private void CloseWithAnimation()
 
         var totalDur = TimeSpan.FromMilliseconds(650);
 
-        // Get the actual rendered window position using Win32 (WPF Top/Left may return stale values when animations are active)
         var windowInteropHelper = new System.Windows.Interop.WindowInteropHelper(this);
         var hwnd = windowInteropHelper.Handle;
         double currentTop = Top;
@@ -1583,7 +1498,6 @@ private void CloseWithAnimation()
         if (hwnd != IntPtr.Zero)
         {
             VNotch.Services.Win32Interop.GetWindowRect(hwnd, out var rect);
-            // Convert screen pixels to WPF units
             var source = PresentationSource.FromVisual(this);
             double dpiX = source?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
             double dpiY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1.0;
@@ -1591,7 +1505,6 @@ private void CloseWithAnimation()
             currentLeft = rect.Left * dpiX;
         }
 
-        // Clear any lingering animations
         MainShell.BeginAnimation(OpacityProperty, null);
         ShellScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         ShellScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -1600,27 +1513,21 @@ private void CloseWithAnimation()
         this.BeginAnimation(LeftProperty, null);
         this.BeginAnimation(ShellCornerRadiusProperty, null);
 
-        // Restore position to where the window actually is on screen
         Top = currentTop;
         Left = currentLeft;
 
-        // Snap to current state
         MainShell.Opacity = 1.0;
         ShellScale.ScaleX = 1.0;
         ShellScale.ScaleY = 1.0;
         ShellTranslate.Y = 0;
 
-        // Anchor at top-center (same as entrance)
         MainShell.RenderTransformOrigin = new Point(0.5, 0.0);
 
-        // Remove drop shadow during animation
         MainShell.Effect = null;
 
-        // --- Staggered content hide (reverse of entrance reveal) ---
         AnimateExitItem(FooterBar, FooterTranslate, 0);
         AnimateExitItem(NavPanel, NavPanelTranslate, 40);
 
-        // Animate only the active card
         UIElement? activeCard = _activeNav switch
         {
             "Appearance" => AppearanceCard,
@@ -1652,7 +1559,6 @@ private void CloseWithAnimation()
 
         AnimateExitItem(SettingsHeader, HeaderTranslate, 100);
 
-        // --- CornerRadius: 24 -> notch radius ---
         double notchRadius = 8;
         double notchW = 230, notchH = 32;
         double notchLeft = 0, notchTop = 0;
@@ -1672,14 +1578,12 @@ private void CloseWithAnimation()
         double targetScaleY = Math.Max(0.02, notchH / shellHeight);
         double targetRadius = Math.Max(notchRadius, 12);
 
-        // --- ScaleX: 1.0 → notch scale ---
         var squishX = new DoubleAnimation(1.0, targetScaleX, totalDur)
         {
             EasingFunction = easeInStrong
         };
         Timeline.SetDesiredFrameRate(squishX, fps);
 
-        // --- ScaleY: 1.0 → notch scale ---
         var shrinkY = new DoubleAnimation(1.0, targetScaleY, totalDur)
         {
             EasingFunction = easeInStrong
@@ -1693,7 +1597,6 @@ private void CloseWithAnimation()
         };
         Timeline.SetDesiredFrameRate(cornerAnim, fps);
 
-        // --- Move window back to notch position ---
         double targetLeft = notchLeft + notchW / 2.0 - ActualWidth / 2.0;
         double targetTop = notchTop;
 
@@ -1709,7 +1612,6 @@ private void CloseWithAnimation()
         };
         Timeline.SetDesiredFrameRate(flyLeftWindow, fps);
 
-        // Close after animation completes
         squishX.Completed += (s, e) =>
         {
             Close();
@@ -1780,7 +1682,6 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
         _settings.EnableYouTubeSubtitles = EnableYouTubeSubtitlesCheck.IsChecked ?? true;
 
-        // Sync subtitle mode from ComboBox
         _settings.SubtitlePriority = GetSubtitlePriorityString();
 
         _settings.EnableDynamicIslandMode = DynamicIslandModeCheck.IsChecked ?? false;
@@ -1807,22 +1708,18 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.CopyShelfFilesToClipboard = CopyShelfClipboardCheck.IsChecked ?? false;
         _settings.ShowBatteryIndicator = ShowBatteryCheck.IsChecked ?? true;
 
-        // YouTube API
         _settings.EnableYouTubeApi = YouTubeApiCheck.IsChecked ?? false;
         _settings.YouTubeApiKey = YouTubeApiKeyPasswordBox.Password?.Trim() ?? "";
 
-        // Language
         if (LanguageCombo.SelectedItem is System.Windows.Controls.ComboBoxItem langItem && langItem.Tag is string langCode)
             _settings.Language = langCode;
 
-        // Expanded widget
         if (WidgetCombo.SelectedItem is System.Windows.Controls.ComboBoxItem widgetItem && widgetItem.Tag is string widgetCode)
             _settings.ExpandedWidget = widgetCode;
         if (persist)
         {
             _settingsService.Save(_settings);
             StartupManager.SetAutoStart(_settings.AutoStart);
-            // Refresh baseline so Cancel after Apply doesn't revert persisted state.
             _originalSettings = _settings.Clone();
         }
 
@@ -1981,11 +1878,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     {
         if (section == _activeNav) return;
 
-        // Hide current panel
         if (_navPanels.TryGetValue(_activeNav, out var oldPanel))
             oldPanel.Visibility = Visibility.Collapsed;
 
-        // Deactivate old nav button
         if (_navButtons.TryGetValue(_activeNav, out var oldBtn))
         {
             oldBtn.Background = _transparentBrush;
@@ -1996,11 +1891,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
         _activeNav = section;
 
-        // Show new panel
         if (_navPanels.TryGetValue(section, out var newPanel))
             newPanel.Visibility = Visibility.Visible;
 
-        // Activate new nav button
         if (_navButtons.TryGetValue(section, out var newBtn))
         {
             newBtn.Background = (SolidColorBrush)FindResource("NavItemActiveBg");
@@ -2009,10 +1902,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
                 newText.Foreground = _whiteBrush;
         }
 
-        // Reset scroll position
         SettingsScrollViewer.ScrollToTop();
 
-        // Animate the card entrance for the new section
         AnimateActivePanel(section);
     }
 
@@ -2074,7 +1965,6 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     {
         string query = SettingsSearchBox.Text?.Trim() ?? "";
 
-        // Toggle placeholder visibility
         UpdateSearchPlaceholderVisibility();
 
         if (string.IsNullOrEmpty(query))
@@ -2084,7 +1974,6 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             return;
         }
 
-        // Debounce search to avoid thrashing on fast typing
         if (_searchDebounce == null)
         {
             _searchDebounce = new DispatcherTimer(DispatcherPriority.Background)
@@ -2163,22 +2052,22 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         }
         return v1[t.Length];
     }
-    
+
     private static double CalculateFuzzyMatchScore(string source, string target)
     {
         if (source == target) return 1.0;
         if (source.Length == 0 || target.Length == 0) return 0.0;
-        
+
         int distance = CalculateLevenshteinDistance(source, target);
         int maxLength = Math.Max(source.Length, target.Length);
-        
+
         return 1.0 - (double)distance / maxLength;
     }
 
     private void ExecuteSearch(string query)
     {
         if (string.IsNullOrWhiteSpace(query)) return;
-        
+
         string normalizedQuery = NormalizeSearchString(query);
         EnterSearchMode();
         SearchResultsStack.Children.Clear();
@@ -2497,7 +2386,6 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
     private void SettingsScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        // If a ComboBox dropdown is open, don't intercept scroll - let the dropdown handle it
         if (IsAnyComboBoxDropDownOpen())
         {
             return;
@@ -2513,7 +2401,6 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             _scrollTarget = SettingsScrollViewer.VerticalOffset;
         }
 
-        // Add velocity based on scroll direction
         _scrollVelocity += delta * 0.3;
         _scrollTarget = Math.Clamp(_scrollTarget + delta, 0, maxScroll);
 
@@ -2526,7 +2413,6 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
     private void SettingsScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        // Don't close ComboBoxes from scroll changes triggered by smooth scroll animation
     }
 
     private void SmoothScroll_Tick(object? sender, EventArgs e)
@@ -2534,15 +2420,12 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         double current = SettingsScrollViewer.VerticalOffset;
         double diff = _scrollTarget - current;
 
-        // Apply velocity with friction
         _scrollVelocity *= ScrollFriction;
 
-        // Lerp towards target
         double step = diff * 0.18 + _scrollVelocity * 0.4;
         double newOffset = Math.Clamp(current + step, 0, SettingsScrollViewer.ScrollableHeight);
         SettingsScrollViewer.ScrollToVerticalOffset(newOffset);
 
-        // Stop when close enough and velocity is negligible
         if (Math.Abs(diff) < ScrollMinVelocity && Math.Abs(_scrollVelocity) < ScrollMinVelocity)
         {
             SettingsScrollViewer.ScrollToVerticalOffset(_scrollTarget);
@@ -2609,10 +2492,6 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
     private async Task LoadVisualizerAudioDevices()
     {
-        // Enumerate audio endpoints on a background thread. This COM enumeration is slow
-        // enough to block the UI thread for a frame; because it was previously dispatched at
-        // Background priority it got deferred until the entrance animation finished, then ran
-        // and stalled exactly on the last frame. Off-loading it keeps the UI thread free.
         List<(string Id, string Name)> rawDevices;
         try
         {

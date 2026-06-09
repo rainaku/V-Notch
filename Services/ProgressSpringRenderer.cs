@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -185,7 +185,6 @@ public void Unhook()
             _displayRatio = prevDisplay + Math.Sign(step) * SpringMaxStepPerFrame;
         }
 
-        // Crossed the spring target: snap to it to prevent oscillation jitter.
         if ((prevDisplay - _springTargetRatio) * (_displayRatio - _springTargetRatio) < 0)
         {
             _displayRatio = _springTargetRatio;

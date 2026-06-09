@@ -9,8 +9,8 @@ public class MediaHeuristicsTests
 
     [Theory]
     [InlineData("Song", "Artist", "song|artist")]
-    [InlineData("  Song  ", "  Artist  ", "song|artist")] // trims both sides
-    [InlineData("SONG", "ARTIST", "song|artist")]          // lower-invariant
+    [InlineData("  Song  ", "  Artist  ", "song|artist")]
+    [InlineData("SONG", "ARTIST", "song|artist")]
     [InlineData("", "", "|")]
     [InlineData("Track Only", "", "track only|")]
     public void BuildTrackIdentity_NormalizesTrimAndCase(string track, string artist, string expected)
@@ -31,7 +31,6 @@ public class MediaHeuristicsTests
     [Fact]
     public void BuildSourceOverrideKey_BrowserApp_NoSession_ReturnsEmpty()
     {
-        // Browsers multiplex many sites, so they must not share a single app-keyed override.
         Assert.Equal(string.Empty, MediaHeuristics.BuildSourceOverrideKey("", "Chrome"));
         Assert.Equal(string.Empty, MediaHeuristics.BuildSourceOverrideKey("   ", "msedge"));
     }
@@ -48,7 +47,7 @@ public class MediaHeuristicsTests
 
     [Theory]
     [InlineData("Discord.exe", true)]
-    [InlineData("discord", true)]           // case-insensitive
+    [InlineData("discord", true)]
     [InlineData("Vesktop.Discord", true)]
     [InlineData("Spotify.exe", false)]
     [InlineData("Chrome", false)]
@@ -111,7 +110,6 @@ public class MediaHeuristicsTests
     [Fact]
     public void IsLikelySoundCloudPlaceholderArtworkUrl_HandlesEscapedSeparators()
     {
-        // Escaped "\/" should normalize so the "/avatars-" placeholder marker is still detected.
         Assert.True(MediaHeuristics.IsLikelySoundCloudPlaceholderArtworkUrl(
             "https:\\/\\/i1.sndcdn.com\\/avatars-xyz-large.jpg"));
     }
@@ -137,7 +135,7 @@ public class MediaHeuristicsTests
     [InlineData("Song (Remastered 2011)", "Song")]
     [InlineData("Song [Live]", "Song")]
     [InlineData("Song", "Song")]
-    [InlineData("(Intro) Song", "(Intro) Song")] // leading bracket at index 0 is not a cut point
+    [InlineData("(Intro) Song", "(Intro) Song")]
     public void ExtractCoreTrackName_StripsTrailingBracketedSegment(string input, string expected)
     {
         Assert.Equal(expected, MediaHeuristics.ExtractCoreTrackName(input));
@@ -157,7 +155,6 @@ public class MediaHeuristicsTests
     [Fact]
     public void SpotifyTitleContainsTrack_CoreNameMatch_True()
     {
-        // Window title lacks the "(Remastered ...)" suffix, but the core name still matches.
         Assert.True(MediaHeuristics.SpotifyTitleContainsTrack(
             "Bohemian Rhapsody", "Bohemian Rhapsody (Remastered 2011)"));
     }

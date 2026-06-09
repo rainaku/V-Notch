@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using static VNotch.Services.Win32Interop;
@@ -14,22 +14,21 @@ internal enum FullscreenType
 
 internal static class FullscreenDetector
 {
-    // Class names that must never trigger hide
     private static readonly string[] BlockedClassNamesExact = new[]
     {
-        "Progman",                   // Desktop
-        "WorkerW",                   // Desktop wallpaper worker
-        "Shell_TrayWnd",             // Primary taskbar
-        "Shell_SecondaryTrayWnd",    // Secondary taskbar
-        "NotifyIconOverflowWindow",  // Tray overflow
-        "TaskListThumbnailWnd",      // Alt-Tab / hover thumbnails
-        "MultitaskingViewFrame",     // Task View
-        "ForegroundStaging",         // System staging surface
+        "Progman",
+        "WorkerW",
+        "Shell_TrayWnd",
+        "Shell_SecondaryTrayWnd",
+        "NotifyIconOverflowWindow",
+        "TaskListThumbnailWnd",
+        "MultitaskingViewFrame",
+        "ForegroundStaging",
         "XamlExplorerHostIslandWindow",
         "Windows.UI.Input.InputSite.WindowClass",
-        "Search_app",                // Old Search overlay
-        "Tooltips_Class32",          // Native tooltips
-        "TaskSwitcherWnd",           // Win+Tab
+        "Search_app",
+        "Tooltips_Class32",
+        "TaskSwitcherWnd",
         "TaskSwitcherOverlayWnd",
         "Windows.Internal.Shell.TabProxyWindow",
         "Microsoft.UI.Content.DesktopChildSiteBridge"
@@ -37,7 +36,7 @@ internal static class FullscreenDetector
 
     private static readonly string[] BlockedClassNamePrefixes = new[]
     {
-        "Windows.UI.Core",   // Start, Action Center, etc.
+        "Windows.UI.Core",
         "ImmersiveLauncher",
         "TaskListOverlay",
         "MSCTFIME"
@@ -67,7 +66,6 @@ internal static class FullscreenDetector
 
         int width = windowRect.Right - windowRect.Left;
         int height = windowRect.Bottom - windowRect.Top;
-        // Reject obviously sub-fullscreen windows. Floor lifted from 200x120 to 480x320 so small overlays / popups never qualify.
         if (width < 480 || height < 320)
         {
             return FullscreenType.None;
@@ -84,7 +82,6 @@ internal static class FullscreenDetector
             return FullscreenType.None;
         }
 
-        // Same-monitor gate: only hide when the fullscreen window lives on the notch's monitor
         if (notchMonitor != IntPtr.Zero && monitor != notchMonitor)
         {
             return FullscreenType.None;
@@ -101,10 +98,8 @@ internal static class FullscreenDetector
 
         var monitorRect = monitorInfo.rcMonitor;
 
-        // Slightly looser tolerance helps on high-DPI / fractional scaling setups where DwmGetWindowAttribute can be off by 1-2px from the monitor edge
         const int fullscreenTolerancePx = 6;
 
-        // Get window placement once (used by both branches)
         var placement = new WINDOWPLACEMENT
         {
             length = Marshal.SizeOf<WINDOWPLACEMENT>()
@@ -117,22 +112,18 @@ internal static class FullscreenDetector
 
         if (RectCoversArea(windowRect, monitorRect, fullscreenTolerancePx))
         {
-            // Window covers entire monitor
             if (hasCaption || hasResizeFrame)
             {
-                // Maximized windows are ignored — the user can interact normally.
                 if (isMaximized)
                 {
                     return FullscreenType.None;
                 }
 
-                // Borderless covering everything (e.g. browser F11) — windowed FS.
                 return FullscreenType.WindowedFullscreen;
             }
             return FullscreenType.ExclusiveFullscreen;
         }
 
-        // Windowed fullscreen detection: borderless window matching work area (taskbar visible) is treated as windowed fullscreen.
         const int workAreaTolerancePx = 8;
         bool matchesWorkArea = RectMatchesArea(windowRect, monitorInfo.rcWork, workAreaTolerancePx);
         bool isBorderless = !hasCaption && !hasResizeFrame;

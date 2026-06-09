@@ -1,4 +1,4 @@
-﻿using System.Windows.Threading;
+using System.Windows.Threading;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Services;
@@ -84,8 +84,6 @@ public void EnsureTopmost(bool force = false)
         }
     }
 
-    // ─── Private ───
-
     private void ForegroundWindowChanged(
         IntPtr hWinEventHook,
         uint eventType,
@@ -98,7 +96,6 @@ public void EnsureTopmost(bool force = false)
         if (eventType != EVENT_SYSTEM_FOREGROUND || hwnd == IntPtr.Zero || hwnd == _getHwnd())
             return;
 
-        // Dispatch to UI thread — the callback handles fullscreen check + burst
         System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
             new Action(() => _onForegroundChanged(hwnd)),
             DispatcherPriority.Send);

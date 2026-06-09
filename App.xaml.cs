@@ -32,10 +32,9 @@ public partial class App : Application
             SetupOperations.RunUninstallFlow();
             return;
         }
-        
+
         _mutex = new Mutex(true, MutexName, out bool createdNew);
 
-        // On tray "Restart", the previous instance may still hold the mutex.
         if (!createdNew && e.Args.Contains("--restart"))
         {
             try
@@ -62,17 +61,14 @@ public partial class App : Application
         RuntimeLog.InitializeNewSession("vnotch-debug.log");
         RuntimeLog.Log("SYSTEM", $"Application startup. Log file: {RuntimeLog.LogPath}");
 
-        // Load language preference early
         var earlySettings = new SettingsService();
         var loadedSettings = earlySettings.Load();
         Loc.SetLanguage(loadedSettings.Language);
         AnimationConfig.Configure(loadedSettings.AnimationFps);
 
-        // ─── Global Error Handlers ───
         DispatcherUnhandledException += (s, args) =>
         {
             RuntimeLog.Error("UNHANDLED-UI", args.Exception);
-            // Don't show MessageBox for animation/rendering errors — they're recoverable
             if (IsRecoverableException(args.Exception))
             {
                 args.Handled = true;
@@ -83,7 +79,6 @@ public partial class App : Application
             args.Handled = true;
         };
 
-        // Catch exceptions from background threads (Task.Run, async void, etc.)
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
             if (args.ExceptionObject is Exception ex)
@@ -92,25 +87,22 @@ public partial class App : Application
             }
         };
 
-        // Catch unobserved Task exceptions (forgotten awaits)
         System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, args) =>
         {
             RuntimeLog.Error("UNOBSERVED-TASK", args.Exception?.InnerException ?? args.Exception!,
                 "Unobserved task exception");
-            args.SetObserved(); // Prevent process termination
+            args.SetObserved();
         };
 
         var services = new ServiceCollection();
         ConfigureServices(services);
         Services = services.BuildServiceProvider();
 
-        // Eagerly resolve every singleton and kick background warmups before showing the window
         ServicePrewarmer.Prewarm(Services);
 
         var mainWindow = Services.GetRequiredService<MainWindow>();
         mainWindow.Show();
 
-        // Post-update: open release page if the app version changed since last run
         CheckAndShowPostUpdateReleasePage(loadedSettings, earlySettings);
 
         base.OnStartup(e);
@@ -118,7 +110,7 @@ public partial class App : Application
 
     private void ConfigureServices(IServiceCollection services)
     {
-        
+
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<IMediaMetadataLookupService, MediaMetadataLookupService>();
         services.AddSingleton<IMediaArtworkService, MediaArtworkService>();
@@ -177,15 +169,12 @@ public partial class App : Application
     }
     private static bool IsRecoverableException(Exception ex)
     {
-        // Animation/rendering errors — WPF can recover
         if (ex is InvalidOperationException && ex.Message.Contains("animation"))
             return true;
 
-        // Media session errors — non-fatal
         if (ex.GetType().FullName?.Contains("Windows.Media") == true)
             return true;
 
-        // COM errors from media/camera — non-fatal
         if (ex is System.Runtime.InteropServices.COMException)
             return true;
 
@@ -202,25 +191,21 @@ public partial class App : Application
             var currentVersionStr = FormatVersion(currentVersion);
             bool needSave = false;
 
-            // Always update the stored version first
             if (settings.LastRunVersion != currentVersionStr)
             {
                 settings.LastRunVersion = currentVersionStr;
                 needSave = true;
             }
 
-            // Show Introducing Window for new Dynamic Island feature once
-            // Check this AFTER updating version to ensure it's saved immediately
             if (!settings.HasSeenDynamicIslandIntro)
             {
                 settings.HasSeenDynamicIslandIntro = true;
                 needSave = true;
-                
-                // Save immediately BEFORE showing the dialog to prevent re-showing on crash/force-close
+
                 if (needSave)
                 {
                     settingsService.Save(settings);
-                    needSave = false; // Already saved
+                    needSave = false;
                 }
 
                 Current.Dispatcher.BeginInvoke(new System.Action(() =>

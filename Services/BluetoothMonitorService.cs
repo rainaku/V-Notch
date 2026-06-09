@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using Windows.Devices.Enumeration;
@@ -25,7 +25,6 @@ public sealed class BluetoothMonitorService : IDisposable
 
         try
         {
-            // AQS filter for Bluetooth devices that are currently connected System
             string aqsFilter = "System.Devices.Aep.ProtocolId:=\"{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}\"" +
                                " AND System.Devices.Aep.IsConnected:=System.StructuredQueryType.Boolean#True";
 
@@ -82,7 +81,6 @@ public sealed class BluetoothMonitorService : IDisposable
         _knownDevices[device.Id] = info;
         RuntimeLog.Log("BLUETOOTH", $"Device connected: {info.Name} ({info.DeviceType})");
 
-        // Don't fire notification for devices already connected at startup
         if (_isInitialEnumerationComplete)
         {
             _debouncer.Debounce(() => DeviceConnected?.Invoke(this, info));
@@ -91,7 +89,6 @@ public sealed class BluetoothMonitorService : IDisposable
 
     private void Watcher_Updated(DeviceWatcher sender, DeviceInformationUpdate update)
     {
-        // Check if device became connected
         if (update.Properties.TryGetValue("System.Devices.Aep.IsConnected", out var connectedObj)
             && connectedObj is bool isConnected)
         {
@@ -99,7 +96,6 @@ public sealed class BluetoothMonitorService : IDisposable
             {
                 if (!isConnected)
                 {
-                    // Device disconnected
                     _knownDevices.TryRemove(update.Id, out _);
                     RuntimeLog.Log("BLUETOOTH", $"Device disconnected (update): {existing.Name}");
                     _debouncer.Debounce(() => DeviceDisconnected?.Invoke(this, existing));
@@ -107,7 +103,6 @@ public sealed class BluetoothMonitorService : IDisposable
             }
             else if (isConnected)
             {
-                // New connection via update event
                 var info = new BluetoothDeviceInfo
                 {
                     Id = update.Id,
@@ -159,7 +154,6 @@ public sealed class BluetoothMonitorService : IDisposable
     {
         var lower = name.ToLowerInvariant();
 
-        // Headphones / Earbuds
         if (lower.Contains("airpods") || lower.Contains("buds") || lower.Contains("earbuds") ||
             lower.Contains("earpods") || lower.Contains("wf-") || lower.Contains("wh-") ||
             lower.Contains("headphone") || lower.Contains("earphone") || lower.Contains("airdots") ||
@@ -168,29 +162,24 @@ public sealed class BluetoothMonitorService : IDisposable
             lower.Contains("sony wf") || lower.Contains("sony wh"))
             return BluetoothDeviceType.Headphones;
 
-        // Speakers
         if (lower.Contains("speaker") || lower.Contains("soundbar") || lower.Contains("jbl") ||
             lower.Contains("marshall") || lower.Contains("harman") || lower.Contains("sonos") ||
             lower.Contains("ue boom") || lower.Contains("flip"))
             return BluetoothDeviceType.Speaker;
 
-        // Keyboard
         if (lower.Contains("keyboard") || lower.Contains("keychron") || lower.Contains("k380") ||
             lower.Contains("mx keys"))
             return BluetoothDeviceType.Keyboard;
 
-        // Mouse
         if (lower.Contains("mouse") || lower.Contains("mx master") || lower.Contains("mx anywhere") ||
             lower.Contains("trackpad") || lower.Contains("magic mouse"))
             return BluetoothDeviceType.Mouse;
 
-        // Game Controller
         if (lower.Contains("controller") || lower.Contains("gamepad") || lower.Contains("xbox") ||
             lower.Contains("dualsense") || lower.Contains("dualshock") || lower.Contains("pro controller") ||
             lower.Contains("joy-con"))
             return BluetoothDeviceType.GameController;
 
-        // Phone
         if (lower.Contains("iphone") || lower.Contains("galaxy") || lower.Contains("pixel") ||
             lower.Contains("phone") || lower.Contains("oneplus") || lower.Contains("xiaomi"))
             return BluetoothDeviceType.Phone;
@@ -200,7 +189,6 @@ public sealed class BluetoothMonitorService : IDisposable
 
     private static string ExtractNameFromId(string id)
     {
-        // Try to extract a readable name from the device ID
         var parts = id.Split('#', '\\');
         return parts.Length > 1 ? parts[^1] : id;
     }

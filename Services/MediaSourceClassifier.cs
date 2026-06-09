@@ -2,18 +2,8 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Pure media-source classification extracted from <see cref="MediaDetectionService"/>. Each method
-/// derives a <see cref="MediaPlatform"/> from app-id / metadata / title hints and writes the result
-/// onto the supplied <see cref="MediaInfo"/>. No instance state, clock, or Win32 access is involved,
-/// so the rules are fully unit-testable.
-///
-/// Canonical source names are emitted via <see cref="MediaPlatformExtensions.ToDisplayString"/> rather
-/// than string literals; the produced values are identical to the previous hard-coded strings.
-/// </summary>
 internal static class MediaSourceClassifier
 {
-    /// <summary>Maps a session source-app id to a media source (Spotify / YouTube / Apple Music / Browser).</summary>
     public static void ApplyFromAppId(MediaInfo info, string sessionSourceApp)
     {
         if (string.IsNullOrEmpty(sessionSourceApp)) return;
@@ -46,10 +36,6 @@ internal static class MediaSourceClassifier
         }
     }
 
-    /// <summary>
-    /// Refines an unresolved Browser source into YouTube / Apple Music / SoundCloud using lower-cased
-    /// track metadata hints. No-op when the source is already resolved to something other than Browser.
-    /// </summary>
     public static void RefineFromMetadata(MediaInfo info, string lowerTitle, string lowerArtist, string lowerAlbum)
     {
         if (info.MediaSource != MediaPlatform.Browser.ToDisplayString() && !string.IsNullOrEmpty(info.MediaSource)) return;
@@ -77,17 +63,6 @@ internal static class MediaSourceClassifier
         }
     }
 
-    /// <summary>
-    /// Scans browser window titles (filtered to those matching the current track) and resolves the
-    /// media source to a concrete platform — YouTube, SoundCloud, Apple Music, Facebook, TikTok,
-    /// Instagram or Twitter/X. Mutates <paramref name="info"/> in place: it sets <see cref="MediaInfo.MediaSource"/>
-    /// and the matching <c>Is…Running</c> flag, and for YouTube refines <see cref="MediaInfo.CurrentTrack"/>
-    /// from the window title when the title is a longer superset of the SMTC track. Stops at the first
-    /// match and is a no-op once the source is already resolved to YouTube.
-    /// </summary>
-    /// <param name="trackTitleLower">Lower-cased current track title, used for exact title matching.</param>
-    /// <param name="trackTitleNormalized">Loosely-normalized current track title, used for fuzzy matching.</param>
-    /// <param name="hasTrack">When true, only window titles that match the current track are considered.</param>
     public static void DetectFromWindowTitles(
         MediaInfo info,
         IEnumerable<string> windowTitles,
@@ -169,10 +144,6 @@ internal static class MediaSourceClassifier
         }
     }
 
-    /// <summary>
-    /// Detects placeholder/junk SMTC titles (app names, ads, empty). Returns true when the caller
-    /// should abort the pass; for a YouTube source it first clears the track and tags the artist.
-    /// </summary>
     public static bool TryHandleJunkTitle(MediaInfo info, string sessionTitle, string sessionArtist)
     {
         string lowerTitle = sessionTitle.ToLower();

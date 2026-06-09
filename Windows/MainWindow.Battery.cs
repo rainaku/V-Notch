@@ -13,20 +13,15 @@ public partial class MainWindow
 {
     private Storyboard? _chargingPulseStoryboard;
     private bool _chargingPulseWanted;
-    private bool _wasCharging = true; // Start as true to suppress notification on first battery update at app launch
-    private bool? _wasPluggedIn = null; // Track plug/unplug transitions; null until first sample
+    private bool _wasCharging = true;
+    private bool? _wasPluggedIn = null;
     private bool _isChargingNotificationVisible = false;
     private int _chargingGlanceToken = 0;
     private DispatcherTimer? _chargingNotificationDismissTimer;
 
-    // ─── Ambient animation gate ───
-    // Looping "ambient" effects (charging pulse, title shimmer) are paused when the OS
-    // battery saver is on, or when the notch isn't actually visible, to avoid keeping the
-    // compositor awake for nothing. They resume automatically when conditions allow.
     private bool AmbientAnimationsAllowed =>
         !AnimationConfig.ReduceMotion && _isNotchVisible && !_isHiddenByFullscreen;
 
-    // Re-applies ambient loops to match current intent + gate state. Safe to call often.
     private void RefreshAmbientAnimations()
     {
         bool allowed = AmbientAnimationsAllowed;
@@ -46,12 +41,10 @@ public partial class MainWindow
 
     private void HandleBatteryUpdate(BatteryInfo battery)
     {
-        // Drive the global reduce-motion gate from the OS battery-saver state.
         AnimationConfig.SetReduceMotion(battery.IsBatterySaver);
 
         BatteryPercent.Text = battery.GetPercentageText();
 
-        // Inner fill space = BatteryIcon.Width(27.08) - BorderThickness(1.36*2) - MarginLeft(1.36) = 23.0
         double targetWidth = Math.Max(1.08, battery.Percentage / 100.0 * 23.0);
         var widthAnimation = new DoubleAnimation
         {
@@ -97,14 +90,12 @@ public partial class MainWindow
             StopChargingPulse();
         }
 
-        // Show compact charging notification when charger is plugged in
         if (battery.IsCharging && !_wasCharging)
         {
             ShowChargingGlance(battery, ChargingGlanceKind.PluggedIn);
         }
         else if (_wasPluggedIn == true && !battery.IsPluggedIn)
         {
-            // Unplug transition
             ShowChargingGlance(battery, ChargingGlanceKind.Unplugged);
         }
         _wasCharging = battery.IsCharging;
@@ -119,7 +110,6 @@ public partial class MainWindow
 
     private void ShowChargingGlance(BatteryInfo battery, ChargingGlanceKind kind)
     {
-        // Don't show if expanded, animating, or greeting is taking over
         if (_isExpanded || _isAnimating || _isGreetingActive)
             return;
 
@@ -131,7 +121,6 @@ public partial class MainWindow
 
         ChargingPercentText.Text = $"{battery.Percentage}%";
 
-        // Status label + accent color depend on direction & state
         Color accent;
         string statusKey;
         if (kind == ChargingGlanceKind.PluggedIn)
@@ -139,24 +128,23 @@ public partial class MainWindow
             if (battery.IsFullyCharged)
             {
                 statusKey = "battery.fullyCharged";
-                accent = Color.FromRgb(0x30, 0xD1, 0x58); // green
+                accent = Color.FromRgb(0x30, 0xD1, 0x58);
             }
             else
             {
                 statusKey = "battery.charging";
-                accent = Color.FromRgb(0x30, 0xD1, 0x58); // green
+                accent = Color.FromRgb(0x30, 0xD1, 0x58);
             }
         }
         else
         {
             statusKey = "battery.onBattery";
-            accent = Color.FromRgb(0xFF, 0x95, 0x00); // amber, mirrors mac unplug feedback
+            accent = Color.FromRgb(0xFF, 0x95, 0x00);
         }
         ChargingStatusText.Text = Loc.Get(statusKey);
         ChargingPercentText.Foreground = new SolidColorBrush(accent);
         ChargingBatteryFill.Background = new SolidColorBrush(accent);
 
-        // Watt readout — only when a live rate is available and meaningful (>= 0.1 W)
         if (battery.HasPowerRate && Math.Abs(battery.PowerWatts) >= 0.1)
         {
             double watts = Math.Abs(battery.PowerWatts);
@@ -172,41 +160,32 @@ public partial class MainWindow
             ChargingWattText.Text = string.Empty;
         }
 
-        // Set battery fill width based on percentage (max 17px)
         double fillWidth = Math.Max(2, battery.Percentage / 100.0 * 17.0);
         ChargingBatteryFill.Width = fillWidth;
 
-        // Hide current content
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.Opacity = 0;
         CollapsedContent.Visibility = Visibility.Collapsed;
 
-        // Force hide music compact content regardless of current state
         MusicCompactContent.BeginAnimation(OpacityProperty, null);
         MusicCompactContent.Opacity = 0;
         MusicCompactContent.Visibility = Visibility.Collapsed;
 
-
-        // Show charging notification
         ChargingNotification.Visibility = Visibility.Visible;
         ChargingNotification.Opacity = 0;
 
-        // Bounce the notch
         PlayChargingBounce();
 
-        // Fade in + slide up
         var fadeIn = MakeAnim(0d, 1d, _dur350, _easeExpOut7, TimeSpan.FromMilliseconds(100));
         ChargingNotification.BeginAnimation(OpacityProperty, fadeIn);
 
         var slideUp = MakeAnim(6d, 0d, _dur350, _easeExpOut7, TimeSpan.FromMilliseconds(100));
         ChargingNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, slideUp);
 
-        // Icon spring scale
         var iconScale = MakeAnim(0.6d, 1d, _dur400, _easeSpring, TimeSpan.FromMilliseconds(150));
         ChargingIconScale.BeginAnimation(ScaleTransform.ScaleXProperty, iconScale);
         ChargingIconScale.BeginAnimation(ScaleTransform.ScaleYProperty, iconScale);
 
-        // Auto-dismiss after 3 seconds
         _chargingNotificationDismissTimer?.Stop();
         _chargingNotificationDismissTimer = new DispatcherTimer
         {
@@ -226,13 +205,11 @@ public partial class MainWindow
 
         int token = _chargingGlanceToken;
 
-        // Shrink notch back to collapsed width using the arbitered width helper.
         AnimateCompactWidth(_collapsedWidth, TimeSpan.FromMilliseconds(400), _easeExpOut6, token);
 
         var fadeOut = MakeAnim(1d, 0d, _dur250, _easePowerIn2, null);
         fadeOut.Completed += (s, e) =>
         {
-            // Bail if a higher-priority overlay has taken over since we started.
             if (token != _chargingGlanceToken) return;
             if (IsCompactSlotStale(token)) return;
 
@@ -241,7 +218,6 @@ public partial class MainWindow
             _compactPillArbiter.Release(token);
             _chargingGlanceToken = 0;
 
-            // Restore previous content
             if (_isMusicCompactMode && _currentMediaInfo != null)
             {
                 MusicCompactContent.Visibility = Visibility.Visible;
@@ -288,7 +264,6 @@ public partial class MainWindow
         double targetWidth = _collapsedWidth + extra;
         AnimateCompactWidth(targetWidth, TimeSpan.FromMilliseconds(500), _easeSoftSpring, _chargingGlanceToken);
 
-        // Subtle bounce scale
         var durPeak = TimeSpan.FromMilliseconds(140);
         var durEnd = TimeSpan.FromMilliseconds(700);
 
@@ -362,16 +337,13 @@ public partial class MainWindow
     private void StartChargingPulse()
     {
         _chargingPulseWanted = true;
-        if (!AmbientAnimationsAllowed) return; // intent recorded; resumes when allowed
+        if (!AmbientAnimationsAllowed) return;
         if (_chargingPulseStoryboard != null) return;
 
         _chargingPulseStoryboard = new Storyboard
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
-        // Ambient pulse: cap wakeups to keep the compositor from running at full
-        // refresh rate the whole time the battery is charging. 24fps is plenty for a
-        // slow 1s opacity pulse.
         Timeline.SetDesiredFrameRate(_chargingPulseStoryboard, 24);
 
         var pulseAnimation = new DoubleAnimation
@@ -396,8 +368,6 @@ public partial class MainWindow
         StopChargingPulseInternal();
     }
 
-    // Stops the pulse animation without clearing the "wanted" intent, so a reduce-motion
-    // or visibility toggle can pause/resume it while charging continues.
     private void StopChargingPulseInternal()
     {
         if (_chargingPulseStoryboard == null) return;
@@ -416,6 +386,5 @@ public partial class MainWindow
 
     private void UpdateBatteryInfo()
     {
-        // Reserved: explicit poke point if we ever need to force a refresh outside the BatteryModule's own event cadence.
     }
 }

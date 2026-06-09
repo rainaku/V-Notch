@@ -17,7 +17,6 @@ public static class SubjectAwareBlurService
     {
         if (source == null) return null;
 
-        // No subject info → uniform blur (cheaper, identical output to before).
         if (subject is not SubjectBounds s)
         {
             return await FastBlurService.GetBlurredImageAsync(source, downscaleWidth, backgroundBlurRadius);
@@ -33,7 +32,6 @@ public static class SubjectAwareBlurService
                 backgroundBlurRadius = Math.Clamp(backgroundBlurRadius, 1, 32);
                 subjectBlurRadius = Math.Clamp(subjectBlurRadius, 0, backgroundBlurRadius);
 
-                // ─── Downscale to working buffer ───
                 var formatted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
                 var small = new TransformedBitmap(formatted,
                     new ScaleTransform((double)width / formatted.PixelWidth, (double)height / formatted.PixelHeight));
@@ -44,7 +42,6 @@ public static class SubjectAwareBlurService
                 byte[] basePixels = new byte[bufLen];
                 small.CopyPixels(basePixels, stride, 0);
 
-                // ─── Heavy-blur background pass ───
                 byte[] background = (byte[])basePixels.Clone();
                 byte[] tmp = new byte[bufLen];
                 for (int i = 0; i < 2; i++)
@@ -52,22 +49,21 @@ public static class SubjectAwareBlurService
                     BoxBlurHorizontal(background, tmp, width, height, backgroundBlurRadius);
                     BoxBlurVertical(tmp, background, width, height, backgroundBlurRadius);
                 }
-                Darken(background, 0.78f); // moodier than FastBlur's 0.96 — subject reads first
+                Darken(background, 0.78f);
 
-                // ─── Lighter-blur subject pass ───
                 byte[] subjectLayer = (byte[])basePixels.Clone();
                 if (subjectBlurRadius >= 1)
                 {
                     BoxBlurHorizontal(subjectLayer, tmp, width, height, subjectBlurRadius);
                     BoxBlurVertical(tmp, subjectLayer, width, height, subjectBlurRadius);
                 }
-                Brighten(subjectLayer, 1.04f); // gentle lift so subject "glows"
+                Brighten(subjectLayer, 1.04f);
 
                 float cx = Math.Clamp(s.CenterX, 0f, 1f) * width;
                 float cy = Math.Clamp(s.CenterY, 0f, 1f) * height;
                 float rx = MathF.Max(width * 0.18f, s.Width * width * 0.55f);
                 float ry = MathF.Max(height * 0.22f, s.Height * height * 0.55f);
-                float feather = 0.40f; // 0..1 of axis length
+                float feather = 0.40f;
 
                 byte[] result = new byte[bufLen];
                 for (int y = 0; y < height; y++)
@@ -80,7 +76,6 @@ public static class SubjectAwareBlurService
                         float distSq = dx * dx + dy * dy;
                         float dist = MathF.Sqrt(distSq);
 
-                        // mask: 1 at center, smoothstep down to 0 at (1 + feather)
                         float t;
                         if (dist <= 1f)
                         {
@@ -92,8 +87,7 @@ public static class SubjectAwareBlurService
                         }
                         else
                         {
-                            float u = (dist - 1f) / feather; // 0..1
-                            // smoothstep
+                            float u = (dist - 1f) / feather;
                             t = 1f - u * u * (3f - 2f * u);
                         }
 
@@ -124,8 +118,6 @@ public static class SubjectAwareBlurService
         });
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────
-
     private static void Darken(byte[] pixels, float factor)
     {
         for (int i = 0; i < pixels.Length; i += 4)
@@ -146,9 +138,6 @@ public static class SubjectAwareBlurService
         }
     }
 
-    // Sliding-window (running-sum) box blur: O(w*h) per pass, independent of radius.
-    // Bit-identical to the naive version: same clamp-to-edge handling, same fixed
-    // window size (2*radius+1), same integer division.
     private static void BoxBlurHorizontal(byte[] source, byte[] target, int w, int h, int radius)
     {
         int window = 2 * radius + 1;

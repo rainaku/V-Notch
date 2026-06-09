@@ -12,16 +12,6 @@ using VNotch.Services;
 
 namespace VNotch.Controllers;
 
-/// <summary>
-/// Owns the webcam capture pipeline (WinRT <see cref="MediaCapture"/> + <see cref="MediaFrameReader"/>,
-/// device selection, lifecycle serialization, 30 fps throttling and frame-buffer reuse) that previously
-/// lived inline inside the MainWindow god-class.
-///
-/// This controller deliberately knows nothing about WPF, XAML elements or window layout. It surfaces
-/// decoded BGRA frames via <see cref="FrameAvailable"/>; the owning view is responsible for rendering
-/// them, for all animations and for deciding (via the <c>isContextValid</c> callback passed to
-/// <see cref="StartAsync"/>) whether the surrounding UI is still in a state where the preview should run.
-/// </summary>
 public sealed class WebcamCaptureController : IDisposable
 {
     private readonly object _lifecycleLock = new();
@@ -34,33 +24,22 @@ public sealed class WebcamCaptureController : IDisposable
     private bool _starting;
     private bool _stopping;
 
-    // Bumped on every start/stop. A start operation captures the token at entry and bails the moment
-    // the field no longer matches it (i.e. a newer start/stop superseded it). Mirrors the old
-    // _cameraPreviewFadeToken semantics so the view's fade animations stay in lockstep.
     private int _fadeToken;
 
-    // ─── Performance: frame throttling & buffer reuse ───
     private long _lastFrameTimestamp;
-    private const long FrameIntervalTicks = 333_333; // ~30fps cap (10_000_000 / 30)
+    private const long FrameIntervalTicks = 333_333;
     private byte[]? _frameBuffer;
     private int _frameBufferSize;
 
-    /// <summary>True between a successful start and the next stop.</summary>
     public bool IsActive => _isActive;
 
     public bool IsStarting => _starting;
     public bool IsStopping => _stopping;
 
-    /// <summary>True once a frame reader is attached (i.e. fully started, not just initializing).</summary>
     public bool HasReader => _frameReader != null;
 
-    /// <summary>Current fade/generation token. Increments on every start and stop.</summary>
     public int FadeToken => _fadeToken;
 
-    /// <summary>
-    /// True while any capture resource is alive or in flight. Used by the view to decide whether a
-    /// view-exit must tear the preview down before resetting layout.
-    /// </summary>
     public bool IsLifecycleActive
     {
         get
@@ -77,19 +56,10 @@ public sealed class WebcamCaptureController : IDisposable
         }
     }
 
-    /// <summary>Raised on a background thread with a reused BGRA buffer, width and height per frame.</summary>
     public event Action<byte[], int, int>? FrameAvailable;
 
-    /// <summary>Increments and returns the fade token (used by the view when priming a fresh fade).</summary>
     public int NextFadeToken() => ++_fadeToken;
 
-    /// <summary>
-    /// Initializes the camera and starts streaming frames. Returns an error message on failure, or
-    /// <c>null</c> on success or when the start was cancelled because <paramref name="isContextValid"/>
-    /// became false. Faithfully preserves the original inline cancellation/race handling.
-    /// </summary>
-    /// <param name="deviceId">Preferred camera device id (MediaFrameSourceGroup id), or null/empty for default.</param>
-    /// <param name="isContextValid">Callback returning whether the surrounding UI is still in a state that wants the preview.</param>
     public async Task<string?> StartAsync(string? deviceId, Func<bool> isContextValid)
     {
         if (_isActive && _frameReader != null) return null;
@@ -237,11 +207,6 @@ public sealed class WebcamCaptureController : IDisposable
         }
     }
 
-    /// <summary>
-    /// Immediate, animation-free teardown (mirrors the old StopCameraPreviewSafe core): resets all
-    /// volatile flags/buffers, bumps the fade token and detaches the frame handler at once, returning the
-    /// live reader/capture (+ any in-flight initializing capture) for the caller to dispose.
-    /// </summary>
     public (MediaFrameReader? reader, MediaCapture? capture, MediaCapture? initializing) DetachForSafeStop()
     {
         _isActive = false;
@@ -271,12 +236,6 @@ public sealed class WebcamCaptureController : IDisposable
         return (reader, capture, initializingCapture);
     }
 
-    /// <summary>
-    /// Begins a graceful (animated) stop: if not already stopping, marks stopping + inactive, clears the
-    /// frame buffer, bumps the fade token and detaches/nulls the live reader+capture so frame flow stops
-    /// immediately. The caller animates the fade-out, then disposes the returned resources off-thread and
-    /// finally calls <see cref="EndGracefulStop"/>. Returns false (no-op) if a stop is already in progress.
-    /// </summary>
     public bool TryBeginGracefulStop(out int fadeToken, out MediaFrameReader? reader, out MediaCapture? capture)
     {
         fadeToken = _fadeToken;
@@ -303,7 +262,6 @@ public sealed class WebcamCaptureController : IDisposable
         return true;
     }
 
-    /// <summary>Ends a graceful stop started by <see cref="TryBeginGracefulStop"/>.</summary>
     public void EndGracefulStop() => _stopping = false;
 
     public static async Task DisposeResourcesAsync(MediaFrameReader? reader, MediaCapture? capture)
@@ -311,7 +269,7 @@ public sealed class WebcamCaptureController : IDisposable
         if (reader != null)
         {
             try { await reader.StopAsync(); }
-            catch { /* Reader may already be stopped/disposed when cancelling an in-flight start. */ }
+            catch { }
             try { reader.Dispose(); } catch { }
         }
 
@@ -320,7 +278,6 @@ public sealed class WebcamCaptureController : IDisposable
 
     private void OnFrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
     {
-        // ─── Frame throttle: skip frames if we're rendering faster than 30fps ───
         long now = Stopwatch.GetTimestamp();
         if (now - _lastFrameTimestamp < FrameIntervalTicks)
             return;
@@ -341,7 +298,6 @@ public sealed class WebcamCaptureController : IDisposable
         int height = softwareBitmap.PixelHeight;
         int requiredSize = width * height * 4;
 
-        // Reuse buffer to avoid GC pressure
         if (_frameBuffer == null || _frameBufferSize < requiredSize)
         {
             _frameBuffer = new byte[requiredSize];

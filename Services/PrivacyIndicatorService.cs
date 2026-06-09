@@ -29,7 +29,6 @@ public sealed class PrivacyIndicatorService : IDisposable
         _activeInterval = pollInterval ?? ActivePollInterval;
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            // Start responsive; AdaptInterval() backs off once we confirm nothing is in use.
             Interval = _activeInterval
         };
         _timer.Tick += (_, _) => Poll();
@@ -40,7 +39,6 @@ public sealed class PrivacyIndicatorService : IDisposable
         if (_disposed || _started) return;
         _started = true;
 
-        // Initial sample so consumers don't have to wait for the first tick.
         Poll();
         _timer.Start();
     }
@@ -92,8 +90,6 @@ public sealed class PrivacyIndicatorService : IDisposable
         }
     }
 
-    // Poll frequently while a device is in use (responsive consumer updates), but back off
-    // when idle to cut background registry/audio scans.
     private void AdaptInterval()
     {
         if (!_started) return;
@@ -115,7 +111,6 @@ public sealed class PrivacyIndicatorService : IDisposable
             }
             catch (System.Runtime.InteropServices.COMException)
             {
-                // No capture device available
                 return false;
             }
 
@@ -123,10 +118,8 @@ public sealed class PrivacyIndicatorService : IDisposable
 
             using (captureDevice)
             {
-                // Check if the device state is active
                 if (captureDevice.State != DeviceState.Active) return false;
 
-                // Check audio sessions on the capture device — if any session has audio flowing, mic is truly in use
                 var sessionManager = captureDevice.AudioSessionManager;
                 var sessions = sessionManager?.Sessions;
                 if (sessions == null) return false;
@@ -143,7 +136,7 @@ public sealed class PrivacyIndicatorService : IDisposable
                             return true;
                         }
                     }
-                    catch { /* session may have been released */ }
+                    catch { }
                 }
 
                 return false;
@@ -152,7 +145,6 @@ public sealed class PrivacyIndicatorService : IDisposable
         catch (Exception ex)
         {
             RuntimeLog.Error("PRIVACY", ex, "IsMicrophoneActuallyCapturing check failed");
-            // Fall back to registry-only behavior on error
             return true;
         }
     }
@@ -161,9 +153,6 @@ public sealed class PrivacyIndicatorService : IDisposable
     {
         var consumers = new List<string>();
 
-        // Usage timestamps live under HKCU for per-user apps, but desktop apps launched by a
-        // service or elevated process (common for screen recorders/capture tools) register
-        // under HKLM. Scan both so we don't miss them.
         ScanCapabilityHive(Registry.CurrentUser, capability, consumers);
         ScanCapabilityHive(Registry.LocalMachine, capability, consumers);
 
@@ -183,14 +172,12 @@ public sealed class PrivacyIndicatorService : IDisposable
                 using var subKey = capRoot.OpenSubKey(subKeyName, writable: false);
                 if (subKey == null) continue;
 
-                // Packaged apps store LastUsedTimeStop on the immediate subkey.
                 if (TryDetectInUse(subKey, out _))
                 {
                     consumers.Add(NormalizeAppName(subKeyName));
                     continue;
                 }
 
-                // Desktop apps live under a "NonPackaged" branch keyed by exe path.
                 if (string.Equals(subKeyName, "NonPackaged", StringComparison.OrdinalIgnoreCase))
                 {
                     foreach (var npName in subKey.GetSubKeyNames())
@@ -219,7 +206,6 @@ public sealed class PrivacyIndicatorService : IDisposable
         if (stopObj is long stop)
         {
             if (startObj is long start) lastStart = start;
-            // 0 means "still in use".
             return stop == 0L;
         }
         return false;
@@ -227,11 +213,6 @@ public sealed class PrivacyIndicatorService : IDisposable
 
     private static bool DetectScreenRecording()
     {
-        // Windows records screen-capture consent under these ConsentStore capabilities for
-        // apps that go through the WinRT GraphicsCapture broker (Game Bar, Snipping Tool,
-        // Teams/Zoom share, most modern recorders). We scan both HKCU and HKLM (see
-        // ScanCapability). Note: tools using raw DXGI desktop duplication don't register
-        // here and can't be detected from the registry.
         return ScanCapability("graphicsCaptureProgrammatic").Count > 0
             || ScanCapability("graphicsCaptureWithoutBorder").Count > 0;
     }
@@ -240,7 +221,6 @@ public sealed class PrivacyIndicatorService : IDisposable
     {
         if (string.IsNullOrWhiteSpace(raw)) return raw;
 
-        // Desktop apps are encoded as "C:#Program Files#App#app.exe" — split and take the exe.
         if (raw.Contains('#'))
         {
             var parts = raw.Split('#');
@@ -248,7 +228,6 @@ public sealed class PrivacyIndicatorService : IDisposable
             if (!string.IsNullOrWhiteSpace(last)) return last;
         }
 
-        // Packaged app family name like "Microsoft.YourPhone_8wekyb3d8bbwe" — keep just the readable head.
         var underscore = raw.IndexOf('_');
         if (underscore > 0)
         {

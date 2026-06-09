@@ -17,17 +17,11 @@ public sealed class FullscreenAutoHideController
     private DateTime _lastStateChangeUtc = DateTime.MinValue;
     private bool _isHiddenByFullscreen;
 
-    // ─── Public State ───
-
     public bool IsHiddenByFullscreen => _isHiddenByFullscreen;
-
-    // ─── Events ───
 
     public event Action<bool>? HideStateChanged;
 
     public event Action? RecheckNeeded;
-
-    // ─── Constructor ───
 
     public FullscreenAutoHideController(Func<IntPtr> getNotchHwnd, NotchSettings settings)
     {
@@ -35,23 +29,16 @@ public sealed class FullscreenAutoHideController
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
     }
 
-    /// <summary>
-    /// Swaps in a new settings instance so toggles (e.g. HideOnExclusiveFullscreen /
-    /// HideOnWindowedFullscreen) take effect live instead of only after an app restart.
-    /// </summary>
     public void UpdateSettings(NotchSettings settings)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
     }
-
-    // ─── Core Logic ───
 
     public bool Evaluate(IntPtr foregroundHwnd = default, bool force = false)
     {
         IntPtr notchHwnd = _getNotchHwnd();
         if (notchHwnd == IntPtr.Zero) return false;
 
-        // Bail when both auto-hide options are off
         if (!_settings.HideOnExclusiveFullscreen && !_settings.HideOnWindowedFullscreen)
         {
             if (_isHiddenByFullscreen)
@@ -64,7 +51,6 @@ public sealed class FullscreenAutoHideController
             return false;
         }
 
-        // Throttle
         var now = DateTime.UtcNow;
         if (!force && (now - _lastCheckUtc) < ThrottleInterval)
             return false;
@@ -77,7 +63,6 @@ public sealed class FullscreenAutoHideController
         if (shouldHide == _isHiddenByFullscreen)
             return false;
 
-        // Cooldown only on show→hide transition
         if (!force && shouldHide && (now - _lastStateChangeUtc) < FullscreenStateCooldown)
         {
             RecheckNeeded?.Invoke();
@@ -99,8 +84,6 @@ public sealed class FullscreenAutoHideController
             HideStateChanged?.Invoke(false);
         }
     }
-
-    // ─── Decision Logic ───
 
     private bool ShouldHideForFullscreen(IntPtr hwnd, IntPtr notchHwnd)
     {

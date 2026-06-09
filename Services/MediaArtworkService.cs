@@ -44,7 +44,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
         EnableSmartCrop = enabled;
         if (enabled && !_smartCropAvailable)
         {
-            // Just check if model file exists — no model loading here
             InitializeSmartCrop();
         }
     }
@@ -124,13 +123,11 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                 return source;
             }
 
-            // Detect and trim letterbox (black bars top/bottom or left/right)
             var contentRect = DetectContentBounds(source, width, height);
             BitmapSource workingSource = source;
 
             if (contentRect.Width < width * 0.95 || contentRect.Height < height * 0.95)
             {
-                // Significant letterbox detected — crop it out first
                 var trimmed = new CroppedBitmap(source, contentRect);
                 trimmed.Freeze();
                 workingSource = trimmed;
@@ -145,13 +142,11 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
 
             Int32Rect rect;
 
-            // Try smart crop first if enabled and available
             if (EnableSmartCrop && _smartCropAvailable && aspect > 1.4 && !forceCenterCrop)
             {
                 BitmapImage? workingBitmap = workingSource as BitmapImage;
                 if (workingBitmap == null)
                 {
-                    // Convert CroppedBitmap to BitmapImage for ONNX
                     workingBitmap = ConvertToBitmapImage(workingSource);
                 }
 
@@ -193,7 +188,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
             if (result != null)
                 return result;
 
-            // Fallback: original path if pooled creation fails
             var cropped = new CroppedBitmap(workingSource, rect);
             cropped.Freeze();
 
@@ -251,7 +245,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
 
     private static Int32Rect GetFallbackCropRect(int width, int height, int squareSize, string mediaSource, double aspect)
     {
-        // Always center crop — YouTube music thumbnails put the subject (artist/face) in the center or right
         int offsetX = (width - squareSize) / 2;
         int offsetY = (height - squareSize) / 2;
         return new Int32Rect(offsetX, offsetY, squareSize, squareSize);
@@ -300,7 +293,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
 
     private static Int32Rect DetectContentBounds(BitmapSource source, int width, int height)
     {
-        // Detect black letterbox bars by scanning rows/columns for near-black pixels
         const int sampleSize = 64;
         double scaleX = (double)sampleSize / width;
         double scaleY = (double)sampleSize / height;
@@ -325,14 +317,13 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
         }
         src.CopyPixels(pixels, stride, 0);
 
-        const int blackThreshold = 25; // RGB values below this = "black"
+        const int blackThreshold = 25;
 
-        // Scan from top
         int topBar = 0;
         for (int y = 0; y < sh / 3; y++)
         {
             int darkPixels = 0, total = 0;
-            for (int x = sw / 4; x < sw * 3 / 4; x++) // sample center 50%
+            for (int x = sw / 4; x < sw * 3 / 4; x++)
             {
                 int i = y * stride + x * 4;
                 if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
@@ -345,7 +336,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                 break;
         }
 
-        // Scan from bottom
         int bottomBar = 0;
         for (int y = sh - 1; y >= sh * 2 / 3; y--)
         {
@@ -363,7 +353,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                 break;
         }
 
-        // Scan from left
         int leftBar = 0;
         for (int x = 0; x < sw / 3; x++)
         {
@@ -381,7 +370,6 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                 break;
         }
 
-        // Scan from right
         int rightBar = 0;
         for (int x = sw - 1; x >= sw * 2 / 3; x--)
         {
@@ -399,19 +387,17 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
                 break;
         }
 
-        // Convert back to original image coordinates
         int contentX = (int)(leftBar / scaleX);
         int contentY = (int)(topBar / scaleY);
         int contentW = width - contentX - (int)(rightBar / scaleX);
         int contentH = height - contentY - (int)(bottomBar / scaleY);
 
-        // Sanity check
         if (contentW < width / 2 || contentH < height / 2)
             return new Int32Rect(0, 0, width, height);
 
         return new Int32Rect(contentX, contentY, contentW, contentH);
 
-        } // end pixel processing try
+        }
         finally
         {
             System.Buffers.ArrayPool<byte>.Shared.Return(pixels);

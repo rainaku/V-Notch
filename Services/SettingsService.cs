@@ -27,7 +27,7 @@ public class SettingsService : ISettingsService
     {
         if (!File.Exists(_settingsPath))
         {
-            
+
             var fresh = new NotchSettings { SettingsVersion = SettingsMigrator.CurrentVersion };
             Save(fresh);
             return fresh;
@@ -40,7 +40,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            
+
             RuntimeLog.Log("SETTINGS-LOAD", $"Failed to read {_settingsPath}: {ex}");
             return new NotchSettings { SettingsVersion = SettingsMigrator.CurrentVersion };
         }
@@ -73,7 +73,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            
+
             RuntimeLog.Log("SETTINGS-LOAD", $"Unexpected error while loading settings: {ex}");
             return new NotchSettings { SettingsVersion = SettingsMigrator.CurrentVersion };
         }
@@ -109,7 +109,6 @@ public class SettingsService : ISettingsService
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }
-
 
     private static bool NormalizeSettings(NotchSettings settings)
     {

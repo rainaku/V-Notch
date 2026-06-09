@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -42,7 +42,6 @@ public partial class MainWindow
         }
         catch
         {
-            // Silently fail - don't interrupt user experience
         }
     }
 
@@ -142,7 +141,7 @@ public partial class MainWindow
         {
             _updatePulseTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromMilliseconds(33) // ~30fps is sufficient for color pulse
+                Interval = TimeSpan.FromMilliseconds(33)
             };
             _updatePulseTimer.Tick += UpdatePulseTimer_Tick;
         }
@@ -296,7 +295,6 @@ public partial class MainWindow
 
     private void AnimateUpdateNotificationHover(bool isEnter)
     {
-        // Enable bitmap caching to prevent sub-pixel jitter during scale
         if (isEnter)
             UpdateNotificationButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
 

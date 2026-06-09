@@ -16,29 +16,20 @@ public sealed class SmartThumbnailCropService : IDisposable
 {
     private readonly object _lock = new();
 
-    // ─── Model constants ───
     private const int ModelInputSize = 640;
 
-    // ─── Object Detection Rules ───
-    private const float ConfidenceThreshold = 0.35f;       // ≥ 0.35 to catch more objects (tuned down from 0.5)
-    private const float PersonConfidenceThreshold = 0.10f; // Lower for person class (priority)
-    private const float NmsThreshold = 0.50f;              // IoU ≤ 0.50 to merge overlapping bboxes (relaxed)
-    private const float MinAreaRatio = 0.02f;              // ≥ 2% of frame area for non-person objects (tuned down)
-    private const float MinPersonAreaRatio = 0.005f;       // Lower threshold for persons
+    private const float ConfidenceThreshold = 0.35f;
+    private const float PersonConfidenceThreshold = 0.10f;
+    private const float NmsThreshold = 0.50f;
+    private const float MinAreaRatio = 0.02f;
+    private const float MinPersonAreaRatio = 0.005f;
 
-    // ─── Crop Rule ───
-    // The detected subject is always centered pixel-perfect in the square crop.
-    // Selection priority is person (1) > object (2) > text (3). No rule-of-thirds,
-    // golden-ratio, headroom/lookroom or visual-balance offsets are applied — the
-    // subject's geometric center maps exactly to the crop center (clamped to bounds).
-    private const float SubjectMarginRatio = 0.15f;        // breathing room on each side of subject (15%)
-    private const float MinCropRatio = 0.45f;              // crop never smaller than 45% of min(w,h) → avoid over-zoom on tiny detections
+    private const float SubjectMarginRatio = 0.15f;
+    private const float MinCropRatio = 0.45f;
 
-    // Anti-jitter: suppress tiny crop changes between recomputes of the same artwork.
-    private const float StabilizeCenterThreshold = 0.03f;  // ignore focal shifts < 3% of min(w,h)
-    private const float StabilizeSizeThreshold = 0.04f;    // ignore crop-size changes < 4% of min(w,h)
+    private const float StabilizeCenterThreshold = 0.03f;
+    private const float StabilizeSizeThreshold = 0.04f;
 
-    // last emitted crop, used to suppress micro-jitter between recomputes of the same artwork.
     private Int32Rect _lastCropRect;
     private int _lastCropImgWidth;
     private int _lastCropImgHeight;
@@ -49,18 +40,14 @@ public sealed class SmartThumbnailCropService : IDisposable
     private bool _modelExistsChecked;
     private InferenceSession? _cachedSession;
 
-    // ─── Idle auto-unload ───
-    // The YOLOv8n session is memory-heavy; release it after a period of inactivity.
-    // It transparently reloads on the next smart-crop request.
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(5);
     private DateTime _lastUsedUtc;
     private System.Threading.Timer? _idleTimer;
 
-    // COCO class IDs for multi-class priority: person > product > animal > background
-    private static readonly HashSet<int> _personClasses = new() { 0 }; // person
+    private static readonly HashSet<int> _personClasses = new() { 0 };
     private static readonly HashSet<int> _animalClasses = new()
     {
-        14, 15, 16, 17, 18, 19, 20, 21, 22, 23 // bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe
+        14, 15, 16, 17, 18, 19, 20, 21, 22, 23
     };
     private static readonly HashSet<int> _productClasses = new()
     {
@@ -70,10 +57,10 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     private static float GetClassPriority(int classId)
     {
-        if (_personClasses.Contains(classId)) return 5.0f;  // Person ALWAYS highest priority
-        if (_animalClasses.Contains(classId)) return 2.5f;  // Animals second
-        if (_productClasses.Contains(classId)) return 2.0f; // Products third
-        return 1.0f;                                         // Everything else (text, background)
+        if (_personClasses.Contains(classId)) return 5.0f;
+        if (_animalClasses.Contains(classId)) return 2.5f;
+        if (_productClasses.Contains(classId)) return 2.0f;
+        return 1.0f;
     }
 
     public bool TryInitialize()
@@ -103,8 +90,6 @@ public sealed class SmartThumbnailCropService : IDisposable
         }
     }
 
-    // Marks the session as used and ensures the idle-unload timer is running.
-    // Caller must hold _lock.
     private void MarkSessionUsed()
     {
         _lastUsedUtc = DateTime.UtcNow;
@@ -183,7 +168,6 @@ public sealed class SmartThumbnailCropService : IDisposable
                 var detections = ParseYolov8Output(output, imgWidth, imgHeight, scale, padX, padY);
                 if (detections.Count == 0) return null;
 
-                // Pick best by class priority × confidence × area share × center weight.
                 Detection? best = null;
                 float bestScore = float.MinValue;
                 float imgArea = imgWidth * imgHeight;
@@ -208,7 +192,6 @@ public sealed class SmartThumbnailCropService : IDisposable
                 float w = (b.X2 - b.X1) / imgWidth;
                 float h = (b.Y2 - b.Y1) / imgHeight;
 
-                // Persons: bias subject center upward toward the face for nicer "spotlight".
                 if (_personClasses.Contains(b.ClassId))
                 {
                     cy = (b.Y1 + (b.Y2 - b.Y1) * 0.12f) / imgHeight;
@@ -236,7 +219,6 @@ public sealed class SmartThumbnailCropService : IDisposable
         var rect = ComputeSmartCropRectCore(source, targetSquareSize);
         if (rect.HasValue && source != null)
         {
-            // R6: suppress micro-jitter between recomputes of the same artwork.
             return Stabilize(rect.Value, source.PixelWidth, source.PixelHeight);
         }
         return rect;
@@ -265,14 +247,12 @@ public sealed class SmartThumbnailCropService : IDisposable
                 int imgWidth = source.PixelWidth;
                 int imgHeight = source.PixelHeight;
 
-                // Skip if image is already square or very small
                 if (Math.Abs(imgWidth - imgHeight) < 10 || imgWidth < 64 || imgHeight < 64)
                 {
                     VNotch.Services.RuntimeLog.Log("SMART-CROP", $"GetSmartCropRect: skip (square/small) {imgWidth}x{imgHeight}");
                     return null;
                 }
 
-                // For small images (< 400px wide), ONNX is overkill — use saliency directly
                 if (imgWidth < 400 && imgHeight < 400)
                 {
                     int maxCrop = Math.Min(imgWidth, imgHeight);
@@ -281,7 +261,6 @@ public sealed class SmartThumbnailCropService : IDisposable
                     return GetSaliencyCropRect(source, imgWidth, imgHeight, cropSz);
                 }
 
-                // ─── Reuse cached session or create new one ───
                 if (_cachedSession == null)
                 {
                     var options = new SessionOptions();
@@ -301,10 +280,8 @@ public sealed class SmartThumbnailCropService : IDisposable
                 int requiredLength = 1 * 3 * ModelInputSize * ModelInputSize;
                 tensorBuffer = ArrayPool<float>.Shared.Rent(requiredLength);
 
-                // ─── Preprocess ───
                 var (scaleX, scaleY, padX, padY) = PreprocessImageFast(source, tensorBuffer);
 
-                // ─── Run inference ─── ArrayPool
                 var tensor = new DenseTensor<float>(
                     new Memory<float>(tensorBuffer, 0, requiredLength),
                     new[] { 1, 3, ModelInputSize, ModelInputSize });
@@ -317,17 +294,14 @@ public sealed class SmartThumbnailCropService : IDisposable
                 using var results = _cachedSession.Run(inputs);
                 var output = results.First().AsTensor<float>();
 
-                // ─── Parse detections ───
                 var detections = ParseYolov8Output(output, imgWidth, imgHeight, scaleX, padX, padY);
 
                 if (detections.Count == 0)
                 {
                     VNotch.Services.RuntimeLog.Log("SMART-CROP", "ONNX produced 0 detections -> saliency fallback");
-                    // No YOLO detections — use saliency/attention fallback
                     return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSquareSize);
                 }
 
-                // ─── Multi-signal hybrid crop ───
                 VNotch.Services.RuntimeLog.Log("SMART-CROP", $"raw detections count={detections.Count}");
                 return GetHybridCropRect(detections, source, imgWidth, imgHeight, targetSquareSize);
             }
@@ -416,18 +390,13 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     private List<Detection> ParseYolov8Output(Tensor<float> output, int imgWidth, int imgHeight, float scale, float padX, float padY)
     {
-        // YOLOv8 output shape: [1, 84, 8400]
         var detections = new List<Detection>(32);
         var dims = output.Dimensions;
         int numChannels = dims[1];
         int numPredictions = dims[2];
-        int numClasses = numChannels - 4; // 80 classes for COCO
+        int numClasses = numChannels - 4;
         float imgArea = imgWidth * imgHeight;
 
-        // Fast path: read the contiguous backing buffer directly instead of the
-        // DenseTensor indexer (which recomputes strides on every access). The tensor
-        // is row-major [1, numChannels, numPredictions], so element [0, c, i] lives at
-        // linear offset c * numPredictions + i. Results are identical to the indexer.
         ReadOnlySpan<float> buffer = output is DenseTensor<float> dense
             ? dense.Buffer.Span
             : ReadOnlySpan<float>.Empty;
@@ -435,7 +404,6 @@ public sealed class SmartThumbnailCropService : IDisposable
 
         for (int i = 0; i < numPredictions; i++)
         {
-            // Find the class with highest confidence
             float maxScore = 0f;
             int maxClassId = -1;
 
@@ -451,7 +419,6 @@ public sealed class SmartThumbnailCropService : IDisposable
 
             if (maxClassId < 0) continue;
 
-            // Apply class-specific confidence thresholds
             bool isPerson = _personClasses.Contains(maxClassId);
             float threshold = isPerson ? PersonConfidenceThreshold : ConfidenceThreshold;
             if (maxScore < threshold) continue;
@@ -461,7 +428,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             float w  = useSpan ? buffer[2 * numPredictions + i] : output[0, 2, i];
             float h  = useSpan ? buffer[3 * numPredictions + i] : output[0, 3, i];
 
-            // Convert from model space to original image space
             float x1 = (cx - w / 2f - padX) / scale;
             float y1 = (cy - h / 2f - padY) / scale;
             float x2 = (cx + w / 2f - padX) / scale;
@@ -475,7 +441,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             float bboxArea = (x2 - x1) * (y2 - y1);
             float areaRatio = bboxArea / imgArea;
 
-            // Rule: Min area filter (class-specific)
             if (isPerson)
             {
                 if (areaRatio < MinPersonAreaRatio) continue;
@@ -485,7 +450,6 @@ public sealed class SmartThumbnailCropService : IDisposable
                 if (areaRatio < MinAreaRatio) continue;
             }
 
-            // Skip tiny detections (likely noise)
             if (x2 - x1 < 5 || y2 - y1 < 5) continue;
 
             detections.Add(new Detection
@@ -516,7 +480,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             for (int j = i + 1; j < sorted.Count; j++)
             {
                 if (suppressed[j]) continue;
-                // Rule: NMS IoU ≤ 0.45
                 if (IoU(sorted[i], sorted[j]) > NmsThreshold)
                     suppressed[j] = true;
             }
@@ -546,12 +509,10 @@ public sealed class SmartThumbnailCropService : IDisposable
         float imgCenterX = imgWidth / 2f;
         float imgCenterY = imgHeight / 2f;
 
-        // Normalized distance from center (0 = center, 1 = corner)
         float dx = (objCenterX - imgCenterX) / imgCenterX;
         float dy = (objCenterY - imgCenterY) / imgCenterY;
         float dist = MathF.Sqrt(dx * dx + dy * dy) / MathF.Sqrt(2f);
 
-        // Weight: 1.0 at center, 0.5 at corners
         return 1.0f - dist * 0.5f;
     }
 
@@ -565,7 +526,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             int cellW = imgWidth / gridSize;
             int cellH = imgHeight / gridSize;
 
-            // Downsample for analysis
             const int analysisSize = 128;
             double scaleX = (double)analysisSize / imgWidth;
             double scaleY = (double)analysisSize / imgHeight;
@@ -629,11 +589,9 @@ public sealed class SmartThumbnailCropService : IDisposable
 
                     double edgeRatio = edgeCount / pixelCount;
 
-                    // High edge density (> 0.3) indicates text-like content
                     if (edgeRatio > 0.30)
                     {
                         float regionHeight = cellH;
-                        // Rule: font_factor = sqrt(text_height)
                         float fontFactor = MathF.Sqrt(regionHeight);
 
                         regions.Add(new TextRegion
@@ -649,7 +607,7 @@ public sealed class SmartThumbnailCropService : IDisposable
                 }
             }
 
-            } // end try
+            }
             finally
             {
                 ArrayPool<byte>.Shared.Return(pixels);
@@ -666,9 +624,8 @@ public sealed class SmartThumbnailCropService : IDisposable
     private Int32Rect GetHybridCropRect(List<Detection> detections, BitmapImage source, int imgWidth, int imgHeight, int targetSize)
     {
         int maxCropSize = Math.Min(imgWidth, imgHeight);
-        int cropSize = Math.Min(targetSize, maxCropSize); // used only by text/saliency paths
+        int cropSize = Math.Min(targetSize, maxCropSize);
 
-        // ─── Classify detections ───
         var persons = new List<Detection>();
         var objects = new List<Detection>();
 
@@ -683,10 +640,6 @@ public sealed class SmartThumbnailCropService : IDisposable
         VNotch.Services.RuntimeLog.Log("SMART-CROP",
             $"img={imgWidth}x{imgHeight} detections total={detections.Count} persons={persons.Count} objects={objects.Count}");
 
-        // ─── RULE: cropped subject must sit dead-center (pixel perfect). ───
-        // ─── Priority order: person (1) > object (2) > text (3). ───
-
-        // Priority 1 — People always win.
         if (persons.Count >= 1)
         {
             VNotch.Services.RuntimeLog.Log("SMART-CROP",
@@ -694,7 +647,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             return GetPersonCropRect(persons, imgWidth, imgHeight, targetSize);
         }
 
-        // Priority 2 — Objects (no person present).
         if (objects.Count > 0)
         {
             var bestObj = objects
@@ -707,7 +659,6 @@ public sealed class SmartThumbnailCropService : IDisposable
                 .First()
                 .Detection;
 
-            // Pixel-perfect center: crop centered exactly on the object's bbox center.
             float objCenterX = (bestObj.X1 + bestObj.X2) / 2f;
             float objCenterY = (bestObj.Y1 + bestObj.Y2) / 2f;
             float objWidth = bestObj.X2 - bestObj.X1;
@@ -722,17 +673,14 @@ public sealed class SmartThumbnailCropService : IDisposable
             return objRect;
         }
 
-        // Priority 3 — Text (lowest priority, only when no person/object).
         var textRegions = DetectTextRegions(source, imgWidth, imgHeight);
-        if (textRegions.Count >= 2) // Need at least 2 text cells to be meaningful
+        if (textRegions.Count >= 2)
         {
             VNotch.Services.RuntimeLog.Log("SMART-CROP",
                 $"text path: textRegions={textRegions.Count} → centered text crop");
-            // Center crop exactly on the text hull center.
             return GetTextFirstCropRect(textRegions, imgWidth, imgHeight, cropSize);
         }
 
-        // ─── No persons, no objects, no text: saliency fallback ───
         VNotch.Services.RuntimeLog.Log("SMART-CROP", "no person/object/text -> saliency fallback");
         var saliencyRect = GetSaliencyCropRect(source, imgWidth, imgHeight, targetSize);
         if (saliencyRect.HasValue)
@@ -754,7 +702,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             float personWidth = p.X2 - p.X1;
             float personHeight = p.Y2 - p.Y1;
 
-            // Pixel-perfect center: crop centered exactly on the person's bbox center.
             float personCenterX = (p.X1 + p.X2) / 2f;
             float personCenterY = (p.Y1 + p.Y2) / 2f;
 
@@ -782,7 +729,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             float groupW = maxX - minX;
             float groupH = maxY - minY;
 
-            // Pixel-perfect center: crop centered exactly on the group's union bbox center.
             float groupCenterX = (minX + maxX) / 2f;
             float groupCenterY = (minY + maxY) / 2f;
 
@@ -798,7 +744,6 @@ public sealed class SmartThumbnailCropService : IDisposable
 
     private Int32Rect GetTextFirstCropRect(List<TextRegion> textRegions, int imgWidth, int imgHeight, int cropSize)
     {
-        // Compute convex hull of all text regions
         float minX = float.MaxValue, maxX = float.MinValue;
         float minY = float.MaxValue, maxY = float.MinValue;
 
@@ -810,19 +755,16 @@ public sealed class SmartThumbnailCropService : IDisposable
             if (t.Y2 > maxY) maxY = t.Y2;
         }
 
-        // Center crop on text hull
         float textCenterX = (minX + maxX) / 2f;
         float textCenterY = (minY + maxY) / 2f;
 
         return BuildCropRect(textCenterX, textCenterY, imgWidth, imgHeight, cropSize);
     }
 
-
     private static int ComputeAdaptiveCropSize(float subjectW, float subjectH, int imgWidth, int imgHeight, int targetSize)
     {
         int maxCrop = Math.Min(imgWidth, imgHeight);
 
-        // Subject's largest extent + symmetric margin on both sides.
         float subjectExtent = Math.Max(subjectW, subjectH);
         float desired = subjectExtent * (1f + 2f * SubjectMarginRatio);
 
@@ -908,7 +850,6 @@ public sealed class SmartThumbnailCropService : IDisposable
             }
             scaledSource.CopyPixels(pixels, stride, 0);
 
-            // Divide into grid and compute saliency per cell
             const int gridSize = 8;
             int cellW = w / gridSize;
             int cellH = h / gridSize;
@@ -952,7 +893,6 @@ public sealed class SmartThumbnailCropService : IDisposable
                     double avgContrast = totalContrast / pixelCount;
                     double avgBrightness = totalBrightness / pixelCount;
 
-                    // Compute color saturation for this cell (subjects are colorful, text is not)
                     double totalSat = 0;
                     for (int y = startY; y < endY; y++)
                     {
@@ -969,24 +909,20 @@ public sealed class SmartThumbnailCropService : IDisposable
                     }
                     double avgSat = totalSat / Math.Max(1, pixelCount);
 
-                    // Penalize very dark/bright regions (black bars, white bg)
                     double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
 
                     double contrastFactor = avgContrast < 40 ? avgContrast / 40.0 : 1.0 - (avgContrast - 40) / 120.0;
                     contrastFactor = Math.Clamp(contrastFactor, 0.1, 1.0);
 
-                    // Center bias for saliency — strong bias to keep main subject centered and avoid pulling crop toward off-center decorative elements (text, logos)
                     float cx = (gx + 0.5f) / gridSize;
                     float cy = (gy + 0.5f) / gridSize;
                     float centerDist = MathF.Sqrt((cx - 0.5f) * (cx - 0.5f) + (cy - 0.5f) * (cy - 0.5f));
                     float centerBias = MathF.Max(0.1f, 1.0f - centerDist * 1.6f);
 
-                    // Score: saturation (subject) + moderate contrast - text penalty
                     saliencyMap[gy, gx] = (float)((avgSat * 60.0 + contrastFactor * 20.0) * brightnessPenalty * centerBias);
                 }
             }
 
-            // Find the 2×2 block with highest saliency
             float bestScore = -1;
             int bestGx = gridSize / 2, bestGy = gridSize / 2;
 
@@ -1005,13 +941,12 @@ public sealed class SmartThumbnailCropService : IDisposable
                 }
             }
 
-            // Convert grid position to image coordinates
             float saliencyCenterX = (bestGx + 1.0f) / gridSize * imgWidth;
             float saliencyCenterY = (bestGy + 1.0f) / gridSize * imgHeight;
 
             return BuildCropRect(saliencyCenterX, saliencyCenterY, imgWidth, imgHeight, cropSize);
 
-            } // end pixel processing try
+            }
             finally
             {
                 ArrayPool<byte>.Shared.Return(pixels);

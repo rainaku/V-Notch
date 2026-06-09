@@ -10,27 +10,18 @@ public sealed class BluetoothNotificationController
     private bool _currentConnected = true;
     private System.Timers.Timer? _dismissTimer;
 
-    // ─── Public State ───
-
     public bool IsVisible => _isVisible;
     public bool CurrentConnected => _currentConnected;
-
-    // ─── Events (MainWindow subscribes to drive UI) ───
 
     public event Action<BluetoothDeviceInfo, bool>? ShowRequested;
 
     public event Action? DismissRequested;
 
-    // ─── Configuration ───
-
     public double AutoDismissMs { get; set; } = 3000;
-
-    // ─── Lifecycle ───
 
     public bool TryShow(BluetoothDeviceInfo device, bool connected,
         bool isNotchVisible, bool isAnimating, bool isExpanded, bool isMusicExpanded)
     {
-        // Don't show if notch is hidden, animating, or expanded
         if (!isNotchVisible || isAnimating || isExpanded || isMusicExpanded)
             return false;
 
@@ -56,8 +47,6 @@ public sealed class BluetoothNotificationController
         DismissRequested?.Invoke();
     }
 
-    // ─── Icon Geometry (pure logic, no UI dependency) ───
-
     public static Geometry GetIconGeometry(BluetoothDeviceType deviceType)
     {
         return deviceType switch
@@ -74,13 +63,10 @@ public sealed class BluetoothNotificationController
                 "M21.58,16.09l-1.09-7.66C20.21,6.46,18.52,5,16.53,5H7.47C5.48,5,3.79,6.46,3.51,8.43l-1.09,7.66 C2.2,17.63,3.39,19,4.94,19c0.68,0,1.32-0.27,1.8-0.75L9,16h6l2.25,2.25c0.48,0.48,1.13,0.75,1.8,0.75 C20.61,19,21.8,17.63,21.58,16.09z M11,11H9v2H8v-2H6v-1h2V8h1v2h2V11z M15,10c-0.55,0-1-0.45-1-1s0.45-1,1-1s1,0.45,1,1 S15.55,10,15,10z M17,13c-0.55,0-1-0.45-1-1s0.45-1,1-1s1,0.45,1,1S17.55,13,17,13z"),
             BluetoothDeviceType.Phone => Geometry.Parse(
                 "M17,1.01L7,1C5.9,1,5,1.9,5,3v18c0,1.1,0.9,2,2,2h10c1.1,0,2-0.9,2-2V3C19,1.9,18.1,1.01,17,1.01z M17,19H7V5h10V19z"),
-            // Default: Bluetooth logo
             _ => Geometry.Parse(
                 "M17.71,7.71L12,2h-1v7.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L11,14.41V22h1l5.71-5.71L13.41,12L17.71,7.71z M13,5.83l1.88,1.88L13,9.59V5.83z M14.88,16.29L13,18.17v-3.76L14.88,16.29z")
         };
     }
-
-    // ─── Private ───
 
     private void StartDismissTimer()
     {

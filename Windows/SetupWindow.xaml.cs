@@ -74,7 +74,7 @@ public partial class SetupWindow : Window
         _pageFactories = new Func<UIElement>[]
         {
             () => _languagePage,
-            () => null!, // Welcome page uses built-in XAML
+            () => null!,
             () => _introductionPage,
             () => _directoryPage,
             () => _startupOptionsPage,
@@ -93,10 +93,8 @@ public partial class SetupWindow : Window
 
     private void ApplyLocalizationToSetupUi()
     {
-        // Welcome page (XAML elements)
         HeadlineText.Text = Loc.Get("setup.welcome.headline");
 
-        // Step indicators (Language is now first)
         Step1Text.Text = Loc.Get("setup.step.language");
         Step2Text.Text = Loc.Get("setup.step.welcome");
         Step3Text.Text = Loc.Get("setup.step.about");
@@ -105,7 +103,6 @@ public partial class SetupWindow : Window
         Step6Text.Text = Loc.Get("setup.step.install");
         Step7Text.Text = Loc.Get("setup.step.finish");
 
-        // Navigation buttons
         if (!_isShowingCancelSetupPage)
         {
             NextButton.Content = _currentPageIndex == _pageFactories.Length - 1
@@ -122,7 +119,6 @@ public partial class SetupWindow : Window
         storyboard.Begin();
         ForceWindowToFront();
 
-        // Language is now the first page — show it after entrance animation Hide the XAML welcome elements and show the Language page
         IconContainer.Visibility = Visibility.Collapsed;
         HeadlineText.Visibility = Visibility.Collapsed;
         BodyText.Visibility = Visibility.Collapsed;
@@ -150,7 +146,6 @@ public partial class SetupWindow : Window
 
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        // Adjust corner radius clip to match the window border
         MainBorder.CornerRadius = new CornerRadius(ActualWidth < 580 ? 18 : 24);
     }
 
@@ -289,7 +284,6 @@ public partial class SetupWindow : Window
 
         _isWelcomePage = true;
 
-        // Apply localized text
         HeadlineText.Text = Loc.Get("setup.welcome.headline");
         BodyText.Inlines.Clear();
         BodyText.Text = Loc.Get("setup.welcome.body");
@@ -306,7 +300,6 @@ public partial class SetupWindow : Window
     {
         var page = _pageFactories[index]();
 
-        // Refresh localization on pages that support it
         if (page is IntroductionPage intro) intro.RefreshLocalization();
         else if (page is DirectoryPage dir) dir.RefreshLocalization();
         else if (page is StartupOptionsPage startup) startup.RefreshLocalization();
@@ -789,33 +782,30 @@ public partial class SetupWindow : Window
     private void UpdateStepIndicators(int currentStep)
     {
         var steps = new[] { Step1Text, Step2Text, Step3Text, Step4Text, Step5Text, Step6Text, Step7Text };
-        
+
         for (int i = 0; i < steps.Length; i++)
         {
             if (i == currentStep)
             {
-                // Current step - bright white
                 steps[i].Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(255, 255, 255, 255));
                 steps[i].FontWeight = FontWeights.Bold;
             }
             else if (i < currentStep)
             {
-                // Completed steps - medium opacity
                 steps[i].Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(153, 255, 255, 255));
                 steps[i].FontWeight = FontWeights.Bold;
             }
             else
             {
-                // Future steps - low opacity
                 steps[i].Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(136, 255, 255, 255));
                 steps[i].FontWeight = FontWeights.Bold;
             }
         }
     }
-    
+
     public void AutoAdvanceToFinish()
     {
         if (_currentPageIndex == _pageFactories.Length - 2)
@@ -977,7 +967,6 @@ public partial class SetupWindow : Window
     }
 }
 
-// Directory Selection Page
 public class IntroductionPage : UserControl, ISetupAnimatedPage
 {
     private readonly Border _eyebrow;
@@ -1126,7 +1115,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
     private readonly TextBlock _description;
     private readonly Border _container;
     private readonly TextBlock _browseText;
-    
+
     public DirectoryPage(string initialInstallPath)
     {
         var grid = new Grid();
@@ -1134,7 +1123,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        
+
         _headline = new TextBlock
         {
             Text = Loc.Get("setup.directory.headline"),
@@ -1146,7 +1135,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetRow(_headline, 0);
         grid.Children.Add(_headline);
-        
+
         _description = new TextBlock
         {
             Text = Loc.Get("setup.directory.description"),
@@ -1157,7 +1146,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetRow(_description, 1);
         grid.Children.Add(_description);
-        
+
         _container = new Border
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(255, 26, 26, 26)),
@@ -1166,12 +1155,12 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10)
         };
-        
+
         var pathPanel = new Grid();
         pathPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
         pathPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         pathPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
-        
+
         var folderIcon = new TextBlock
         {
             Text = "\uE8B7",
@@ -1183,7 +1172,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetColumn(folderIcon, 0);
         pathPanel.Children.Add(folderIcon);
-        
+
         _pathBox = new TextBox
         {
             Text = initialInstallPath,
@@ -1197,7 +1186,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetColumn(_pathBox, 1);
         pathPanel.Children.Add(_pathBox);
-        
+
         var browseButton = new Button
         {
             Height = 32,
@@ -1211,7 +1200,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand
         };
-        
+
         _browseText = new TextBlock
         {
             Text = Loc.Get("setup.directory.browse"),
@@ -1219,7 +1208,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         };
         browseButton.Content = _browseText;
         browseButton.Click += BrowseButton_Click;
-        
+
         var buttonTemplate = new ControlTemplate(typeof(Button));
         var buttonBorder = new FrameworkElementFactory(typeof(Border));
         buttonBorder.Name = "border";
@@ -1232,14 +1221,14 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         buttonBorder.AppendChild(contentPresenter);
         buttonTemplate.VisualTree = buttonBorder;
         browseButton.Template = buttonTemplate;
-        
+
         Grid.SetColumn(browseButton, 2);
         pathPanel.Children.Add(browseButton);
-        
+
         _container.Child = pathPanel;
         Grid.SetRow(_container, 2);
         grid.Children.Add(_container);
-        
+
         Content = grid;
     }
 
@@ -1260,7 +1249,7 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
         get => _pathBox?.Text ?? string.Empty;
         set { if (_pathBox != null) _pathBox.Text = value; }
     }
-    
+
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
@@ -1271,22 +1260,19 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
             CheckFileExists = false,
             CheckPathExists = false
         };
-        
+
         if (dialog.ShowDialog() == true)
         {
             if (_pathBox != null)
             {
-                // dialog.FileName will be something like "D:\SomeFolder\V-Notch.none" We want the directory part which gives us "D:\Som...
                 var selectedPath = System.IO.Path.GetDirectoryName(dialog.FileName);
                 if (string.IsNullOrEmpty(selectedPath))
                 {
-                    // Root drive selected - use the path root directly
                     selectedPath = System.IO.Path.GetPathRoot(dialog.FileName);
                 }
 
                 if (!string.IsNullOrEmpty(selectedPath))
                 {
-                    // Append V-Notch subfolder if not already present
                     var folderName = System.IO.Path.GetFileName(selectedPath.TrimEnd('\\', '/'));
                     if (!string.Equals(folderName, "V-Notch", StringComparison.OrdinalIgnoreCase))
                     {
@@ -1299,7 +1285,6 @@ public class DirectoryPage : UserControl, ISetupAnimatedPage
     }
 }
 
-// Startup Options Page
 public class StartupOptionsPage : UserControl, ISetupAnimatedPage
 {
     private readonly TextBlock _headline;
@@ -1313,7 +1298,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        
+
         _headline = new TextBlock
         {
             Text = Loc.Get("setup.startup.headline"),
@@ -1325,7 +1310,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetRow(_headline, 0);
         grid.Children.Add(_headline);
-        
+
         _description = new TextBlock
         {
             Text = Loc.Get("setup.startup.description"),
@@ -1336,7 +1321,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetRow(_description, 1);
         grid.Children.Add(_description);
-        
+
         _checkbox = new CheckBox
         {
             Content = Loc.Get("setup.startup.checkbox"),
@@ -1347,7 +1332,7 @@ public class StartupOptionsPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetRow(_checkbox, 2);
         grid.Children.Add(_checkbox);
-        
+
         Content = grid;
     }
 
@@ -1464,13 +1449,12 @@ public class CancelSetupPage : UserControl, ISetupAnimatedPage
     }
 }
 
-// Install Progress Page
 public class InstallProgressPage : UserControl, ISetupAnimatedPage
 {
     private readonly TextBlock _headline;
     private readonly TextBlock _status;
     private readonly ProgressBar _progressBar;
-    
+
     public InstallProgressPage()
     {
         var grid = new Grid();
@@ -1478,7 +1462,7 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        
+
         _headline = new TextBlock
         {
             Text = "Installing V-Notch",
@@ -1490,7 +1474,7 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetRow(_headline, 0);
         grid.Children.Add(_headline);
-        
+
         _status = new TextBlock
         {
             Text = "Copying files...",
@@ -1504,7 +1488,7 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetRow(_status, 1);
         grid.Children.Add(_status);
-        
+
         _progressBar = new ProgressBar
         {
             Height = 8,
@@ -1515,7 +1499,7 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
         };
         Grid.SetRow(_progressBar, 2);
         grid.Children.Add(_progressBar);
-        
+
         Content = grid;
     }
 
@@ -1553,7 +1537,6 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
     }
 }
 
-// Finish Page
 public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
 {
     private readonly Grid _icon;
@@ -1571,7 +1554,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        
+
         _icon = new Grid
         {
             Width = 84,
@@ -1649,7 +1632,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
 
         Grid.SetRow(_icon, 0);
         grid.Children.Add(_icon);
-        
+
         _headline = new TextBlock
         {
             Text = Loc.Get("setup.finish.headline"),
@@ -1661,7 +1644,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
         };
         Grid.SetRow(_headline, 1);
         grid.Children.Add(_headline);
-        
+
         _description = new TextBlock
         {
             Text = Loc.Get("setup.finish.description"),
@@ -1674,7 +1657,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
         };
         Grid.SetRow(_description, 2);
         grid.Children.Add(_description);
-        
+
         _checkbox = new CheckBox
         {
             Content = Loc.Get("setup.finish.launch"),
@@ -1685,7 +1668,7 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
         };
         Grid.SetRow(_checkbox, 3);
         grid.Children.Add(_checkbox);
-        
+
         Content = grid;
     }
 

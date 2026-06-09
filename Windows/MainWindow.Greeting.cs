@@ -25,7 +25,6 @@ public partial class MainWindow
         _isAnimating = true;
         _isVietnameseGreeting = Loc.CurrentLanguage == "vi";
 
-        // Hide ALL content — nothing should be visible except the hello animation
         CollapsedContent.Opacity = 0;
         CollapsedContent.Visibility = Visibility.Collapsed;
         MusicCompactContent.Opacity = 0;
@@ -47,17 +46,14 @@ public partial class MainWindow
         VolumeIndicatorContainer.Opacity = 0;
         VolumeIndicatorContainer.Visibility = Visibility.Collapsed;
 
-        // Show greeting overlay
         GreetingOverlay.Visibility = Visibility.Visible;
         GreetingOverlay.Opacity = 1;
 
         if (_isVietnameseGreeting)
         {
-            // Vietnamese: hide English paths, show Vietnamese paths
             HelloPathContainer.Visibility = Visibility.Collapsed;
             XinChaoPathContainer.Visibility = Visibility.Visible;
 
-            // Prepare all Vietnamese paths
             PreparePath(ViPath1);
             PreparePath(ViPath2);
             PreparePath(ViPath3);
@@ -71,16 +67,13 @@ public partial class MainWindow
         }
         else
         {
-            // English: show English paths, hide Vietnamese paths
             HelloPathContainer.Visibility = Visibility.Visible;
             XinChaoPathContainer.Visibility = Visibility.Collapsed;
 
-            // Prepare paths — initially fully hidden (offset = length so nothing draws)
             PreparePath(HelloPath1);
             PreparePath(HelloPath2);
         }
 
-        // Expand the notch
         NotchBorder.BeginAnimation(WidthProperty, null);
         NotchBorder.BeginAnimation(HeightProperty, null);
         NotchBorder.Width = _collapsedWidth;
@@ -89,10 +82,8 @@ public partial class MainWindow
         var widthAnim = MakeAnim(_expandedWidth, _dur600, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
         var heightAnim = MakeAnim(_expandedHeight, _dur600, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
 
-        // Animate corner radius to expanded
         AnimateCornerRadius(_cornerRadiusExpanded, TimeSpan.FromMilliseconds(400));
 
-        // After expand completes, start the greeting animation
         heightAnim.Completed += (s, e) =>
         {
             if (_isVietnameseGreeting)
@@ -109,23 +100,22 @@ public partial class MainWindow
     {
         var paths = new (Path path, double durationMs, double delayMs)[]
         {
-            (ViPath1,  110,    0),      // x1        — nhanh nhất
-            (ViPath2,  230,  130),      // x2
-            (ViPath3,  210,  340),      // i
-            (ViPath4,  150,  520),      // n1
-            (ViPath5,  400,  640),      // n2
-            (ViPath6,  520, 1010),      // c, h1
-            (ViPath7,  500, 1490),      // h2
-            (ViPath8,  560, 1950),      // a1
-            (ViPath9,  900, 2460),      // a2, o     — chậm dần
-            (ViPath10, 480, 3420),      // dấu huyền — chậm nhất
+            (ViPath1,  110,    0),
+            (ViPath2,  230,  130),
+            (ViPath3,  210,  340),
+            (ViPath4,  150,  520),
+            (ViPath5,  400,  640),
+            (ViPath6,  520, 1010),
+            (ViPath7,  500, 1490),
+            (ViPath8,  560, 1950),
+            (ViPath9,  900, 2460),
+            (ViPath10, 480, 3420),
         };
 
         foreach (var (path, durationMs, delayMs) in paths)
         {
             double pathLength = (double)path.Tag;
 
-            // Keep path invisible until its animation starts
             if (delayMs > 0)
             {
                 path.Opacity = 0;
@@ -158,10 +148,8 @@ public partial class MainWindow
             path.BeginAnimation(Shape.StrokeDashOffsetProperty, anim);
         }
 
-        // The last animation starts at 3420ms and lasts 480ms = completes at 3900ms
-        var totalDurationMs = 3420 + 480 + 1500; // last delay + last duration + hold time
+        var totalDurationMs = 3420 + 480 + 1500;
 
-        // Animate the dot on "i" — appears when the "i" stroke starts (delay 340ms)
         ViDotI.Visibility = Visibility.Visible;
         ViDotI.Opacity = 0;
         var dotFadeIn = new DoubleAnimation
@@ -189,10 +177,8 @@ public partial class MainWindow
 
     private void PreparePath(Path path)
     {
-        // Make path visible (starts Collapsed in XAML to avoid flash)
         path.Visibility = Visibility.Visible;
 
-        // Get the actual rendered geometry length
         var geometry = path.Data.GetFlattenedPathGeometry();
         double length = GetPathLength(geometry);
         double normalizedLength = length / path.StrokeThickness;
@@ -202,7 +188,7 @@ public partial class MainWindow
         path.StrokeEndLineCap = PenLineCap.Flat;
         path.StrokeDashArray = new DoubleCollection { normalizedLength, normalizedLength * 3 };
         path.StrokeDashOffset = normalizedLength;
-        path.Tag = normalizedLength; // store for animation
+        path.Tag = normalizedLength;
     }
 
     private double GetPathLength(PathGeometry geometry)
@@ -239,7 +225,6 @@ public partial class MainWindow
         double path1Length = (double)HelloPath1.Tag;
         double path2Length = (double)HelloPath2.Tag;
 
-        // Path 1: "h" stroke — 0.9s, easeInOut
         var path1Anim = new DoubleAnimation
         {
             From = path1Length,
@@ -248,7 +233,6 @@ public partial class MainWindow
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
         };
 
-        // Path 2: "ello" stroke — 3s, delay 0.7s
         var path2Anim = new DoubleAnimation
         {
             From = path2Length,
@@ -258,7 +242,6 @@ public partial class MainWindow
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
         };
 
-        // When path2 completes, hold briefly then dismiss
         path2Anim.Completed += (s, e) =>
         {
             _greetingDismissTimer = new DispatcherTimer
@@ -280,7 +263,6 @@ public partial class MainWindow
 
     private void DismissGreeting()
     {
-        // Fade out the greeting overlay
         var fadeOut = new DoubleAnimation
         {
             From = 1,
@@ -316,7 +298,6 @@ public partial class MainWindow
                 HelloPath2.BeginAnimation(Shape.StrokeDashOffsetProperty, null);
             }
 
-            // Collapse notch back
             CollapseAfterGreeting();
         };
 
@@ -328,7 +309,6 @@ public partial class MainWindow
         var widthAnim = MakeAnim(_collapsedWidth, _dur500, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
         var heightAnim = MakeAnim(_collapsedHeight, _dur500, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
 
-        // Animate corner radius back to collapsed
         AnimateCornerRadius(_cornerRadiusCollapsed, TimeSpan.FromMilliseconds(350));
 
         heightAnim.Completed += (s, e) =>
@@ -336,7 +316,6 @@ public partial class MainWindow
             _isAnimating = false;
             _isGreetingActive = false;
 
-            // Restore collapsed content visibility
             CollapsedContent.Visibility = Visibility.Visible;
             var restoreFade = new DoubleAnimation
             {
@@ -347,7 +326,6 @@ public partial class MainWindow
             };
             CollapsedContent.BeginAnimation(OpacityProperty, restoreFade);
 
-            // Now start media and modules that were deferred during greeting
             if (_isStartupLayoutReady)
             {
                 _mediaService.Start();

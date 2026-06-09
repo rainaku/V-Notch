@@ -7,7 +7,6 @@ namespace VNotch.Controllers;
 
 public sealed class MediaDisplayController
 {
-    // ─── State ───
 
     private string _lastAnimatedTrackSignature = "";
     private string _lastColorTrackSignature = "";
@@ -18,8 +17,6 @@ public sealed class MediaDisplayController
     private bool _trackChangeBounceNeeded = false;
     private int _thumbnailSwitchGeneration = 0;
 
-    // ─── Public State Queries ───
-
     public string LastAnimatedTrackSignature => _lastAnimatedTrackSignature;
     public string LastColorTrackSignature => _lastColorTrackSignature;
     public string LastRenderedMediaSource => _lastRenderedMediaSource;
@@ -28,13 +25,10 @@ public sealed class MediaDisplayController
     public bool TrackChangeBounceNeeded => _trackChangeBounceNeeded;
     public int ThumbnailSwitchGeneration => _thumbnailSwitchGeneration;
 
-    // ─── Core Logic ───
-
     public MediaDisplayResult ProcessMediaUpdate(MediaInfo info, bool isExpanded, bool isMusicExpanded, bool isMusicCompactMode, bool isAnimating)
     {
         var result = new MediaDisplayResult();
 
-        // Handle thumbnail-only updates: reject if stale
         if (info.IsThumbnailOnlyUpdate)
         {
             string incomingTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
@@ -48,7 +42,6 @@ public sealed class MediaDisplayController
 
         bool hasRealTrack = !string.IsNullOrEmpty(info.CurrentTrack);
 
-        // ─── Source Stabilization ───
         string incomingSource = hasRealTrack ? (info.MediaSource ?? "") : "";
         string currentTrackKey = $"{info.CurrentTrack}|{info.CurrentArtist}";
         bool sameTrackAsBefore = hasRealTrack && currentTrackKey == _lastAnimatedTrackSignature;
@@ -57,7 +50,6 @@ public sealed class MediaDisplayController
         result.RenderedSource = renderedSource;
         result.SourceChanged = renderedSource != _lastRenderedMediaSource;
 
-        // ─── Track Identity ───
         string trackIdentity = $"{info.CurrentTrack}|{info.CurrentArtist}";
         bool isNewTrack = trackIdentity != _lastAnimatedTrackSignature;
 
@@ -79,10 +71,8 @@ public sealed class MediaDisplayController
         result.IsNewTrack = isNewTrack;
         result.TrackIdentity = trackIdentity;
 
-        // ─── Display Text ───
         result.DisplayText = ResolveDisplayText(info, hasRealTrack, renderedSource);
 
-        // ─── Thumbnail Decision ───
         if (hasRealTrack)
         {
             result.HasRealTrack = true;
@@ -105,12 +95,9 @@ public sealed class MediaDisplayController
                 }
                 else
                 {
-                    // Same track, thumbnail may have changed (async fetch)
                     result.ThumbnailAction = ResolveSameTrackThumbnailAction(info);
                 }
 
-                // YouTube can upgrade the thumbnail asynchronously for the same track.
-                // Keep the expanded blur/palette keyed to artwork too, not just track id.
                 if (isNewTrack || _lastColorTrackSignature != trackIdentity || !ReferenceEquals(info.Thumbnail, _lastBackgroundThumbnail))
                 {
                     _lastColorTrackSignature = trackIdentity;
@@ -120,7 +107,6 @@ public sealed class MediaDisplayController
             }
             else if (isNewTrack)
             {
-                // New track without thumbnail — defer bounce until thumbnail arrives
                 _lastAnimatedTrackSignature = trackIdentity;
                 _lastAnimatedThumbnail = null;
                 _thumbnailShownForCurrentTrack = false;
@@ -132,7 +118,6 @@ public sealed class MediaDisplayController
         }
         else
         {
-            // No real track
             result.HasRealTrack = false;
 
             if (!info.IsAnyMediaPlaying)
@@ -195,8 +180,6 @@ public sealed class MediaDisplayController
         _thumbnailSwitchGeneration++;
     }
 
-    // ─── Private Helpers ───
-
     private string StabilizeSource(string incomingSource, bool sameTrackAsBefore)
     {
         string renderedSource = incomingSource;
@@ -226,7 +209,6 @@ public sealed class MediaDisplayController
             MediaPlatformExtensions.ParsePlatform(info.CurrentArtist) is not (MediaPlatform.YouTube or MediaPlatform.Browser or MediaPlatform.Spotify))
         {
             artistText = info.CurrentArtist;
-            // Strip YouTube Music's " - Topic" suffix from channel names
             if (artistText.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase))
             {
                 artistText = artistText[..^" - Topic".Length].Trim();
@@ -252,7 +234,6 @@ public sealed class MediaDisplayController
         if (_thumbnailShownForCurrentTrack && !info.IsThumbnailOnlyUpdate)
             return ThumbnailAction.None;
 
-        // Genuine new thumbnail for this track (async fetch completed)
         _lastAnimatedThumbnail = info.Thumbnail;
         _thumbnailShownForCurrentTrack = true;
 
@@ -265,8 +246,6 @@ public sealed class MediaDisplayController
         return ThumbnailAction.AnimateUpdate;
     }
 }
-
-// ─── Result Types ───
 
 public enum MediaDisplayAction
 {

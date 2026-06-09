@@ -19,7 +19,6 @@ namespace VNotch;
 
 public partial class MainWindow
 {
-    // ─── Controller (owns all shelf data/logic) ───
     private FileShelfController _fileShelf = null!;
 
     private bool _isSecondaryView
@@ -89,7 +88,6 @@ public partial class MainWindow
         _fileShelf.FileExternallyRemoved += OnShelfFileExternallyRemoved;
         _fileShelf.FileExternallyRenamed += OnShelfFileExternallyRenamed;
 
-        // Set initial localized text
         UpdateShelfCapacityIndicator();
     }
 
@@ -97,7 +95,6 @@ public partial class MainWindow
     {
         RefreshShelfLayout();
 
-        // Animate the last added item
         if (ShelfItemsContainer.Children.Count > 0)
         {
             var lastItem = ShelfItemsContainer.Children[ShelfItemsContainer.Children.Count - 1] as FrameworkElement;
@@ -128,7 +125,6 @@ public partial class MainWindow
             }
         }
 
-        // Reuse a single timer for sequential processing instead of allocating per file
         if (_shelfProcessNextTimer == null)
         {
             _shelfProcessNextTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
@@ -146,8 +142,6 @@ public partial class MainWindow
         UpdateShelfCapacityIndicator();
     }
 
-    // Fired once a batch of dropped files finishes being added. When enabled, mirror the
-    // whole shelf onto the system clipboard so the user can paste every file into other apps.
     private void OnShelfAddQueueDrained()
     {
         SyncShelfFilesToClipboard();
@@ -170,12 +164,10 @@ public partial class MainWindow
         {
             var data = new DataObject();
             data.SetFileDropList(paths);
-            // copy: true flushes the data so it survives after V-Notch exits / the source list changes.
             Clipboard.SetDataObject(data, true);
         }
         catch (Exception ex)
         {
-            // The clipboard can be transiently locked by another process — best-effort only.
             RuntimeLog.Log("SHELF-CLIPBOARD", $"Failed to copy shelf files to clipboard: {ex.Message}");
         }
     }
@@ -206,7 +198,6 @@ public partial class MainWindow
         string? toggledPath = _lastToggledPinPath;
         _lastToggledPinPath = null;
 
-        // 1. Capture old positions of ALL items
         var oldPositions = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
         foreach (var child in ShelfItemsContainer.Children)
         {
@@ -217,11 +208,9 @@ public partial class MainWindow
             }
         }
 
-        // 2. Rebuild layout at new positions
         RefreshShelfLayout(forceFullRebuild: true);
         ShelfItemsContainer.UpdateLayout();
 
-        // 3. Animate all items that moved from old → new position
         var dur = TimeSpan.FromMilliseconds(300);
         var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
 
@@ -375,7 +364,6 @@ public partial class MainWindow
 
     private void FileShelf_DragOver(object sender, DragEventArgs e)
     {
-        // Throttle validation — DragOver fires at high frequency but the result rarely changes
         var now = DateTime.UtcNow;
         if (_cachedDragValidation != null && (now - _lastDragOverValidation).TotalMilliseconds < 100)
         {
@@ -513,11 +501,9 @@ public partial class MainWindow
 
     #region Shelf Layout & Item Creation
 
-    // Cached brushes for hover states — avoids BrushConverter allocations per event
     private static readonly SolidColorBrush _brushShelfHoverBg = CreateFrozenBrush(48, 48, 48);
     private static readonly SolidColorBrush _brushShelfHoverBorder = CreateFrozenBrush(85, 85, 85);
 
-    // Reusable DispatcherTimer for sequential file processing (avoids allocation per file)
     private DispatcherTimer? _shelfProcessNextTimer;
 
     private void RefreshShelfLayout(bool forceFullRebuild = false)
@@ -526,19 +512,10 @@ public partial class MainWindow
         int fileCount = files.Count;
         bool useSmallSize = fileCount > 4;
 
-        // Size the container to its real content height so the WrapPanel's
-        // VerticalAlignment="Center" actually centers the visible rows within
-        // the (fixed-height) tray. A vertical WrapPanel top-aligns its rows, so
-        // a height larger than the content would leave a gap at the bottom and
-        // make the grid look pushed up. Small mode lays items out in 2 rows
-        // (48px item + 8px margin = 56px each), large mode in a single row
-        // (74px item + 8px margin = 82px).
         ShelfItemsContainer.Height = useSmallSize ? 112 : 82;
 
-        // Differential update: reuse existing items where possible
         int existingCount = ShelfItemsContainer.Children.Count;
 
-        // If size mode changed or item count differs significantly, rebuild
         if (!forceFullRebuild && existingCount > 0 && fileCount > 0)
         {
             var firstExisting = ShelfItemsContainer.Children[0] as Border;
@@ -547,7 +524,6 @@ public partial class MainWindow
 
             if (!sizeChanged && existingCount == fileCount)
             {
-                // Fast path: same count, same size — just update tags and selection state
                 for (int i = 0; i < fileCount; i++)
                 {
                     var border = ShelfItemsContainer.Children[i] as Border;
@@ -557,7 +533,6 @@ public partial class MainWindow
                         UpdateShelfItemVisualState(border, _fileShelf.IsSelected(file));
                         continue;
                     }
-                    // Path changed at this index — need to rebuild from here
                     RemoveChildrenFrom(i);
                     AppendShelfItems(files, i, useSmallSize);
                     return;
@@ -566,7 +541,6 @@ public partial class MainWindow
             }
         }
 
-        // Full rebuild (size mode changed or first load)
         ShelfItemsContainer.Children.Clear();
         AppendShelfItems(files, 0, useSmallSize);
     }
@@ -652,7 +626,6 @@ public partial class MainWindow
             stack.Children.Add(text);
         }
 
-        // Add pin indicator overlay if file is pinned
         if (_fileShelf.IsPinned(filePath))
         {
             var wrapper = new Grid();
@@ -708,7 +681,6 @@ public partial class MainWindow
                 AnimateButtonScale(st, 1.0);
         };
 
-        // Right-click = toggle pin directly
         border.MouseRightButtonUp += (s, e) =>
         {
             _lastToggledPinPath = filePath;
@@ -915,7 +887,6 @@ public partial class MainWindow
         }
         else if (_isSelecting)
         {
-            // Mouse button released outside (capture lost or missed MouseUp) — cancel lasso
             CancelLassoSelection();
         }
     }
@@ -945,7 +916,6 @@ public partial class MainWindow
         Rect selectionRect = new Rect(x, y, width, height);
         bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
 
-        // Determine which items intersect the selection rectangle
         var intersected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int childCount = ShelfItemsContainer.Children.Count;
         for (int i = 0; i < childCount; i++)
@@ -962,7 +932,6 @@ public partial class MainWindow
 
         _fileShelf.ApplyRectangleSelection(intersected, isCtrl, _selectionInitialState);
 
-        // Update visuals
         for (int i = 0; i < childCount; i++)
         {
             if (ShelfItemsContainer.Children[i] is Border item && item.Tag is string path)
@@ -1003,7 +972,6 @@ public partial class MainWindow
 
     private void FileShelfGrid_LostMouseCapture(object sender, MouseEventArgs e)
     {
-        // If mouse capture is lost (e.g. mouse leaves interaction zone), clean up lasso state
         CancelLassoSelection();
     }
 
@@ -1041,7 +1009,6 @@ public partial class MainWindow
             _isAnimating = true;
             var filesToRemove = _fileShelf.GetSelectedForDeletion();
 
-            // Shake pinned files with red border to indicate they can't be deleted
             var pinnedSelected = _fileShelf.SelectedFiles
                 .Where(f => _fileShelf.IsPinned(f))
                 .ToList();
@@ -1260,17 +1227,13 @@ public partial class MainWindow
     {
         var dur = TimeSpan.FromMilliseconds(400);
 
-        // Cancel any existing rejection animation on this border
         if (target.BorderBrush is SolidColorBrush existingBrush && !existingBrush.IsFrozen)
             existingBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
 
-        // Flash red border
         var redBrush = new SolidColorBrush(Color.FromRgb(220, 60, 60));
         target.BorderBrush = redBrush;
         target.BorderThickness = new Thickness(1.5);
 
-        // Shake animation (horizontal wiggle)
-        // Cancel any existing translate animation
         if (target.RenderTransform is TranslateTransform oldTt)
             oldTt.BeginAnimation(TranslateTransform.XProperty, null);
 
@@ -1294,7 +1257,6 @@ public partial class MainWindow
             tt.X = 0;
             tt.Y = 0;
 
-            // Fade border back to normal
             var currentBrush = target.BorderBrush as SolidColorBrush;
             if (currentBrush == null || currentBrush.IsFrozen)
             {

@@ -98,8 +98,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
         }
     }
 
-    // ─── Browser URL extraction via UI Automation ───
-
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -132,7 +130,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
     {
         lock (_cacheLock)
         {
-            // Cache successful lookups for 1
             int ttlMs = !string.IsNullOrEmpty(_cachedAnyBrowserMediaUrl) ? 1500 : 400;
             if ((DateTime.Now - _lastAnyBrowserMediaUrlTime).TotalMilliseconds < ttlMs)
                 return _cachedAnyBrowserMediaUrl;
@@ -172,7 +169,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
 
     private string? ExtractMediaUrlFromAllBrowserWindows()
     {
-        // First try the foreground window (fastest path). If it already shows a media URL, we're done.
         var foregroundUrl = ExtractBrowserUrlCore();
         if (!string.IsNullOrEmpty(foregroundUrl) && IsMediaUrl(foregroundUrl))
             return foregroundUrl;
@@ -208,12 +204,11 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             }
             if (!isBrowser) return true;
 
-            // ExtractUrlFromWindowHandle now also walks the tab strip when the address bar isn't a media URL, so a background YouTube tab in this window will still be discovered
             var url = ExtractUrlFromWindowHandle(hWnd, processName);
             if (!string.IsNullOrEmpty(url) && IsMediaUrl(url))
             {
                 foundUrl = url;
-                return false; // Stop enumeration — found a media URL
+                return false;
             }
 
             return true;
@@ -238,7 +233,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             }
             else
             {
-                // Chromium-based: find Edit control (address bar)
                 var editCondition = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit);
                 var edits = element.FindAll(TreeScope.Descendants, editCondition);
 
@@ -278,12 +272,11 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                     return url;
             }
 
-            // ── Fallback: scan tabs for a media URL ────────────────────────── Address bar only reflects the *active* tab
             var tabUrl = TryFindMediaUrlInTabs(element);
             if (!string.IsNullOrEmpty(tabUrl))
                 return tabUrl;
         }
-        catch { /* best-effort UIA scan: address bar/tabs may be unavailable or vanish mid-scan */ }
+        catch { }
 
         return null;
     }
@@ -305,7 +298,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
         }
-        catch { /* best-effort UIA tab scan: elements may be torn down mid-enumeration */ }
+        catch { }
         return null;
     }
 
@@ -313,15 +306,12 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
     {
         try
         {
-            // Chromium puts the full URL in HelpText for accessibility.
             string help = tab.Current.HelpText ?? string.Empty;
             if (LooksLikeUrl(help)) return NormalizeUrl(help);
 
-            // Some Chromium variants and Firefox expose URL as the Name on a descendant Document or as the Value on a child Hyperlink.
             string name = tab.Current.Name ?? string.Empty;
             if (LooksLikeUrl(name)) return NormalizeUrl(name);
 
-            // Firefox-specific: tabs may have a child element with AutomationId "urlbar-input" containing the URL of the corresponding tab is not exposed, but a "tab" element's Description sometimes carries it
             var subtree = tab.FindAll(TreeScope.Children,
                 new PropertyCondition(AutomationElement.IsControlElementProperty, true));
 
@@ -340,7 +330,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
         }
-        catch { /* best-effort UIA read: tab/children may be unavailable */ }
+        catch { }
         return null;
     }
 
@@ -412,13 +402,13 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 if (WindowHasSpotifyWebPlayer(hWnd, processName))
                 {
                     found = true;
-                    return false; // Stop enumeration — confirmed.
+                    return false;
                 }
 
                 return true;
             }, IntPtr.Zero);
         }
-        catch { /* best effort */ }
+        catch { }
 
         return found;
     }
@@ -430,7 +420,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             var element = AutomationElement.FromHandle(hwnd);
             if (element == null) return false;
 
-            // 1) Active tab address bar.
             if (processName.Contains("firefox"))
             {
                 var urlBar = element.FindFirst(TreeScope.Descendants,
@@ -473,7 +462,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
         }
-        catch { /* best-effort UIA scan for the Spotify web player */ }
+        catch { }
 
         return false;
     }
@@ -505,7 +494,7 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
                 }
             }
         }
-        catch { /* best-effort UIA scan: tab/children may be unavailable */ }
+        catch { }
 
         return false;
     }
@@ -528,7 +517,6 @@ public sealed class WindowTitleScanner : IWindowTitleScanner
             }
             catch { return null; }
 
-            // Only attempt for known browsers
             bool isBrowser = false;
             foreach (var name in _browserProcessNames)
             {

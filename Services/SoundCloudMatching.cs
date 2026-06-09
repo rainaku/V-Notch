@@ -2,16 +2,8 @@ using System.Text.RegularExpressions;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Pure SoundCloud candidate extraction / scoring / matching logic extracted from
-/// <see cref="MediaMetadataLookupService"/>. Everything here is deterministic from its arguments
-/// (collaborators are the already-tested <see cref="PlatformDetector.NormalizeForLooseMatch"/> and
-/// <see cref="MediaHeuristics.IsLikelySoundCloudPlaceholderArtworkUrl"/>), so the ranking/matching
-/// rules are unit-testable without any HTTP access.
-/// </summary>
 internal static class SoundCloudMatching
 {
-    // Path segments that are SoundCloud site routes, not real user/track slugs.
     private static readonly HashSet<string> ReservedUsers = new(StringComparer.OrdinalIgnoreCase)
     {
         "search", "charts", "discover", "stream", "you", "terms", "privacy", "mobile", "upload", "signin",
@@ -24,7 +16,6 @@ internal static class SoundCloudMatching
         "sets", "tracks", "likes", "reposts", "spotlight", "albums", "following", "followers"
     };
 
-    /// <summary>Extracts the first canonical <c>soundcloud.com/{user}/{slug}</c> URL from arbitrary text, or null.</summary>
     public static string? ExtractTrackUrl(string rawText)
     {
         if (string.IsNullOrWhiteSpace(rawText))
@@ -45,7 +36,6 @@ internal static class SoundCloudMatching
         return $"https://soundcloud.com/{match.Groups["user"].Value}/{match.Groups["slug"].Value}";
     }
 
-    /// <summary>Normalizes user search text: unifies dashes, strips wrapping brackets/quotes, collapses whitespace.</summary>
     public static string SanitizeSearchText(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -59,7 +49,6 @@ internal static class SoundCloudMatching
         return normalized.Trim();
     }
 
-    /// <summary>Parses search-result HTML into scored, de-duplicated candidate track URLs (highest score first).</summary>
     public static List<(string Url, int Score)> ExtractTrackUrlsFromSearchHtml(string html, string title, string artist)
     {
         var result = new List<(string Url, int Score)>();
@@ -147,7 +136,6 @@ internal static class SoundCloudMatching
         }
     }
 
-    /// <summary>Scores a user/slug pair against the normalized expected title/artist.</summary>
     public static int ScoreCandidate(string user, string slug, string normalizedTitle, string normalizedArtist)
     {
         int score = 0;
@@ -186,7 +174,6 @@ internal static class SoundCloudMatching
         return score;
     }
 
-    /// <summary>Decides whether an oEmbed result plausibly matches the expected title/artist given its candidate score.</summary>
     public static bool IsOEmbedMatch(string expectedTitle, string expectedArtist, string? candidateTitle, string? candidateAuthor, int candidateScore, bool strictMode = false)
     {
         string normalizedExpectedTitle = PlatformDetector.NormalizeForLooseMatch(expectedTitle.ToLowerInvariant());
@@ -230,7 +217,6 @@ internal static class SoundCloudMatching
         return candidateScore >= 3 && titleOverlap >= 1;
     }
 
-    /// <summary>Counts how many >=2-char whitespace tokens appear in both normalized strings.</summary>
     public static int CountTokenOverlap(string left, string right)
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
@@ -259,7 +245,6 @@ internal static class SoundCloudMatching
         return overlap;
     }
 
-    /// <summary>Upgrades a SoundCloud artwork URL to the 500x500 variant unless it is a placeholder.</summary>
     public static string NormalizeArtworkUrl(string url)
     {
         string normalized = url.Replace("\\u0026", "&").Replace("\\/", "/");

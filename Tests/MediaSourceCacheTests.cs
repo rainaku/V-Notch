@@ -21,7 +21,6 @@ public class MediaSourceCacheTests : IDisposable
             File.Delete(_tempPath);
     }
 
-    // Helpers bridging the test intent to the real cache API.
     private static void Set(MediaSourceCache cache, string? key, string? value) =>
         cache.SetBoth(key ?? string.Empty, string.Empty, value ?? string.Empty);
 
@@ -108,11 +107,9 @@ public class MediaSourceCacheTests : IDisposable
     [Fact]
     public void Save_OnlyWhenDirty()
     {
-        // No changes — save should not create file
         _cache.Save();
         Assert.False(File.Exists(_tempPath));
 
-        // After set — save should create file
         Set(_cache, "key", "value");
         _cache.Save();
         Assert.True(File.Exists(_tempPath));
@@ -149,13 +146,12 @@ public class MediaSourceCacheTests : IDisposable
     public void Set_SameValue_DoesNotMarkDirty()
     {
         Set(_cache, "key", "YouTube");
-        _cache.Save(); // Writes and clears the dirty flag
+        _cache.Save();
 
-        // Delete file to detect if a subsequent Save writes again
         File.Delete(_tempPath);
 
-        Set(_cache, "key", "YouTube"); // Same value — should not mark dirty
-        _cache.Save(); // Should not write (not dirty)
+        Set(_cache, "key", "YouTube");
+        _cache.Save();
         Assert.False(File.Exists(_tempPath));
     }
 }

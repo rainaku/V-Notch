@@ -12,13 +12,6 @@ using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch.Presenters;
 
-/// <summary>
-/// Owns the expanded-notch calendar strip: the day-cell arrays, the scroll/center
-/// indices, all scroll/center math (via <see cref="CalendarScrollMath"/>), and the
-/// strip/highlight/month animations. Extracted from <c>MainWindow.Calendar.cs</c> as a
-/// behavior-preserving relocation (Task 4). Subscribes to
-/// <see cref="CalendarModule.CalendarUpdated"/> and tears the subscription down on dispose.
-/// </summary>
 public sealed class CalendarPresenter : IDisposable
 {
     private readonly CalendarModule _module;
@@ -26,7 +19,6 @@ public sealed class CalendarPresenter : IDisposable
     private readonly CalendarViewRefs _refs;
     private readonly CalendarScrollMath _math = new();
 
-    // --- State relocated out of the MainWindow shell field block ---
     private bool _calendarInitialized;
     private readonly TextBlock[] _calendarDayNames = new TextBlock[CalendarScrollMath.TotalDays];
     private readonly Border[] _calendarDayBorders = new Border[CalendarScrollMath.TotalDays];
@@ -100,8 +92,6 @@ public sealed class CalendarPresenter : IDisposable
 
     private void OnCalendarUpdated(object? sender, CalendarUpdateEventArgs e)
     {
-        // CalendarModule ticks on the UI dispatcher; guard defensively without changing
-        // the original synchronous-on-UI-thread behavior.
         if (_dispatcher.CheckAccess())
         {
             HandleCalendarUpdated(e.Now);
@@ -132,7 +122,6 @@ public sealed class CalendarPresenter : IDisposable
         UpdateCalendarHighlight(animate: false, pulse: false);
         _refs.EventText.Text = Loc.Get("greeting.enjoyDay");
 
-        // Keep the clock-view month grid current (e.g. across a midnight rollover).
         _refs.OnCalendarTick(now);
     }
 
@@ -318,10 +307,6 @@ public sealed class CalendarPresenter : IDisposable
         }
     }
 
-    /// <summary>
-    /// Reserved: explicit poke point when the notch is expanded or the calendar module
-    /// otherwise wants a non-event driven refresh.
-    /// </summary>
     public void UpdateCalendarInfo()
     {
     }
@@ -344,9 +329,6 @@ public sealed class CalendarPresenter : IDisposable
 
     private void AnimateCalendarWidgetHover(bool isHovered)
     {
-        // Mirrors the progress-bar hover feel: a clean, uniform scale-up driven by a
-        // single DoubleAnimation per channel. Snappy exponential ease-out on enter,
-        // softer cubic ease-out on release — no squash/stretch keyframes.
         double targetScale = isHovered ? 1.035 : 1.0;
         double targetLiftY = isHovered ? -3.0 : 0.0;
 

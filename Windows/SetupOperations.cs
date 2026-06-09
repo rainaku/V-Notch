@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -145,7 +145,6 @@ internal static class SetupOperations
             reportProgress(new SetupProgressInfo("Registering uninstall information...", files.Length, files.Length));
             RegisterUninstall(installedExePath, installDirectory);
 
-            // Save initial settings with language preference
             reportProgress(new SetupProgressInfo("Saving preferences...", files.Length, files.Length));
             SaveInitialSettings(options.Language);
         });
@@ -243,11 +242,9 @@ internal static class SetupOperations
             }
             catch
             {
-                // Ignore processes we couldn't close; file copy will surface any real issue.
             }
         }
 
-        // Wait for file locks to be released after killing processes
         if (killedAny)
         {
             System.Threading.Thread.Sleep(1500);
@@ -265,7 +262,6 @@ internal static class SetupOperations
             }
             catch (IOException) when (attempt < maxRetries)
             {
-                // File likely still locked by the killed process — wait and retry
                 System.Threading.Thread.Sleep(800 * (attempt + 1));
             }
             catch (UnauthorizedAccessException) when (attempt < maxRetries)
@@ -302,7 +298,7 @@ internal static class SetupOperations
             Directory.CreateDirectory(appFolder);
 
             var settingsPath = Path.Combine(appFolder, "settings.json");
-            if (File.Exists(settingsPath)) return; // Don't overwrite existing settings
+            if (File.Exists(settingsPath)) return;
 
             var settings = new Models.NotchSettings { Language = language };
             var json = System.Text.Json.JsonSerializer.Serialize(settings,
@@ -344,7 +340,6 @@ internal static class SetupOperations
         }
         catch (UnauthorizedAccessException)
         {
-            // Ignore and continue cleanup.
         }
 
         try
@@ -353,7 +348,6 @@ internal static class SetupOperations
         }
         catch (UnauthorizedAccessException)
         {
-            // Ignore and continue cleanup.
         }
 
         try
@@ -362,7 +356,6 @@ internal static class SetupOperations
         }
         catch (UnauthorizedAccessException)
         {
-            // Ignore and continue cleanup.
         }
     }
 

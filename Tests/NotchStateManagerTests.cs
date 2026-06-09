@@ -76,7 +76,6 @@ public class NotchStateManagerTests
     [Fact]
     public void Expanded_CannotTransitionTo_MusicExpanding()
     {
-        // Music view is reachable only from Collapsed, never directly from Expanded.
         _sm.TryTransitionTo(NotchState.Expanding);
         _sm.TryTransitionTo(NotchState.Expanded);
         Assert.False(_sm.TryTransitionTo(NotchState.MusicExpanding));
@@ -112,7 +111,7 @@ public class NotchStateManagerTests
     {
         Assert.False(_sm.CanTransitionTo(NotchState.Expanded));
         Assert.False(_sm.TryTransitionTo(NotchState.Expanded));
-        Assert.Equal(NotchState.Collapsed, _sm.CurrentState); // Unchanged
+        Assert.Equal(NotchState.Collapsed, _sm.CurrentState);
     }
 
     [Fact]
@@ -208,7 +207,6 @@ public class NotchStateManagerTests
     [Fact]
     public void Hidden_ReturnsToCollapsed_ViaShow()
     {
-        // Hidden is entered/left through ForceState (Hide/Show), not the validated table.
         _sm.ForceState(NotchState.Hidden);
         _sm.Show();
         Assert.Equal(NotchState.Collapsed, _sm.CurrentState);
@@ -247,7 +245,7 @@ public class NotchStateManagerTests
         bool fired = false;
         _sm.StateChanged += (s, e) => fired = true;
 
-        _sm.TryTransitionTo(NotchState.Expanded); // Invalid from Collapsed
+        _sm.TryTransitionTo(NotchState.Expanded);
 
         Assert.False(fired);
     }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -12,8 +12,6 @@ public partial class MainWindow
 {
     private void NotchWrapper_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        // In the audio view the inner ScrollViewer owns the wheel so the mixer list
-        // can scroll; don't hijack it for view switching.
         if (_isAudioView) return;
 
         if (!_isExpanded && !_isAnimating)
@@ -42,7 +40,6 @@ public partial class MainWindow
         ResetScrollSessionTimer();
         if (_isScrollSessionLocked) return;
 
-        // Cooldown prevents rapid double-fire (touchpad inertia, multiple queued events)
         if ((DateTime.UtcNow - _lastViewSwitchUtc) < ViewSwitchCooldown) return;
 
         if (e.Delta < 0)
@@ -91,12 +88,11 @@ public partial class MainWindow
 
     private void SecondaryContent_Click(object sender, MouseButtonEventArgs e)
     {
-        e.Handled = true; 
+        e.Handled = true;
     }
 
     private void NavIconsPanel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        // Swallow clicks on the nav icons area to prevent them from bubbling up to NotchWrapper and triggering collapse.
         e.Handled = true;
     }
 
@@ -221,10 +217,6 @@ public partial class MainWindow
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        // Cache the calendar tree as a bitmap for the duration of the spring so the scale/slide
-        // is a cheap GPU blend instead of re-rasterizing the whole tree every frame (this is what
-        // made the calendar open less smoothly than the main view). RenderAtScale 1.0 keeps it
-        // crisp at the settled size; the cache is released in fadeIn.Completed.
         SecondaryContent.CacheMode = new BitmapCache { RenderAtScale = 1.0 };
 
         var fadeIn       = MakeAnim(0, 1,    durIn, _easeAppleOut,   inDelay);
@@ -342,11 +334,8 @@ public partial class MainWindow
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        // Land the progress bar + marquee at final positions before the tree is rasterized, so
-        // the cached snapshot isn't stale (otherwise content jumps when the cache is released).
         PrepareExpandedContentLayoutForReveal();
 
-        // Cache the primary tree during the spring so the scale/slide is a GPU bitmap blend.
         ExpandedContent.CacheMode = new BitmapCache { RenderAtScale = 1.0 };
 
         var fadeIn       = MakeAnim(0, 1,     durIn, _easeAppleOut,    inDelay);
@@ -440,4 +429,3 @@ public partial class MainWindow
     }
 
 }
-

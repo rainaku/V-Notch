@@ -13,8 +13,7 @@ public partial class IntroducingWindow : Window
     public IntroducingWindow()
     {
         InitializeComponent();
-        
-        // Load localized strings
+
         TitleText.Text = Loc.Get("intro.title");
         HeadlineText.Text = Loc.Get("intro.headline");
         BodyText.Text = Loc.Get("intro.body");
@@ -23,10 +22,8 @@ public partial class IntroducingWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        // Force initial layout pass
         UpdateLayout();
 
-        // 1. Entrance Animation (Scale, Fade, Slide) via Dispatcher to ensure window is rendered on screen
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
         {
             MainShell.Opacity = 0;
@@ -62,7 +59,6 @@ public partial class IntroducingWindow : Window
             };
             Timeline.SetDesiredFrameRate(translateYAnim, fps);
 
-            // Stagger shadow initialization after anim finishes to keep framerate solid
             opacityAnim.Completed += (s, ev) =>
             {
                 var shadow = new System.Windows.Media.Effects.DropShadowEffect
@@ -81,7 +77,6 @@ public partial class IntroducingWindow : Window
             ShellTranslate.BeginAnimation(TranslateTransform.YProperty, translateYAnim);
         }));
 
-        // 2. Load the GIF safely from the application's base directory
         try
         {
             var gifPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Introduction", "DI.gif");
@@ -122,7 +117,7 @@ public partial class IntroducingWindow : Window
     {
         var easeIn = new CubicEase { EasingMode = EasingMode.EaseIn };
         int fps = VNotch.Services.AnimationConfig.TargetFps;
-        
+
         var opacityAnim = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(250))
         {
             EasingFunction = easeIn

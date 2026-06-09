@@ -37,7 +37,6 @@ public class ThumbnailFetchPlannerTests
     [Fact]
     public void Classify_BrowserApp_DefaultsToYouTube_WhenNoSoundCloudOverride()
     {
-        // A browser-app session that isn't obviously YouTube is still treated as potential YouTube.
         var plan = ThumbnailFetchPlanner.ClassifySources(new ThumbnailSourceInputs
         {
             PlatformIsBrowser = true,
@@ -49,7 +48,6 @@ public class ThumbnailFetchPlannerTests
         });
 
         Assert.True(plan.IsPotentialYouTube);
-        // Still offers a SoundCloud probe (both flags set; caller prefers YouTube).
         Assert.True(plan.IsPotentialSoundCloud);
     }
 
@@ -67,13 +65,12 @@ public class ThumbnailFetchPlannerTests
         });
 
         Assert.False(plan.IsPotentialYouTube);
-        Assert.True(plan.IsPotentialSoundCloud); // override → probe SoundCloud
+        Assert.True(plan.IsPotentialSoundCloud);
     }
 
     [Fact]
     public void Classify_BrowserNoApp_NotForcedYouTube()
     {
-        // Without a source app, the browser-app default-to-YouTube bump does not apply.
         var plan = ThumbnailFetchPlanner.ClassifySources(new ThumbnailSourceInputs
         {
             PlatformIsBrowser = true,
@@ -124,7 +121,7 @@ public class ThumbnailFetchPlannerTests
             PlatformIsBrowser = true,
             HasSourceApp = true,
             IsLikelyYouTube = false,
-            HasTrack = false, // no track → no probe
+            HasTrack = false,
             ThumbnailIsNullOrPlaceholder = true,
         });
 
@@ -134,8 +131,6 @@ public class ThumbnailFetchPlannerTests
     [Fact]
     public void Classify_BrowserWithGoodThumbnail_NoSoundCloudProbe()
     {
-        // Browser, likely-YouTube false but with a good (non-placeholder) thumbnail and no override:
-        // the SoundCloud probe is not offered.
         var plan = ThumbnailFetchPlanner.ClassifySources(new ThumbnailSourceInputs
         {
             PlatformIsBrowser = true,
@@ -165,7 +160,6 @@ public class ThumbnailFetchPlannerTests
     [Fact]
     public void SoundCloudFetch_NewTrack_StartsEvenIfSameFetchRunning()
     {
-        // A genuinely new track overrides the "already running" guard.
         Assert.True(ThumbnailFetchPlanner.ShouldStartSoundCloudFetch(new SoundCloudFetchInputs
         {
             IsNewSoundCloudTrack = true,
@@ -218,7 +212,6 @@ public class ThumbnailFetchPlannerTests
     [Fact]
     public void SoundCloudFetch_GoodThumbnail_DoesNotStart()
     {
-        // Not new, good art, nothing mismatched → no fetch.
         Assert.False(ThumbnailFetchPlanner.ShouldStartSoundCloudFetch(new SoundCloudFetchInputs
         {
             ThumbnailIsNullOrPlaceholder = false,

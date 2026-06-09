@@ -107,14 +107,13 @@ public class ElasticSlider : Slider
     {
         base.OnValueChanged(oldValue, newValue);
 
-        // Snap value to the configured tick grid if not already on it.
         if (Maximum > Minimum && !_isDragging)
         {
             double snapped = SnapValue(newValue);
             if (Math.Abs(snapped - newValue) > 0.001)
             {
                 Value = snapped;
-                return; // OnValueChanged will be called again with the snapped value
+                return;
             }
         }
 
@@ -151,7 +150,6 @@ public class ElasticSlider : Slider
     {
         if (_valueText == null) return 62;
         _valueText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        // Value text width + margin (12 right margin + 10 gap between ticks and text)
         return Math.Max(50, _valueText.DesiredSize.Width + 22);
     }
 
@@ -358,7 +356,6 @@ public class ElasticSlider : Slider
     {
         if (_descText == null) return;
         _descText.Text = Description;
-        // Hide description element if empty
         _descText.Visibility = string.IsNullOrEmpty(Description)
             ? Visibility.Collapsed
             : Visibility.Visible;
@@ -380,7 +377,6 @@ public class ElasticSlider : Slider
     {
         base.OnPreviewMouseLeftButtonDown(e);
 
-        // Only handle clicks on the capsule (PART_Root), not on label/description
         if (_rootBorder != null)
         {
             var pos = e.GetPosition(_rootBorder);
@@ -431,13 +427,11 @@ public class ElasticSlider : Slider
 
         double fraction = (pos.X - leftPad) / usableWidth;
 
-        // Rubber-band when past bounds
         if (fraction < 0)
         {
             _dragOverflow = fraction * usableWidth;
             fraction = 0;
             double decay = Decay(Math.Abs(_dragOverflow), 60);
-            // Dragging past left → stretch from right side (origin right)
             AnimateScaleImmediate(1.0 + decay * 0.001, 1.0 - decay * 0.002, stretchFromLeft: false);
         }
         else if (fraction > 1)
@@ -445,7 +439,6 @@ public class ElasticSlider : Slider
             _dragOverflow = (fraction - 1) * usableWidth;
             fraction = 1;
             double decay = Decay(Math.Abs(_dragOverflow), 60);
-            // Dragging past right → stretch from left side (origin left)
             AnimateScaleImmediate(1.0 + decay * 0.001, 1.0 - decay * 0.002, stretchFromLeft: true);
         }
         else
@@ -544,7 +537,6 @@ public class ElasticSlider : Slider
         _rootScale.BeginAnimation(ScaleTransform.ScaleXProperty, ax);
         _rootScale.BeginAnimation(ScaleTransform.ScaleYProperty, ay);
 
-        // Reset origin back to center after animation completes
         ax.Completed += (_, _) =>
         {
             _rootBorder.RenderTransformOrigin = new Point(0.5, 0.5);

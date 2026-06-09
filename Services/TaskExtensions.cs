@@ -1,4 +1,4 @@
-﻿namespace VNotch.Services;
+namespace VNotch.Services;
 public static class TaskExtensions
 {
     public static async void SafeFireAndForget(this Task task, string category = "FIRE-FORGET")
@@ -9,7 +9,6 @@ public static class TaskExtensions
         }
         catch (OperationCanceledException)
         {
-            // Expected during shutdown — don't log
         }
         catch (Exception ex)
         {
@@ -27,7 +26,6 @@ public static async void SafeFireAndForget(this Task task, Action<Exception> onE
         }
         catch (OperationCanceledException)
         {
-            // Expected during shutdown
         }
         catch (Exception ex)
         {

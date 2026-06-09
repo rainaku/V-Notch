@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using VNotch.Services;
 
 namespace VNotch.Modules;
@@ -32,7 +32,6 @@ public class BluetoothModule : NotchModuleBase
 
     protected override void OnTick()
     {
-        // No-op: event-driven via DeviceWatcher
     }
 
     protected override void OnDispose()

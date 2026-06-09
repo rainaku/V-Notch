@@ -23,8 +23,6 @@ public sealed class MediaSessionState
         return _sessions.TryGetValue(sessionKey, out entry!);
     }
 
-    // ─── Last Playing Times (keyed by source app ID) ───
-
     public void SetLastPlayingTime(string sourceAppId, DateTime time)
     {
         GetOrCreate(sourceAppId).LastPlayingTime = time;
@@ -40,8 +38,6 @@ public sealed class MediaSessionState
         time = default;
         return false;
     }
-
-    // ─── Play Start Times (keyed by session instance key) ───
 
     public void SetPlayStartTime(string sessionKey, DateTime time)
     {
@@ -59,8 +55,6 @@ public sealed class MediaSessionState
         return false;
     }
 
-    // ─── Playing States (keyed by session instance key) ───
-
     public void SetPlayingState(string sessionKey, bool isPlaying)
     {
         GetOrCreate(sessionKey).IsPlaying = isPlaying;
@@ -70,7 +64,6 @@ public sealed class MediaSessionState
     {
         return _sessions.TryGetValue(sessionKey, out var entry) && entry.IsPlaying;
     }
-
 
     public enum TimelineAdvanceResult
     {
@@ -95,13 +88,11 @@ public sealed class MediaSessionState
         var elapsed = nowUtc - entry.LastTimelineSampleUtc.Value;
         if (elapsed < MinAdvanceSampleInterval)
         {
-            // Keep the baseline; not enough time to judge yet.
             return TimelineAdvanceResult.Indeterminate;
         }
 
         var delta = position - entry.LastTimelinePosition.Value;
 
-        // Re-baseline for the next comparison.
         entry.LastTimelinePosition = position;
         entry.LastTimelineSampleUtc = nowUtc;
 
@@ -123,8 +114,6 @@ public sealed class MediaSessionState
         }
         return false;
     }
-
-    // ─── Source Overrides (keyed by composite key) ───
 
     public void SetSourceOverride(string key, string source)
     {

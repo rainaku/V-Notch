@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -28,7 +28,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
             string cleanTitle = title.Trim();
 
-            // ─── Step 1: Check if title itself is a video ID (11 chars, base64url) ───
             if (cleanTitle.Length == 11 && Regex.IsMatch(cleanTitle, "^[a-zA-Z0-9_-]{11}$"))
             {
                 var validated = await ResolveVideoIdAsync(cleanTitle, ct);
@@ -36,7 +35,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                     return validated;
             }
 
-            // ─── Step 2: Extract video ID from URL if title contains a YouTube URL ───
             var urlMatch = Regex.Match(cleanTitle, @"(?:youtube\.com/watch\?.*v=|youtu\.be/|music\.youtube\.com/watch\?.*v=)([a-zA-Z0-9_-]{11})");
             if (urlMatch.Success)
             {
@@ -46,7 +44,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                     return validated;
             }
 
-            // No more title-based search — URL-based lookup via TryGetYouTubeVideoInfoFromUrlAsync is the primary method now
         }
         catch (Exception ex)
         {
@@ -63,12 +60,10 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
         try
         {
-            // Build search query: "title artist" for better accuracy
             string query = string.IsNullOrWhiteSpace(artist) || MediaPlatformExtensions.ParsePlatform(artist) == MediaPlatform.YouTube
                 ? title
                 : $"{title} {artist}";
 
-            // ─── Try YouTube Data API search.list if key is available ───
             string? apiKey = GetYouTubeApiKey();
             if (!string.IsNullOrEmpty(apiKey) && !IsQuotaCooldownActive())
             {
@@ -77,12 +72,10 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                     return apiResult;
             }
 
-            // ─── Primary: scrape YouTube search page directly ─── Most reliable - calls youtube
             var scrapeResult = await TrySearchViaYouTubeScrapeAsync(query, title, ct);
             if (scrapeResult != null)
                 return scrapeResult;
 
-            // ─── Fallback: Piped/Invidious API (free, no key) ─── These third-party instances are often down, so only try as backup
             var pipedResult = await TrySearchViaPipedAsync(query, title, ct);
             if (pipedResult != null)
                 return pipedResult;
@@ -121,7 +114,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             if (!root.TryGetProperty("items", out var items) || items.GetArrayLength() == 0)
                 return null;
 
-            // Pick the first result whose title reasonably matches
             foreach (var item in items.EnumerateArray())
             {
                 string? videoId = null;
@@ -141,7 +133,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 if (string.IsNullOrEmpty(videoId))
                     continue;
 
-                // Validate: does the search result title match the SMTC track title?
                 var candidate = new YouTubeLookupResult
                 {
                     Id = videoId,
@@ -154,7 +145,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
                 if (candidate.TitleMatches(originalTitle))
                 {
-                    // Enrich with full metadata (duration, thumbnail)
                     var enriched = await ResolveVideoIdAsync(videoId!, ct);
                     if (enriched != null)
                     {
@@ -165,7 +155,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 }
             }
 
-            // If no title match, use first result as best guess
             var firstItem = items[0];
             string? firstVideoId = null;
             if (firstItem.TryGetProperty("id", out var firstIdEl) && firstIdEl.TryGetProperty("videoId", out var firstVidEl))
@@ -193,7 +182,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
     private async Task<YouTubeLookupResult?> TrySearchViaPipedAsync(string query, string originalTitle, CancellationToken ct)
     {
-        // Try multiple Piped instances for reliability
         string[] pipedInstances = { "pipedapi.kavin.rocks", "pipedapi.adminforge.de", "pipedapi.in.projectsegfault.com" };
 
         foreach (var instance in pipedInstances)
@@ -225,7 +213,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                     string? thumbnailUrl = null;
 
                     if (item.TryGetProperty("url", out var urlEl))
-                        itemUrl = urlEl.GetString(); // e.g. "/watch?v=VIDEO_ID"
+                        itemUrl = urlEl.GetString();
                     if (item.TryGetProperty("title", out var titleEl))
                         itemTitle = titleEl.GetString();
                     if (item.TryGetProperty("uploaderName", out var uploaderEl))
@@ -238,7 +226,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                     if (string.IsNullOrEmpty(itemUrl))
                         continue;
 
-                    // Extract video ID from URL path
                     var match = Regex.Match(itemUrl!, @"v=([a-zA-Z0-9_-]{11})");
                     if (!match.Success)
                         continue;
@@ -252,20 +239,18 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                         Author = uploaderName,
                         Duration = TimeSpan.FromSeconds(durationSec),
                         ThumbnailUrl = thumbnailUrl,
-                        Source = YouTubeLookupSource.OEmbed, // Mark as non-DataApi
+                        Source = YouTubeLookupSource.OEmbed,
                     };
 
                     if (candidate.TitleMatches(originalTitle))
                     {
                         RuntimeLog.Log("META-YOUTUBE-TITLE-SEARCH",
                             $"piped-search-ok instance={instance} query='{query}' videoId={videoId} title='{itemTitle}'");
-                        // Cache the result for future lookups
                         CacheVideo(videoId, candidate);
                         return candidate;
                     }
                 }
 
-                // If no title match found, use first result
                 if (items.GetArrayLength() > 0)
                 {
                     var first = items[0];
@@ -300,10 +285,9 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch { continue; } // Try next instance
+            catch { continue; }
         }
 
-        // ─── Fallback: Invidious API ─── If all Piped instances failed, try Invidious (another YouTube frontend)
         string[] invidiousInstances = { "vid.puffyan.us", "invidious.fdn.fr", "invidious.nerdvpn.de" };
 
         foreach (var instance in invidiousInstances)
@@ -323,7 +307,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
-                // Invidious returns a flat array of results
                 if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() == 0)
                     continue;
 
@@ -343,7 +326,7 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                         Title = itemTitle,
                         Author = author,
                         Duration = TimeSpan.FromSeconds(lengthSec),
-                        ThumbnailUrl = null, // Will use i.ytimg.com cascade
+                        ThumbnailUrl = null,
                         Source = YouTubeLookupSource.OEmbed,
                     };
 
@@ -356,7 +339,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                     }
                 }
 
-                // Use first result as fallback
                 if (root.GetArrayLength() > 0)
                 {
                     var first = root[0];
@@ -402,7 +384,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("Accept-Language", "en-US,en;q=0.9");
-            // Bypass consent page by setting cookie
             request.Headers.Add("Cookie", "CONSENT=PENDING+999");
 
             var response = await _httpClient.SendAsync(request, timeoutCts.Token);
@@ -411,12 +392,10 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
             string html = await response.Content.ReadAsStringAsync(timeoutCts.Token);
 
-            // Extract ytInitialData JSON from the page
             const string marker = "var ytInitialData = ";
             int startIdx = html.IndexOf(marker, StringComparison.Ordinal);
             if (startIdx < 0)
             {
-                // Alternative marker used in some regions
                 const string altMarker = "window[\"ytInitialData\"] = ";
                 startIdx = html.IndexOf(altMarker, StringComparison.Ordinal);
                 if (startIdx < 0)
@@ -428,7 +407,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 startIdx += marker.Length;
             }
 
-            // Find the end of the JSON object (terminated by ";</script>")
             int endIdx = html.IndexOf(";</script>", startIdx, StringComparison.Ordinal);
             if (endIdx < 0)
                 endIdx = html.IndexOf("};\n", startIdx, StringComparison.Ordinal);
@@ -436,14 +414,11 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 return null;
 
             string jsonStr = html[startIdx..endIdx];
-            // Trim trailing semicolons
             jsonStr = jsonStr.TrimEnd(';');
 
-            // Parse and extract video IDs from the search results
             var videoIds = new List<(string id, string? title, string? channel)>();
             var videoIdPattern = new Regex(@"""videoId""\s*:\s*""([a-zA-Z0-9_-]{11})""");
 
-            // Simple approach: find all videoId occurrences and pair with nearby titles
             var idMatches = videoIdPattern.Matches(jsonStr);
             var seenIds = new HashSet<string>();
 
@@ -451,21 +426,18 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             {
                 string videoId = idMatch.Groups[1].Value;
                 if (!seenIds.Add(videoId))
-                    continue; // Skip duplicates
+                    continue;
 
-                // Look for title and channel AFTER this videoId (within 800 chars)
                 string? videoTitle = null;
                 string? channelName = null;
                 int searchStart = idMatch.Index;
                 int searchLen = Math.Min(800, jsonStr.Length - searchStart);
                 string context = jsonStr.Substring(searchStart, searchLen);
 
-                // Match YouTube's actual format: "title":{"runs":[{"text":"TITLE"}
                 var titleMatch = Regex.Match(context, @"""title"":\{""runs"":\[\{""text"":""([^""]+)""");
                 if (titleMatch.Success)
                     videoTitle = System.Net.WebUtility.HtmlDecode(titleMatch.Groups[1].Value);
 
-                // Extract channel name from ownerText or longBylineText
                 var channelMatch = Regex.Match(context, @"""(?:ownerText|longBylineText|shortBylineText)"":\{""runs"":\[\{""text"":""([^""]+)""");
                 if (channelMatch.Success)
                     channelName = System.Net.WebUtility.HtmlDecode(channelMatch.Groups[1].Value);
@@ -473,13 +445,12 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 videoIds.Add((videoId, videoTitle, channelName));
 
                 if (videoIds.Count >= 5)
-                    break; // Enough candidates
+                    break;
             }
 
             if (videoIds.Count == 0)
                 return null;
 
-            // Try to find a match
             foreach (var (videoId, videoTitle, channelName) in videoIds)
             {
                 var candidate = new YouTubeLookupResult
@@ -494,7 +465,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
                 if (candidate.TitleMatches(originalTitle))
                 {
-                    // Enrich with duration via oEmbed
                     var enriched = await ResolveVideoIdAsync(videoId, ct);
                     if (enriched != null)
                     {
@@ -510,7 +480,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 }
             }
 
-            // No title match — use first result
             var (firstId, firstTitle2, firstChannel) = videoIds[0];
             var enrichedFirst = await ResolveVideoIdAsync(firstId, ct);
             if (enrichedFirst != null)
@@ -552,7 +521,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             if (string.IsNullOrWhiteSpace(url))
                 return null;
 
-            // Extract video ID from various YouTube URL formats
             var match = Regex.Match(url, @"(?:youtube\.com/watch\?.*v=|youtu\.be/|music\.youtube\.com/watch\?.*v=|youtube\.com/embed/|youtube\.com/v/)([a-zA-Z0-9_-]{11})");
             if (!match.Success)
                 return null;
@@ -573,7 +541,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         if (string.IsNullOrWhiteSpace(videoId))
             return null;
 
-        // Quick cache hit — avoid burning quota and avoid re-validating the same video every time the same track loops or comes back into focus
         if (TryGetCachedVideo(videoId, out var cached) && cached != null)
         {
             RuntimeLog.Log("META-YOUTUBE-API",
@@ -590,7 +557,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 CacheVideo(videoId, apiResult);
                 return apiResult;
             }
-            // Data API failed (quota, network, invalid key, video flagged…) → fallback to oEmbed.
             RuntimeLog.Log("META-YOUTUBE-API", $"data-api-miss videoId={videoId} -> falling back to oEmbed");
         }
         else
@@ -602,7 +568,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         if (oembed == null)
             return null;
 
-        // Even without the toggle, we historically did a contentDetails enrichment when a key happened to be present
         if (!string.IsNullOrEmpty(apiKey))
         {
             oembed = await EnrichWithDurationAsync(oembed, apiKey, ct) ?? oembed;
@@ -619,7 +584,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             if (string.IsNullOrWhiteSpace(soundCloudUrl))
                 return null;
 
-            // Validate it's a SoundCloud URL
             if (!soundCloudUrl.Contains("soundcloud.com/", StringComparison.OrdinalIgnoreCase))
                 return null;
 
@@ -662,8 +626,8 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
                 Id = videoId,
                 Title = oembedTitle,
                 Author = oembedAuthor,
-                Duration = TimeSpan.Zero, // oEmbed doesn't provide duration
-                ThumbnailUrl = null,      // caller falls back to i.ytimg.com/vi/{id}/maxresdefault.jpg cascade
+                Duration = TimeSpan.Zero,
+                ThumbnailUrl = null,
                 Source = YouTubeLookupSource.OEmbed,
             };
         }
@@ -675,7 +639,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
     private async Task<YouTubeLookupResult?> TryGetVideoFromDataApiAsync(string videoId, string apiKey, CancellationToken ct)
     {
-        // If a previous call hit quotaExceeded, skip Data API for the rest of the day.
         if (IsQuotaCooldownActive())
             return null;
 
@@ -761,7 +724,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
     private static bool LooksLikeQuotaExceeded(string body)
         => YouTubeMetadataParsing.LooksLikeQuotaExceeded(body);
 
-    // ── Quota cooldown ─────────────────────────────────────────────────────── YouTube Data API quota resets at midnight Pacific Time
     private static long _quotaCooldownUntilTicks;
 
     private static bool IsQuotaCooldownActive()
@@ -769,11 +731,10 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
 
     private static void TripQuotaCooldown()
     {
-        var resumeAt = DateTime.UtcNow.Date.AddDays(1).AddHours(8); // PT midnight ≈ UTC+8h
+        var resumeAt = DateTime.UtcNow.Date.AddDays(1).AddHours(8);
         Volatile.Write(ref _quotaCooldownUntilTicks, resumeAt.Ticks);
     }
 
-    // ── Per-videoId cache ──────────────────────────────────────────────────── Same track usually loops back to the notch repeatedly (track change events, app refocus, retries)
     private static readonly object _videoCacheLock = new();
     private static readonly Dictionary<string, (YouTubeLookupResult Result, DateTime ExpiresUtc)> _videoCache = new(StringComparer.Ordinal);
     private static readonly TimeSpan _videoCacheTtl = TimeSpan.FromHours(6);
@@ -800,7 +761,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
         {
             if (_videoCache.Count >= VideoCacheMaxEntries)
             {
-                // Cheap eviction: drop the first half of stale entries.
                 var now = DateTime.UtcNow;
                 var stale = _videoCache.Where(kv => kv.Value.ExpiresUtc <= now).Select(kv => kv.Key).ToList();
                 foreach (var key in stale) _videoCache.Remove(key);
@@ -871,7 +831,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
     {
         try
         {
-            // Read from settings.json in AppData
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string settingsPath = Path.Combine(appDataPath, "V-Notch", "settings.json");
 
@@ -882,7 +841,6 @@ public sealed class MediaMetadataLookupService : IMediaMetadataLookupService
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            // Check if YouTube API is enabled
             if (root.TryGetProperty("EnableYouTubeApi", out var enabledEl) && enabledEl.GetBoolean())
             {
                 if (root.TryGetProperty("YouTubeApiKey", out var keyEl))

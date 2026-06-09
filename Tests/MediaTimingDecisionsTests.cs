@@ -41,7 +41,7 @@ public class MediaTimingDecisionsTests
             lastSource: "Spotify", emptyStart: DateTime.MinValue, stableSignature: "sig", now: Base);
 
         Assert.True(hold);
-        Assert.Equal(Base, emptyStart); // start time anchored to now on first empty pass
+        Assert.Equal(Base, emptyStart);
     }
 
     [Fact]
@@ -57,7 +57,6 @@ public class MediaTimingDecisionsTests
     [Fact]
     public void EmptyMetadataHold_NonVideo_ExpiresAfter2Point5s()
     {
-        // 3s elapsed > 2.5s window for a non-video source → no longer holds.
         var (hold, _, _) = MediaTimingDecisions.EvaluateEmptyMetadataHold(
             currentTrack: "", isAnyMediaPlaying: true, currentSignature: "sig",
             lastSource: "Spotify", emptyStart: Base.AddSeconds(-3), stableSignature: "sig", now: Base);
@@ -68,7 +67,6 @@ public class MediaTimingDecisionsTests
     [Fact]
     public void EmptyMetadataHold_VideoSource_GetsLongerWindow()
     {
-        // Same 3s elapsed still holds for YouTube/Browser because their window is 4s.
         var (holdYouTube, _, _) = MediaTimingDecisions.EvaluateEmptyMetadataHold(
             currentTrack: "", isAnyMediaPlaying: true, currentSignature: "sig",
             lastSource: "YouTube", emptyStart: Base.AddSeconds(-3), stableSignature: "sig", now: Base);
@@ -125,7 +123,7 @@ public class MediaTimingDecisionsTests
             lastPublishedTrackIdentity: "old|artist",
             pendingKey: "new song|artist", pendingSince: Base.AddMilliseconds(-700), nowUtc: Base);
 
-        Assert.False(debounce); // 700ms > 600ms debounce window
+        Assert.False(debounce);
     }
 
     [Fact]
@@ -161,7 +159,7 @@ public class MediaTimingDecisionsTests
             lastSourceConfirmedTime: Base.AddSeconds(-20), now: Base);
 
         Assert.Equal("YouTube", artist);
-        Assert.Equal("Real Artist", stable); // stable unchanged
+        Assert.Equal("Real Artist", stable);
     }
 
     [Fact]
@@ -190,7 +188,6 @@ public class MediaTimingDecisionsTests
 
     #region ShouldPreserveSoundCloud
 
-    // Builds the all-gates-pass argument set; individual tests override one parameter to flip a gate.
     private static bool PreserveSoundCloud(
         string mediaSource = "Browser",
         string currentTrack = "Some Song",
@@ -241,13 +238,13 @@ public class MediaTimingDecisionsTests
     [Fact]
     public void ShouldPreserveSoundCloud_SessionKeyMismatch_False()
     {
-        Assert.False(PreserveSoundCloud(sessionInstanceKey: "sess-2")); // last published was sess-1
+        Assert.False(PreserveSoundCloud(sessionInstanceKey: "sess-2"));
     }
 
     [Fact]
     public void ShouldPreserveSoundCloud_StaleMetadata_False()
     {
-        Assert.False(PreserveSoundCloud(lastMetadataChangeSecondsAgo: 5.0)); // > 3s freshness window
+        Assert.False(PreserveSoundCloud(lastMetadataChangeSecondsAgo: 5.0));
     }
 
     [Fact]
@@ -265,7 +262,6 @@ public class MediaTimingDecisionsTests
     [Fact]
     public void ShouldPreserveSoundCloud_SessionOverrideIsSoundCloud_True()
     {
-        // An override that already says SoundCloud is not a blocker.
         Assert.True(PreserveSoundCloud(hasSessionOverride: true, sessionOverride: "SoundCloud"));
     }
 

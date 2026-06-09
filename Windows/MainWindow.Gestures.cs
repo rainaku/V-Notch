@@ -15,9 +15,6 @@ public partial class MainWindow
 
     private GestureController _gestureController = null!;
 
-    // Gesture session state is owned by GestureController; this shim keeps the existing
-    // member name so call sites in this and other partials (SecondaryView, AnimationHelpers)
-    // are unchanged. Same delegation pattern as the _shellState-backed shims.
     private bool _isGestureActive
     {
         get => _gestureController?.IsGestureActive ?? false;
@@ -38,8 +35,6 @@ public partial class MainWindow
         _gestureController.SwipeDown += OnGestureSwipeDown;
         _gestureController.DoubleTap += OnGestureDoubleTap;
     }
-
-    // ─── XAML-bound event handlers ───
 
     private void NotchWrapper_MouseMove(object sender, MouseEventArgs e)
     {
@@ -64,7 +59,6 @@ public partial class MainWindow
             return false;
         }
 
-        // Only handle gestures when collapsed (compact mode) with media playing
         if (_isExpanded || _isMusicExpanded)
         {
             RuntimeLog.Log("GESTURE", $"blocked: expanded={_isExpanded} musicExpanded={_isMusicExpanded}");
@@ -94,7 +88,6 @@ public partial class MainWindow
 
         if (!triggered && !_gestureController.GestureTriggered)
         {
-            // Provide real-time visual feedback: slight horizontal shift following the finger
             ApplyGestureDragFeedback(_gestureController.AccumulatedX);
         }
     }
@@ -109,25 +102,20 @@ public partial class MainWindow
         var pos = e.GetPosition(NotchBorder);
         bool wasTap = _gestureController.EndTracking(pos);
 
-        // If no gesture was triggered and it wasn't a double-tap, snap back and let normal click through
         if (!_gestureController.GestureTriggered && !wasTap)
         {
             AnimateGestureSnapBack();
-            // Allow normal click behavior — re-dispatch
             ToggleNotchFromClick(e.ClickCount);
         }
         else if (!_gestureController.GestureTriggered && wasTap)
         {
-            // Double-tap was handled by the controller
             AnimateGestureSnapBack();
         }
         else
         {
-            // Gesture was triggered during move — snap back animation already played
             AnimateGestureSnapBack();
         }
 
-        // After gesture ends, restore correct hover state based on whether cursor is still over the notch
         if (!NotchWrapper.IsMouseOver)
         {
             AnimateNotchHover(false);
@@ -138,11 +126,8 @@ public partial class MainWindow
         }
     }
 
-    // ─── Gesture Handlers ───
-
     private async void OnGestureSwipeLeft()
     {
-        // Swipe left = Next track (always skip, regardless of source)
         Dispatcher.Invoke(() =>
         {
             PlayGestureSwipeFeedback(isLeft: true);
@@ -165,7 +150,6 @@ public partial class MainWindow
 
     private async void OnGestureSwipeRight()
     {
-        // Swipe right = Previous track (always skip, regardless of source)
         Dispatcher.Invoke(() =>
         {
             PlayGestureSwipeFeedback(isLeft: false);
@@ -188,7 +172,6 @@ public partial class MainWindow
 
     private void OnGestureSwipeDown()
     {
-        // Swipe down = Open File Shelf (expand + switch to secondary)
         Dispatcher.Invoke(() =>
         {
             PlayGestureSwipeDownFeedback();
@@ -197,7 +180,6 @@ public partial class MainWindow
             {
                 ExpandNotch();
 
-                // Wait for expand to finish, then switch to secondary view
                 var waitTimer = new System.Windows.Threading.DispatcherTimer
                 {
                     Interval = TimeSpan.FromMilliseconds(40)
@@ -220,7 +202,6 @@ public partial class MainWindow
 
     private async void OnGestureDoubleTap()
     {
-        // Double-tap = Play/Pause
         Dispatcher.Invoke(() =>
         {
             PlayGestureDoubleTapFeedback();
@@ -243,11 +224,8 @@ public partial class MainWindow
         }
     }
 
-    // ─── Visual Feedback Animations ───
-
     private void ApplyGestureDragFeedback(double deltaX)
     {
-        // Dampen the movement (rubber-band feel)
         double dampened = deltaX * 0.3;
         double clamped = Math.Clamp(dampened, -20, 20);
 
@@ -313,7 +291,6 @@ public partial class MainWindow
 
         _gestureTranslate.BeginAnimation(TranslateTransform.XProperty, flick);
 
-        // Scale pulse for tactile feedback
         var pulse = new DoubleAnimationUsingKeyFrames();
         pulse.KeyFrames.Add(new EasingDoubleKeyFrame(0.96,
             KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(80)),

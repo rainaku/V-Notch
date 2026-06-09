@@ -15,32 +15,31 @@ namespace VNotch;
 
 public partial class MainWindow
 {
-    private bool _isDraggingProgress = false; 
+    private bool _isDraggingProgress = false;
     private bool _isProgressBarExpanded = false;
     private int _lastDisplayedSecond = -1;
-    private TimeSpan _dragSeekPosition = TimeSpan.Zero; 
-    
-    private readonly ProgressEngine _progressEngine = new ProgressEngine();
-    private long _progressSnapshotSequence = 0;  
+    private TimeSpan _dragSeekPosition = TimeSpan.Zero;
 
-    private double _progressDisplayRatio = 0;   
-    private double _progressTargetRatio = 0;    
-    private double _progressSpringTargetRatio = 0; 
-    private double _progressVelocity = 0;       
-    private bool _isSeekSpringActive = false;    
+    private readonly ProgressEngine _progressEngine = new ProgressEngine();
+    private long _progressSnapshotSequence = 0;
+
+    private double _progressDisplayRatio = 0;
+    private double _progressTargetRatio = 0;
+    private double _progressSpringTargetRatio = 0;
+    private double _progressVelocity = 0;
+    private bool _isSeekSpringActive = false;
     private int _springSettleFrames = 0;
     private DateTime _seekSpringStartTime = DateTime.MinValue;
     private bool _isClickSeekPending = false;
     private DateTime _allowProgressBackwardRenderUntil = DateTime.MinValue;
     private DateTime _blockBackwardAfterSeekUntil = DateTime.MinValue;
     private Point _mouseDownPoint;
-    private const double DRAG_THRESHOLD = 3.0;  
+    private const double DRAG_THRESHOLD = 3.0;
     private DateTime _suppressExternalSeekDetectionUntil = DateTime.MinValue;
     private DateTime _protectSpringTargetUntil = DateTime.MinValue;
     private DateTime _suppressOutsideClickUntilUtc = DateTime.MinValue;
     private DateTime _suppressHoverCollapseUntilUtc = DateTime.MinValue;
 
-    // Spring render loop is driven by a dedicated helper; this partial keeps the per-frame ratios/velocity in its own fields (and pushes them into the renderer state every time the spring restarts) because many sites across Progress
     private ProgressSpringRenderer? _springRenderer;
     private ProgressSpringRenderer Spring => _springRenderer ??= new ProgressSpringRenderer(
         applyRatio: r =>
@@ -68,10 +67,9 @@ public partial class MainWindow
         if (target < TimeSpan.Zero) target = TimeSpan.Zero;
         return target;
     }
-    
+
     private void StartSpringRenderLoop()
     {
-        // Keep the renderer's mirror of the physics state in sync with the fields the rest of this partial mutates directly.
         Spring.DisplayRatio = _progressDisplayRatio;
         Spring.TargetRatio = _progressTargetRatio;
         Spring.SpringTargetRatio = _progressSpringTargetRatio;
@@ -84,7 +82,6 @@ public partial class MainWindow
     {
         if (_springRenderer == null) return;
         Spring.Stop();
-        // Pull the final state back into the partial's fields so the rest of the code keeps seeing consistent numbers.
         _progressDisplayRatio = Spring.DisplayRatio;
         _progressVelocity = Spring.Velocity;
         _springSettleFrames = Spring.SettleFrames;
@@ -105,7 +102,6 @@ public partial class MainWindow
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
-        // Always render progress bar when expanded, regardless of play state This ensures UI updates even when user is seeking or paused
         if (_isExpanded || _isMusicExpanded)
         {
             if (_currentMediaInfo != null)
@@ -114,13 +110,11 @@ public partial class MainWindow
             }
         }
 
-        // Update synced lyrics display
         if (_isExpanded && _isLyricsActive)
         {
             UpdateLyricsDisplay();
         }
 
-        // Throttle volume sync to ~2Hz (every 500ms) instead of 60fps
         if (_isExpanded && _isMusicExpanded && !_isDraggingVolume)
         {
             var now = DateTime.UtcNow;
@@ -252,7 +246,6 @@ public partial class MainWindow
             _currentMediaInfo = info;
         NormalizeStartupSnapshotTimestamp(info);
 
-        // Thumbnail-only updates carry stale Position/LastUpdated from when the background fetch started
         if (info.IsThumbnailOnlyUpdate)
         {
             UpdateProgressTimerState();
@@ -269,7 +262,6 @@ public partial class MainWindow
         {
             if (_isDraggingProgress) return;
 
-            // Track identity should not include duration jitter
             string newSignature = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}";
             bool isTrackChanged = newSignature != _lastProgressSignature;
             bool isSessionSwitch = !string.IsNullOrEmpty(info.SourceAppId) && info.SourceAppId != _lastSessionId;
@@ -287,20 +279,19 @@ public partial class MainWindow
                         $"Artist-only stabilization, skipping reset: '{oldArtist}' → '{info.CurrentArtist}' pos={info.Position.TotalSeconds:F1}s");
                 }
             }
-            
+
             if (isTrackChanged)
             {
                 _lastProgressSignature = newSignature;
-                
+
                 if (isSessionSwitch)
                 {
                     _lastSessionId = info.SourceAppId;
                     HandleSessionTransition();
                 }
-                
-                // Increment sequence FIRST so any in-flight animation Completed handlers become stale
+
                 _trackChangeSequence++;
-                
+
                 _progressEngine.Reset();
                 StopCatchUpAnimation();
                 StopRewindTextAnimation();
@@ -349,7 +340,6 @@ public partial class MainWindow
                     }
                     else
                     {
-                        // Not playing or position is 0 — snap to 0 as before.
                         _progressDisplayRatio = 0;
                         ProgressBarScale.ScaleX = 0;
                     }
@@ -374,24 +364,23 @@ public partial class MainWindow
             else if (isSessionSwitch)
             {
                 _lastSessionId = info.SourceAppId;
-                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;  
+                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
             }
 
-            // Timeline key keeps duration only at second granularity to absorb ms-level noise.
             string timelineKey = $"{info.SourceAppId}|{info.CurrentTrack}|{info.CurrentArtist}|{Math.Round(info.Duration.TotalSeconds):F0}";
             if (timelineKey != _lastProgressTimelineKey)
             {
                 _lastProgressTimelineKey = timelineKey;
-                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;  
+                _lastProgressTimelineUpdated = DateTimeOffset.MinValue;
             }
 
             if (_lastProgressTimelineUpdated != DateTimeOffset.MinValue &&
-                timelineKey == _lastProgressTimelineKey)  
+                timelineKey == _lastProgressTimelineKey)
             {
-                
+
                 var infoUpdatedUtc = info.LastUpdated.ToUniversalTime();
                 var lastUpdatedUtc = _lastProgressTimelineUpdated.ToUniversalTime();
-                
+
                 if (infoUpdatedUtc < lastUpdatedUtc)
                 {
                     UpdateProgressTimerState();
@@ -405,7 +394,7 @@ public partial class MainWindow
                 Position = info.Position,
                 Duration = info.Duration,
                 IsPlaying = info.IsPlaying,
-                
+
                 IsYouTube = IsLikelyBrowserProgressSource(info),
                 PlaybackRate = info.PlaybackRate,
                 IsSeekEnabled = info.IsSeekEnabled,
@@ -413,7 +402,7 @@ public partial class MainWindow
                 Timestamp = info.LastUpdated.UtcDateTime,
                 SequenceNumber = System.Threading.Interlocked.Increment(ref _progressSnapshotSequence)
             };
-            
+
             _progressEngine.OnMediaSnapshot(snapshot);
             if (info.LastUpdated > _lastProgressTimelineUpdated)
             {
@@ -446,7 +435,7 @@ public partial class MainWindow
         {
             UpdateProgressTimerState();
             _lastSessionId = "";
-            
+
             IndeterminateProgress.Visibility = Visibility.Collapsed;
             ProgressBar.Visibility = Visibility.Visible;
             ProgressBarContainer.Cursor = Cursors.Arrow;
@@ -490,7 +479,7 @@ public partial class MainWindow
 
     private void ResetProgressUI()
     {
-        
+
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         ProgressBarScale.ScaleX = 0;
         _progressDisplayRatio = 0;
@@ -519,9 +508,7 @@ public partial class MainWindow
 
     private void RenderProgressBar()
     {
-        // Allow rendering during seek spring animation, but not during manual drag
         if (_isDraggingProgress || _currentMediaInfo == null) return;
-        // While the rewind animation is running, the WPF DoubleAnimation owns ProgressBarScale
         if (_isRewindAnimating) return;
 
         var frame = _progressEngine.GetUiFrame();
@@ -552,16 +539,13 @@ public partial class MainWindow
             engineRatio = Math.Clamp(engineRatio, 0, 1);
         }
 
-        // Detect external seek (e
         if (_isCatchUpAnimating)
         {
             double ratioDiff = Math.Abs(engineRatio - _lastRenderedRatio);
-            // If position jumped more than 1% (external seek detected) This is adaptive: ~24 seconds for 40-min video, ~4 seconds for 6-min video
             if (ratioDiff > 0.01)
             {
                 StopCatchUpAnimation();
-                
-                // Animate to the new position after external seek (spring)
+
                 _progressTargetRatio = engineRatio;
                 _progressSpringTargetRatio = _progressDisplayRatio;
                 _progressVelocity = 0;
@@ -575,7 +559,6 @@ public partial class MainWindow
             }
             else
             {
-                // Still animating, don't update
                 _lastRenderedRatio = engineRatio;
                 return;
             }
@@ -585,7 +568,7 @@ public partial class MainWindow
 
         if (frame.DurationJustChanged)
         {
-            
+
             _isSeekSpringActive = false;
             _springSettleFrames = 0;
             _progressVelocity = 0;
@@ -600,7 +583,6 @@ public partial class MainWindow
         }
         else if (_isSeekSpringActive)
         {
-            // If spring has finished (settled or timed out), transition to normal rendering
             if (!Spring.IsActive)
             {
                 _isSeekSpringActive = false;
@@ -608,21 +590,18 @@ public partial class MainWindow
                 _progressVelocity = 0;
                 _springSettleFrames = 0;
                 RuntimeLog.Debug("PROGRESS-SPRING", () => $"settled at ratio={_progressDisplayRatio:F4} engineRatio={engineRatio:F4}");
-                
+
                 _progressDisplayRatio = engineRatio;
                 ProgressBarScale.ScaleX = engineRatio;
                 _suppressExternalSeekDetectionUntil = DateTime.Now.AddSeconds(1.5);
-                // Fall through to normal rendering below
             }
             else
             {
-                // Safety: if spring is active but render hook was not running, restart it.
                 if (!Spring.IsHooked)
                 {
                     StartSpringRenderLoop();
                 }
 
-                // Don't overwrite spring target from engine during pending click seek (engine hasn't been notified yet)
                 if (!_isClickSeekPending && DateTime.UtcNow >= _protectSpringTargetUntil)
                 {
                     _progressTargetRatio = engineRatio;
@@ -631,8 +610,7 @@ public partial class MainWindow
                         _seekSpringStartTime = DateTime.Now;
                     }
                 }
-                _lastRenderedDuration = frame.Duration;  
-                // Update time text while spring is animating
+                _lastRenderedDuration = frame.Duration;
                 if (frame.Duration.TotalSeconds > 0)
                 {
                     var pos = TimeSpan.FromSeconds(_progressDisplayRatio * frame.Duration.TotalSeconds);
@@ -654,7 +632,7 @@ public partial class MainWindow
             double dt = _lastRenderTime == DateTime.MinValue ? 0.016 : (now - _lastRenderTime).TotalSeconds;
             dt = Math.Clamp(dt, 0.001, 0.1);
             _lastRenderTime = now;
-            _lastRenderedDuration = frame.Duration;  
+            _lastRenderedDuration = frame.Duration;
 
             bool isRealtimeProgressing = frame.State == ProgressState.Playing || frame.State == ProgressState.Seeking;
             double effectivePlaybackRate = 1.0;
@@ -669,7 +647,6 @@ public partial class MainWindow
             double rawRatioDiff = Math.Abs(rawTargetRatio - _progressDisplayRatio);
             double rawDiffSeconds = rawRatioDiff * frame.Duration.TotalSeconds;
 
-            // ── External seek detection ───────────────────────────────────── User scrubs from outside the notch (YouTube player, taskbar SMTC controls, keyboard media keys)
             if (!_isDraggingProgress &&
                 !_isRewindAnimating &&
                 !_isCatchUpAnimating &&
@@ -697,7 +674,6 @@ public partial class MainWindow
                                             rawDiffSeconds > 30.0 &&
                                             _progressDisplayRatio > 0.10;
 
-                // Log every potential seek detection attempt for diagnostics.
                 if (rawDiffSeconds >= 0.6)
                 {
                     RuntimeLog.Log("PROGRESS-SEEK",
@@ -740,24 +716,23 @@ public partial class MainWindow
             {
                 _progressTargetRatio = rawTargetRatio;
 
-                // Platform-aware backward jump threshold Browser sources have higher latency but still need responsive correction Balance between: accepting late snapshots vs
-                double backwardThreshold = 0.5;  // Default for native apps
+                double backwardThreshold = 0.5;
                 if (_currentMediaInfo != null)
                 {
                     bool isBrowserSource = _currentMediaInfo.Platform is MediaPlatform.Browser or MediaPlatform.YouTube or MediaPlatform.SoundCloud ||
-                                          (!string.IsNullOrEmpty(_currentMediaInfo.SourceAppId) && 
+                                          (!string.IsNullOrEmpty(_currentMediaInfo.SourceAppId) &&
                                            ((_currentMediaInfo.SourceAppId.Contains("chrome", StringComparison.OrdinalIgnoreCase)) ||
                                             (_currentMediaInfo.SourceAppId.Contains("edge", StringComparison.OrdinalIgnoreCase)) ||
                                             (_currentMediaInfo.SourceAppId.Contains("firefox", StringComparison.OrdinalIgnoreCase)) ||
                                             (_currentMediaInfo.SourceAppId.Contains("brave", StringComparison.OrdinalIgnoreCase)) ||
                                             (_currentMediaInfo.SourceAppId.Contains("opera", StringComparison.OrdinalIgnoreCase))));
-                    
+
                     if (isBrowserSource)
                     {
-                        backwardThreshold = 1.5;  // Balanced threshold for browser sources
+                        backwardThreshold = 1.5;
                     }
                 }
-                
+
                 bool isUserSeekWindow = frame.State == ProgressState.Seeking || DateTime.Now < _allowProgressBackwardRenderUntil;
                 bool isPostSeekStabilization = DateTime.Now < _blockBackwardAfterSeekUntil;
 
@@ -767,18 +742,15 @@ public partial class MainWindow
 
                     if (isUserSeekWindow)
                     {
-                        // User is seeking — allow backward movement freely
                         RuntimeLog.Debug("PROGRESS-RENDER-BACKWARD", () =>
                             $"allowed (user-seek): display={_progressDisplayRatio:F4} target={_progressTargetRatio:F4} backSec={backwardSeconds:F2}s");
                     }
                     else if (isPostSeekStabilization)
                     {
-                        // Just finished a seek — block backward snap to prevent jitter on pause
                         _progressTargetRatio = _progressDisplayRatio;
                     }
                     else if (isRealtimeProgressing)
                     {
-                        // During normal playback, block backward jumps to prevent visible snapping
                         bool isBrowserSourceForBackward = _currentMediaInfo != null &&
                             _currentMediaInfo.Platform is MediaPlatform.Browser or MediaPlatform.YouTube or MediaPlatform.SoundCloud;
 
@@ -799,7 +771,6 @@ public partial class MainWindow
                     }
                     else if (backwardSeconds > backwardThreshold)
                     {
-                        // Paused + large backward: cap step per frame
                         double maxBackwardStepSeconds = 0.22;
                         double maxBackwardRatioStep = maxBackwardStepSeconds / frame.Duration.TotalSeconds;
                         double cappedTarget = Math.Max(_progressTargetRatio, _progressDisplayRatio - maxBackwardRatioStep);
@@ -808,10 +779,8 @@ public partial class MainWindow
                             $"backSec={backwardSeconds:F2}s capped={cappedTarget:F4}");
                         _progressTargetRatio = cappedTarget;
                     }
-                    // else: paused + small backward — allow correction via lerp
                 }
 
-                // Jump directly to target — no lerp/smoothing animation
                 _progressDisplayRatio = _progressTargetRatio;
             }
 
@@ -856,7 +825,6 @@ public partial class MainWindow
 
         e.Handled = true;
 
-        // Stop catch-up animation if running
         StopCatchUpAnimation();
 
         _isClickSeekPending = true;
@@ -871,7 +839,6 @@ public partial class MainWindow
 
         _dragSeekPosition = TimeSpan.FromSeconds(duration.TotalSeconds * ratio);
         _progressTargetRatio = ratio;
-        // Only reset spring origin and velocity if spring is not already active (avoid jitter on rapid clicks)
         if (!_isSeekSpringActive)
         {
             _progressSpringTargetRatio = _progressDisplayRatio;
@@ -880,7 +847,6 @@ public partial class MainWindow
         _springSettleFrames = 0;
         _isSeekSpringActive = true;
         _seekSpringStartTime = DateTime.Now;
-        // Reset protection so the new target takes effect immediately
         _protectSpringTargetUntil = DateTime.UtcNow.AddSeconds(1.5);
         StartSpringRenderLoop();
 
@@ -900,15 +866,15 @@ public partial class MainWindow
         {
             double dist = Math.Abs(currentPos.X - _mouseDownPoint.X);
             double threshold = _isSeekSpringActive ? 25.0 : DRAG_THRESHOLD;
-            if (dist < threshold) return; 
+            if (dist < threshold) return;
 
             _isClickSeekPending = false;
             _isDraggingProgress = true;
-            _isSeekSpringActive = false;  
+            _isSeekSpringActive = false;
             _progressVelocity = 0;
             _springSettleFrames = 0;
             StopSpringRenderLoop();
-            StopCatchUpAnimation(); // Also stop catch-up if somehow still running
+            StopCatchUpAnimation();
             MusicViz.IsBuffering = true;
         }
 
@@ -937,11 +903,11 @@ public partial class MainWindow
 
             if (prevExpanded && !ProgressBarContainer.IsMouseOver)
             {
-                
+
                 _isProgressBarExpanded = false;
                 AnimateProgressBarHover(false);
             }
-            
+
         }));
 
         if (wasDragging || wasClickSeek)
@@ -996,7 +962,6 @@ public partial class MainWindow
     {
         targetRatio = Math.Clamp(targetRatio, 0, 1);
 
-        // Use spring animation to reach target (same as click seek)
         _progressTargetRatio = targetRatio;
         if (!_isSeekSpringActive)
         {
@@ -1020,10 +985,8 @@ public partial class MainWindow
         double fromRatio = Math.Clamp(_progressDisplayRatio, 0, 1);
         double delta = fromRatio - targetRatio;
 
-        // Cancel any in-flight rewind text timer before starting a new one.
         StopRewindTextAnimation();
 
-        // No meaningful distance — just commit the target.
         if (delta <= 0.005)
         {
             ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -1038,17 +1001,14 @@ public partial class MainWindow
             return;
         }
 
-        // Suspend the spring/seek system so it doesn't fight the rewind anim.
         _isSeekSpringActive = false;
         _springSettleFrames = 0;
         _progressVelocity = 0;
         StopSpringRenderLoop();
         _isRewindAnimating = true;
 
-        // Duration scales with distance: short rewinds feel zippy, long rewinds get a touch more time. Clamp so it never drags.
         var duration = TimeSpan.FromMilliseconds(Math.Clamp(220 + delta * 320, 260, 480));
 
-        // Capture sequence so Completed handler becomes a no-op if track changed mid-animation
         long seqAtStart = _trackChangeSequence;
 
         var anim = new DoubleAnimation(fromRatio, targetRatio, new Duration(duration))
@@ -1060,7 +1020,6 @@ public partial class MainWindow
 
         anim.Completed += (s, e) =>
         {
-            // If a track change happened while this animation was running, discard the result
             if (_trackChangeSequence != seqAtStart) return;
 
             ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -1075,14 +1034,12 @@ public partial class MainWindow
             _isRewindAnimating = false;
         };
 
-        // Mirror the WPF animation in the engine state so RenderProgressBar (which can be invoked by ProgressTimer between frames) does not overwrite ScaleX with a competing value
         _progressTargetRatio = targetRatio;
         _progressSpringTargetRatio = targetRatio;
         _progressDisplayRatio = targetRatio;
 
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
 
-        // Drive the time-text update from a parallel timer so the text glides alongside the bar
         var startTime = DateTime.UtcNow;
         var totalMs = duration.TotalMilliseconds;
         _rewindTextTimer = new DispatcherTimer(DispatcherPriority.Render)
@@ -1097,9 +1054,7 @@ public partial class MainWindow
                 StopRewindTextAnimation();
                 return;
             }
-            // Mirror ExponentialEase EaseOut, exponent=6.
             double eased = 1 - Math.Pow(2, -6 * 10 * t);
-            // Normalize so eased(0)=0, eased(1)=1.
             double maxEased = 1 - Math.Pow(2, -60);
             eased = Math.Clamp(eased / maxEased, 0, 1);
             double ratio = fromRatio + (targetRatio - fromRatio) * eased;
@@ -1137,7 +1092,7 @@ public partial class MainWindow
 
         newPos = ClampSeekTarget(newPos, duration);
 
-        try 
+        try
         {
             _allowProgressBackwardRenderUntil = DateTime.Now.AddSeconds(3);
             _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
@@ -1151,10 +1106,9 @@ public partial class MainWindow
             _lastDisplayedSecond = (int)newPos.TotalSeconds;
 
             await _mediaService.SeekAsync(newPos);
-            
-            // Ensure progress timer is running after seek
+
             UpdateProgressTimerState();
-        } 
+        }
         catch (Exception ex)
         {
             RuntimeLog.Error("PROGRESS-SEEK", ex.ToString());
@@ -1182,16 +1136,13 @@ public partial class MainWindow
             double targetRatio = newPos.TotalSeconds / duration.TotalSeconds;
             targetRatio = Math.Clamp(targetRatio, 0, 1);
 
-            // Use smooth animation instead of snap for seek controls
             AnimateExternalSeekTo(targetRatio, frame);
 
             CurrentTimeText.Text = FormatTime(newPos);
             _lastDisplayedSecond = (int)newPos.TotalSeconds;
 
-            // Use absolute seek with the engine's predicted position to avoid drift between UI (predicted) and SMTC (stale timeline position)
             await _mediaService.SeekToAbsoluteAsync(newPos);
-            
-            // Ensure progress timer is running after seek
+
             UpdateProgressTimerState();
         }
         catch (Exception ex)
@@ -1224,7 +1175,7 @@ public partial class MainWindow
         if (_progressTimer == null) return;
 
         bool isExpanded = _isExpanded || _isMusicExpanded;
-        
+
         bool hasTimeline = _currentMediaInfo != null &&
             (_currentMediaInfo.HasTimeline ||
              _currentMediaInfo.IsIndeterminate ||
@@ -1232,7 +1183,6 @@ public partial class MainWindow
              _currentMediaInfo.IsAnyMediaPlaying);
         bool shouldRunProgress = isExpanded && hasTimeline;
 
-        // Use 60fps for smooth progress updates
         _progressTimer.Interval = TimeSpan.FromMilliseconds(16);
 
         if (shouldRunProgress)
@@ -1278,7 +1228,6 @@ public partial class MainWindow
         double targetRatio = frame.Position.TotalSeconds / frame.Duration.TotalSeconds;
         targetRatio = Math.Clamp(targetRatio, 0, 1);
 
-        // Cancel any lingering rewind animation from a track change that started while collapsed
         if (_isRewindAnimating)
         {
             _isRewindAnimating = false;
@@ -1291,10 +1240,8 @@ public partial class MainWindow
             return;
         }
 
-        // Animate from the last known position to the current real position
         double fromRatio = Math.Clamp(_progressDisplayRatio, 0, 1);
 
-        // Already at target — just set directly
         if (Math.Abs(fromRatio - targetRatio) < 0.005)
         {
             ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -1314,7 +1261,6 @@ public partial class MainWindow
         _progressVelocity = 0;
         ProgressBarScale.ScaleX = fromRatio;
 
-        // Scale duration with gap size: short gaps get snappy animation, large gaps get slightly longer
         double gapRatio = Math.Abs(targetRatio - fromRatio);
         int durationMs = (int)Math.Clamp(400 + gapRatio * 300, 400, 650);
         var catchUpDuration = TimeSpan.FromMilliseconds(durationMs);
@@ -1325,7 +1271,6 @@ public partial class MainWindow
         };
         Timeline.SetDesiredFrameRate(catchUpAnim, VNotch.Services.AnimationConfig.TargetFps);
 
-        // Capture sequence so Completed handler becomes a no-op if track changed mid-animation
         long seqAtStart = _trackChangeSequence;
 
         catchUpAnim.Completed += (s, e) =>
@@ -1345,7 +1290,6 @@ public partial class MainWindow
 
     private void StopCatchUpAnimation()
     {
-        // No-op: catch-up animation has been removed (progress jumps directly)
         _isCatchUpAnimating = false;
         if (_catchUpTimer != null)
         {
@@ -1359,14 +1303,12 @@ public partial class MainWindow
         fromRatio = Math.Clamp(fromRatio, 0, 1);
         double targetRatio = 0;
 
-        // Suspend competing systems
         _isSeekSpringActive = false;
         _springSettleFrames = 0;
         _progressVelocity = 0;
         StopSpringRenderLoop();
         _isRewindAnimating = true;
 
-        // Duration scales with how far we need to rewind (~300-450ms)
         var duration = TimeSpan.FromMilliseconds(Math.Clamp(280 + fromRatio * 180, 300, 450));
 
         long seqAtStart = _trackChangeSequence;
@@ -1418,7 +1360,6 @@ public partial class MainWindow
 
         StopRewindTextAnimation();
 
-        // Tiny delta — no animation worth running, commit and return.
         if (delta <= 0.005)
         {
             RuntimeLog.Log("PROGRESS-SEEK", $"animate skipped (delta={delta:F4})");
@@ -1435,14 +1376,12 @@ public partial class MainWindow
             return;
         }
 
-        // Suspend competing systems so the WPF animation owns ScaleX while it runs.
         _isSeekSpringActive = false;
         _springSettleFrames = 0;
         _progressVelocity = 0;
         StopSpringRenderLoop();
-        _isRewindAnimating = true; // share the same render-skip guard
+        _isRewindAnimating = true;
 
-        // Duration scales with distance, capped to stay snappy
         var duration = TimeSpan.FromMilliseconds(Math.Clamp(220 + delta * 320, 240, 420));
 
         RuntimeLog.Log("PROGRESS-SEEK",
@@ -1455,12 +1394,10 @@ public partial class MainWindow
         };
         Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
 
-        // Capture sequence so Completed handler becomes a no-op if track changed mid-animation
         long seqAtStart = _trackChangeSequence;
 
         anim.Completed += (s, e) =>
         {
-            // If a track change happened while this animation was running, discard the result
             if (_trackChangeSequence != seqAtStart) return;
 
             RuntimeLog.Log("PROGRESS-SEEK", $"animate completed -> {targetRatio:F4}");
@@ -1478,16 +1415,13 @@ public partial class MainWindow
             _blockBackwardAfterSeekUntil = DateTime.Now.AddSeconds(3.5);
         };
 
-        // IMPORTANT: do NOT pre-commit `_progressDisplayRatio = targetRatio` here
         _progressTargetRatio = targetRatio;
         _progressSpringTargetRatio = targetRatio;
 
-        // Force the animation to take over the DP
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         ProgressBarScale.ScaleX = fromRatio;
         ProgressBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
 
-        // Glide the time text alongside the bar.
         var startTime = DateTime.UtcNow;
         var totalMs = duration.TotalMilliseconds;
         _rewindTextTimer = new DispatcherTimer(DispatcherPriority.Render)
@@ -1503,7 +1437,6 @@ public partial class MainWindow
                 StopRewindTextAnimation();
                 return;
             }
-            // Match ExponentialEase EaseOut, exponent=6.
             double eased = 1 - Math.Pow(2, -6 * 10 * t);
             double current = fromRatio + (targetRatio - fromRatio) * eased;
             CurrentTimeText.Text = FormatTime(GetPositionForRatio(current));
@@ -1520,4 +1453,3 @@ public partial class MainWindow
 
     #endregion
 }
-

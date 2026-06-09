@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Threading;
 using VNotch.Controllers;
@@ -44,12 +44,10 @@ public partial class MainWindow
 
         if (handled && !wasExpanded && _dragDropController.IsDragAutoExpanded)
         {
-            // We just triggered an expand — wait for it to finish, then switch to secondary
             StartDragWaitForShelf();
         }
         else if (handled && _isExpanded && _isAnimating)
         {
-            // Already expanded but still animating (e.g. switching views)
             StartDragWaitForShelf();
         }
     }
@@ -75,7 +73,6 @@ public partial class MainWindow
             _dragCollapseTimer?.Stop();
             _dragDropController.AutoCollapseAfterDrag(_isExpanded, _isSecondaryView, _isAnimating);
 
-            // If we switched to primary, wait for animation then collapse
             if (_isExpanded && !_isSecondaryView && _isAnimating)
             {
                 var collapseWait = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
@@ -110,13 +107,11 @@ public partial class MainWindow
 
         var files = e.Data.GetData(DataFormats.FileDrop) as string[];
 
-        // Ensure the notch is expanded and file shelf is visible
         if (!_isExpanded)
         {
             ExpandNotch();
         }
 
-        // Wait for expansion/animation to finish, then process the drop
         var dropProcessTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(40)
@@ -130,7 +125,6 @@ public partial class MainWindow
                 if (!_isSecondaryView)
                 {
                     SwitchToSecondaryView();
-                    // Wait for secondary view to be ready, then process
                     var shelfReadyTimer = new DispatcherTimer
                     {
                         Interval = TimeSpan.FromMilliseconds(40)

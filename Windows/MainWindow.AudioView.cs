@@ -21,11 +21,6 @@ public partial class MainWindow
     }
     private const double _audioViewWidth = 720;
 
-    // The Sound view height adapts to its content: it shrinks to fit when only a few rows are
-    // shown (no dead space at the bottom) and grows up to _audioViewMaxHeight, after which the
-    // list scrolls. _audioViewHeight holds the current fitted notch height and is recomputed
-    // whenever the mixer UI is (re)built or a section is collapsed/expanded. _audioViewChrome is
-    // the constant top + bottom space around the scrollable area (AudioContent margins + insets).
     private const double _audioViewMaxHeight = 378;
     private const double _audioViewMinHeight = 150;
     private const double _audioViewChrome = 66;
@@ -35,7 +30,6 @@ public partial class MainWindow
     private AudioMixerService AudioMixer =>
         _audioMixerServiceCached ??= (AudioMixerService)App.Services.GetService(typeof(AudioMixerService))!;
 
-    // Live volume polling while the Sound view is open.
     private System.Windows.Threading.DispatcherTimer? _audioPollTimer;
 
     private void StartAudioPoll()
@@ -53,19 +47,12 @@ public partial class MainWindow
 
     private void StopAudioPoll() => _audioPollTimer?.Stop();
 
-    // ─── Scroll edge fades (dynamic marquee) ───
     private bool _audioTopFadeShown;
     private bool _audioBottomFadeShown;
 
     private void AudioScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
         => UpdateAudioScrollFades();
 
-    /// <summary>
-    /// Shows the top fade only once the list is scrolled down from the top, and the bottom
-    /// fade only while there's still content below — each transition animated so the fade
-    /// appears/disappears smoothly instead of popping. At rest (top of a list) only the
-    /// bottom edge fades; headers at the very top stay fully opaque.
-    /// </summary>
     private void UpdateAudioScrollFades()
     {
         if (AudioScrollViewer == null || AudioFadeTopStop == null || AudioFadeBottomStop == null) return;
@@ -88,7 +75,6 @@ public partial class MainWindow
         }
     }
 
-    // Black = fully opaque (no fade), Transparent = edge fades the content out.
     private void AnimateAudioFadeStop(GradientStop stop, bool fade)
     {
         var to = fade ? Colors.Transparent : Colors.Black;
@@ -101,8 +87,6 @@ public partial class MainWindow
         };
         stop.BeginAnimation(GradientStop.ColorProperty, anim);
     }
-
-    // ─── Navigation ───
 
     private void AudioIconButton_Click(object sender, MouseButtonEventArgs e)
     {
@@ -145,7 +129,6 @@ public partial class MainWindow
             }
         }
 
-        // Show the nav icons + highlight pill (audio view keeps them visible).
         UpdateNavIconsActiveState();
         NavIconsPanel.Visibility = Visibility.Visible;
         NavIconsPanel.Opacity = 1;
@@ -160,28 +143,18 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(navBgFadeIn, AnimationConfig.TargetFps);
         NavIconsBackground.BeginAnimation(OpacityProperty, navBgFadeIn);
 
-        // Build the mixer from the cached snapshot first so BuildAudioUI can measure its natural
-        // height and size the notch to fit the content (clamped to the max). Building before the
-        // animation lets the open transition target the fitted height directly.
         bool hadSnapshot = _lastAudioSnapshot != null;
         if (hadSnapshot)
-            BuildAudioUI(_lastAudioSnapshot!);   // also recomputes _audioViewHeight to fit
+            BuildAudioUI(_lastAudioSnapshot!);
         else
             _audioViewHeight = _audioViewMaxHeight;
 
         double fromW = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _expandedWidth;
         double fromH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
 
-        // Size the host window to cover both the starting notch height and the fitted target so
-        // the notch is never clipped while it animates. If we opened from a taller view (e.g. the
-        // clock), shrink the window down to the fitted size once the open finishes.
         double openWindowHeight = Math.Max(fromH, _audioViewHeight);
         ResizeHostWindowHeight(openWindowHeight);
 
-        // The cached snapshot gives an instant first paint, but refresh immediately (don't wait
-        // for the open animation to finish) so the app list and volumes are current the moment
-        // the view opens. When the structure is unchanged this patches in place (smooth); a
-        // structural change rebuilds and re-fits the notch once the open completes.
         AnimateAudioViewSwap(
             outgoing, AudioContent,
             fromW, fromH, _audioViewWidth, _audioViewHeight,
@@ -190,9 +163,6 @@ public partial class MainWindow
             {
                 if (openWindowHeight > _audioViewHeight)
                     ResizeHostWindowHeight(_audioViewHeight);
-                // Reconcile the notch height in case fresh data arrived (and changed the row
-                // count) while the open animation was running and SettleAudioNotchToFit was
-                // suppressed by the _isAnimating guard.
                 SettleAudioNotchToFit();
             });
 
@@ -272,14 +242,11 @@ public partial class MainWindow
             prepIncoming: () =>
             {
                 EnableKeyboardInput();
-                // SecondaryContent uses star-sized columns; pin its settled width so the right-edge
-                // pin during the notch shrink doesn't collapse the columns and squish the layout.
                 SecondaryContent.Width = _expandedWidth
                     - SecondaryContent.Margin.Left - SecondaryContent.Margin.Right;
             },
             onComplete: () =>
             {
-                // Notch width is fixed again — return to Stretch sizing so it fills the notch.
                 SecondaryContent.Width = double.NaN;
                 SecondaryContent.UpdateLayout();
                 RestoreExpandedWindowSize();
@@ -316,7 +283,6 @@ public partial class MainWindow
             onComplete: () => UpdateTimerDisplay());
     }
 
-
     private void AnimateAudioViewSwap(
         FrameworkElement outgoing, FrameworkElement incoming,
         double notchFromW, double notchFromH, double notchToW, double notchToH,
@@ -332,7 +298,6 @@ public partial class MainWindow
         bool outIsAudio = ReferenceEquals(outgoing, AudioContent);
         bool inIsAudio = ReferenceEquals(incoming, AudioContent);
 
-        // ─── Outgoing ───
         if (outIsAudio)
         {
 
@@ -368,8 +333,6 @@ public partial class MainWindow
         }
         else
         {
-            // Outgoing fixed content. ExpandedContent rests shifted down by RestY, so start the
-            // slide from there (not 0) to avoid a 1-frame jump up before the transition.
             double outRestY = ReferenceEquals(outgoing, ExpandedContent) ? ExpandedContentRestY : 0;
 
             var outGroup = new TransformGroup();
@@ -407,7 +370,6 @@ public partial class MainWindow
             outBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
         }
 
-        // ─── Incoming ───
         prepIncoming?.Invoke();
 
         incoming.Visibility = Visibility.Visible;
@@ -415,8 +377,6 @@ public partial class MainWindow
 
         if (inIsAudio)
         {
-            // Fade-only reveal; the notch resize supplies the motion. Cache the tree so
-            // the fade is a cheap bitmap blend instead of re-rasterizing every frame.
             incoming.RenderTransform = null;
             incoming.CacheMode = new BitmapCache();
             var aFadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
@@ -439,21 +399,14 @@ public partial class MainWindow
             var savedRounding = incoming.UseLayoutRounding;
             if (shrinking)
             {
-                // With default Stretch alignment the fixed-width content gets centered in the
-                // still-wide notch and slides as the border collapses. Pin it to the right edge
-                // (tracks the animating notch edge) + drop layout rounding; restored on done.
                 incoming.HorizontalAlignment = HorizontalAlignment.Right;
                 incoming.UseLayoutRounding = false;
                 incoming.UpdateLayout();
             }
 
-            // Returning to the main view: settle progress bar + marquee at the final width so they
-            // don't land at a stale position for a frame and jump.
             if (ReferenceEquals(incoming, ExpandedContent))
                 PrepareExpandedContentLayoutForReveal();
 
-            // Primary content rests with a small downward offset in Dynamic Island mode;
-            // settle the spring there (not at 0) so it matches a fresh expand.
             double restY = ReferenceEquals(incoming, ExpandedContent) ? ExpandedContentRestY : 0;
 
             var inGroup = new TransformGroup();
@@ -486,8 +439,6 @@ public partial class MainWindow
                     incoming.RenderTransform = null;
                 if (shrinking)
                 {
-                    // Notch width is fixed again — restore canonical layout so the content
-                    // fills the notch exactly and steady-state text stays crisp.
                     incoming.HorizontalAlignment = HorizontalAlignment.Stretch;
                     incoming.UseLayoutRounding = savedRounding;
                     incoming.UpdateLayout();
@@ -504,20 +455,9 @@ public partial class MainWindow
         AnimateClockViewNotchResize(notchFromW, notchFromH, notchToW, notchToH, durIn, inDelay);
     }
 
-    /// <summary>
-    /// Animates the notch (and the scroll viewport + host window) to the current fitted
-    /// <see cref="_audioViewHeight"/> using the default open-style easing. Used after a
-    /// structural data refresh so the panel keeps hugging its content.
-    /// </summary>
     private void SettleAudioNotchToFit()
         => AnimateAudioNotchHeight(_audioViewHeight, new Duration(TimeSpan.FromMilliseconds(300)), _easeExpOut6);
 
-    /// <summary>
-    /// Smoothly resizes the Sound-view notch height to <paramref name="target"/>, keeping the
-    /// scroll viewport and the host window in sync. The window grows up-front (so a taller notch
-    /// isn't clipped) and shrinks on completion, so it never clips the notch mid-animation.
-    /// No-op while a view-switch animation is running.
-    /// </summary>
     private void AnimateAudioNotchHeight(double target, Duration dur, IEasingFunction ease)
     {
         if (!_isAudioView || _isAnimating || AudioScrollViewer == null) return;

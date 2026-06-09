@@ -15,7 +15,6 @@ internal static class DynamicIslandColorExtractor
     private const int KClusters = 6;
     private const int KMeansMaxIter = 12;
 
-    // Cache: avoid re-extracting palette for the same thumbnail
     private static WeakReference<BitmapSource>? _lastPaletteBitmap;
     private static Palette _lastPaletteResult;
 
@@ -23,7 +22,6 @@ internal static class DynamicIslandColorExtractor
 
     public static Palette GetDynamicIslandPalette(BitmapSource bitmap)
     {
-        // Fast path: return cached result if same bitmap reference
         if (_lastPaletteBitmap != null && _lastPaletteBitmap.TryGetTarget(out var cached) && ReferenceEquals(cached, bitmap))
             return _lastPaletteResult;
 
@@ -145,7 +143,6 @@ internal static class DynamicIslandColorExtractor
 
         try
         {
-            // Downscale to 32x32 for fast analysis
             int sampleSize = 32;
             var formatted = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
             var scaled = new TransformedBitmap(formatted,
@@ -165,11 +162,9 @@ internal static class DynamicIslandColorExtractor
                 double g = pixels[i + 1] / 255.0;
                 double b = pixels[i] / 255.0;
 
-                // Perceived luminance (ITU-R BT.709)
                 double lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
                 totalLuminance += lum;
 
-                // Count pixels above brightness threshold
                 if (lum > 0.75) brightPixelCount++;
             }
 
@@ -180,19 +175,16 @@ internal static class DynamicIslandColorExtractor
 
             if (avgLuminance > 0.55)
             {
-                // Scale from 0 at 0.55 to 0.45 at 1.0
                 double t = Math.Clamp((avgLuminance - 0.55) / 0.45, 0.0, 1.0);
                 overlayOpacity = t * 0.45;
             }
 
             if (brightRatio > 0.40)
             {
-                // Additional dimming for images with many bright pixels
                 double t = Math.Clamp((brightRatio - 0.40) / 0.50, 0.0, 1.0);
                 overlayOpacity = Math.Max(overlayOpacity, t * 0.40);
             }
 
-            // Combine both signals: use the stronger one + a small boost from the weaker
             double combined = overlayOpacity;
             if (avgLuminance > 0.55 && brightRatio > 0.40)
             {
@@ -221,9 +213,7 @@ internal static class DynamicIslandColorExtractor
     {
         try
         {
-            // ═══════════════════════════════════════════════════════════════════ Pipeline: Resize → Filter → Quantize → Score → Pick Goal: find the most VIBRANT, eye-catching color — not the most common one
 
-            // Step 1: Resize to 40×40 for fast processing
             var formattedBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
             const int analysisSize = 40;
             double scaleX = (double)analysisSize / formattedBitmap.PixelWidth;
@@ -239,13 +229,11 @@ internal static class DynamicIslandColorExtractor
             byte[] pixels = new byte[height * stride];
             small.CopyPixels(pixels, stride, 0);
 
-            // Step 2: Collect HSV samples, filter noise (black/white/gray)
-            const int NUM_BUCKETS = 36; // 10° per bucket for finer hue resolution
+            const int NUM_BUCKETS = 36;
             float[] bucketSatSum = new float[NUM_BUCKETS];
             float[] bucketValSum = new float[NUM_BUCKETS];
             float[] bucketWeight = new float[NUM_BUCKETS];
             int[] bucketCount = new int[NUM_BUCKETS];
-            // Track the most saturated pixel per bucket for representative color
             float[] bucketPeakS = new float[NUM_BUCKETS];
             float[] bucketPeakH = new float[NUM_BUCKETS];
             float[] bucketPeakV = new float[NUM_BUCKETS];
@@ -269,38 +257,34 @@ internal static class DynamicIslandColorExtractor
                     var (h, s, v) = RgbToHsv(rf, gf, bf);
                     totalPixels++;
 
-                    // Filter: skip achromatic pixels (black, white, gray)
-                    if (v < 0.06f) continue;                    // pure black
-                    if (s < 0.12f) continue;                    // gray/white/desaturated
+                    if (v < 0.06f) continue;
+                    if (s < 0.12f) continue;
 
                     totalColorPixels++;
 
                     int bucket = (int)(h * NUM_BUCKETS) % NUM_BUCKETS;
                     if (bucket < 0) bucket += NUM_BUCKETS;
 
-                    // Zone weight: center pixels matter more
                     float dx = (x - centerX) / centerX;
                     float dy = (y - centerY) / centerY;
                     float dist = MathF.Sqrt(dx * dx + dy * dy);
-                    float zoneWeight = 1.0f + MathF.Max(0, 1.0f - dist) * 0.5f; // center: 1.5, edge: 1.0
+                    float zoneWeight = 1.0f + MathF.Max(0, 1.0f - dist) * 0.5f;
 
                     bucketSatSum[bucket] += s * zoneWeight;
                     bucketValSum[bucket] += v * zoneWeight;
                     bucketWeight[bucket] += zoneWeight;
                     bucketCount[bucket]++;
 
-                    // Track peak saturation pixel (most vibrant representative)
-                    float vibrancy = s * MathF.Max(v, 0.3f); // floor V so dark saturated still counts
+                    float vibrancy = s * MathF.Max(v, 0.3f);
                     if (vibrancy > bucketPeakS[bucket])
                     {
                         bucketPeakS[bucket] = vibrancy;
                         bucketPeakH[bucket] = h;
-                        bucketPeakV[bucket] = Math.Max(v, 0.4f); // lift dark peaks for display
+                        bucketPeakV[bucket] = Math.Max(v, 0.4f);
                     }
                 }
             }
 
-            // Monotone check
             bool isMonotone = totalPixels > 0 && (float)totalColorPixels / totalPixels < 0.08f;
 
             RuntimeLog.Log("COLOR-EXTRACT",
@@ -310,7 +294,6 @@ internal static class DynamicIslandColorExtractor
             if (isMonotone)
                 return new PaletteResult(Color.FromRgb(30, 30, 30), default, default, true, false, Colors.White);
 
-            // Step 3: Score each hue bucket Score = Area × Saturation × Contrast(brightness) This ensures the most VIBRANT color wins, not just the largest area
             float bestScore = -1, secondScore = -1;
             int bestBucket = -1, secondBucket = -1;
 
@@ -322,7 +305,6 @@ internal static class DynamicIslandColorExtractor
                 float avgSat = bucketSatSum[i] / bucketWeight[i];
                 float avgVal = bucketValSum[i] / bucketWeight[i];
 
-                // Score formula: area^0
                 float score = MathF.Pow(area, 0.3f) * avgSat * avgVal;
 
                 if (score > bestScore)
@@ -350,15 +332,12 @@ internal static class DynamicIslandColorExtractor
                 }
             }
 
-            // Step 4: Extract representative color from peak pixel (most vibrant)
             Color primary = Color.FromRgb(30, 30, 30);
             if (bestBucket >= 0)
             {
-                // Use the peak-saturation pixel's hue with boosted V for display
                 float pH = bucketPeakH[bestBucket];
                 float pS = Math.Min(bucketPeakS[bestBucket] / Math.Max(bucketPeakV[bestBucket], 0.3f), 1.0f);
                 float pV = bucketPeakV[bestBucket];
-                // Ensure the color is visible on dark UI: minimum V = 0.45
                 pV = Math.Max(pV, 0.45f);
                 pS = Math.Max(pS, 0.50f);
                 primary = HsvToColor(pH, pS, pV);
@@ -389,18 +368,15 @@ internal static class DynamicIslandColorExtractor
         }
     }
 
-    // Step 4 filter: reject near-white, near-black, and low-sat skin tones
     private static bool IsValidCluster(float h, float s, float v)
     {
-        if (s < 0.12f && v > 0.92f) return false;   // near-white
-        if (v < 0.10f) return false;                  // near-black
-        // Skin tone (hue 10-25°, low saturation) — only reject when S is low
+        if (s < 0.12f && v > 0.92f) return false;
+        if (v < 0.10f) return false;
         float hDeg = h * 360f;
         if (hDeg >= 10f && hDeg <= 25f && s < 0.40f) return false;
         return true;
     }
 
-    // Approximate Delta E in HSV space (simplified perceptual distance)
     private static float DeltaEHsv(float h1, float s1, float v1, float h2, float s2, float v2)
     {
         float dh = Math.Min(Math.Abs(h1 - h2), 1f - Math.Abs(h1 - h2)) * 2f;
@@ -422,7 +398,6 @@ internal static class DynamicIslandColorExtractor
 
     private static List<HsvCluster> KMeansHsv(List<(float H, float S, float V, float Weight)> samples, int k, int maxIter)
     {
-        // Initialize centroids using k-means++ style (spread out)
         var rng = new Random(42);
         var centroids = new (float H, float S, float V)[k];
         int firstIdx = rng.Next(samples.Count);
@@ -447,11 +422,9 @@ internal static class DynamicIslandColorExtractor
             centroids[i] = (samples[bestIdx].H, samples[bestIdx].S, samples[bestIdx].V);
         }
 
-        // Iterate
         int[] assignments = new int[samples.Count];
         for (int iter = 0; iter < maxIter; iter++)
         {
-            // Assign each sample to nearest centroid
             for (int i = 0; i < samples.Count; i++)
             {
                 float minDist = float.MaxValue;
@@ -465,7 +438,6 @@ internal static class DynamicIslandColorExtractor
                 assignments[i] = best;
             }
 
-            // Update centroids (weighted circular mean for hue, linear for S/V)
             var sinH = new float[k]; var cosH = new float[k];
             var sumS = new float[k]; var sumV = new float[k]; var sumW = new float[k];
             for (int i = 0; i < samples.Count; i++)
@@ -491,7 +463,6 @@ internal static class DynamicIslandColorExtractor
             }
         }
 
-        // Build result clusters with coverage
         float totalWeight = samples.Sum(s => s.Weight);
         var clusterWeights = new float[k];
         var inCrop = new bool[k];

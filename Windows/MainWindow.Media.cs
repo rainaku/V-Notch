@@ -33,7 +33,6 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() =>
         {
-            // New media activity should immediately reveal an idle-hidden notch.
             WakeFromIdle();
 
             if (info.IsThumbnailOnlyUpdate && _currentMediaInfo != null)
@@ -54,7 +53,6 @@ public partial class MainWindow
             if (result.Action == MediaDisplayAction.Ignore)
                 return;
 
-            // Sync local tracking fields from controller state
             _lastAnimatedTrackSignature = _mediaDisplayController.LastAnimatedTrackSignature;
             _lastColorTrackSignature = _mediaDisplayController.LastColorTrackSignature;
             _lastRenderedMediaSource = _mediaDisplayController.LastRenderedMediaSource;
@@ -64,14 +62,12 @@ public partial class MainWindow
             string trackIdentity = result.TrackIdentity;
             string renderedSource = result.RenderedSource;
 
-            // ─── Display Text ───
             if (result.IsNewTrack)
             {
                 UpdateTitleText(result.DisplayText.Title);
                 UpdateArtistText(result.DisplayText.Artist);
                 CompactTitleMarquee.Text = result.DisplayText.Title;
 
-                // Fetch synced lyrics for Spotify tracks
                 if (result.HasRealTrack && MediaPlatformExtensions.ParsePlatform(renderedSource) == MediaPlatform.Spotify)
                 {
                     FetchLyricsForTrack(info).SafeFireAndForget("LYRICS");
@@ -98,7 +94,6 @@ public partial class MainWindow
                 }
             }
 
-            // ─── Shimmer effect for idle state ───
             if (!result.HasRealTrack && !info.IsAnyMediaPlaying)
             {
                 StartTitleShimmer();
@@ -108,12 +103,10 @@ public partial class MainWindow
                 StopTitleShimmer();
             }
 
-            // ─── Thumbnail Handling ───
             if (result.HasRealTrack)
             {
                 if (result.HasThumbnail && info.Thumbnail != null)
                 {
-                    // Update LyricsBlurImage with crossfade when expanded + lyrics active
                     if (LyricsBlurImage != null && _isExpanded && _isLyricsActive)
                     {
                         if (!ReferenceEquals(LyricsBlurImage.Source, info.Thumbnail) &&
@@ -165,7 +158,6 @@ public partial class MainWindow
                             break;
 
                         case ThumbnailAction.None:
-                            // No animation needed
                             break;
                     }
 
@@ -264,15 +256,12 @@ public partial class MainWindow
 
         if (_isAnimating)
         {
-            // Queue the transition to run after the expand/collapse animation finishes
             VNotch.Services.RuntimeLog.Debug("THUMB-ANIM", () => $"queued-pending (isAnimating=true) force={force}");
             _pendingFlipThumbnail = newThumb;
             return;
         }
         if (_isThumbnailSwitchActive && !force)
         {
-            // A blur morph is already in progress for the same track (e.g. async thumbnail update) —
-            // just update the target thumbnail on the overlay layer instead of restarting.
             VNotch.Services.RuntimeLog.Debug("THUMB-ANIM", () =>
                 $"coalesced (blur morph already active, updating target) force={force}");
             ThumbnailImageNext.Source = newThumb;
@@ -283,7 +272,7 @@ public partial class MainWindow
         {
             VNotch.Services.RuntimeLog.Debug("THUMB-ANIM", "skipped (same reference, no force)");
             return;
-        } 
+        }
         if (!force && _thumbnailShownForCurrentTrack && newThumb != null)
         {
             VNotch.Services.RuntimeLog.Debug("THUMB-ANIM",
@@ -300,10 +289,9 @@ public partial class MainWindow
         var generation = ++_thumbnailSwitchGeneration;
         _isThumbnailSwitchActive = true;
 
-       
         var outDur     = TimeSpan.FromMilliseconds(420);
         var inDur      = TimeSpan.FromMilliseconds(440);
-        var overlap    = TimeSpan.FromMilliseconds(180); // when the new layer starts
+        var overlap    = TimeSpan.FromMilliseconds(180);
         var totalDur   = overlap + inDur;
 
         double expandedPeakBlur = _settings.EnableBlurEffects ? 18.0 : 0.0;
@@ -314,7 +302,6 @@ public partial class MainWindow
         var cubicIn   = new CubicEase    { EasingMode = EasingMode.EaseIn  };
         var sineInOut = new SineEase     { EasingMode = EasingMode.EaseInOut };
 
-        // Stage incoming image on the overlay layer, pre-blurred & invisible.
         ThumbnailImageNext.Source = newThumb;
         CompactThumbnailNext.Source = newThumb;
         ThumbnailImageNext.Visibility = Visibility.Visible;
@@ -330,7 +317,6 @@ public partial class MainWindow
         CompactThumbnailNext.Opacity = 0.0;
         CompactThumbnailNextBlur.Radius = compactPeakBlur;
 
-        // Reset outgoing layer to pristine starting state.
         ThumbnailOutScale.ScaleX = 1.0;
         ThumbnailOutScale.ScaleY = 1.0;
         ThumbnailImage.Opacity = 1.0;
@@ -380,7 +366,6 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(inFade, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(inScale, VNotch.Services.AnimationConfig.TargetFps);
 
-        // ─── Apply to expanded view ───
         ThumbnailImage.BeginAnimation(OpacityProperty, outFade);
         ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, outScale);
         ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, outScale);
@@ -390,7 +375,6 @@ public partial class MainWindow
         ThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, inScale);
         ThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, inBlurExpanded);
 
-        // ─── Apply to compact view ───
         CompactThumbnail.BeginAnimation(OpacityProperty, outFade);
         CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, outScale);
         CompactThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, outScale);
@@ -405,7 +389,6 @@ public partial class MainWindow
             if (_thumbnailSwitchGeneration != generation) return;
             _isThumbnailSwitchActive = false;
 
-            // Stop & clear all animations.
             ThumbnailImage.BeginAnimation(OpacityProperty, null);
             ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -424,7 +407,6 @@ public partial class MainWindow
             CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
-            // Promote overlay → base (use actual overlay source in case it was coalesced).
             var finalThumb = ThumbnailImageNext.Source ?? newThumb;
             ThumbnailImage.Source = finalThumb;
             CompactThumbnail.Source = finalThumb;
@@ -438,7 +420,6 @@ public partial class MainWindow
             ThumbnailImageNext.Visibility = Visibility.Collapsed;
             CompactThumbnailNext.Visibility = Visibility.Collapsed;
 
-            // Reset all transient state.
             ThumbnailImage.Opacity = 1.0;
             CompactThumbnail.Opacity = 1.0;
             ThumbnailImageNext.Opacity = 0.0;
@@ -468,7 +449,6 @@ public partial class MainWindow
     {
         _isThumbnailSwitchActive = false;
 
-        // Stop every active animation on both layers.
         ThumbnailImage.BeginAnimation(OpacityProperty, null);
         ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
         ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -491,7 +471,6 @@ public partial class MainWindow
         CompactThumbnailNextScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         CompactThumbnailNextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
 
-        // Reset transforms + blur.
         ThumbnailOutScale.ScaleX = 1.0;
         ThumbnailOutScale.ScaleY = 1.0;
         CompactThumbnailOutScale.ScaleX = 1.0;
@@ -514,7 +493,6 @@ public partial class MainWindow
             CompactThumbnail.Source = resolvedThumb;
         }
 
-        // Clear overlay so it doesn't bleed through on the next frame.
         ThumbnailImageNext.Source = null;
         CompactThumbnailNext.Source = null;
         ThumbnailImageNext.Visibility = Visibility.Collapsed;
@@ -529,7 +507,6 @@ public partial class MainWindow
     {
         _isThumbnailSwitchActive = false;
 
-        // Stop animations on expanded layers (these will be used by expand).
         ThumbnailImage.BeginAnimation(OpacityProperty, null);
         ThumbnailImage.BeginAnimation(Image.SourceProperty, null);
         ThumbnailOutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -543,7 +520,6 @@ public partial class MainWindow
 
         CompactThumbnail.BeginAnimation(Image.SourceProperty, null);
 
-        // Capture current animated values before cancelling to prevent snap-back.
         double compactOutScaleX = CompactThumbnailOutScale.ScaleX;
         double compactOutScaleY = CompactThumbnailOutScale.ScaleY;
         double compactOutBlur = CompactThumbnailOutBlur.Radius;
@@ -564,7 +540,6 @@ public partial class MainWindow
         CompactThumbnail.BeginAnimation(OpacityProperty, null);
         CompactThumbnail.Opacity = compactThumbOpacity;
 
-        // Reset expanded layer transforms (these are needed clean for expand).
         ThumbnailOutScale.ScaleX = 1.0;
         ThumbnailOutScale.ScaleY = 1.0;
         ThumbnailNextScale.ScaleX = 1.0;
@@ -581,7 +556,6 @@ public partial class MainWindow
             CompactThumbnail.Source = resolvedThumb;
         }
 
-        // Clear overlay layers.
         ThumbnailImageNext.Source = null;
         CompactThumbnailNext.Source = null;
         ThumbnailImageNext.Visibility = Visibility.Collapsed;
@@ -615,8 +589,6 @@ public partial class MainWindow
     {
         double currentOpacity = Math.Clamp(MusicViz.Opacity, 0.0, 1.0);
 
-        // Promote the current animated value before clearing the animation. Otherwise WPF
-        // falls back to the old base opacity, which can make the visualizer blink on polling updates.
         MusicViz.Opacity = currentOpacity;
         MusicViz.BeginAnimation(OpacityProperty, null);
         MusicViz.Visibility = Visibility.Visible;
@@ -665,7 +637,6 @@ public partial class MainWindow
                     if (_mediaDisplayController.ShouldAnimateCompactThumbnail(info))
                     {
                         _lastAnimatedTrackSignature = _mediaDisplayController.LastAnimatedTrackSignature;
-                        // Don't animate thumbnail while clipboard notification is showing
                         if (!_isClipboardPeekActive)
                         {
                             AnimateThumbnailSwitchOnly(info.Thumbnail);
@@ -673,10 +644,9 @@ public partial class MainWindow
                         }
                     }
                 }
-                
+
                 if (info != null)
                 {
-                    // Don't restore MusicViz while clipboard notification is showing
                     if (!_isClipboardPeekActive)
                     {
                         MusicViz.IsPlaying = info.IsPlaying;
@@ -694,7 +664,6 @@ public partial class MainWindow
 
         _isMusicCompactMode = shouldBeCompact;
 
-        // Reposition the privacy dot (if shown) so it clears or restores around the visualizer.
         if (_privacyIndicatorsVisible) UpdatePrivacyDotPosition();
 
         if (!_isExpanded)
@@ -748,7 +717,6 @@ public partial class MainWindow
                 {
                     ResetCompactThumbnailRestingState();
                 }
-                // Don't switch to MusicCompactContent while clipboard notification is active
                 if (!_isClipboardPeekActive)
                 {
                     FadeSwitch(CollapsedContent, MusicCompactContent);
@@ -783,7 +751,6 @@ public partial class MainWindow
             return;
         }
 
-        // Start from scale 0 and opacity 0
         CompactThumbnailScale.ScaleX = 0.0;
         CompactThumbnailScale.ScaleY = 0.0;
         CompactThumbnailBorder.Opacity = 0.0;
@@ -791,13 +758,11 @@ public partial class MainWindow
         var duration = TimeSpan.FromMilliseconds(450);
         var dur = new Duration(duration);
 
-        // Scale animation: 0 → 1 with soft spring for a bouncy pop-in
         var scaleAnimX = MakeAnim(0.0, 1.0, dur, _easeSoftSpring);
         var scaleAnimY = MakeAnim(0.0, 1.0, dur, _easeSoftSpring);
         Timeline.SetDesiredFrameRate(scaleAnimX, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(scaleAnimY, VNotch.Services.AnimationConfig.TargetFps);
 
-        // Opacity animation: 0 → 1, slightly faster so it's visible early
         var opacityAnim = MakeAnim(0.0, 1.0, new Duration(TimeSpan.FromMilliseconds(250)), _easeQuadOut);
         Timeline.SetDesiredFrameRate(opacityAnim, 60);
 
@@ -805,7 +770,6 @@ public partial class MainWindow
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimY);
         CompactThumbnailBorder.BeginAnimation(OpacityProperty, opacityAnim);
 
-        // Clean up after animation completes
         scaleAnimX.Completed += (s, e) =>
         {
             CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -838,18 +802,15 @@ public partial class MainWindow
 
         var dur = new Duration(TimeSpan.FromMilliseconds(260));
 
-        // Scale 1 → 0 with a slight anticipation (BackEase) for an organic shrink
         var backIn = new BackEase { EasingMode = EasingMode.EaseIn, Amplitude = 0.3 };
         var scaleAnimX = MakeAnim(1.0, 0.0, dur, backIn);
         var scaleAnimY = MakeAnim(1.0, 0.0, dur, backIn);
         Timeline.SetDesiredFrameRate(scaleAnimX, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(scaleAnimY, VNotch.Services.AnimationConfig.TargetFps);
 
-        // Opacity 1 → 0, a touch faster so it's gone by the time scale finishes
         var opacityAnim = MakeAnim(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
         Timeline.SetDesiredFrameRate(opacityAnim, 60);
 
-        // ─── MusicViz: fade out simultaneously with thumbnail ───
         MusicViz.BeginAnimation(OpacityProperty, null);
         var vizFadeOut = MakeAnim(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
         vizFadeOut.Completed += (s, e) =>
@@ -859,7 +820,6 @@ public partial class MainWindow
         };
         MusicViz.BeginAnimation(OpacityProperty, vizFadeOut);
 
-        // ─── Notch: subtle squeeze animation (shrink slightly then back) ───
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -938,11 +898,10 @@ public partial class MainWindow
     private void StartTitleShimmer()
     {
         _shimmerWanted = true;
-        if (!AmbientAnimationsAllowed) return; // intent recorded; resumes when allowed
+        if (!AmbientAnimationsAllowed) return;
         if (_isShimmerActive) return;
         _isShimmerActive = true;
 
-        // Create a shimmer gradient brush: base color → white highlight → base color
         var shimmerBrush = new LinearGradientBrush
         {
             StartPoint = new Point(0, 0.5),
@@ -950,7 +909,6 @@ public partial class MainWindow
             MappingMode = BrushMappingMode.RelativeToBoundingBox
         };
 
-        // All stops start off-screen to the left so the loop is seamless
         var stop0 = new GradientStop(Color.FromArgb(180, 255, 255, 255), -0.5);
         var stop1 = new GradientStop(Color.FromArgb(255, 255, 255, 255), -0.3);
         var stop2 = new GradientStop(Color.FromArgb(180, 255, 255, 255), -0.1);
@@ -959,7 +917,6 @@ public partial class MainWindow
         shimmerBrush.GradientStops.Add(stop1);
         shimmerBrush.GradientStops.Add(stop2);
 
-        // Apply the brush to the TrackTitle
         TrackTitle.Foreground = shimmerBrush;
 
         var duration = TimeSpan.FromMilliseconds(2500);
@@ -967,11 +924,8 @@ public partial class MainWindow
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
-        // Subtle, slow highlight sweep — cap the frame rate so this looping effect
-        // doesn't hold the compositor at full refresh rate the whole time a title shows.
         Timeline.SetDesiredFrameRate(storyboard, 30);
 
-        // Stop 0: leading edge of highlight
         var anim0 = new DoubleAnimation
         {
             From = -0.5,
@@ -982,7 +936,6 @@ public partial class MainWindow
         Storyboard.SetTargetProperty(anim0,
             new PropertyPath("(TextBlock.Foreground).(GradientBrush.GradientStops)[0].(GradientStop.Offset)"));
 
-        // Stop 1: center of highlight (bright peak)
         var anim1 = new DoubleAnimation
         {
             From = -0.3,
@@ -993,7 +946,6 @@ public partial class MainWindow
         Storyboard.SetTargetProperty(anim1,
             new PropertyPath("(TextBlock.Foreground).(GradientBrush.GradientStops)[1].(GradientStop.Offset)"));
 
-        // Stop 2: trailing edge of highlight
         var anim2 = new DoubleAnimation
         {
             From = -0.1,
@@ -1018,8 +970,6 @@ public partial class MainWindow
         StopTitleShimmerInternal();
     }
 
-    // Stops the shimmer without clearing intent, so reduce-motion / visibility toggles
-    // can pause and later resume it while the idle state persists.
     private void StopTitleShimmerInternal()
     {
         if (!_isShimmerActive) return;
@@ -1028,7 +978,6 @@ public partial class MainWindow
         _titleShimmerStoryboard?.Stop(this);
         _titleShimmerStoryboard = null;
 
-        // Restore the normal gradient brush from resources
         if (TryFindResource("TrackTitleGradient") is Brush normalBrush)
         {
             TrackTitle.Foreground = normalBrush;

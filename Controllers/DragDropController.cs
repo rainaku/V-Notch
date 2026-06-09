@@ -8,11 +8,7 @@ public sealed class DragDropController
     private readonly FileShelfController _fileShelf;
     private bool _dragAutoExpanded;
 
-    // ─── Public State ───
-
     public bool IsDragAutoExpanded => _dragAutoExpanded;
-
-    // ─── Events (MainWindow subscribes to drive UI) ───
 
     public event Action? ExpandRequested;
 
@@ -28,14 +24,10 @@ public sealed class DragDropController
 
     public event Action<string>? DropRejected;
 
-    // ─── Constructor ───
-
     public DragDropController(FileShelfController fileShelf)
     {
         _fileShelf = fileShelf;
     }
-
-    // ─── Drag Enter Logic ───
 
     public bool HandleDragEnter(bool hasFiles, bool isExpanded, bool isAnimating, bool isSecondaryView)
     {
@@ -50,7 +42,6 @@ public sealed class DragDropController
 
         if (isExpanded && isAnimating)
         {
-            // Still animating from a previous expand — will switch to secondary when ready
             return true;
         }
 
@@ -71,8 +62,6 @@ public sealed class DragDropController
         }
     }
 
-    // ─── Drag Leave Logic ───
-
     public bool HandleDragLeave()
     {
         return _dragAutoExpanded;
@@ -87,7 +76,6 @@ public sealed class DragDropController
         if (isSecondaryView && !isAnimating)
         {
             SwitchToPrimaryRequested?.Invoke();
-            // Caller should wait for animation to complete, then call CollapseAfterViewSwitch
         }
         else if (!isAnimating)
         {
@@ -102,8 +90,6 @@ public sealed class DragDropController
             CollapseRequested?.Invoke();
         }
     }
-
-    // ─── Drop Logic ───
 
     public void HandleDrop(string[]? files)
     {

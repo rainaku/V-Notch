@@ -8,19 +8,6 @@ using Xunit;
 
 namespace VNotch.Tests;
 
-/// <summary>
-/// Characterization tests pinning the CURRENT progress-prediction, seek-debounce, drag,
-/// and volume-ratio behavior of <see cref="MainWindowViewModel"/> before the progress
-/// engine moves into ProgressController (Phase 4 / Task 15).
-///
-/// The VM reads <see cref="DateTime.Now"/> directly (time is not abstracted), so the
-/// cap-seconds branches are pinned by making the elapsed time far exceed the cap — once
-/// the predicted advance is clamped to the cap it becomes exact and deterministic.
-/// The displayed position is driven via <c>MediaInfo.LastUpdated</c>, which the VM copies
-/// into its internal <c>_lastMediaUpdate</c> on a timeline update.
-///
-/// Validates: Requirements 6.1, 6.2, 6.3, 6.4, 1.4
-/// </summary>
 public class MainWindowViewModelProgressTests
 {
     private readonly FakeMediaDetectionService _media = new();
@@ -36,7 +23,6 @@ public class MainWindowViewModelProgressTests
             new FakeBatteryService(),
             new FakeDispatcherService());
 
-        // RenderProgressBar only runs when the notch is "expanded".
         _vm.IsExpandedCheck = () => true;
     }
 
@@ -66,9 +52,6 @@ public class MainWindowViewModelProgressTests
             PlaybackRate = 1.0,
             LastUpdated = lastUpdated ?? DateTimeOffset.Now
         };
-
-    // ─── Cap-seconds branches in RenderProgressBar ───
-    // elapsed = 1 hour, so the predicted advance is clamped to the cap, exactly.
 
     [Fact]
     public void RenderProgressBar_DefaultSource_CapsPredictionAt30Seconds()
@@ -111,11 +94,8 @@ public class MainWindowViewModelProgressTests
 
         _media.RaiseMediaChanged(info);
 
-        // 3600s formats with the hours branch of FormatTime.
         Assert.Equal("1:00:00", _vm.CurrentTimeText);
     }
-
-    // ─── Ratio clamp [0,1] ───
 
     [Fact]
     public void RenderProgressBar_PredictionPastDuration_ClampsRatioToOne()
@@ -126,7 +106,7 @@ public class MainWindowViewModelProgressTests
         _media.RaiseMediaChanged(info);
 
         Assert.Equal(1.0, _vm.ProgressRatio, 3);
-        Assert.Equal("0:10", _vm.CurrentTimeText); // capped to duration
+        Assert.Equal("0:10", _vm.CurrentTimeText);
     }
 
     [Fact]
@@ -140,8 +120,6 @@ public class MainWindowViewModelProgressTests
         Assert.Equal(0.0, _vm.ProgressRatio, 3);
         Assert.Equal("0:00", _vm.CurrentTimeText);
     }
-
-    // ─── FormatTime: m:ss vs h:mm:ss (via RemainingTimeText = FormatTime(duration)) ───
 
     [Fact]
     public void FormatTime_UnderOneHour_UsesMinuteSecondFormat()
@@ -168,7 +146,6 @@ public class MainWindowViewModelProgressTests
     [Fact]
     public void RenderProgressBar_ZeroDuration_ShowsDashes()
     {
-        // Indeterminate stream → no known duration → RenderProgressBar emits placeholders.
         var info = new MediaInfo
         {
             IsAnyMediaPlaying = true,
@@ -190,26 +167,20 @@ public class MainWindowViewModelProgressTests
         Assert.Equal(0.0, _vm.ProgressRatio, 3);
     }
 
-    // ─── Seek debounce window (2.5s) ───
-
     [Fact]
     public async Task SeekDebounce_IgnoresIncomingPositionWithinWindow()
     {
-        // Initial paused position at 10s.
         _media.RaiseMediaChanged(Timeline("Spotify", 100, positionSeconds: 10, playing: false,
             lastUpdated: DateTimeOffset.Now));
         Assert.Equal("0:10", _vm.CurrentTimeText);
 
-        // Seek to 50s — opens the 2.5s debounce window.
         await _vm.SeekToPosition(TimeSpan.FromSeconds(50));
         Assert.Equal(TimeSpan.FromSeconds(50), _media.LastSeek);
         Assert.Equal("0:50", _vm.CurrentTimeText);
 
-        // A stale SMTC update (still reporting 10s) for the same track arrives within the window.
         _media.RaiseMediaChanged(Timeline("Spotify", 100, positionSeconds: 10, playing: false,
             lastUpdated: DateTimeOffset.Now));
 
-        // The seeked position is retained; the stale 10s is ignored.
         Assert.Equal("0:50", _vm.CurrentTimeText);
     }
 
@@ -222,13 +193,11 @@ public class MainWindowViewModelProgressTests
         await _vm.SeekToPosition(TimeSpan.FromSeconds(50));
         Assert.Equal("0:50", _vm.CurrentTimeText);
 
-        // Wait past the 2.5s debounce window.
         Thread.Sleep(2600);
 
         _media.RaiseMediaChanged(Timeline("Spotify", 100, positionSeconds: 10, playing: false,
             lastUpdated: DateTimeOffset.Now));
 
-        // Window expired → the incoming position is accepted again.
         Assert.Equal("0:10", _vm.CurrentTimeText);
     }
 
@@ -238,12 +207,11 @@ public class MainWindowViewModelProgressTests
         _media.RaiseMediaChanged(Timeline("Spotify", 100, positionSeconds: 10, playing: false,
             lastUpdated: DateTimeOffset.Now));
 
-        await _vm.SeekRelative(20); // 10 + 20 = 30 (paused → no elapsed prediction)
+        await _vm.SeekRelative(20);
 
         Assert.Equal(TimeSpan.FromSeconds(30), _media.LastSeekAbsolute);
         Assert.Equal("0:30", _vm.CurrentTimeText);
 
-        // Stale update within the window is ignored.
         _media.RaiseMediaChanged(Timeline("Spotify", 100, positionSeconds: 10, playing: false,
             lastUpdated: DateTimeOffset.Now));
         Assert.Equal("0:30", _vm.CurrentTimeText);
@@ -255,14 +223,12 @@ public class MainWindowViewModelProgressTests
         _media.RaiseMediaChanged(Timeline("Spotify", 100, positionSeconds: 90, playing: false,
             lastUpdated: DateTimeOffset.Now));
 
-        await _vm.SeekRelative(1000); // would overshoot → clamp to duration
+        await _vm.SeekRelative(1000);
         Assert.Equal(TimeSpan.FromSeconds(100), _media.LastSeekAbsolute);
 
-        await _vm.SeekRelative(-5000); // would undershoot → clamp to zero
+        await _vm.SeekRelative(-5000);
         Assert.Equal(TimeSpan.Zero, _media.LastSeekAbsolute);
     }
-
-    // ─── Drag handling ───
 
     [Fact]
     public void Drag_IgnoresMediaUpdatesWhileDragging()
@@ -275,13 +241,11 @@ public class MainWindowViewModelProgressTests
         Assert.Equal(0.75, _vm.ProgressRatio, 3);
         Assert.Equal("1:15", _vm.CurrentTimeText);
 
-        // Incoming media update while dragging must be ignored.
         _media.RaiseMediaChanged(Timeline("Spotify", 100, positionSeconds: 90, playing: false,
             lastUpdated: DateTimeOffset.Now));
         Assert.Equal(0.75, _vm.ProgressRatio, 3);
         Assert.Equal("1:15", _vm.CurrentTimeText);
 
-        // RenderProgressBar is also frozen during drag.
         _vm.RenderProgressBar();
         Assert.Equal(0.75, _vm.ProgressRatio, 3);
 
@@ -296,10 +260,10 @@ public class MainWindowViewModelProgressTests
 
         _vm.StartDraggingProgress();
 
-        _vm.UpdateDragPosition(1.5); // clamp high
+        _vm.UpdateDragPosition(1.5);
         Assert.Equal(1.0, _vm.ProgressRatio, 3);
 
-        _vm.UpdateDragPosition(-0.5); // clamp low
+        _vm.UpdateDragPosition(-0.5);
         Assert.Equal(0.0, _vm.ProgressRatio, 3);
 
         _vm.StopDraggingProgress();
@@ -312,11 +276,9 @@ public class MainWindowViewModelProgressTests
             lastUpdated: DateTimeOffset.Now));
 
         Assert.Equal(TimeSpan.FromSeconds(50), _vm.GetDragSeekPosition(0.5));
-        Assert.Equal(TimeSpan.FromSeconds(100), _vm.GetDragSeekPosition(1.5)); // clamp high
-        Assert.Equal(TimeSpan.Zero, _vm.GetDragSeekPosition(-0.5));            // clamp low
+        Assert.Equal(TimeSpan.FromSeconds(100), _vm.GetDragSeekPosition(1.5));
+        Assert.Equal(TimeSpan.Zero, _vm.GetDragSeekPosition(-0.5));
     }
-
-    // ─── Volume ratio → icon thresholds ───
 
     [Fact]
     public void SetVolumeFromRatio_MidRange_SetsVolumeAndIcon()
@@ -325,7 +287,7 @@ public class MainWindowViewModelProgressTests
 
         Assert.Equal(0.5f, _vm.CurrentVolume);
         Assert.Equal(0.5f, _volume.LastSetVolume);
-        Assert.Equal("\uE994", _vm.VolumeIconText); // 0.33 ≤ v < 0.66
+        Assert.Equal("\uE994", _vm.VolumeIconText);
     }
 
     [Fact]
@@ -334,7 +296,7 @@ public class MainWindowViewModelProgressTests
         _vm.SetVolumeFromRatio(1.5f);
 
         Assert.Equal(1.0f, _vm.CurrentVolume);
-        Assert.Equal("\uE995", _vm.VolumeIconText); // v ≥ 0.66
+        Assert.Equal("\uE995", _vm.VolumeIconText);
     }
 
     [Fact]
@@ -343,7 +305,7 @@ public class MainWindowViewModelProgressTests
         _vm.SetVolumeFromRatio(-0.5f);
 
         Assert.Equal(0f, _vm.CurrentVolume);
-        Assert.Equal("\uE74F", _vm.VolumeIconText); // v ≤ 0.01
+        Assert.Equal("\uE74F", _vm.VolumeIconText);
     }
 
     [Fact]
@@ -351,6 +313,6 @@ public class MainWindowViewModelProgressTests
     {
         _vm.SetVolumeFromRatio(0.1f);
 
-        Assert.Equal("\uE993", _vm.VolumeIconText); // 0.01 < v < 0.33
+        Assert.Equal("\uE993", _vm.VolumeIconText);
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 
 namespace VNotch.Services;
@@ -9,11 +9,8 @@ public class MediaSourceCache
     private readonly string _cachePath;
     private readonly int _capacity;
 
-    // Stores key -> source value.
     private readonly Dictionary<string, string> _cache = new(StringComparer.Ordinal);
-    // Tracks usage recency: front = most recently used, back = least recently used.
     private readonly LinkedList<string> _lru = new();
-    // Maps a key to its node in the LRU list for O(1) moves/removals.
     private readonly Dictionary<string, LinkedListNode<string>> _nodes = new(StringComparer.Ordinal);
 
     private readonly object _lock = new();
@@ -161,8 +158,6 @@ public class MediaSourceCache
         }
     }
 
-    // Adds or updates an entry and marks it most recently used.
-    // Caller must hold _lock. Returns true if the stored value changed.
     private bool SetEntry(string key, string source)
     {
         bool changed = !_cache.TryGetValue(key, out var existing) ||
@@ -173,7 +168,6 @@ public class MediaSourceCache
         return changed;
     }
 
-    // Marks a key as most recently used. Caller must hold _lock.
     private void Touch(string key)
     {
         if (_nodes.TryGetValue(key, out var node))
@@ -187,7 +181,6 @@ public class MediaSourceCache
         }
     }
 
-    // Evicts least-recently-used entries until within capacity. Caller must hold _lock.
     private void Evict()
     {
         while (_cache.Count > _capacity && _lru.Last is { } last)

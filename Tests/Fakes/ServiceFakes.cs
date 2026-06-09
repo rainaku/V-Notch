@@ -5,10 +5,6 @@ using VNotch.Services;
 
 namespace VNotch.Tests.Fakes;
 
-/// <summary>
-/// Dispatcher fake that runs work synchronously so tests can observe the result
-/// of <c>BeginInvoke</c>/<c>Invoke</c> immediately, without a live WPF dispatcher.
-/// </summary>
 public sealed class FakeDispatcherService : IDispatcherService
 {
     public void BeginInvoke(Action action) => action();
@@ -16,10 +12,6 @@ public sealed class FakeDispatcherService : IDispatcherService
     public bool CheckAccess() => true;
 }
 
-/// <summary>
-/// Media-detection fake. Lets tests push <see cref="MediaInfo"/> through the
-/// <see cref="MediaChanged"/> event and records seek calls. No live SMTC.
-/// </summary>
 public sealed class FakeMediaDetectionService : IMediaDetectionService
 {
     public event EventHandler<MediaInfo>? MediaChanged;
@@ -64,7 +56,6 @@ public sealed class FakeMediaDetectionService : IMediaDetectionService
     public void Dispose() { }
 }
 
-/// <summary>Settings fake backed by an in-memory instance.</summary>
 public sealed class FakeSettingsService : ISettingsService
 {
     private NotchSettings _settings;
@@ -82,7 +73,6 @@ public sealed class FakeSettingsService : ISettingsService
     }
 }
 
-/// <summary>Volume fake recording the last value pushed by the ViewModel.</summary>
 public sealed class FakeVolumeService : IVolumeService
 {
     private float _volume;
@@ -120,7 +110,6 @@ public sealed class FakeVolumeService : IVolumeService
     public void Dispose() { }
 }
 
-/// <summary>Battery fake returning a fixed snapshot.</summary>
 public sealed class FakeBatteryService : IBatteryService
 {
     private readonly BatteryInfo _info;

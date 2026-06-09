@@ -5,12 +5,6 @@ using Xunit;
 
 namespace VNotch.Tests;
 
-/// <summary>
-/// Characterization tests pinning the CURRENT compact-mode / thumbnail / track-identity
-/// decisions of <see cref="MediaDisplayController"/> before it moves into MediaPresenter
-/// (Phase 4 / Task 16). The controller is stateless of any WPF Window — state is passed in.
-/// Validates: Requirements 6.1, 6.2, 6.4, 1.4
-/// </summary>
 public class MediaDisplayControllerTests
 {
     private readonly MediaDisplayController _sut = new();
@@ -79,7 +73,6 @@ public class MediaDisplayControllerTests
     {
         var info = Track("Song", thumb: NewThumb());
         Assert.True(_sut.ShouldAnimateCompactThumbnail(info));
-        // Same track identity → no re-animation
         Assert.False(_sut.ShouldAnimateCompactThumbnail(Track("Song", thumb: NewThumb())));
     }
 
@@ -138,10 +131,8 @@ public class MediaDisplayControllerTests
     [Fact]
     public void ProcessMediaUpdate_StaleThumbnailOnlyUpdate_IsIgnored()
     {
-        // Establish current track.
         _sut.ProcessMediaUpdate(Track("Song", thumb: NewThumb()), true, false, false, false);
 
-        // Thumbnail-only update belonging to a DIFFERENT track → ignored.
         var stale = Track("OtherSong", thumb: NewThumb());
         stale.IsThumbnailOnlyUpdate = true;
 
@@ -209,7 +200,6 @@ public class MediaDisplayControllerTests
     [Fact]
     public void ProcessMediaUpdate_GenericArtist_FallsBackToSource()
     {
-        // CurrentArtist == "YouTube" is treated as generic → falls back to rendered source.
         var result = _sut.ProcessMediaUpdate(Track("Song", artist: "YouTube", source: "YouTube", thumb: NewThumb()),
             true, false, false, false);
 
@@ -240,7 +230,6 @@ public class MediaDisplayControllerTests
         Assert.Equal("", _sut.LastAnimatedTrackSignature);
         Assert.True(_sut.ThumbnailSwitchGeneration > genBefore);
 
-        // After reset, the next track is treated as the first again.
         var result = _sut.ProcessMediaUpdate(Track("Song", thumb: NewThumb()), true, false, false, false);
         Assert.Equal(ThumbnailAction.RevealFirst, result.ThumbnailAction);
     }

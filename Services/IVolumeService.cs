@@ -1,8 +1,8 @@
-﻿namespace VNotch.Services;
+namespace VNotch.Services;
 
 public interface IVolumeService : IDisposable
 {
-    
+
     bool IsAvailable { get; }
 
     float GetVolume();

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,23 +15,20 @@ public sealed class FileShelfController : IDisposable
 
     private readonly NotchSettings _settings;
     private readonly ISettingsService _settingsService;
-    private readonly List<string> _filesList = new();           // ordered (for UI index/iteration)
-    private readonly HashSet<string> _filesSet = new(StringComparer.OrdinalIgnoreCase); // O(1) lookup
+    private readonly List<string> _filesList = new();
+    private readonly HashSet<string> _filesSet = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _selectedFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _pendingFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _pinnedFiles = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, FileSystemWatcher> _watchers = new(); // UI-thread only
+    private readonly Dictionary<string, FileSystemWatcher> _watchers = new();
     private readonly Queue<string> _addQueue = new();
     private readonly object _lock = new();
     private readonly Dispatcher _dispatcher;
     private bool _isProcessingQueue = false;
 
-    // Cached snapshots — invalidated on mutation, avoids allocating on every property read.
     private List<string>? _filesSnapshot;
     private int _snapshotVersion;
     private int _lastSnapshotVersion = -1;
-
-    // ─── Public State ─── NOTE: Properties that read _filesList/_pendingFiles are guarded by _lock
 
     public IReadOnlyList<string> Files
     {
@@ -57,7 +54,6 @@ public sealed class FileShelfController : IDisposable
     public bool IsFull { get { lock (_lock) return (_filesList.Count + _pendingFiles.Count) >= MaxFiles; } }
     public bool IsLimitUnlocked => _settings.IsShelfUploadLimitUnlocked;
 
-    // ─── Events ───
     public event Action<string>? FileReadyToAdd;
     public event Action? AddQueueDrained;
     public event Action? LayoutRefreshRequested;
@@ -75,8 +71,6 @@ public sealed class FileShelfController : IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
     }
     private void InvalidateSnapshot() => _snapshotVersion++;
-
-    // ─── Drop Validation ───
 
     public enum DropResult
     {
@@ -127,7 +121,6 @@ public sealed class FileShelfController : IDisposable
         }
     }
 
-    // ─── File Add (Sequential Queue) ───
     public void EnqueueFiles(string[] filePaths)
     {
         bool shouldProcess = false;
@@ -158,7 +151,6 @@ public sealed class FileShelfController : IDisposable
         string? filePath = null;
         bool queueEmpty = false;
 
-        // Phase 1: dequeue under lock
         lock (_lock)
         {
             if (_addQueue.Count == 0)
@@ -180,10 +172,8 @@ public sealed class FileShelfController : IDisposable
             return;
         }
 
-        // Phase 2: I/O check outside lock (avoids blocking other threads on disk access)
         bool fileExists = File.Exists(filePath!) || Directory.Exists(filePath!);
 
-        // Phase 3: commit under lock
         bool shouldAdd = false;
         if (fileExists)
         {
@@ -208,13 +198,11 @@ public sealed class FileShelfController : IDisposable
         }
         else
         {
-            // File gone or duplicate — skip, try next
             ProcessNextRequested?.Invoke();
         }
     }
     public void AddFileDirect(string filePath)
     {
-        // Quick duplicate/capacity check before I/O
         lock (_lock)
         {
             if ((_filesList.Count + _pendingFiles.Count) >= MaxFiles
@@ -222,11 +210,9 @@ public sealed class FileShelfController : IDisposable
                 return;
         }
 
-        // I/O outside lock
         if (!File.Exists(filePath) && !Directory.Exists(filePath))
             return;
 
-        // Commit under lock (re-check since state may have changed)
         lock (_lock)
         {
             if ((_filesList.Count + _pendingFiles.Count) >= MaxFiles
@@ -241,8 +227,6 @@ public sealed class FileShelfController : IDisposable
         CapacityChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
     }
-
-    // ─── Selection ───
 
     public bool IsSelected(string path) { lock (_lock) return _selectedFiles.Contains(path); }
     public void Select(string path)
@@ -319,11 +303,9 @@ public sealed class FileShelfController : IDisposable
         }
     }
 
-    // ─── File Removal ───
     public void RemoveFiles(IEnumerable<string> filePaths)
     {
         var toRemove = new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
-        // Pinned files cannot be removed — filter them out.
         lock (_lock) toRemove.ExceptWith(_pinnedFiles);
         if (toRemove.Count == 0) return;
 
@@ -343,7 +325,6 @@ public sealed class FileShelfController : IDisposable
     }
     public void RemoveFile(string filePath)
     {
-        // Pinned files cannot be removed.
         lock (_lock) { if (_pinnedFiles.Contains(filePath)) return; }
 
         lock (_lock)
@@ -359,12 +340,10 @@ public sealed class FileShelfController : IDisposable
     }
     public List<string> GetSelectedForDeletion() { lock (_lock) return _selectedFiles.Where(f => !_pinnedFiles.Contains(f)).ToList(); }
 
-    // ─── Drag Out ───
     public string[] GetDragFiles() { lock (_lock) return _selectedFiles.ToArray(); }
     public void HandleDragMoveOut(string[] draggedFiles)
     {
         var toRemove = new HashSet<string>(draggedFiles, StringComparer.OrdinalIgnoreCase);
-        // Pinned files cannot be dragged out.
         lock (_lock) toRemove.ExceptWith(_pinnedFiles);
         if (toRemove.Count == 0) return;
 
@@ -381,8 +360,6 @@ public sealed class FileShelfController : IDisposable
         LayoutRefreshRequested?.Invoke();
     }
 
-    // ─── Pin ───
-
     public bool IsPinned(string path) { lock (_lock) return _pinnedFiles.Contains(path); }
 
     public void TogglePin(string path)
@@ -395,7 +372,6 @@ public sealed class FileShelfController : IDisposable
                 _pinnedFiles.Add(path);
         }
         SortPinnedFirst();
-        // Force full rebuild by invalidating snapshot (pin icon needs re-render)
         lock (_lock) InvalidateSnapshot();
         PinStateChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
@@ -434,7 +410,6 @@ public sealed class FileShelfController : IDisposable
         }
     }
 
-    // ─── Unlock ───
     public void UnlockLimit()
     {
         _settings.IsShelfUploadLimitUnlocked = true;
@@ -444,12 +419,9 @@ public sealed class FileShelfController : IDisposable
 
     public void UpdateSettings(NotchSettings newSettings)
     {
-        // Only sync the fields this controller cares about
         _settings.IsShelfUploadLimitUnlocked = newSettings.IsShelfUploadLimitUnlocked;
         CapacityChanged?.Invoke();
     }
-
-    // ─── Capacity Info (for UI) ───
 
     public string GetCountDisplayText()
     {
@@ -478,8 +450,6 @@ public sealed class FileShelfController : IDisposable
         }
     }
 
-    // ─── File Rename (external) ───
-
     public void HandleExternalRename(string oldPath, string newPath)
     {
         lock (_lock)
@@ -503,8 +473,6 @@ public sealed class FileShelfController : IDisposable
         LayoutRefreshRequested?.Invoke();
     }
 
-    // ─── File Watching ─── IMPORTANT: WatchDirectory/UnwatchDirectory access _watchers without _lock
-
     private void WatchDirectory(string filePath)
     {
         System.Diagnostics.Debug.Assert(_dispatcher.CheckAccess(), "WatchDirectory must be called on UI thread");
@@ -525,7 +493,6 @@ public sealed class FileShelfController : IDisposable
         }
         catch (Exception ex)
         {
-            // Directory may not exist, be inaccessible, or on a non-watchable filesystem (network share)
             RuntimeLog.Error("SHELF-WATCH", ex.ToString());
             FileWatchFailed?.Invoke(dir, ex);
         }
@@ -564,7 +531,6 @@ public sealed class FileShelfController : IDisposable
 
     private void OnFileExternallyDeleted(object sender, FileSystemEventArgs e)
     {
-        // FileSystemWatcher fires on a thread pool thread — marshal to UI thread
         _dispatcher.BeginInvoke(() =>
         {
             bool shouldNotify;
@@ -579,7 +545,6 @@ public sealed class FileShelfController : IDisposable
 
     private void OnFileExternallyRenamed(object sender, RenamedEventArgs e)
     {
-        // FileSystemWatcher fires on a thread pool thread — marshal to UI thread
         _dispatcher.BeginInvoke(() =>
         {
             bool shouldNotify;
@@ -591,8 +556,6 @@ public sealed class FileShelfController : IDisposable
                 FileExternallyRenamed?.Invoke(e.OldFullPath, e.FullPath);
         });
     }
-
-    // ─── Dispose ───
 
     public void Dispose()
     {

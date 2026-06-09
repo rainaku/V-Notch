@@ -9,10 +9,6 @@ public class WeatherUpdateEventArgs : EventArgs
     public WeatherInfo Weather { get; init; } = null!;
 }
 
-/// <summary>
-/// Periodically refreshes the current-location weather and raises <see cref="WeatherUpdated"/>.
-/// Refreshes immediately on start, then every 15 minutes.
-/// </summary>
 public class WeatherModule : NotchModuleBase
 {
     private readonly IWeatherService _weatherService;
@@ -31,9 +27,6 @@ public class WeatherModule : NotchModuleBase
 
     protected override void OnTick()
     {
-        // OnTick runs on the UI dispatcher thread (DispatcherTimer). Fire-and-forget the
-        // async fetch; the continuation resumes on the UI thread so the event handler can
-        // touch UI elements directly.
         _ = RefreshAsync();
     }
 

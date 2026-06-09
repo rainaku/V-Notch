@@ -7,33 +7,16 @@ using VNotch.Services;
 
 namespace VNotch.Modules;
 
-/// <summary>
-/// Polls live system resource usage — total CPU%, physical RAM used/total, and the
-/// aggregate network up/down rate — and raises <see cref="StatsUpdated"/> once per
-/// second so the notch can show an at-a-glance system monitor widget.
-///
-/// CPU, available RAM and network throughput are read through Windows
-/// <see cref="PerformanceCounter"/>s. Total physical memory has no live counter, so it
-/// is read once at start via <c>GlobalMemoryStatusEx</c>. Every counter access is
-/// defensive: a missing/renamed instance (e.g. a VPN NIC that disappears) is skipped
-/// rather than allowed to break the whole tick, and the base class also wraps OnTick in
-/// try/catch.
-/// </summary>
 public sealed class SystemMonitorModule : NotchModuleBase
 {
     public override string ModuleName => "SystemMonitor";
 
-    // 1s gives a responsive-but-cheap glance. The first read of CPU / network counters
-    // returns 0 by design, so the immediate tick fired on Start just primes them and the
-    // first meaningful value lands one interval later.
     public override TimeSpan? TickInterval => TimeSpan.FromSeconds(1);
 
     private PerformanceCounter? _cpuCounter;
     private readonly List<PerformanceCounter> _netReceivedCounters = new();
     private readonly List<PerformanceCounter> _netSentCounters = new();
 
-    // Usable physical memory the OS manages (excludes hardware-reserved). Used to derive
-    // "in use". Installed memory is what Task Manager shows as the headline total.
     private ulong _usablePhysicalBytes;
     private ulong _installedPhysicalBytes;
 
@@ -49,19 +32,12 @@ public sealed class SystemMonitorModule : NotchModuleBase
         InitNetworkCounters();
     }
 
-    /// <summary>
-    /// Initialises the CPU counter to match the figure Task Manager reports. Task Manager
-    /// (Windows 8+) uses "Processor Information(_Total)\% Processor Utility", which factors
-    /// in turbo/frequency scaling and so reads higher than the classic
-    /// "Processor(_Total)\% Processor Time". We prefer Utility and fall back to the legacy
-    /// counter on systems where it is unavailable.
-    /// </summary>
     private void InitCpuCounter()
     {
         try
         {
             _cpuCounter = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total");
-            _cpuCounter.NextValue(); // prime; throws here if the instance/counter is bad
+            _cpuCounter.NextValue();
             return;
         }
         catch (Exception ex)
@@ -104,8 +80,6 @@ public sealed class SystemMonitorModule : NotchModuleBase
         }
     }
 
-    // Loopback / tunnelling pseudo-adapters report traffic that isn't real connectivity,
-    // so they're excluded from the up/down totals.
     private static bool IsPseudoInterface(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return true;
@@ -120,8 +94,6 @@ public sealed class SystemMonitorModule : NotchModuleBase
         double cpu = SafeRead(_cpuCounter);
         cpu = Math.Clamp(cpu, 0, 100);
 
-        // Read live memory each tick from the OS. dwMemoryLoad is the same "in use"
-        // percentage Task Manager shows; "in use" bytes = usable - available.
         ulong used = 0;
         double ramPercent = 0;
         var mem = ReadMemoryStatus();
@@ -191,7 +163,6 @@ public sealed class SystemMonitorModule : NotchModuleBase
 
     #region Physical memory (GlobalMemoryStatusEx / GetPhysicallyInstalledSystemMemory)
 
-    /// <summary>Reads a live memory snapshot. Returns null if the call fails.</summary>
     private static MEMORYSTATUSEX? ReadMemoryStatus()
     {
         try
@@ -207,14 +178,8 @@ public sealed class SystemMonitorModule : NotchModuleBase
         return null;
     }
 
-    /// <summary>Usable physical memory managed by the OS (excludes hardware-reserved).</summary>
     private static ulong ReadUsablePhysicalMemory() => ReadMemoryStatus()?.ullTotalPhys ?? 0;
 
-    /// <summary>
-    /// Total installed physical memory in bytes, read from SMBIOS. This is the headline
-    /// figure Task Manager displays (e.g. 32.0 GB) and is slightly larger than the usable
-    /// amount. Returns 0 if unavailable so the caller can fall back to usable memory.
-    /// </summary>
     private static ulong ReadInstalledPhysicalMemory()
     {
         try

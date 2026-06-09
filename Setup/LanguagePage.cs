@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -88,7 +88,6 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
 
     private Border CreateLanguageCard(string code, string title, string subtitle, string langCode)
     {
-        // Left: country code badge
         var codeBadge = new Border
         {
             Width = 52,
@@ -108,7 +107,6 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
             }
         };
 
-        // Middle: title + subtitle
         var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         textStack.Children.Add(new TextBlock
         {
@@ -127,7 +125,6 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
             FontFamily = SFProText
         });
 
-        // Right: checkmark
         var checkmark = new TextBlock
         {
             Text = "✓",
@@ -211,7 +208,6 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
 
         if (animate)
         {
-            // Animate border color
             var borderAnim = new ColorAnimation(
                 ((SolidColorBrush)targetBorder).Color,
                 TimeSpan.FromMilliseconds(250))
@@ -226,7 +222,6 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             };
 
-            // Ensure we have animatable brushes
             if (card.BorderBrush is not SolidColorBrush || card.BorderBrush.IsFrozen)
                 card.BorderBrush = new SolidColorBrush(((SolidColorBrush)card.BorderBrush).Color);
             if (card.Background is not SolidColorBrush || card.Background.IsFrozen)
@@ -235,7 +230,6 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
             ((SolidColorBrush)card.BorderBrush).BeginAnimation(SolidColorBrush.ColorProperty, borderAnim);
             ((SolidColorBrush)card.Background).BeginAnimation(SolidColorBrush.ColorProperty, bgAnim);
 
-            // Scale press animation on selected card
             if (isSelected && card.RenderTransform is ScaleTransform st)
             {
                 var press = new DoubleAnimation(0.97, TimeSpan.FromMilliseconds(100))
@@ -264,7 +258,6 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
             card.BorderBrush = targetBorder;
         }
 
-        // Checkmark animation
         if (card.Child is Grid grid)
         {
             foreach (var child in grid.Children)

@@ -1,4 +1,4 @@
-﻿using System.Windows.Threading;
+using System.Windows.Threading;
 
 namespace VNotch.Services;
 public sealed class Debouncer : IDisposable
@@ -77,7 +77,6 @@ public void Throttle(Action action)
         var now = DateTime.UtcNow;
         if ((now - _lastExecutionUtc) >= _interval)
         {
-            // Enough time has passed — execute immediately
             _lastExecutionUtc = now;
             _timer.Stop();
             _pendingAction = null;
@@ -85,7 +84,6 @@ public void Throttle(Action action)
         }
         else
         {
-            // Within throttle window — defer
             _pendingAction = action;
             if (!_timer.IsEnabled)
                 _timer.Start();

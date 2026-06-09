@@ -30,13 +30,11 @@ public partial class MainWindow
     private DispatcherTimer? _countdownTimer;
 
     private DispatcherTimer? _countdownRepeatTimer;
-    private int _countdownRepeatDirection; // +1 or -1
+    private int _countdownRepeatDirection;
     private int _countdownRepeatCount;
     private const int RepeatInitialDelayMs = 400;
     private const int RepeatFastIntervalMs = 80;
-    private const int RepeatAccelerateAfter = 4; // ticks before speeding up
-
-
+    private const int RepeatAccelerateAfter = 4;
 
     #region Timer View Navigation
 
@@ -70,7 +68,6 @@ public partial class MainWindow
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
 
-        // Hide media background blur overlay only (preserve progress bar gradient & tint colors)
         HideMediaBackgroundOverlay();
         if (LyricsBlurBackground != null && LyricsBlurBackground.Visibility == Visibility.Visible)
         {
@@ -96,8 +93,6 @@ public partial class MainWindow
 
         NotchBorder.IsHitTestVisible = false;
 
-        // Size the host window and pin the clock-view content up-front so nothing
-        // re-layouts mid-animation (prevents the enter stutter).
         ApplyClockViewWindowSize();
         PrepareClockViewContentSize();
         RefreshClockView();
@@ -169,11 +164,9 @@ public partial class MainWindow
             TimerContent.Opacity = 1;
             TimerContent.BeginAnimation(OpacityProperty, null);
             TimerContent.RenderTransform = null;
-            // Restore child element opacity (may have been faded out during previous collapse)
             RestoreTimerContentOpacity();
         };
 
-        // Restore child opacity early so elements are visible during fade-in animation
         RestoreTimerContentOpacity();
 
         TimerContent.BeginAnimation(OpacityProperty, fadeIn);
@@ -181,8 +174,6 @@ public partial class MainWindow
         timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
 
-        // Animate the notch border to the widened clock-view surface (content is already
-        // sized + positioned, so this only clip-reveals it — no per-frame re-layout).
         AnimateClockViewNotchResize(
             NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _expandedWidth,
             NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight,
@@ -212,8 +203,6 @@ public partial class MainWindow
         UpdateTimerNavIconsState();
         NotchBorder.IsHitTestVisible = false;
 
-        // Size the host window and pin the clock-view content up-front so nothing
-        // re-layouts mid-animation (prevents the enter stutter).
         ApplyClockViewWindowSize();
         PrepareClockViewContentSize();
         RefreshClockView();
@@ -285,11 +274,9 @@ public partial class MainWindow
             TimerContent.Opacity = 1;
             TimerContent.BeginAnimation(OpacityProperty, null);
             TimerContent.RenderTransform = null;
-            // Restore child element opacity (may have been faded out during previous collapse)
             RestoreTimerContentOpacity();
         };
 
-        // Restore child opacity early so elements are visible during fade-in animation
         RestoreTimerContentOpacity();
 
         TimerContent.BeginAnimation(OpacityProperty, fadeIn);
@@ -297,8 +284,6 @@ public partial class MainWindow
         timerScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         timerScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
 
-        // Animate the notch border to the widened clock-view surface (content is already
-        // sized + positioned, so this only clip-reveals it — no per-frame re-layout).
         AnimateClockViewNotchResize(
             NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _expandedWidth,
             NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight,
@@ -327,8 +312,6 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(30);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        // Timer scrolls down and out, primary scrolls down into view from above.
-
         var timerTranslate = new TranslateTransform(0, 0);
         TimerContent.RenderTransform = timerTranslate;
         TimerContent.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -354,27 +337,12 @@ public partial class MainWindow
         ExpandedContent.Effect = null;
         ExpandedContent.Width = _expandedWidth - 16;
         ExpandedContent.Height = _expandedHeight - 10;
-        // The notch is still at the wide clock-view width (600) and only animates down to
-        // _expandedWidth over this transition. ExpandedContent has a FIXED width (no per-frame
-        // reflow), so by default (Stretch) it gets CENTERED inside the wide notch — which leaves
-        // the right-aligned lyric floating in the middle of the notch instead of hugging the
-        // right edge, then sliding right as the notch shrinks. Right-align it so its right edge
-        // tracks the notch's right edge throughout, keeping the lyric pinned to the right.
-        // In the final state the content fills the notch exactly, so this is identical to the
-        // default; we restore Stretch on completion.
         ExpandedContent.HorizontalAlignment = HorizontalAlignment.Right;
-        // Disable layout rounding for the duration of the notch-resize animation so the content
-        // tracks the animating notch edge smoothly instead of snapping to integer device pixels
-        // every frame (which made the right-aligned lyric shimmer left/right). Restored on
-        // completion so steady-state text stays crisp.
         ExpandedContent.UseLayoutRounding = false;
         ExpandedContent.UpdateLayout();
 
-        // Recompute progress bar + marquee at the final width so they don't jump into the reveal.
         PrepareExpandedContentLayoutForReveal();
 
-        // Restore progress bar gradient & tint colors immediately so they're visible
-        // during the fade-in (blur background will fade in after animation completes).
         if (_currentMediaInfo?.Thumbnail != null && _currentMediaInfo.IsAnyMediaPlaying)
         {
             var palette = DynamicIslandColorExtractor.GetDynamicIslandPalette(_currentMediaInfo.Thumbnail);
@@ -408,8 +376,6 @@ public partial class MainWindow
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ApplyExpandedContentRestTransform();
-            // Notch width is now fixed again — restore default layout so the content stretches
-            // to fill the notch, and re-enable rounding for crisp text.
             ExpandedContent.HorizontalAlignment = HorizontalAlignment.Stretch;
             ExpandedContent.UseLayoutRounding = true;
 
@@ -432,8 +398,6 @@ public partial class MainWindow
         ExpandedContent.BeginAnimation(OpacityProperty, primaryFadeIn);
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, primarySlideDown);
 
-        // Restore notch back to the standard expanded surface (width + height), then
-        // shrink the host window once the notch has finished collapsing.
         double currentH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _clockViewHeight;
         double currentWidthExit = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _clockViewWidth;
         AnimateClockViewNotchResize(currentWidthExit, currentH, _expandedWidth, _expandedHeight, durIn, inDelay, RestoreExpandedWindowSize);
@@ -544,8 +508,6 @@ public partial class MainWindow
         secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, springScaleX);
         secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, springScaleY);
 
-        // Restore notch back to the standard expanded surface (width + height), then
-        // shrink the host window once the notch has finished collapsing.
         double currentH2 = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _clockViewHeight;
         double currentWidthExit2 = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _clockViewWidth;
         AnimateClockViewNotchResize(currentWidthExit2, currentH2, _expandedWidth, _expandedHeight, durIn, inDelay, RestoreExpandedWindowSize);
@@ -824,8 +786,6 @@ public partial class MainWindow
             NotchBorder.BeginAnimation(HeightProperty, null);
             NotchBorder.Width = targetWidth;
             NotchBorder.Height = _timerViewHeight;
-            // Notch has finished shrinking from the (taller/wider) clock view — now it is
-            // safe to shrink the host window back to the standard footprint.
             RestoreExpandedWindowSize();
             ShowCompletionOverlayContent();
         };
@@ -910,13 +870,11 @@ public partial class MainWindow
 
     private void ShowCompletionOverlayContent()
     {
-        // Hide normal content
         ExpandedContent.Visibility = Visibility.Collapsed;
         TimerContent.Visibility = Visibility.Collapsed;
         SecondaryContent.Visibility = Visibility.Collapsed;
         SuppressCompactMediaChromeForCountdownCompletion();
 
-        // Show completion overlay
         CountdownCompleteOverlay.BeginAnimation(OpacityProperty, null);
         CountdownCompleteOverlay.RenderTransform = new TranslateTransform(0, -10);
         CountdownCompleteOverlay.Visibility = Visibility.Visible;
@@ -1037,7 +995,6 @@ public partial class MainWindow
         e.Handled = true;
         if (_isAnimating) return;
 
-        // Reset and start again in timer view
         _countdownRemaining = _countdownDuration;
         _isCountdownRunning = true;
         if (_countdownTimer == null) InitializeCountdownTimer();
@@ -1085,9 +1042,6 @@ public partial class MainWindow
         NavIconsBackground.BeginAnimation(OpacityProperty, null);
         NavIconsBackground.Visibility = Visibility.Visible;
         NavIconsBackground.Opacity = 0;
-
-        // ─── DO NOT restore here - elements need to be restored AFTER container is visible ───
-        // RestoreTimerContentOpacity(); // ← REMOVED: Too early!
 
         TimerContent.BeginAnimation(OpacityProperty, null);
         TimerContent.Visibility = Visibility.Visible;
@@ -1151,8 +1105,6 @@ public partial class MainWindow
             UpdateTimerNavIconsState();
             UpdateTimerDisplay();
 
-            // ─── Restore timer element opacity AFTER container is fully visible ───
-            // Use Dispatcher to ensure this runs after layout pass
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, () =>
             {
                 RestoreTimerContentOpacity();
@@ -1174,7 +1126,6 @@ public partial class MainWindow
         NavIconsTranslate.BeginAnimation(TranslateTransform.YProperty, navSlideIn);
         NavIconsBackground.BeginAnimation(OpacityProperty, navBgFadeIn);
 
-        // Grow back into the widened clock-view surface.
         ApplyClockViewWindowSize();
         PrepareClockViewContentSize();
         RefreshClockView();
@@ -1190,14 +1141,12 @@ public partial class MainWindow
         e.Handled = true;
         if (_isAnimating) return;
 
-        // Reset timer state and collapse
         AnimateCountdownCompleteOverlayOut();
         _countdownRemaining = _countdownDuration;
         _isTimerView = false;
         _isSecondaryView = false;
         BeginCountdownManualCollapseState();
 
-        // Collapse back to pill
         _isAnimating = true;
         var durCollapse = new Duration(TimeSpan.FromMilliseconds(400));
         var widthAnim = MakeAnim(_collapsedWidth, durCollapse, _easeExpOut6, VNotch.Services.AnimationConfig.TargetFps);
@@ -1232,7 +1181,6 @@ public partial class MainWindow
             ShelfCountBadge.Visibility = Visibility.Collapsed;
             DisableKeyboardInput();
 
-            // Restore normal collapsed content
             if (_isMusicCompactMode)
             {
                 RestoreMusicCompactPillAfterCountdownDismiss();
@@ -1249,7 +1197,6 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
-        // Reset play icon
         CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z");
         CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
     }
@@ -1259,15 +1206,13 @@ public partial class MainWindow
         _isCountdownCompleteVisible = false;
         AnimateCountdownCompleteHover(false);
 
-        // ─── Apple-Style: Fade out internal elements with staggered timing ───
         AnimateCountdownCompleteElementsFadeOut();
 
         var overlayTranslate = CountdownCompleteOverlay.RenderTransform as TranslateTransform ?? new TranslateTransform(0, 0);
         CountdownCompleteOverlay.RenderTransform = overlayTranslate;
 
-        // Delay overlay fade to let internal elements fade first
         var duration = new Duration(TimeSpan.FromMilliseconds(220));
-        var overlayDelay = TimeSpan.FromMilliseconds(80); // Start after elements begin fading
+        var overlayDelay = TimeSpan.FromMilliseconds(80);
         var fade = MakeAnim(CountdownCompleteOverlay.Opacity, 0.0, duration, _easeQuadIn, overlayDelay);
         var slide = MakeAnim(overlayTranslate.Y, 18.0, duration, _easeQuadIn, overlayDelay);
         Timeline.SetDesiredFrameRate(fade, VNotch.Services.AnimationConfig.TargetFps);
@@ -1283,17 +1228,12 @@ public partial class MainWindow
         overlayTranslate.BeginAnimation(TranslateTransform.YProperty, slide);
     }
 
-    /// <summary>
-    /// Apple-style staggered fade out for countdown completion notification elements.
-    /// Text and buttons fade out in waves before the overlay container animates.
-    /// </summary>
     private void AnimateCountdownCompleteElementsFadeOut()
     {
         int fps = VNotch.Services.AnimationConfig.TargetFps;
         var baseDuration = new Duration(TimeSpan.FromMilliseconds(160));
         var easing = _easeQuadIn;
 
-        // ─── Wave 1: Completion text (fades first) ───
         if (CountdownCompleteText != null && CountdownCompleteText.Visibility == Visibility.Visible)
         {
             double currentOpacity = CountdownCompleteText.Opacity;
@@ -1304,7 +1244,6 @@ public partial class MainWindow
                 Timeline.SetDesiredFrameRate(fadeAnim, fps);
                 CountdownCompleteText.BeginAnimation(OpacityProperty, fadeAnim);
 
-                // Subtle slide up
                 if (CountdownCompleteTextTranslate != null)
                 {
                     CountdownCompleteTextTranslate.BeginAnimation(TranslateTransform.YProperty, null);
@@ -1315,7 +1254,6 @@ public partial class MainWindow
             }
         }
 
-        // ─── Wave 2: Action buttons (restart & dismiss) ───
         var wave2Delay = TimeSpan.FromMilliseconds(30);
 
         if (CountdownRestartHost != null && CountdownRestartHost.Visibility == Visibility.Visible)
@@ -1328,7 +1266,6 @@ public partial class MainWindow
                 Timeline.SetDesiredFrameRate(fadeAnim, fps);
                 CountdownRestartHost.BeginAnimation(OpacityProperty, fadeAnim);
 
-                // Subtle slide
                 if (CountdownRestartTranslate != null)
                 {
                     CountdownRestartTranslate.BeginAnimation(TranslateTransform.YProperty, null);
@@ -1349,7 +1286,6 @@ public partial class MainWindow
                 Timeline.SetDesiredFrameRate(fadeAnim, fps);
                 CountdownDismissHost.BeginAnimation(OpacityProperty, fadeAnim);
 
-                // Subtle slide
                 if (CountdownDismissTranslate != null)
                 {
                     CountdownDismissTranslate.BeginAnimation(TranslateTransform.YProperty, null);
@@ -1360,7 +1296,6 @@ public partial class MainWindow
             }
         }
 
-        // ─── Wave 3: Background surface (fades last) ───
         var wave3Delay = TimeSpan.FromMilliseconds(50);
 
         if (CountdownCompleteSurface != null && CountdownCompleteSurface.Visibility == Visibility.Visible)
@@ -1463,7 +1398,6 @@ public partial class MainWindow
         _isCountdownCompleteVisible = false;
         AnimateCountdownCompleteHover(false);
 
-        // Stop flashing
         CountdownCompleteText.BeginAnimation(OpacityProperty, null);
         CountdownCompleteText.Opacity = 1;
         CountdownCompleteTextTranslate.BeginAnimation(TranslateTransform.YProperty, null);
@@ -1474,7 +1408,6 @@ public partial class MainWindow
         CountdownCompleteSurface.BeginAnimation(OpacityProperty, null);
         CountdownCompleteSurface.Opacity = 0;
 
-        // Hide overlay
         CountdownCompleteOverlay.Visibility = Visibility.Collapsed;
         CountdownCompleteOverlay.Opacity = 0;
     }
@@ -1501,7 +1434,6 @@ public partial class MainWindow
 
     private void ApplyCountdownStep(int direction)
     {
-        // Determine step size based on current duration
         TimeSpan step;
         if (_countdownDuration.TotalDays >= 1)
             step = TimeSpan.FromHours(1);
@@ -1510,7 +1442,6 @@ public partial class MainWindow
         else
             step = TimeSpan.FromMinutes(1);
 
-        // Max 7 days
         TimeSpan maxDuration = TimeSpan.FromDays(7);
 
         if (direction > 0 && _countdownDuration < maxDuration)
@@ -1555,7 +1486,6 @@ public partial class MainWindow
         _countdownRepeatCount++;
         ApplyCountdownStep(_countdownRepeatDirection);
 
-        // Accelerate: after a few ticks, switch to fast interval
         if (_countdownRepeatCount == RepeatAccelerateAfter && _countdownRepeatTimer != null)
         {
             _countdownRepeatTimer.Interval = TimeSpan.FromMilliseconds(RepeatFastIntervalMs);
@@ -1575,7 +1505,6 @@ public partial class MainWindow
     private void CountdownBtn_MouseLeaveOrUp(object sender, EventArgs e)
     {
         StopCountdownRepeat();
-        // Also run the normal hover-leave visual effect
         if (sender is Border button)
         {
             AnimateTimerButtonScale(button, 1.0);
@@ -1595,7 +1524,6 @@ public partial class MainWindow
 
         if (_isCountdownRunning)
         {
-            // Pause
             _isCountdownRunning = false;
             _countdownTimer?.Stop();
             CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z");
@@ -1608,7 +1536,6 @@ public partial class MainWindow
                 _countdownRemaining = _countdownDuration;
             }
 
-            // Start
             _isCountdownRunning = true;
             _countdownTimer?.Start();
             CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M224,320a16,16,0,0,1-32,0V192a16,16,0,0,1,32,0Zm96,0a16,16,0,0,1-32,0V192a16,16,0,0,1,32,0Z");
@@ -1656,9 +1583,6 @@ public partial class MainWindow
             text = $"{minutes:D2}:{seconds:D2}";
         }
 
-        // The display only changes at second granularity, but the countdown ticks every
-        // 100 ms (for a smooth progress fill). Skip the TextBlock write on the ~9/10 ticks
-        // where the visible text is unchanged.
         if (!string.Equals(text, _lastCountdownText, StringComparison.Ordinal))
         {
             _lastCountdownText = text;

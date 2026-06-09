@@ -11,21 +11,18 @@ public partial class MainWindow
 {
     #region Privacy Indicators (Mic/Camera In-Use — Single Dot)
 
-    // iOS behavior: single dot, orange = mic, green = cam, alternates when both active.
     private bool _privacyIndicatorsVisible = false;
     private PrivacyIndicatorState _lastPrivacyState = PrivacyIndicatorState.Empty;
 
-    // Right margin of the privacy dot panel within NotchContent. In compact music mode the
-    // visualizer occupies the top-right corner, so we shift the dot further left to clear it.
     private const double PrivacyDotDefaultRightMargin = 27.0;
     private const double PrivacyDotCompactMusicRightMargin = 34.0;
     private const double PrivacyDotTopMargin = 11.2;
     private const double PrivacyDotSize = 7.0;
 
-    private static readonly Color _micColor = Color.FromRgb(0xFF, 0x95, 0x00);  // Orange — mic only
-    private static readonly Color _camColor = Color.FromRgb(0x30, 0xD1, 0x58);  // Green — cam only
-    private static readonly Color _bothColor = Color.FromRgb(0x00, 0x4E, 0x92); // Navy blue — mic+cam
-    private static readonly Color _screenRecColor = Color.FromRgb(0xFF, 0x3B, 0x30); // Red — screen recording
+    private static readonly Color _micColor = Color.FromRgb(0xFF, 0x95, 0x00);
+    private static readonly Color _camColor = Color.FromRgb(0x30, 0xD1, 0x58);
+    private static readonly Color _bothColor = Color.FromRgb(0x00, 0x4E, 0x92);
+    private static readonly Color _screenRecColor = Color.FromRgb(0xFF, 0x3B, 0x30);
 
     private void PrivacyModule_StateChanged(object? sender, PrivacyIndicatorState state)
     {
@@ -67,15 +64,12 @@ public partial class MainWindow
         {
             bool suppressed = _isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive;
 
-            // Self-heal: we think the dot is visible but it isn't actually drawn — e.g. a
-            // recording started while the volume/Bluetooth/clipboard UI was up. Draw it now.
             if (!suppressed && PrivacyIndicatorPanel.Visibility != Visibility.Visible)
             {
                 ShowPrivacyDot(state);
             }
             else
             {
-                // Already visible — update color only.
                 ApplyDotColor(state, animate: true);
             }
         }
@@ -85,7 +79,6 @@ public partial class MainWindow
     {
         _privacyIndicatorsVisible = true;
 
-        // Don't show visually if volume bar or bluetooth notification or clipboard peek is active
         if (_isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive)
             return;
 
@@ -94,17 +87,13 @@ public partial class MainWindow
 
         UpdatePrivacyDotPosition();
 
-        // Set initial color
         ApplyDotColor(state, animate: false);
 
-        // Fade in panel
         var fadeIn = MakeAnim(0d, 1d, _dur350, _easeExpOut7, null);
         PrivacyIndicatorPanel.BeginAnimation(OpacityProperty, fadeIn);
 
-        // Pop-in scale
         AnimateDotIn(PrivacyDotScale);
 
-        // Start breathing
         StartBreathingAnimation(PrivacyDot);
 
         RuntimeLog.Log("PRIVACY", $"Dot shown — Mic: {state.MicrophoneInUse}, Cam: {state.CameraInUse}");
@@ -141,7 +130,6 @@ public partial class MainWindow
     private void RestorePrivacyDotVisibility()
     {
         if (!_privacyIndicatorsVisible) return;
-        // Don't restore if another suppressor is still active
         if (_isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive) return;
 
         PrivacyDot.Visibility = Visibility.Visible;
@@ -157,8 +145,6 @@ public partial class MainWindow
         StartBreathingAnimation(PrivacyDot);
     }
 
-    // Keeps the privacy dot clear of the compact-mode music visualizer (top-right corner)
-    // and vertically centered in the dynamic island pill so it lines up with the content.
     private void UpdatePrivacyDotPosition()
     {
         bool compact = _isMusicCompactMode && !_isExpanded;
@@ -167,7 +153,6 @@ public partial class MainWindow
         double top = PrivacyDotTopMargin;
         if (compact && _settings.EnableDynamicIslandMode)
         {
-            // In island mode the visualizer/thumbnail are centered at H/2 — match that.
             double h = GetCollapsedHeight();
             if (h > 0) top = Math.Max(0, (h - PrivacyDotSize) / 2.0);
         }
@@ -179,13 +164,13 @@ public partial class MainWindow
     {
         Color targetColor;
         if (state.ScreenRecordingActive)
-            targetColor = _screenRecColor; // Red — screen recording (highest priority)
+            targetColor = _screenRecColor;
         else if (state.MicrophoneInUse && state.CameraInUse)
-            targetColor = _bothColor;      // Navy — mic+cam
+            targetColor = _bothColor;
         else if (state.CameraInUse)
-            targetColor = _camColor;       // Green — cam only
+            targetColor = _camColor;
         else
-            targetColor = _micColor;       // Orange — mic only
+            targetColor = _micColor;
 
         if (animate)
         {
@@ -228,7 +213,6 @@ public partial class MainWindow
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = _easeSineInOut
         };
-        // Slow 1.4s breathing — 24fps is visually identical and lighter on the compositor.
         Timeline.SetDesiredFrameRate(breathing, 24);
         dot.BeginAnimation(OpacityProperty, breathing);
     }

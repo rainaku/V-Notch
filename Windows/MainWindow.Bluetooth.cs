@@ -87,10 +87,8 @@ public partial class MainWindow
         _bluetoothNotificationToken = token;
         _isBluetoothNotificationVisible = true;
 
-        // Hide privacy dot while bluetooth notification is visible
         SuppressPrivacyDot();
 
-        // Hide the other notification if visible
         var otherGrid = connected ? BluetoothDisconnectNotification : BluetoothNotification;
         otherGrid.Visibility = Visibility.Collapsed;
         otherGrid.Opacity = 0;
@@ -102,15 +100,12 @@ public partial class MainWindow
         activeGrid.Visibility = Visibility.Visible;
         activeGrid.Opacity = 0;
 
-        // Bounce the notch slightly to draw attention
         PlayBluetoothBounce();
 
-        // Fade out collapsed content
         CollapsedContent.BeginAnimation(OpacityProperty, null);
         CollapsedContent.Opacity = 0;
         CollapsedContent.Visibility = Visibility.Collapsed;
 
-        // Also hide music compact immediately to prevent flash
         if (MusicCompactContent.Visibility == Visibility.Visible)
         {
             MusicCompactContent.BeginAnimation(OpacityProperty, null);
@@ -118,17 +113,13 @@ public partial class MainWindow
             MusicCompactContent.Visibility = Visibility.Collapsed;
         }
 
-
-        // Animate bluetooth notification in
         var fadeIn = MakeAnim(0d, 1d, _dur350, _easeExpOut7, TimeSpan.FromMilliseconds(100));
         activeGrid.BeginAnimation(OpacityProperty, fadeIn);
 
-        // Slide up effect
         var slideUp = MakeAnim(6d, 0d, _dur350, _easeExpOut7, TimeSpan.FromMilliseconds(100));
         activeTranslate.BeginAnimation(
             TranslateTransform.YProperty, slideUp, HandoffBehavior.SnapshotAndReplace);
 
-        // Bluetooth icon pulse animation
         var iconScale = MakeAnim(0.8d, 1d, _dur400, _easeSpring, TimeSpan.FromMilliseconds(150));
         activeIconScale.BeginAnimation(ScaleTransform.ScaleXProperty, iconScale);
         activeIconScale.BeginAnimation(ScaleTransform.ScaleYProperty, iconScale);
@@ -143,7 +134,6 @@ public partial class MainWindow
         var fadeOut = MakeAnim(1d, 0d, _dur250, _easePowerIn2, null);
         fadeOut.Completed += (s, e) =>
         {
-            // If a higher-priority overlay has taken over, abandon restore.
             if (token != _bluetoothNotificationToken) return;
             if (IsCompactSlotStale(token)) return;
 
@@ -153,10 +143,8 @@ public partial class MainWindow
             _compactPillArbiter.Release(token);
             _bluetoothNotificationToken = 0;
 
-            // Restore privacy dot
             RestorePrivacyDotVisibility();
 
-            // Restore previous content
             if (_isMusicCompactMode && _currentMediaInfo != null)
             {
                 MusicCompactContent.Visibility = Visibility.Visible;

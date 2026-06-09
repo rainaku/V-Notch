@@ -14,11 +14,10 @@ public sealed class MediaSessionVolumeService
     private DateTime _cachedProcessIdsAtUtc = DateTime.MinValue;
     private HashSet<uint> _cachedProcessIds = new();
 
-    // ─── Fast-path session cache for rapid volume changes ───
     private SimpleAudioVolume? _cachedSimpleVolume;
     private string _cachedVolumeSourceAppId = "";
     private DateTime _cachedVolumeSessionAtUtc = DateTime.MinValue;
-    private const double SessionCacheLifetimeMs = 3000; // reuse session for 3s
+    private const double SessionCacheLifetimeMs = 3000;
     public bool TryGetVolume(string sourceAppId, out float volume, out bool isMuted)
     {
         float resolvedVolume = 0f;
@@ -40,7 +39,6 @@ public sealed class MediaSessionVolumeService
     {
         float target = Math.Clamp(volume, 0f, 1f);
 
-        // ─── Fast path: reuse cached SimpleAudioVolume if same source and fresh ───
         if (_cachedSimpleVolume != null &&
             string.Equals(sourceAppId, _cachedVolumeSourceAppId, StringComparison.OrdinalIgnoreCase) &&
             (DateTime.UtcNow - _cachedVolumeSessionAtUtc).TotalMilliseconds < SessionCacheLifetimeMs)
@@ -56,12 +54,10 @@ public sealed class MediaSessionVolumeService
             }
             catch
             {
-                // Session became invalid — fall through to full resolution
                 InvalidateVolumeSessionCache();
             }
         }
 
-        // ─── Slow path: resolve session and cache it ───
         return TryWithAudioSession(sourceAppId, session =>
         {
             if (_cachedSimpleVolume != null)
@@ -92,7 +88,6 @@ public sealed class MediaSessionVolumeService
     }
     public bool TryToggleMute(string sourceAppId)
     {
-        // Mute state change invalidates the cached volume session
         InvalidateVolumeSessionCache();
 
         return TryWithAudioSession(sourceAppId, session =>
@@ -174,8 +169,6 @@ public sealed class MediaSessionVolumeService
         }
     }
 
-    // ─── Process Name Resolution ───
-
     internal static HashSet<string> GetProcessNameCandidates(string sourceAppId)
     {
         var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -253,7 +246,7 @@ public sealed class MediaSessionVolumeService
                 {
                     processIds.Add((uint)process.Id);
                 }
-                catch { /* best-effort: process may have exited */ }
+                catch { }
                 finally
                 {
                     process.Dispose();

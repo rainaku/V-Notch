@@ -1,10 +1,9 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 
 namespace VNotch.Services;
 
-/// <summary>Severity levels for <see cref="RuntimeLog"/>, ordered from most to least verbose.</summary>
 public enum LogLevel
 {
     Trace = 0,
@@ -12,7 +11,6 @@ public enum LogLevel
     Info = 2,
     Warn = 3,
     Error = 4,
-    /// <summary>Disables all logging when used as the minimum level.</summary>
     None = 5
 }
 
@@ -21,13 +19,8 @@ public static class RuntimeLog
     private static readonly object _lock = new();
     private static string _logPath = Path.Combine(AppContext.BaseDirectory, "vnotch-debug.log");
     private static bool _initialized;
-    private const long MaxLogSizeBytes = 5 * 1024 * 1024; // 5 MB rotation threshold
+    private const long MaxLogSizeBytes = 5 * 1024 * 1024;
 
-    /// <summary>
-    /// Entries below this level are dropped before any string formatting or I/O. Defaults to
-    /// <see cref="LogLevel.Debug"/> in DEBUG builds and <see cref="LogLevel.Info"/> in Release,
-    /// so high-frequency Trace/Debug diagnostics stay out of shipped logs unless opted into.
-    /// </summary>
     public static LogLevel MinimumLevel { get; set; } =
 #if DEBUG
         LogLevel.Debug;
@@ -37,7 +30,6 @@ public static class RuntimeLog
 
     public static string LogPath => _logPath;
 
-    /// <summary>True when an entry at <paramref name="level"/> would actually be written.</summary>
     public static bool IsEnabled(LogLevel level) => _initialized && level >= MinimumLevel;
 
     public static void InitializeNewSession(string? fileName = null)
@@ -73,7 +65,6 @@ public static class RuntimeLog
         }
     }
 
-    // ─── Trace (most verbose; off by default in Release) ───
     public static void Trace(string category, string message) => WriteEntry(LogLevel.Trace, category, message);
 
     public static void Trace(string category, Func<string> messageFactory)
@@ -81,19 +72,13 @@ public static class RuntimeLog
         if (IsEnabled(LogLevel.Trace)) WriteEntry(LogLevel.Trace, category, messageFactory());
     }
 
-    // ─── Debug (off by default in Release) ───
     public static void Debug(string category, string message) => WriteEntry(LogLevel.Debug, category, message);
 
-    /// <summary>
-    /// Logs at Debug level, building the message only if Debug is enabled. Use on hot paths where
-    /// the interpolated string would otherwise be constructed on every call and then discarded.
-    /// </summary>
     public static void Debug(string category, Func<string> messageFactory)
     {
         if (IsEnabled(LogLevel.Debug)) WriteEntry(LogLevel.Debug, category, messageFactory());
     }
 
-    // ─── Info (the default level; Log is kept as the Info alias for back-compat) ───
     public static void Log(string category, string message) => WriteEntry(LogLevel.Info, category, message);
 
     public static void Info(string category, string message) => WriteEntry(LogLevel.Info, category, message);
@@ -103,10 +88,8 @@ public static class RuntimeLog
         if (IsEnabled(LogLevel.Info)) WriteEntry(LogLevel.Info, category, messageFactory());
     }
 
-    // ─── Warn ───
     public static void Warn(string category, string message) => WriteEntry(LogLevel.Warn, category, message);
 
-    // ─── Error ───
     public static void Error(string category, string message) => WriteEntry(LogLevel.Error, category, message);
 
     public static void Error(string category, Exception ex, string? context = null)
@@ -148,7 +131,6 @@ public static class RuntimeLog
             }
             catch
             {
-                // Best-effort logging only.
             }
         }
     }
@@ -168,7 +150,6 @@ public static class RuntimeLog
         }
         catch
         {
-            // Best-effort rotation.
         }
     }
 }

@@ -8,10 +8,6 @@ using VNotch.Models;
 
 namespace VNotch.Services;
 
-/// <summary>
-/// Resolves the user's current location through IP geolocation and fetches live
-/// weather from Open-Meteo. Both providers are free and require no API key.
-/// </summary>
 public sealed class WeatherService : IWeatherService
 {
     private static readonly HttpClient _http = new()
@@ -91,8 +87,6 @@ public sealed class WeatherService : IWeatherService
         }
         catch (OperationCanceledException)
         {
-            // HttpClient.Timeout surfaces as a cancellation. Log it so a slow/unreachable
-            // network doesn't fail the widget silently.
             RuntimeLog.Log("WEATHER", "Request timed out or was cancelled.");
             return null;
         }
@@ -103,16 +97,11 @@ public sealed class WeatherService : IWeatherService
         }
     }
 
-    /// <summary>
-    /// Tries a couple of free IP geolocation providers and returns the first that succeeds.
-    /// </summary>
     private static async Task<(double lat, double lon, string city)?> ResolveLocationAsync(CancellationToken token)
     {
-        // Provider 1: ipwho.is (HTTPS, no key, reliable).
         var result = await TryIpWhoIsAsync(token).ConfigureAwait(false);
         if (result is not null) return result;
 
-        // Provider 2: ip-api.com (fallback, HTTP only).
         return await TryIpApiComAsync(token).ConfigureAwait(false);
     }
 
@@ -131,7 +120,6 @@ public sealed class WeatherService : IWeatherService
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            // ipwho.is reports failures as { "success": false, "message": "..." }.
             if (root.TryGetProperty("success", out var successProp) &&
                 successProp.ValueKind == JsonValueKind.False)
             {
@@ -195,7 +183,6 @@ public sealed class WeatherService : IWeatherService
         }
     }
 
-    /// <summary>Maps a WMO weather interpretation code to a short human-readable description.</summary>
     public static string DescribeWeatherCode(int code) => code switch
     {
         0 => "Clear",

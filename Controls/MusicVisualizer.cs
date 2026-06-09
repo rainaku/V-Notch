@@ -73,7 +73,6 @@ namespace VNotch.Controls
         private const double BarSpacingRatio = 0.05;
         private const double CornerRadiusRatio = 0.5;
 
-        // Higher = more inertia / slower glide. Tuned up for a slower, smoother Apple-style ease.
         private const double AlphaAttack = 0.70;
         private const double AlphaRelease = 0.84;
         private const double AlphaPauseRelease = 0.985;
@@ -90,7 +89,6 @@ namespace VNotch.Controls
         private const double LeftMiniBarSensitivity = 0.78;
         private const double RightBiasStrength = 0.12;
         private const double RightBiasDeadzone = 0.025;
-        // Filter sub-pixel jitter: changes smaller than this are ignored.
         private const double MinHeightChangeThreshold = 0.0012;
         private const double SmallBarHeightThreshold = 0.30;
         private const double SmallBarAlphaBoost = 0.0;
@@ -99,7 +97,6 @@ namespace VNotch.Controls
         private const double AudioReactiveRhythmPush = 0.08;
         private const double AudioReactiveCrossBandLift = 0.08;
 
-        // Reference frame interval the alpha constants were tuned for (old DispatcherTimer effective rate)
         private const double ReferenceFrameMs = 16.0;
 
         #endregion
@@ -109,26 +106,17 @@ namespace VNotch.Controls
         private double _lastDtMs;
         private DateTime _lastCaptureRetryUtc = DateTime.MinValue;
         private bool _isRenderingActive;
-        // The loopback capture + FFT pipeline is a single shared system resource. Multiple
-        // visualizers (e.g. compact pill + expanded) all want the SAME system audio, so we
-        // share one capture and refcount it: physical start on the first consumer, physical
-        // stop only when the last one releases. This stops one instance pausing/hiding from
-        // killing capture while another is still playing.
         private bool _holdsCaptureLease;
-        
+
         private readonly double[] _currentHeights = new double[BarCount];
         private readonly double[] _sortedHeights = new double[BarCount];
         private readonly double[] _drawHeights = new double[BarCount];
         private readonly double[] _smoothedHeights = new double[BarCount];
-        // Reused each frame to avoid per-frame allocation in the render loop (UI thread only).
         private readonly float[] _levelsBuffer = new float[BarCount];
 
-        // Per-track deterministic hashes, precomputed once per TrackId instead of rebuilding
-        // the "sid + index" / "floor:sid + index" strings (and hashing them) for every bar on
-        // every frame. Values are identical to the old per-frame GetDeterministicHash calls.
         private string? _hashCacheSid;
-        private readonly uint[] _noAudioHash = new uint[BarCount]; // hash(sid + index)
-        private readonly uint[] _floorHash = new uint[BarCount];   // hash("floor:" + sid + index)
+        private readonly uint[] _noAudioHash = new uint[BarCount];
+        private readonly uint[] _floorHash = new uint[BarCount];
         private DpiScale? _cachedDpi;
         private double _currentOpacity = 0.2;
         private VisualizerState _state = VisualizerState.Idle;
@@ -176,7 +164,6 @@ namespace VNotch.Controls
                 UpdateRenderingState();
                 if (_state == VisualizerState.Idle)
                 {
-                    // No track at all — safe to drop our capture claim immediately.
                     ReleaseCaptureLease();
                 }
             }
@@ -187,9 +174,6 @@ namespace VNotch.Controls
             }
         }
 
-        // Live audio capture (and its background FFT) is only worth running while the bars
-        // actually react to sound. On pause we keep it briefly so the bars can settle
-        // smoothly, then release it once the settle animation finishes (see OnRendering).
         private bool ShouldCaptureAudio =>
             _state == VisualizerState.Playing || _state == VisualizerState.Seeking;
 
@@ -234,9 +218,6 @@ namespace VNotch.Controls
             _lastDtMs = dt * 1000.0;
             bool isSettled = UpdateAnimation(dt, totalSec);
 
-            // When paused and animation has settled, stop rendering to save CPU.
-            // Release the audio capture here too (not at the pause transition) so the bars
-            // can fall smoothly with the real audio tail before we cut the FFT.
             if (isSettled && _state == VisualizerState.Paused)
             {
                 InvalidateVisual();
@@ -251,7 +232,7 @@ namespace VNotch.Controls
         private bool UpdateAnimation(double dt, double totalSec)
         {
             bool isSettled = true;
-            
+
             double targetOpacity = _state switch
             {
                 VisualizerState.Idle => 0.2,
@@ -260,7 +241,7 @@ namespace VNotch.Controls
                 VisualizerState.Seeking => 1.0,
                 _ => 0.2
             };
-            
+
             _currentOpacity += (targetOpacity - _currentOpacity) * (1 - Math.Exp(-dt * 1000 / TauOpacity));
 
             string sid = TrackId ?? "";
@@ -332,7 +313,7 @@ namespace VNotch.Controls
                     }
                     else
                     {
-                        
+
                         double fallRatio = Math.Clamp(
                             (_currentHeights[i] - targetH) / (MaxHeightRatio - MinHeightRatio),
                             0.0, 1.0);
@@ -352,10 +333,9 @@ namespace VNotch.Controls
                     }
                 }
 
-                // Frame-rate independent smoothing: adjust alpha for actual dt vs reference 16ms
                 double dtMs = dt * 1000.0;
                 double alpha = Math.Pow(baseAlpha, dtMs / ReferenceFrameMs);
-                
+
                 double oldH = _currentHeights[i];
                 double newH = (_currentHeights[i] * alpha) + (targetH * (1 - alpha));
 
@@ -395,11 +375,11 @@ namespace VNotch.Controls
             double clamped = Math.Clamp(normalized, 0.0, 1.0);
             double exponent = barIndex switch
             {
-                0 => 1.42, // kick: short, punchy, less constant sustain
-                1 => 1.18, // snare: punch with some body
-                2 => 0.88, // melody/vocal: more sustained and readable
-                3 => 1.36, // hi-hat: flickery transient feel
-                4 => 1.58, // air/cymbal: sparse sparkle, not always tall
+                0 => 1.42,
+                1 => 1.18,
+                2 => 0.88,
+                3 => 1.36,
+                4 => 1.58,
                 _ => 1.0
             };
 
@@ -482,9 +462,6 @@ namespace VNotch.Controls
             return Math.Clamp(0.5 + value, 0.0, 1.0);
         }
 
-        // Rebuilds the per-track hash cache only when the track changes. The string forms
-        // ("sid + index", "floor:sid + index") match the original per-frame expressions, so
-        // the hashes are byte-for-byte identical to the previous implementation.
         private void EnsureHashCache(string sid)
         {
             if (_hashCacheSid == sid) return;
@@ -504,9 +481,6 @@ namespace VNotch.Controls
             return hash;
         }
 
-        // Continues an FNV-1a hash by feeding the decimal digits of a (non-negative) int in
-        // the same order int.ToString() would produce, so it matches hashing the concatenated
-        // string "...{value}" without allocating that string each frame.
         private static uint ContinueHashInt(uint hash, int value)
         {
             if (value < 0)
@@ -539,8 +513,6 @@ namespace VNotch.Controls
             StartAudioCapture();
         }
 
-        // Registers this instance as a consumer of the shared capture. Physical capture is
-        // started lazily by EnsureAudioCaptureStarted; here we only track the refcount.
         private void AcquireCaptureLease()
         {
             lock (_lockObj)
@@ -551,8 +523,6 @@ namespace VNotch.Controls
             }
         }
 
-        // Drops this instance's claim on the shared capture. Only when the last consumer
-        // releases do we actually tear down the WASAPI capture + FFT pipeline.
         private void ReleaseCaptureLease()
         {
             bool stopPhysical = false;
@@ -568,14 +538,11 @@ namespace VNotch.Controls
                 }
             }
 
-            // StopAudioCapture takes _lockObj itself — call it outside our lock.
             if (stopPhysical) StopAudioCapture();
         }
 
         private void PrepareDrawHeights()
         {
-            // Frame-rate independent smoothing. Keep this responsive so each bar visibly moves
-            // even when the incoming track has a narrow or heavily compressed spectrum.
             double smoothingFactor = Math.Pow(0.56, _lastDtMs / ReferenceFrameMs);
             for (int i = 0; i < BarCount; i++)
             {
@@ -620,7 +587,6 @@ namespace VNotch.Controls
             }
         }
 
-        // Cached gradient brush — recreated only when ActiveBrush color changes
         private Color _cachedGradientBaseColor;
         private LinearGradientBrush? _cachedBarGradient;
 
@@ -636,12 +602,10 @@ namespace VNotch.Controls
                 baseColor = Colors.White;
             }
 
-            // Only recreate if color changed
             if (_cachedBarGradient == null || baseColor != _cachedGradientBaseColor)
             {
                 _cachedGradientBaseColor = baseColor;
 
-                // Bottom: darken the color (pull toward black) for visible gradient even on bright colors
                 byte dr = (byte)(baseColor.R * 0.55);
                 byte dg = (byte)(baseColor.G * 0.55);
                 byte db = (byte)(baseColor.B * 0.55);
@@ -668,11 +632,11 @@ namespace VNotch.Controls
             if (width < 1 || height < 1 || ActiveBrush == null) return;
 
             DpiScale dpi = _cachedDpi ??= VisualTreeHelper.GetDpi(this);
-            
+
             double barWidth = width * BarWidthRatio;
-            double spacing = (width * BarSpacingRatio) + 0.2; 
+            double spacing = (width * BarSpacingRatio) + 0.2;
             double totalContentWidth = (barWidth * BarCount) + (spacing * (BarCount - 1));
-            
+
             double startX = (width - totalContentWidth) / 2;
             double centerY = height / 2;
 
@@ -682,14 +646,13 @@ namespace VNotch.Controls
 
             PrepareDrawHeights();
 
-            // Get the gradient brush (light at top → base color at bottom)
             var gradientBrush = GetBarGradientBrush(0, height);
 
             for (int i = 0; i < BarCount; i++)
             {
                 double barHeight = _drawHeights[i] * height;
                 double x = startX + i * (barWidth + spacing);
-                
+
                 double halfHeight = barHeight / 2;
                 double top = centerY - halfHeight;
                 double bottom = centerY + halfHeight;
@@ -700,9 +663,9 @@ namespace VNotch.Controls
                 double snappedH = snappedBottom - snappedTop;
 
                 double radius = snappedW * CornerRadiusRatio;
-                
-                dc.DrawRoundedRectangle(gradientBrush, null, 
-                    new Rect(snappedX, snappedTop, snappedW, snappedH), 
+
+                dc.DrawRoundedRectangle(gradientBrush, null,
+                    new Rect(snappedX, snappedTop, snappedW, snappedH),
                     radius, radius);
             }
 
@@ -710,7 +673,7 @@ namespace VNotch.Controls
         }
 
         #region Audio Loopback Capture
-        
+
         private static WasapiLoopbackCapture? _capture;
         private static readonly object _lockObj = new object();
         private static int _captureLeaseCount;
@@ -777,11 +740,6 @@ namespace VNotch.Controls
         private static double _prevRmsForBeat;
         private static double _beatAccent;
 
-        // ── Output publish (tiny critical section) ──
-        // The capture thread does ALL heavy work (mixing + FFT + spectral processing) on
-        // its own buffers with NO lock. It then publishes the few output values the UI
-        // render thread reads through this dedicated lock, so the lock is held for only a
-        // handful of microseconds (a 5-float copy) instead of across the whole FFT.
         private static readonly object _outputLock = new object();
         private static readonly float[] _publishedTargets = new float[BarCount];
         private static float _publishedBeatAccent;
@@ -932,8 +890,6 @@ namespace VNotch.Controls
 
         private static void OnAudioDataAvailable(object? sender, WaveInEventArgs e)
         {
-            // Snapshot the capture reference so a concurrent StopAudioCapture (which nulls
-            // _capture) can't NRE us mid-callback.
             var capture = _capture;
             if (capture == null) return;
 
@@ -952,9 +908,6 @@ namespace VNotch.Controls
             int framesRecorded = e.BytesRecorded / bytesPerFrame;
             if (framesRecorded <= 0) return;
 
-            // No lock here: the FFT input buffer + all spectral processing state are owned
-            // exclusively by this (capture) thread. ComputeDisplayTargets publishes its
-            // result under _outputLock for the UI thread.
             for (int frame = 0; frame < framesRecorded; frame++)
             {
                 int frameOffset = frame * bytesPerFrame;
@@ -1052,7 +1005,6 @@ namespace VNotch.Controls
             double postAgcSpread = postAgcMax - postAgcMin;
             if (postAgcSpread < 0.15 && postAgcMax > 0.5)
             {
-                // Spectrum is flat and loud — expand differences from mean
                 double flatness = 1.0 - (postAgcSpread / 0.15);
                 double loudness = Math.Clamp((postAgcMax - 0.5) / 0.5, 0.0, 1.0);
                 double spreadGain = flatness * loudness * 2.5;
@@ -1099,8 +1051,6 @@ namespace VNotch.Controls
             hat = ExpandDynamicRange(hat);
             air = ExpandDynamicRange(air);
 
-            // Instrument-style mapping:
-            // 0 kick/sub, 1 snare/clap, 2 melody/vocal, 3 hi-hat/percussion, 4 cymbal/air.
             double grooveLift = rms * 0.05;
             _displayTargets[0] = (float)Math.Clamp((kick * 0.48) + (subBass * 0.30) + (bass * 0.12) + grooveLift + (_kickAccent * 0.26), 0.0, 1.0);
             _displayTargets[1] = (float)Math.Clamp((snare * 0.48) + (highMid * 0.20) + (mid * 0.14) + (lowMid * 0.08) + (_snareAccent * 0.28), 0.0, 1.0);
@@ -1112,7 +1062,6 @@ namespace VNotch.Controls
             ApplyBarContrast(_displayTargets);
             NormalizeDisplayTargetsToMaxVisual(_displayTargets);
 
-            // Publish the finished frame for the UI thread (tiny critical section).
             lock (_outputLock)
             {
                 Array.Copy(_displayTargets, _publishedTargets, BarCount);
@@ -1246,8 +1195,6 @@ namespace VNotch.Controls
                 double gain = Math.Clamp(roleTargets[i] / Math.Max(RolePeakFloor, _rolePeaks[i]), 0.70, maxGains[i]);
                 double adapted = raw * gain;
 
-                // Keeps roles visible on genres where that instrument is implied rather than explicit
-                // (acoustic/classical/ambient), without making all bars identical.
                 adapted += fallback[i] * energy * (1.0 - Math.Clamp(raw * 2.0, 0.0, 1.0));
 
                 targets[i] = (float)Math.Clamp(CompressRoleUpperRange(adapted, caps[i]), 0.0, caps[i]);

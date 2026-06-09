@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -36,7 +36,6 @@ public partial class MainWindow
         fadeOutCalendar.Completed += (s, e) => CalendarWidget.Visibility = Visibility.Collapsed;
         CalendarWidget.BeginAnimation(OpacityProperty, fadeOutCalendar);
 
-        // Also hide lyrics widget during music expand
         if (_isLyricsActive && LyricsWidget.Visibility == Visibility.Visible)
         {
             var fadeOutLyrics = MakeAnim(1d, 0d, _dur150, _easePowerIn2, null);
@@ -60,7 +59,6 @@ public partial class MainWindow
         fadeOutNavBg.Completed += (s, e) => NavIconsBackground.Visibility = Visibility.Collapsed;
         NavIconsBackground.BeginAnimation(OpacityProperty, fadeOutNavBg);
 
-        // Fade out update notification if visible
         if (UpdateNotificationButton != null && UpdateNotificationButton.Visibility == Visibility.Visible)
         {
             StopUpdatePulseAnimation();
@@ -197,7 +195,6 @@ public partial class MainWindow
         var fadeInCalendar = MakeAnim(0d, 1d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(120));
         CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
 
-        // If lyrics are active, show lyrics widget instead of calendar
         if (_isLyricsActive)
         {
             CalendarWidget.Visibility = Visibility.Collapsed;
@@ -236,7 +233,6 @@ public partial class MainWindow
             NavIconsBackground.BeginAnimation(OpacityProperty, fadeInNavBg);
         }
 
-        // Animate update notification if available
         if (_isUpdateAvailable && UpdateNotificationButton != null)
         {
             UpdateNotificationButton.BeginAnimation(OpacityProperty, null);
@@ -244,15 +240,13 @@ public partial class MainWindow
             UpdateNotificationButton.Visibility = Visibility.Visible;
             UpdateNotificationButton.IsHitTestVisible = true;
             UpdateNotificationButton.Cursor = System.Windows.Input.Cursors.Hand;
-            
-            // Reset icon color
+
             if (UpdateIconBrush != null)
             {
                 UpdateIconBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
                 UpdateIconBrush.Color = Color.FromRgb(48, 209, 88);
             }
 
-            // Start pulse deterministically for every reveal.
             StartUpdatePulseAnimation();
 
             var fadeInUpdate = MakeAnim(0d, 1.0d, new Duration(TimeSpan.FromMilliseconds(300)), _easePowerOut3, TimeSpan.FromMilliseconds(110));
@@ -331,7 +325,6 @@ public partial class MainWindow
         {
             ProgressBarClip.Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
         }
-        // Keep corner radius = half height so ends stay fully rounded
         double radius = e.NewSize.Height / 2.0;
         ProgressBarBg.CornerRadius = new CornerRadius(radius);
     }
@@ -351,7 +344,7 @@ public partial class MainWindow
         }
 
         RefreshMediaMarquee();
-        
+
         if (TextFadeBrush != null)
         {
             TextFadeBrush.EndPoint = new Point(fadeEndX, 0);
@@ -386,4 +379,3 @@ public partial class MainWindow
 
     #endregion
 }
-
