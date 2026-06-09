@@ -12,7 +12,11 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <ReadyToRun>false</ReadyToRun>
+    <!-- Precompile to native code to cut JIT warm-up at startup (always-on widget). -->
+    <ReadyToRun>true</ReadyToRun>
+    <!-- Profile-guided + tiered compilation optimises steady-state hot paths. -->
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
     <DebugType>embedded</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>

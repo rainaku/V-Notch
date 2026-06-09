@@ -419,9 +419,19 @@ public sealed class SmartThumbnailCropService : IDisposable
         // YOLOv8 output shape: [1, 84, 8400]
         var detections = new List<Detection>(32);
         var dims = output.Dimensions;
+        int numChannels = dims[1];
         int numPredictions = dims[2];
-        int numClasses = dims[1] - 4; // 80 classes for COCO
+        int numClasses = numChannels - 4; // 80 classes for COCO
         float imgArea = imgWidth * imgHeight;
+
+        // Fast path: read the contiguous backing buffer directly instead of the
+        // DenseTensor indexer (which recomputes strides on every access). The tensor
+        // is row-major [1, numChannels, numPredictions], so element [0, c, i] lives at
+        // linear offset c * numPredictions + i. Results are identical to the indexer.
+        ReadOnlySpan<float> buffer = output is DenseTensor<float> dense
+            ? dense.Buffer.Span
+            : ReadOnlySpan<float>.Empty;
+        bool useSpan = buffer.Length >= numChannels * numPredictions;
 
         for (int i = 0; i < numPredictions; i++)
         {
@@ -429,9 +439,9 @@ public sealed class SmartThumbnailCropService : IDisposable
             float maxScore = 0f;
             int maxClassId = -1;
 
-            for (int c = 4; c < dims[1]; c++)
+            for (int c = 4; c < numChannels; c++)
             {
-                float score = output[0, c, i];
+                float score = useSpan ? buffer[c * numPredictions + i] : output[0, c, i];
                 if (score > maxScore)
                 {
                     maxScore = score;
@@ -446,10 +456,10 @@ public sealed class SmartThumbnailCropService : IDisposable
             float threshold = isPerson ? PersonConfidenceThreshold : ConfidenceThreshold;
             if (maxScore < threshold) continue;
 
-            float cx = output[0, 0, i];
-            float cy = output[0, 1, i];
-            float w = output[0, 2, i];
-            float h = output[0, 3, i];
+            float cx = useSpan ? buffer[i]                      : output[0, 0, i];
+            float cy = useSpan ? buffer[numPredictions + i]     : output[0, 1, i];
+            float w  = useSpan ? buffer[2 * numPredictions + i] : output[0, 2, i];
+            float h  = useSpan ? buffer[3 * numPredictions + i] : output[0, 3, i];
 
             // Convert from model space to original image space
             float x1 = (cx - w / 2f - padX) / scale;

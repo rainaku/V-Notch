@@ -892,21 +892,6 @@ public class MediaDetectionService : IMediaDetectionService
 
     private void StartThumbnailFetchIfNeeded(MediaInfo info, bool isNewTrackForThumbnail)
     {
-            bool isPotentialYouTube = info.Platform == MediaPlatform.YouTube || (info.Platform == MediaPlatform.Browser && IsLikelyYouTube(info));
-
-            // ── Critical fix: Browser source from a known browser app should ALWAYS attempt YouTube fetch first
-            bool isBrowserApp = info.Platform == MediaPlatform.Browser && !string.IsNullOrEmpty(info.SourceAppId);
-            if (isBrowserApp && !isPotentialYouTube)
-            {
-                // Treat any browser-sourced media as potential YouTube unless we have a confirmed SoundCloud session override.
-                bool hasSoundCloudOverride = TryGetSessionSourceOverride(info, out var scOver) &&
-                                             MediaPlatformExtensions.ParsePlatform(scOver) == MediaPlatform.SoundCloud;
-                if (!hasSoundCloudOverride)
-                {
-                    isPotentialYouTube = true;
-                }
-            }
-
             bool hasSoundCloudSessionOverride = !string.IsNullOrEmpty(info.SourceAppId) &&
                                                 TryGetSessionSourceOverride(info, out var sourceOverride) &&
                                                 MediaPlatformExtensions.ParsePlatform(sourceOverride) == MediaPlatform.SoundCloud;
@@ -928,16 +913,21 @@ public class MediaDetectionService : IMediaDetectionService
                 catch { /* best effort */ }
             }
 
-            // Improved SoundCloud detection from Browser source Trigger if: Browser source + not YouTube + has track + (no thumbnail OR placeholder OR session override)
-            bool shouldProbeSoundCloudFromBrowser = info.Platform == MediaPlatform.Browser &&
-                                                    !IsLikelyYouTube(info) &&
-                                                    !browserHasYouTubeTabOpen &&
-                                                    !string.IsNullOrEmpty(info.CurrentTrack) &&
-                                                    (info.Thumbnail == null || 
-                                                     IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail) || 
-                                                     hasSoundCloudSessionOverride);
-            
-            bool isPotentialSoundCloud = info.Platform == MediaPlatform.SoundCloud || shouldProbeSoundCloudFromBrowser;
+            var sourcePlan = ThumbnailFetchPlanner.ClassifySources(new ThumbnailSourceInputs
+            {
+                PlatformIsYouTube = info.Platform == MediaPlatform.YouTube,
+                PlatformIsBrowser = info.Platform == MediaPlatform.Browser,
+                PlatformIsSoundCloud = info.Platform == MediaPlatform.SoundCloud,
+                HasSourceApp = !string.IsNullOrEmpty(info.SourceAppId),
+                IsLikelyYouTube = IsLikelyYouTube(info),
+                HasSoundCloudSessionOverride = hasSoundCloudSessionOverride,
+                BrowserHasYouTubeTabOpen = browserHasYouTubeTabOpen,
+                HasTrack = !string.IsNullOrEmpty(info.CurrentTrack),
+                ThumbnailIsNullOrPlaceholder = info.Thumbnail == null || IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail),
+            });
+            bool isPotentialYouTube = sourcePlan.IsPotentialYouTube;
+            bool isPotentialSoundCloud = sourcePlan.IsPotentialSoundCloud;
+
             string soundCloudTrackIdentity = isPotentialSoundCloud
                 ? BuildTrackIdentity(info.CurrentTrack, info.CurrentArtist)
                 : "";
@@ -1011,20 +1001,20 @@ public class MediaDetectionService : IMediaDetectionService
             {
                 bool isNewSoundCloudTrack = !string.IsNullOrEmpty(soundCloudTrackIdentity) &&
                                             !string.Equals(soundCloudTrackIdentity, _lastSoundCloudArtworkIdentity, StringComparison.Ordinal);
-                bool hasMismatchedThumbSource = MediaPlatformExtensions.ParsePlatform(_cachedThumbnailSource) != MediaPlatform.SoundCloud;
-                bool shouldRetryPlaceholder = (info.Thumbnail == null ||
-                                              IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail) ||
-                                              hasMismatchedThumbSource) &&
-                                              (DateTime.UtcNow - _lastSoundCloudArtworkAttemptTimeUtc) >= SoundCloudArtworkRetryInterval;
                 bool sameTrackFetchRunning =
                     Volatile.Read(ref _soundCloudFetchInFlight) == 1 &&
                     string.Equals(_soundCloudFetchIdentity, soundCloudTrackIdentity, StringComparison.Ordinal);
 
-                if (!isNewSoundCloudTrack && sameTrackFetchRunning)
+                bool shouldStartSoundCloudFetch = ThumbnailFetchPlanner.ShouldStartSoundCloudFetch(new SoundCloudFetchInputs
                 {
-                    
-                }
-                else if (isNewSoundCloudTrack || shouldRetryPlaceholder)
+                    IsNewSoundCloudTrack = isNewSoundCloudTrack,
+                    SameTrackFetchRunning = sameTrackFetchRunning,
+                    ThumbnailIsNullOrPlaceholder = info.Thumbnail == null || IsLikelySoundCloudPlaceholderThumbnail(info.Thumbnail),
+                    HasMismatchedThumbSource = MediaPlatformExtensions.ParsePlatform(_cachedThumbnailSource) != MediaPlatform.SoundCloud,
+                    RetryIntervalElapsed = (DateTime.UtcNow - _lastSoundCloudArtworkAttemptTimeUtc) >= SoundCloudArtworkRetryInterval,
+                });
+
+                if (shouldStartSoundCloudFetch)
                 {
                     _lastSoundCloudArtworkAttemptTimeUtc = DateTime.UtcNow;
                     _lastSoundCloudArtworkIdentity = soundCloudTrackIdentity;
@@ -2283,127 +2273,36 @@ public class MediaDetectionService : IMediaDetectionService
                     var duration = timeline.EndTime - timeline.StartTime;
                     if (duration <= TimeSpan.Zero) duration = timeline.MaxSeekTime;
 
-                    bool isNearlyEnd = duration.TotalSeconds > 0 &&
-                        (duration - timeline.Position).TotalMilliseconds < 800;
                     bool isNewTrack = !string.IsNullOrEmpty(info.CurrentTrack) &&
                         !string.IsNullOrEmpty(_lastTrackName) &&
                         info.CurrentTrack != _lastTrackName;
-
-                    TimeSpan chosenPosition;
-                    bool forceStartPosition = false;
-
-                    if (isNewTrack && isNearlyEnd)
-                    {
-                        chosenPosition = TimeSpan.Zero;
-                        info.IsIndeterminate = false;
-                        forceStartPosition = true;
-                    }
-                    else
-                    {
-                        chosenPosition = timeline.Position;
-                    }
 
                     bool isBrowserTimelineTrack = IsBrowserSourceApp(info.SourceAppId) ||
                                                   info.Platform == MediaPlatform.YouTube ||
                                                   info.Platform == MediaPlatform.SoundCloud ||
                                                   info.Platform == MediaPlatform.Browser;
-                    if (isBrowserTimelineTrack && isNewTrack && info.IsPlaying)
+
+                    var solved = TimelinePositionSolver.Solve(new TimelineSolveInputs
                     {
-                        TimeSpan timelineAge = DateTimeOffset.UtcNow - timeline.LastUpdatedTime.ToUniversalTime();
-                        if (timelineAge < TimeSpan.Zero) timelineAge = TimeSpan.Zero;
+                        StartTime = timeline.StartTime,
+                        EndTime = timeline.EndTime,
+                        MaxSeekTime = timeline.MaxSeekTime,
+                        Position = timeline.Position,
+                        LastUpdatedUtc = timeline.LastUpdatedTime.ToUniversalTime(),
+                        IsInitialOrBigChange = isInitialOrBigChange,
+                        IsNewTrack = isNewTrack,
+                        IsBrowserTimelineTrack = isBrowserTimelineTrack,
+                        IsPlaying = info.IsPlaying,
+                        PlaybackRate = info.PlaybackRate,
+                        NowUtc = DateTimeOffset.UtcNow,
+                    });
 
-                        bool suspiciousCarryOverPosition =
-                            chosenPosition.TotalSeconds > 20 &&
-                            (duration.TotalSeconds <= 0 ||
-                             chosenPosition.TotalSeconds > duration.TotalSeconds * 0.2);
-                        bool staleTimelineAtTrackStart = timelineAge > TimeSpan.FromMilliseconds(900);
-
-                        if (suspiciousCarryOverPosition && staleTimelineAtTrackStart)
-                        {
-                            chosenPosition = TimeSpan.Zero;
-                            forceStartPosition = true;
-                        }
-                    }
-
-                    var rawTimelineUpdatedUtc = timeline.LastUpdatedTime.ToUniversalTime();
-                    var timelineUpdatedUtc = forceStartPosition
-                        ? DateTimeOffset.UtcNow
-                        : rawTimelineUpdatedUtc;
-
-                    if (!forceStartPosition && info.IsPlaying)
+                    info.Position = solved.Position;
+                    info.Duration = solved.Duration;
+                    info.LastUpdated = solved.LastUpdatedUtc;
+                    if (solved.IsIndeterminate.HasValue)
                     {
-                        var nowUpdatedUtc = DateTimeOffset.UtcNow;
-                        var timelineLatency = nowUpdatedUtc - rawTimelineUpdatedUtc;
-                        var maxCompensationWindow = TimeSpan.FromSeconds(15);
-                        if (isBrowserTimelineTrack)
-                        {
-                            if (isInitialOrBigChange)
-                            {
-                                var durationWindow = duration > TimeSpan.Zero
-                                    ? duration + TimeSpan.FromSeconds(5)
-                                    : TimeSpan.FromMinutes(10);
-                                maxCompensationWindow = durationWindow < TimeSpan.FromHours(4)
-                                    ? durationWindow
-                                    : TimeSpan.FromHours(4);
-                            }
-                            else
-                            {
-                                maxCompensationWindow = TimeSpan.FromMinutes(2);
-                            }
-                        }
-                        else if (isInitialOrBigChange)
-                        {
-                            var durationWindow = duration > TimeSpan.Zero
-                                ? duration + TimeSpan.FromSeconds(5)
-                                : TimeSpan.FromMinutes(10);
-                            maxCompensationWindow = durationWindow < TimeSpan.FromHours(4)
-                                ? durationWindow
-                                : TimeSpan.FromHours(4);
-                        }
-
-                        bool validTimelineTimestamp =
-                            rawTimelineUpdatedUtc > DateTimeOffset.MinValue &&
-                            rawTimelineUpdatedUtc <= nowUpdatedUtc.AddMilliseconds(250) &&
-                            timelineLatency >= TimeSpan.Zero &&
-                            timelineLatency <= maxCompensationWindow;
-
-                        if (validTimelineTimestamp && timelineLatency.TotalMilliseconds > 100)
-                        {
-                            double playbackRate = info.PlaybackRate > 0 ? info.PlaybackRate : 1.0;
-                            var compensatedPosition = chosenPosition + TimeSpan.FromSeconds(timelineLatency.TotalSeconds * playbackRate);
-
-                            // Don't let compensation push position to or past duration
-                            if (duration > TimeSpan.Zero)
-                            {
-                                TimeSpan maxAllowed = TimeSpan.FromSeconds(duration.TotalSeconds * 0.95);
-                                if (compensatedPosition > maxAllowed)
-                                    compensatedPosition = maxAllowed;
-                            }
-
-                            if (compensatedPosition > chosenPosition)
-                            {
-                                chosenPosition = compensatedPosition;
-                                timelineUpdatedUtc = nowUpdatedUtc;
-                            }
-                        }
-                    }
-
-                    if (chosenPosition < TimeSpan.Zero)
-                    {
-                        chosenPosition = TimeSpan.Zero;
-                    }
-                    if (duration > TimeSpan.Zero && chosenPosition > duration)
-                    {
-                        chosenPosition = duration;
-                    }
-
-                    info.Position = chosenPosition;
-                    info.Duration = duration;
-                    info.LastUpdated = timelineUpdatedUtc;
-
-                    if (info.Duration <= TimeSpan.Zero || info.Duration.TotalDays > 30)
-                    {
-                        info.IsIndeterminate = true;
+                        info.IsIndeterminate = solved.IsIndeterminate.Value;
                     }
                 }
                 else
