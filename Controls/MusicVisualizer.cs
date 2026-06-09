@@ -122,6 +122,13 @@ namespace VNotch.Controls
         private readonly double[] _smoothedHeights = new double[BarCount];
         // Reused each frame to avoid per-frame allocation in the render loop (UI thread only).
         private readonly float[] _levelsBuffer = new float[BarCount];
+
+        // Per-track deterministic hashes, precomputed once per TrackId instead of rebuilding
+        // the "sid + index" / "floor:sid + index" strings (and hashing them) for every bar on
+        // every frame. Values are identical to the old per-frame GetDeterministicHash calls.
+        private string? _hashCacheSid;
+        private readonly uint[] _noAudioHash = new uint[BarCount]; // hash(sid + index)
+        private readonly uint[] _floorHash = new uint[BarCount];   // hash("floor:" + sid + index)
         private DpiScale? _cachedDpi;
         private double _currentOpacity = 0.2;
         private VisualizerState _state = VisualizerState.Idle;
@@ -257,6 +264,7 @@ namespace VNotch.Controls
             _currentOpacity += (targetOpacity - _currentOpacity) * (1 - Math.Exp(-dt * 1000 / TauOpacity));
 
             string sid = TrackId ?? "";
+            EnsureHashCache(sid);
 
             float[] levels = GetLatestDisplayLevels(out bool hasFreshAudio, out double beatAccent);
             double audioEnergy = 0;
@@ -412,7 +420,7 @@ namespace VNotch.Controls
 
         private double GetNoAudioPulseAt(int index, double t, string sid)
         {
-            uint hash = GetDeterministicHash(sid + index);
+            uint hash = _noAudioHash[index];
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
             double freq = 0.13 + (hash % 15) / 200.0;
             double wavePrimary = 0.5 + 0.5 * Math.Sin((t * freq * Math.PI * 2) + phase);
@@ -436,7 +444,7 @@ namespace VNotch.Controls
 
         private double GetAudioReactiveFloor(int index, double t, string sid, double energy, double beatAccent)
         {
-            uint hash = GetDeterministicHash("floor:" + sid + index);
+            uint hash = _floorHash[index];
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
             double freq = 0.34 + ((hash % 21) / 200.0) + (energy * 0.12);
             double pulse = 0.5 + 0.5 * Math.Sin((t * freq * Math.PI * 2) + phase);
@@ -458,7 +466,7 @@ namespace VNotch.Controls
 
         private double GetAudioReactiveRhythmAt(int index, double t, string sid, double energy)
         {
-            uint hash = GetDeterministicHash(sid + index);
+            uint hash = _noAudioHash[index];
             double phase = (hash % 1000) / 1000.0 * Math.PI * 2;
             double baseFreq = 0.20 + (hash % 18) / 200.0;
             double speed = 0.28 + (energy * 0.16);
@@ -468,10 +476,24 @@ namespace VNotch.Controls
             value += Math.Sin((t * (baseFreq * 0.32) * Math.PI * 2) + (phase * 1.7)) * 0.06;
 
             double noiseRate = 0.45 + (energy * 0.6);
-            uint noiseSeed = GetDeterministicHash(sid + index + (int)Math.Floor(t * noiseRate));
+            uint noiseSeed = ContinueHashInt(_noAudioHash[index], (int)Math.Floor(t * noiseRate));
             value += (((noiseSeed % 200) / 100.0) - 1.0) * (0.003 + (energy * 0.005));
 
             return Math.Clamp(0.5 + value, 0.0, 1.0);
+        }
+
+        // Rebuilds the per-track hash cache only when the track changes. The string forms
+        // ("sid + index", "floor:sid + index") match the original per-frame expressions, so
+        // the hashes are byte-for-byte identical to the previous implementation.
+        private void EnsureHashCache(string sid)
+        {
+            if (_hashCacheSid == sid) return;
+            _hashCacheSid = sid;
+            for (int i = 0; i < BarCount; i++)
+            {
+                _noAudioHash[i] = GetDeterministicHash(sid + i);
+                _floorHash[i] = GetDeterministicHash("floor:" + sid + i);
+            }
         }
 
         private uint GetDeterministicHash(string str)
@@ -479,6 +501,28 @@ namespace VNotch.Controls
             uint hash = 2166136261;
             foreach (char c in str)
                 hash = (hash ^ (uint)c) * 16777619;
+            return hash;
+        }
+
+        // Continues an FNV-1a hash by feeding the decimal digits of a (non-negative) int in
+        // the same order int.ToString() would produce, so it matches hashing the concatenated
+        // string "...{value}" without allocating that string each frame.
+        private static uint ContinueHashInt(uint hash, int value)
+        {
+            if (value < 0)
+            {
+                hash = (hash ^ (uint)'-') * 16777619;
+                value = -value;
+            }
+            Span<char> digits = stackalloc char[11];
+            int pos = digits.Length;
+            do
+            {
+                digits[--pos] = (char)('0' + (value % 10));
+                value /= 10;
+            } while (value > 0);
+            for (int k = pos; k < digits.Length; k++)
+                hash = (hash ^ (uint)digits[k]) * 16777619;
             return hash;
         }
 

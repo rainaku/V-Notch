@@ -45,15 +45,45 @@ public sealed class AudioMixerService : IDisposable
     private DateTime _setCacheAtUtc = DateTime.MinValue;
     private const double SetCacheLifetimeMs = 3000;
 
-   
+    // Shared device enumerator reused across the read-only listing calls below.
+    // Creating an MMDeviceEnumerator (CoCreateInstance) on every call is measurably
+    // costly when these refresh on a poll loop. These listing methods are only ever
+    // invoked from background Task.Run threads (see MainWindow.AudioView.Builders.cs),
+    // so a single enumerator guarded by _enumLock stays on consistent MTA threads.
+    // GetDefaultAudioEndpoint/EnumerateAudioEndPoints still query live state per call,
+    // so caching the enumerator does NOT cause stale device/default results.
+    private MMDeviceEnumerator? _enumerator;
+    private readonly object _enumLock = new();
+
+    // Resolved per-app name + icon cache keyed by PID. ResolveProcess is expensive
+    // (Process.GetProcessById + FileVersionInfo + icon extraction) and the same apps
+    // reappear on every icon-enriched refresh. Icons are frozen by FileIconProvider so
+    // they are safe to reuse from the UI thread. Access is serialized via _enumLock.
+    private readonly Dictionary<uint, (string Name, ImageSource? Icon)> _iconCache = new();
+
+    /// <summary>Caller must hold <see cref="_enumLock"/>.</summary>
+    private MMDeviceEnumerator GetEnumeratorLocked() => _enumerator ??= new MMDeviceEnumerator();
+
+    /// <summary>Drops the cached enumerator so the next call recreates it (self-heal on error).</summary>
+    private void DisposeEnumerator()
+    {
+        if (_enumerator != null)
+        {
+            try { _enumerator.Dispose(); } catch { }
+            _enumerator = null;
+        }
+    }
+
     public List<AudioSessionInfo> GetSessions() => GetSessions(includeIcons: true);
 
     public List<AudioSessionInfo> GetSessions(bool includeIcons)
     {
         var results = new List<AudioSessionInfo>();
+        lock (_enumLock)
+        {
         try
         {
-            using var enumerator = new MMDeviceEnumerator();
+            var enumerator = GetEnumeratorLocked();
             using var renderDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
 
             var sessions = renderDevice.AudioSessionManager.Sessions;
@@ -95,7 +125,18 @@ public sealed class AudioMixerService : IDisposable
                     }
                     else if (includeIcons)
                     {
-                        ResolveProcess(pid, session, out name, out icon);
+                        if (_iconCache.TryGetValue(pid, out var cached))
+                        {
+                            name = cached.Name;
+                            icon = cached.Icon;
+                        }
+                        else
+                        {
+                            ResolveProcess(pid, session, out name, out icon);
+                            // Cache once we have a usable name (icon may legitimately be null).
+                            if (!string.IsNullOrWhiteSpace(name))
+                                _iconCache[pid] = (name, icon);
+                        }
                     }
                     else
                     {
@@ -124,6 +165,8 @@ public sealed class AudioMixerService : IDisposable
         catch (Exception ex)
         {
             RuntimeLog.Log("AUDIOMIXER", $"GetSessions error: {ex.Message}");
+            DisposeEnumerator();
+        }
         }
 
         return results
@@ -286,9 +329,11 @@ public sealed class AudioMixerService : IDisposable
     public List<AudioDeviceInfo> GetOutputDevices()
     {
         var devices = new List<AudioDeviceInfo>();
+        lock (_enumLock)
+        {
         try
         {
-            using var enumerator = new MMDeviceEnumerator();
+            var enumerator = GetEnumeratorLocked();
             string defaultId = "";
             try
             {
@@ -320,6 +365,8 @@ public sealed class AudioMixerService : IDisposable
         catch (Exception ex)
         {
             RuntimeLog.Log("AUDIOMIXER-DEVICES", ex.Message);
+            DisposeEnumerator();
+        }
         }
         return devices;
     }
@@ -389,9 +436,11 @@ public sealed class AudioMixerService : IDisposable
     public List<AudioDeviceInfo> GetInputDevices()
     {
         var devices = new List<AudioDeviceInfo>();
+        lock (_enumLock)
+        {
         try
         {
-            using var enumerator = new MMDeviceEnumerator();
+            var enumerator = GetEnumeratorLocked();
             string defaultId = "";
             try
             {
@@ -423,6 +472,8 @@ public sealed class AudioMixerService : IDisposable
         catch (Exception ex)
         {
             RuntimeLog.Log("AUDIOMIXER-INDEVICES", ex.Message);
+            DisposeEnumerator();
+        }
         }
         return devices;
     }
@@ -498,7 +549,15 @@ public sealed class AudioMixerService : IDisposable
         InvalidateCaptureCache();
     }
 
-    public void Dispose() => ReleaseSessions();
+    public void Dispose()
+    {
+        ReleaseSessions();
+        lock (_enumLock)
+        {
+            DisposeEnumerator();
+            _iconCache.Clear();
+        }
+    }
 
     /// <summary>
     /// Releases the cached per-app session COM objects. Call when the audio view
