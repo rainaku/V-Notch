@@ -145,7 +145,7 @@ public partial class MainWindow
 
         bool hadSnapshot = _lastAudioSnapshot != null;
         if (hadSnapshot)
-            BuildAudioUI(_lastAudioSnapshot!);
+            EnsureAudioUIBuilt(_lastAudioSnapshot!);
         else
             _audioViewHeight = _audioViewMaxHeight;
 
@@ -441,6 +441,11 @@ public partial class MainWindow
                 {
                     incoming.HorizontalAlignment = HorizontalAlignment.Stretch;
                     incoming.UseLayoutRounding = savedRounding;
+                    // prepIncoming pinned a fixed Width/Height for the shrink; reset to
+                    // auto so the panel fills the notch instead of staying narrow and
+                    // centered (which offsets the media control cluster).
+                    incoming.Width = double.NaN;
+                    incoming.Height = double.NaN;
                     incoming.UpdateLayout();
                 }
                 onComplete?.Invoke();

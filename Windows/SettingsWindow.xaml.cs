@@ -91,7 +91,7 @@ public event EventHandler? AnimatedClosing;
                     return true;
 
                 if (fe is Border border && border.Tag is string tag &&
-                    (tag == "Searching" || tag == "Appearance" || tag == "Behavior" || tag == "Devices" ||
+                    (tag == "Searching" || tag == "Appearance" || tag == "Skins" || tag == "Behavior" || tag == "Devices" ||
                      tag == "System" || tag == "Advanced" || tag == "Performance" ||
                      tag == "Donating" || tag == "Updates"))
                 {
@@ -119,6 +119,8 @@ public event EventHandler? AnimatedClosing;
         BlurDarkOverlaySlider.Value = _settings.MediaBlurDarkOverlay * 100;
         AnimationFpsSlider.Value = _settings.AnimationFps;
         EnableBlurEffectsCheck.IsChecked = _settings.EnableBlurEffects;
+        MediaArtBackgroundCheck.IsChecked = _settings.ShowMediaArtBackground;
+        LoadLiquidGlassUi();
         EnableSubjectBlurCheck.IsChecked = _settings.EnableSubjectBlur;
         EnableSmartCropCheck.IsChecked = _settings.EnableSmartCrop;
         UpdatePerformanceDependentControls(_settings.EnableBlurEffects);
@@ -207,6 +209,7 @@ public event EventHandler? AnimatedClosing;
 
         NavSearchingText.Text = Loc.Get("settings.searching");
         NavAppearanceText.Text = Loc.Get("settings.nav.appearance");
+        NavSkinsText.Text = Loc.Get("settings.nav.skins");
         NavBehaviorText.Text = Loc.Get("settings.nav.behavior");
         NavDevicesText.Text = Loc.Get("settings.nav.devices");
         NavSystemText.Text = Loc.Get("settings.nav.system");
@@ -330,6 +333,9 @@ public event EventHandler? AnimatedClosing;
         AnimationFpsSlider.Description = Loc.Get("settings.animationFps.hint");
         EnableBlurEffectsCheck.Content = Loc.Get("settings.enableBlurEffects");
         EnableBlurEffectsHint.Text = Loc.Get("settings.enableBlurEffects.hint");
+        MediaArtBackgroundCheck.Content = Loc.Get("settings.mediaArtBackground");
+        MediaArtBackgroundHint.Text = Loc.Get("settings.mediaArtBackground.hint");
+        ApplyLiquidGlassLocalization();
         EnableSubjectBlurCheck.Content = Loc.Get("settings.enableSubjectBlur");
         EnableSubjectBlurHint.Text = Loc.Get("settings.enableSubjectBlur.hint");
         EnableSmartCropCheck.Content = Loc.Get("settings.enableSmartCrop");
@@ -754,6 +760,281 @@ public event EventHandler? AnimatedClosing;
         }
     }
 
+    #region Liquid Glass skin
+
+    // Snapshot of the user's manually-tuned glass values, preserved so the
+    // "Custom Settings" preset can always restore exactly what they had.
+    private Models.LiquidGlassConfig? _customGlassSnapshot;
+    private bool _suppressGlassPresetChange;
+
+    private static Models.LiquidGlassConfig FrostedGlassPreset() => new()
+    {
+        BlurAmount = 0.25,
+        Refraction = 0.6,
+        ChromaticAberration = 0.08,
+        EdgeHighlight = 0.35,
+        Specular = 0.20,
+        Fresnel = 0.25,
+        Distortion = 0.05,
+        ZRadius = 0.20,
+        Opacity = 1.0,
+        Saturation = -0.30,
+        Brightness = -0.30,
+        ShadowOpacity = 0.50,
+        ShadowSpread = 18,
+        BevelMode = 0
+    };
+
+    private static Models.LiquidGlassConfig DarkGlassPreset() => new()
+    {
+        BlurAmount = 0.25,
+        Refraction = 1.2,
+        ChromaticAberration = 0.40,
+        EdgeHighlight = 0.12,
+        Specular = 0.35,
+        Fresnel = 0.45,
+        Distortion = 0.15,
+        ZRadius = 0.30,
+        Opacity = 1.0,
+        Saturation = -0.50,
+        Brightness = -0.30,
+        ShadowOpacity = 0.80,
+        ShadowSpread = 30,
+        BevelMode = 1
+    };
+
+    private void EnsureGlassPresetItems()
+    {
+        if (GlassPresetCombo.Items.Count > 0) return;
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.custom"), Tag = "custom" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.frosted"), Tag = "frosted" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.dark"), Tag = "dark" });
+    }
+
+    private Models.LiquidGlassConfig ReadGlassConfigFromSliders() => new()
+    {
+        BlurAmount = GlassBlurSlider.Value / 100.0,
+        Refraction = GlassRefractionSlider.Value / 100.0,
+        ChromaticAberration = GlassChromSlider.Value / 100.0,
+        EdgeHighlight = GlassEdgeHighlightSlider.Value / 100.0,
+        Specular = GlassSpecularSlider.Value / 100.0,
+        Fresnel = GlassFresnelSlider.Value / 100.0,
+        Distortion = GlassDistortionSlider.Value / 100.0,
+        ZRadius = GlassZRadiusSlider.Value / 100.0,
+        Opacity = GlassOpacitySlider.Value / 100.0,
+        Saturation = GlassSaturationSlider.Value / 100.0,
+        Brightness = GlassBrightnessSlider.Value / 100.0,
+        ShadowOpacity = GlassShadowOpacitySlider.Value / 100.0,
+        ShadowSpread = (int)Math.Round(GlassShadowSpreadSlider.Value),
+        BevelMode = (int)Math.Round(GlassBevelModeSlider.Value)
+    };
+
+    private void ApplyGlassConfigToSliders(Models.LiquidGlassConfig c)
+    {
+        bool prev = _isLoadingSettings;
+        _isLoadingSettings = true;
+        try
+        {
+            GlassBlurSlider.Value = Math.Round(c.BlurAmount * 100);
+            GlassRefractionSlider.Value = Math.Round(c.Refraction * 100);
+            GlassChromSlider.Value = Math.Round(c.ChromaticAberration * 100);
+            GlassEdgeHighlightSlider.Value = Math.Round(c.EdgeHighlight * 100);
+            GlassSpecularSlider.Value = Math.Round(c.Specular * 100);
+            GlassFresnelSlider.Value = Math.Round(c.Fresnel * 100);
+            GlassDistortionSlider.Value = Math.Round(c.Distortion * 100);
+            GlassZRadiusSlider.Value = Math.Round(c.ZRadius * 100);
+            GlassOpacitySlider.Value = Math.Round(c.Opacity * 100);
+            GlassSaturationSlider.Value = Math.Round(c.Saturation * 100);
+            GlassBrightnessSlider.Value = Math.Round(c.Brightness * 100);
+            GlassShadowOpacitySlider.Value = Math.Round(c.ShadowOpacity * 100);
+            GlassShadowSpreadSlider.Value = c.ShadowSpread;
+            GlassBevelModeSlider.Value = c.BevelMode;
+        }
+        finally
+        {
+            _isLoadingSettings = prev;
+        }
+    }
+
+    private void SelectGlassPreset(string tag)
+    {
+        EnsureGlassPresetItems();
+        for (int i = 0; i < GlassPresetCombo.Items.Count; i++)
+        {
+            if (GlassPresetCombo.Items[i] is System.Windows.Controls.ComboBoxItem item &&
+                (item.Tag as string) == tag)
+            {
+                _suppressGlassPresetChange = true;
+                GlassPresetCombo.SelectedIndex = i;
+                _suppressGlassPresetChange = false;
+                return;
+            }
+        }
+    }
+
+    private void LoadLiquidGlassUi()
+    {
+        bool prev = _isLoadingSettings;
+        _isLoadingSettings = true;
+        try
+        {
+            if (SkinCombo.Items.Count == 0)
+            {
+                SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.default"), Tag = "default" });
+                SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.liquidglass"), Tag = "liquidglass" });
+            }
+
+            EnsureGlassPresetItems();
+
+            bool glass = string.Equals(_settings.NotchStyle, "liquidglass", StringComparison.OrdinalIgnoreCase);
+            SkinCombo.SelectedIndex = glass ? 1 : 0;
+
+            var c = _settings.LiquidGlass ?? new Models.LiquidGlassConfig();
+            ApplyGlassConfigToSliders(c);
+
+            // The user's tuned values live in their own persistent slot. If it's
+            // missing (first run / upgrade), seed it from whatever is currently
+            // active so the very first values are never lost.
+            _settings.LiquidGlassCustom ??= c.Clone();
+            _customGlassSnapshot = _settings.LiquidGlassCustom.Clone();
+
+            string preset = string.IsNullOrWhiteSpace(_settings.LiquidGlassPreset) ? "custom" : _settings.LiquidGlassPreset;
+            SelectGlassPreset(preset);
+
+            LiquidGlassConfigPanel.Visibility = glass ? Visibility.Visible : Visibility.Collapsed;
+        }
+        finally
+        {
+            _isLoadingSettings = prev;
+        }
+    }
+
+    private void SaveLiquidGlassUi()
+    {
+        _settings.NotchStyle = (SkinCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "default";
+
+        var c = _settings.LiquidGlass ??= new Models.LiquidGlassConfig();
+        var ui = ReadGlassConfigFromSliders();
+        c.BlurAmount = ui.BlurAmount;
+        c.Refraction = ui.Refraction;
+        c.ChromaticAberration = ui.ChromaticAberration;
+        c.EdgeHighlight = ui.EdgeHighlight;
+        c.Specular = ui.Specular;
+        c.Fresnel = ui.Fresnel;
+        c.Distortion = ui.Distortion;
+        c.ZRadius = ui.ZRadius;
+        c.Opacity = ui.Opacity;
+        c.Saturation = ui.Saturation;
+        c.Brightness = ui.Brightness;
+        c.ShadowOpacity = ui.ShadowOpacity;
+        c.ShadowSpread = ui.ShadowSpread;
+        c.BevelMode = ui.BevelMode;
+
+        // Persist which preset is active and the user's custom slot. A built-in
+        // preset being active must NOT overwrite the custom slot.
+        _settings.LiquidGlassPreset = (GlassPresetCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "custom";
+        if (_customGlassSnapshot != null)
+            _settings.LiquidGlassCustom = _customGlassSnapshot.Clone();
+    }
+
+    private void GlassPresetCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isLoadingSettings || _suppressGlassPresetChange) return;
+        if (GlassPresetCombo.SelectedItem is not System.Windows.Controls.ComboBoxItem item) return;
+
+        switch (item.Tag as string)
+        {
+            case "frosted":
+                ApplyGlassConfigToSliders(FrostedGlassPreset());
+                break;
+            case "dark":
+                ApplyGlassConfigToSliders(DarkGlassPreset());
+                break;
+            case "custom":
+            default:
+                if (_customGlassSnapshot != null)
+                    ApplyGlassConfigToSliders(_customGlassSnapshot);
+                break;
+        }
+
+        PushLivePreview();
+    }
+
+    private void SkinCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (LiquidGlassConfigPanel != null && SkinCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item)
+        {
+            bool glass = (item.Tag as string) == "liquidglass";
+            LiquidGlassConfigPanel.Visibility = glass ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (_isLoadingSettings) return;
+        PushLivePreview();
+    }
+
+    private void GlassConfigSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isLoadingSettings) return;
+
+        // A manual slider tweak means the values no longer match a named preset —
+        // capture them as the custom snapshot and reflect that in the dropdown.
+        _customGlassSnapshot = ReadGlassConfigFromSliders();
+        SelectGlassPreset("custom");
+
+        PushLivePreview();
+    }
+
+    private void GlassConfigCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        PushLivePreview();
+    }
+
+    private void ApplyLiquidGlassLocalization()
+    {
+        if (SkinLabel == null) return;
+
+        if (SkinHeader != null) SkinHeader.Text = Loc.Get("settings.skins");
+        SkinLabel.Text = Loc.Get("settings.skin");
+        SkinHint.Text = Loc.Get("settings.skin.hint");
+
+        int idx = SkinCombo.SelectedIndex;
+        bool prev = _isLoadingSettings;
+        _isLoadingSettings = true;
+        SkinCombo.Items.Clear();
+        SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.default"), Tag = "default" });
+        SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.liquidglass"), Tag = "liquidglass" });
+        SkinCombo.SelectedIndex = idx < 0 ? 0 : idx;
+        _isLoadingSettings = prev;
+
+        if (GlassPresetLabel != null) GlassPresetLabel.Text = Loc.Get("settings.glass.preset");
+        int presetIdx = GlassPresetCombo.SelectedIndex;
+        _suppressGlassPresetChange = true;
+        GlassPresetCombo.Items.Clear();
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.custom"), Tag = "custom" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.frosted"), Tag = "frosted" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.dark"), Tag = "dark" });
+        GlassPresetCombo.SelectedIndex = presetIdx < 0 ? 0 : presetIdx;
+        _suppressGlassPresetChange = false;
+
+        GlassBlurSlider.Label = Loc.Get("settings.glass.blur");
+        GlassRefractionSlider.Label = Loc.Get("settings.glass.refraction");
+        GlassChromSlider.Label = Loc.Get("settings.glass.chrom");
+        GlassEdgeHighlightSlider.Label = Loc.Get("settings.glass.edgeHighlight");
+        GlassSpecularSlider.Label = Loc.Get("settings.glass.specular");
+        GlassFresnelSlider.Label = Loc.Get("settings.glass.fresnel");
+        GlassDistortionSlider.Label = Loc.Get("settings.glass.distortion");
+        GlassZRadiusSlider.Label = Loc.Get("settings.glass.zRadius");
+        GlassOpacitySlider.Label = Loc.Get("settings.glass.opacity");
+        GlassSaturationSlider.Label = Loc.Get("settings.glass.saturation");
+        GlassBrightnessSlider.Label = Loc.Get("settings.glass.brightness");
+        GlassShadowOpacitySlider.Label = Loc.Get("settings.glass.shadowOpacity");
+        GlassShadowSpreadSlider.Label = Loc.Get("settings.glass.shadowSpread");
+        GlassBevelModeSlider.Label = Loc.Get("settings.glass.bevelMode");
+    }
+
+    #endregion
+
     private void YouTubeApiCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_isLoadingSettings) return;
@@ -866,6 +1147,7 @@ public event EventHandler? AnimatedClosing;
 
             (NavSearchingText, () => NavSearchingText.Text = Loc.Get("settings.searching")),
             (NavAppearanceText, () => NavAppearanceText.Text = Loc.Get("settings.nav.appearance")),
+            (NavSkinsText, () => NavSkinsText.Text = Loc.Get("settings.nav.skins")),
             (NavBehaviorText, () => NavBehaviorText.Text = Loc.Get("settings.nav.behavior")),
             (NavDevicesText, () => NavDevicesText.Text = Loc.Get("settings.nav.devices")),
             (NavSystemText, () => NavSystemText.Text = Loc.Get("settings.nav.system")),
@@ -1306,6 +1588,10 @@ private void PushLivePreview()
         BlurDarkOverlaySlider.Value = defaults.MediaBlurDarkOverlay * 100;
         AnimationFpsSlider.Value = defaults.AnimationFps;
         EnableBlurEffectsCheck.IsChecked = defaults.EnableBlurEffects;
+        MediaArtBackgroundCheck.IsChecked = defaults.ShowMediaArtBackground;
+        _settings.NotchStyle = defaults.NotchStyle;
+        _settings.LiquidGlass = (defaults.LiquidGlass ?? new Models.LiquidGlassConfig()).Clone();
+        LoadLiquidGlassUi();
         EnableSubjectBlurCheck.IsChecked = defaults.EnableSubjectBlur;
         EnableSmartCropCheck.IsChecked = defaults.EnableSmartCrop;
         UpdatePerformanceDependentControls(defaults.EnableBlurEffects);
@@ -1677,6 +1963,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.MediaBlurDarkOverlay = BlurDarkOverlaySlider.Value / 100.0;
         _settings.AnimationFps = (int)Math.Round(AnimationFpsSlider.Value);
         _settings.EnableBlurEffects = EnableBlurEffectsCheck.IsChecked ?? true;
+        _settings.ShowMediaArtBackground = MediaArtBackgroundCheck.IsChecked ?? true;
+        SaveLiquidGlassUi();
         _settings.EnableSubjectBlur = EnableSubjectBlurCheck.IsChecked ?? true;
         _settings.EnableSmartCrop = EnableSmartCropCheck.IsChecked ?? true;
         _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
@@ -1842,6 +2130,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     {
         _navPanels["Searching"] = PanelSearching;
         _navPanels["Appearance"] = PanelAppearance;
+        _navPanels["Skins"] = PanelSkins;
         _navPanels["Behavior"] = PanelBehavior;
         _navPanels["Devices"] = PanelDevices;
         _navPanels["System"] = PanelSystem;
@@ -1852,6 +2141,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
 
         _navButtons["Searching"] = NavSearching;
         _navButtons["Appearance"] = NavAppearance;
+        _navButtons["Skins"] = NavSkins;
         _navButtons["Behavior"] = NavBehavior;
         _navButtons["Devices"] = NavDevices;
         _navButtons["System"] = NavSystem;
@@ -1922,6 +2212,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             "Performance" => PerformanceCard,
             "Donating" => DonatingCard,
             "Updates" => UpdatesCard,
+            "Skins" => SkinCard,
             _ => null
         };
 
@@ -1936,6 +2227,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             "Performance" => PerformanceCardTranslate,
             "Donating" => DonatingCardTranslate,
             "Updates" => UpdatesCardTranslate,
+            "Skins" => SkinCardTranslate,
             _ => null
         };
 

@@ -1,6 +1,7 @@
 <Window x:Class="VNotch.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
         xmlns:tb="http://www.hardcodet.net/taskbar"
         Title="V-Notch"
         WindowStyle="None"
@@ -45,7 +46,7 @@
         <SolidColorBrush x:Key="BatteryGreen" Color="#30D158"/>
 
         <SolidColorBrush x:Key="BatteryRed" Color="#FF3B30"/>
-        
+
         <SolidColorBrush x:Key="BatteryYellow" Color="#FFD60A"/>
 
         <SolidColorBrush x:Key="AppleBlue" Color="#007AFF"/>
@@ -72,7 +73,7 @@
         </Style>
 
         <Style x:Key="SubtitleText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#B3FFFFFF"/> 
+            <Setter Property="Foreground" Value="#B3FFFFFF"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
@@ -84,7 +85,7 @@
         </Style>
 
         <Style x:Key="SmallText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#A6FFFFFF"/> 
+            <Setter Property="Foreground" Value="#A6FFFFFF"/>
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontFamily" Value="{StaticResource MainSystemFont}"/>
@@ -120,10 +121,10 @@
             </Style.Triggers>
         </Style>
 
-        <DropShadowEffect x:Key="NotchShadow" 
-                          Color="#000000" 
-                          ShadowDepth="4" 
-                          BlurRadius="20" 
+        <DropShadowEffect x:Key="NotchShadow"
+                          Color="#000000"
+                          ShadowDepth="4"
+                          BlurRadius="20"
                           Opacity="0.6"
                           Direction="270"
                           RenderingBias="Performance"/>
@@ -295,8 +296,8 @@
                 <TranslateTransform x:Name="NotchContainerTranslate" Y="0"/>
             </Grid.RenderTransform>
 
-            <Grid x:Name="NotchShadowWrapper" 
-                  HorizontalAlignment="Center" 
+            <Grid x:Name="NotchShadowWrapper"
+                  HorizontalAlignment="Center"
                   VerticalAlignment="Top"
                   Margin="0,-0.5,0,0"
                   RenderTransformOrigin="0.5,0"
@@ -310,10 +311,10 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Path x:Name="LeftShadowEar" Grid.Column="0" 
-                      Data="M 0,0 L 10,0 L 10,10 Q 10,0 0,0 Z" 
-                      Fill="Black" 
-                      Width="11" Height="10" 
+                <Path x:Name="LeftShadowEar" Grid.Column="0"
+                      Data="M 0,0 L 10,0 L 10,10 Q 10,0 0,0 Z"
+                      Fill="Black"
+                      Width="11" Height="10"
                       Margin="0,0,-1,0"
                       VerticalAlignment="Top"/>
 
@@ -324,16 +325,16 @@
                         Width="{Binding Width, ElementName=NotchBorder}"
                         Height="{Binding Height, ElementName=NotchBorder}"/>
 
-                <Path x:Name="RightShadowEar" Grid.Column="2" 
-                      Data="M 11,0 L 1,0 L 1,10 Q 1,0 11,0 Z" 
-                      Fill="Black" 
-                      Width="11" Height="10" 
+                <Path x:Name="RightShadowEar" Grid.Column="2"
+                      Data="M 11,0 L 1,0 L 1,10 Q 1,0 11,0 Z"
+                      Fill="Black"
+                      Width="11" Height="10"
                       Margin="-1,0,0,0"
                       VerticalAlignment="Top"/>
             </Grid>
 
-            <Grid x:Name="NotchWrapper" 
-                  HorizontalAlignment="Center" 
+            <Grid x:Name="NotchWrapper"
+                  HorizontalAlignment="Center"
                   VerticalAlignment="Top"
                   RenderTransformOrigin="0.5,0"
                   Cursor="Hand"
@@ -357,11 +358,11 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Path x:Name="LeftEar" 
-                      Grid.Column="0" 
-                      Data="M 0,0 L 10,0 L 10,10 Q 10,0 0,0 Z" 
-                      Fill="{StaticResource NotchGradient}" 
-                      Width="11" Height="10" 
+                <Path x:Name="LeftEar"
+                      Grid.Column="0"
+                      Data="M 0,0 L 10,0 L 10,10 Q 10,0 0,0 Z"
+                      Fill="{StaticResource NotchGradient}"
+                      Width="11" Height="10"
                       Margin="0,0,-1,0"
                       VerticalAlignment="Top"
                       RenderOptions.EdgeMode="Unspecified"/>
@@ -374,12 +375,69 @@
                 <Border x:Name="InnerClipBorder" CornerRadius="0,0,20,20" ClipToBounds="True" Background="Transparent">
                     <Grid SnapsToDevicePixels="True" UseLayoutRounding="True">
 
-                        <Border x:Name="NotchBackground" 
-                                Background="{StaticResource NotchGradient}" 
+                        <Border x:Name="NotchBackground"
+                                Background="{StaticResource NotchGradient}"
                                 IsHitTestVisible="False"
                                 CornerRadius="0,0,20,20"/>
 
-                        <!-- Volume scroll indicator bar (center of notch, ~85% width) -->
+                        <Border x:Name="GlassBackdropHost"
+                                IsHitTestVisible="False"
+                                ClipToBounds="True"
+                                Visibility="Collapsed"
+                                SizeChanged="GlassBackdropHost_SizeChanged"
+                                CornerRadius="0,0,20,20">
+
+                            <Image x:Name="GlassBackdropImage"
+                                   Stretch="Fill"
+                                   Margin="0"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+
+                        <Border x:Name="GlassTintOverlay"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                CornerRadius="0,0,20,20">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1" po:Freeze="True">
+                                    <GradientStop Color="#0CFFFFFF" Offset="0"/>
+                                    <GradientStop Color="#06FFFFFF" Offset="0.5"/>
+                                    <GradientStop Color="#160A0E14" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+
+                        <Border x:Name="GlassFresnelBorder"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                Opacity="0"
+                                BorderThickness="1.4"
+                                CornerRadius="0,0,20,20">
+                            <Border.BorderBrush>
+                                <SolidColorBrush Color="#80FFFFFF" po:Freeze="True"/>
+                            </Border.BorderBrush>
+                        </Border>
+
+                        <Border x:Name="GlassSpecularOverlay"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                Opacity="0"
+                                CornerRadius="0,0,20,20">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1" po:Freeze="True">
+                                    <GradientStop Color="#66FFFFFF" Offset="0"/>
+                                    <GradientStop Color="#1AFFFFFF" Offset="0.12"/>
+                                    <GradientStop Color="#00FFFFFF" Offset="0.4"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+
+                        <Border x:Name="GlassRimBorder"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                BorderThickness="0.7"
+                                BorderBrush="#1FFFFFFF"
+                                CornerRadius="0,0,20,20"/>
+
                         <Border x:Name="VolumeIndicatorContainer"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Stretch"
@@ -439,7 +497,6 @@
 
                         <Grid x:Name="NotchContent" Margin="0" SizeChanged="NotchContent_SizeChanged" RenderOptions.ClearTypeHint="Enabled">
 
-                    <!-- Navigation Icons Background - removed, using drop shadows on icons instead -->
                     <Border x:Name="NavIconsBackground"
                             HorizontalAlignment="Left" VerticalAlignment="Top"
                             Margin="8,-2,0,0" Panel.ZIndex="199"
@@ -450,7 +507,6 @@
                             Visibility="Collapsed"
                             MouseLeftButtonDown="NavIconsPanel_MouseLeftButtonDown"/>
 
-                    <!-- Navigation Icons (fixed position, not affected by section transitions) -->
                     <Grid x:Name="NavIconsPanel"
                           HorizontalAlignment="Stretch" VerticalAlignment="Top"
                           Panel.ZIndex="200"
@@ -476,7 +532,7 @@
                                 </Border.Effect>
                                 <Viewbox Width="15" Height="15" Stretch="Uniform"
                                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Path Data="M8 0L0 6V8H1V15H4V10H7V15H15V8H16V6L14 4.5V1H11V2.25L8 0ZM9 10H12V13H9V10Z" 
+                                    <Path Data="M8 0L0 6V8H1V15H4V10H7V15H15V8H16V6L14 4.5V1H11V2.25L8 0ZM9 10H12V13H9V10Z"
                                           Fill="White"/>
                                 </Viewbox>
                             </Border>
@@ -492,7 +548,7 @@
                                 </Border.Effect>
                                 <Viewbox Width="15" Height="15" Stretch="Uniform"
                                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Path Data="M479.66,268.7l-32-151.81C441.48,83.77,417.68,64,384,64H128c-16.8,0-31,4.69-42.1,13.94s-18.37,22.31-21.58,38.89l-32,151.87A16.65,16.65,0,0,0,32,272V384a64,64,0,0,0,64,64H416a64,64,0,0,0,64-64V272A16.65,16.65,0,0,0,479.66,268.7Zm-384-145.4c0-.1,0-.19,0-.28,3.55-18.43,13.81-27,32.29-27H384c18.61,0,28.87,8.55,32.27,26.91,0,.13.05.26.07.39l26.93,127.88a4,4,0,0,1-3.92,4.82H320a15.92,15.92,0,0,0-16,15.82,48,48,0,1,1-96,0A15.92,15.92,0,0,0,192,256H72.65a4,4,0,0,1-3.92-4.82Z" 
+                                    <Path Data="M479.66,268.7l-32-151.81C441.48,83.77,417.68,64,384,64H128c-16.8,0-31,4.69-42.1,13.94s-18.37,22.31-21.58,38.89l-32,151.87A16.65,16.65,0,0,0,32,272V384a64,64,0,0,0,64,64H416a64,64,0,0,0,64-64V272A16.65,16.65,0,0,0,479.66,268.7Zm-384-145.4c0-.1,0-.19,0-.28,3.55-18.43,13.81-27,32.29-27H384c18.61,0,28.87,8.55,32.27,26.91,0,.13.05.26.07.39l26.93,127.88a4,4,0,0,1-3.92,4.82H320a15.92,15.92,0,0,0-16,15.82,48,48,0,1,1-96,0A15.92,15.92,0,0,0,192,256H72.65a4,4,0,0,1-3.92-4.82Z"
                                           Fill="White"/>
                                 </Viewbox>
                             </Border>
@@ -508,7 +564,7 @@
                                 </Border.Effect>
                                 <Viewbox Width="15" Height="15" Stretch="Uniform"
                                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Path Data="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12ZM15.8321 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.8321L11.8451 13.0986C11.3171 12.7466 11 12.1541 11 11.5196V11.5V7C11 6.44772 11.4477 6 12 6C12.5523 6 13 6.44772 13 7V11.4648L15.5547 13.1679C16.0142 13.4743 16.1384 14.0952 15.8321 14.5547Z" 
+                                    <Path Data="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12ZM15.8321 14.5547C15.5257 15.0142 14.9048 15.1384 14.4453 14.8321L11.8451 13.0986C11.3171 12.7466 11 12.1541 11 11.5196V11.5V7C11 6.44772 11.4477 6 12 6C12.5523 6 13 6.44772 13 7V11.4648L15.5547 13.1679C16.0142 13.4743 16.1384 14.0952 15.8321 14.5547Z"
                                           Fill="White"/>
                                 </Viewbox>
                             </Border>
@@ -523,14 +579,14 @@
                                 </Border.Effect>
                                 <Viewbox Width="15" Height="15" Stretch="Uniform"
                                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Path Data="M13.5 2.5C13.5 2.1 13.05 1.86 12.72 2.09L6.8 6.2H3.5C2.95 6.2 2.5 6.65 2.5 7.2V12.8C2.5 13.35 2.95 13.8 3.5 13.8H6.8L12.72 17.91C13.05 18.14 13.5 17.9 13.5 17.5V2.5ZM16.04 6.05C15.74 5.79 15.28 5.82 15.02 6.13C14.76 6.43 14.79 6.89 15.1 7.15C16.0 7.93 16.5 8.93 16.5 10C16.5 11.07 16.0 12.07 15.1 12.85C14.79 13.11 14.76 13.57 15.02 13.87C15.28 14.18 15.74 14.21 16.04 13.95C17.25 12.91 18 11.5 18 10C18 8.5 17.25 7.09 16.04 6.05Z" 
+                                    <Path Data="M13.5 2.5C13.5 2.1 13.05 1.86 12.72 2.09L6.8 6.2H3.5C2.95 6.2 2.5 6.65 2.5 7.2V12.8C2.5 13.35 2.95 13.8 3.5 13.8H6.8L12.72 17.91C13.05 18.14 13.5 17.9 13.5 17.5V2.5ZM16.04 6.05C15.74 5.79 15.28 5.82 15.02 6.13C14.76 6.43 14.79 6.89 15.1 7.15C16.0 7.93 16.5 8.93 16.5 10C16.5 11.07 16.0 12.07 15.1 12.85C14.79 13.11 14.76 13.57 15.02 13.87C15.28 14.18 15.74 14.21 16.04 13.95C17.25 12.91 18 11.5 18 10C18 8.5 17.25 7.09 16.04 6.05Z"
                                           Fill="White"/>
                                 </Viewbox>
                             </Border>
                         </StackPanel>
                     </Grid>
 
-                    <StackPanel x:Name="CollapsedContent" 
+                    <StackPanel x:Name="CollapsedContent"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center">
@@ -539,7 +595,6 @@
                         </StackPanel.Effect>
                     </StackPanel>
 
-                    <!-- Greeting Overlay (Apple-style "Hello" handwriting on startup) -->
                     <Grid x:Name="GreetingOverlay"
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Stretch"
@@ -547,14 +602,14 @@
                           Opacity="0"
                           Panel.ZIndex="250"
                           IsHitTestVisible="False">
-                        <!-- English "Hello" handwriting paths -->
-                        <Viewbox x:Name="HelloPathContainer" Stretch="Uniform" 
-                                 HorizontalAlignment="Center" 
+
+                        <Viewbox x:Name="HelloPathContainer" Stretch="Uniform"
+                                 HorizontalAlignment="Center"
                                  VerticalAlignment="Center"
                                  MaxHeight="60"
                                  Margin="40,0,40,0">
                             <Canvas Width="638" Height="200">
-                                <!-- First stroke of "hello" (the h + start) -->
+
                                 <Path x:Name="HelloPath1"
                                       Data="M8.69214 166.553C36.2393 151.239 61.3409 131.548 89.8191 98.0295C109.203 75.1488 119.625 49.0228 120.122 31.0026C120.37 17.6036 113.836 7.43883 101.759 7.43883C88.3598 7.43883 79.9231 17.6036 74.7122 40.9363C69.005 66.5793 64.7866 96.0036 54.1166 190.356"
                                       StrokeThickness="14.89"
@@ -570,7 +625,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- Second stroke "ello" continuation -->
+
                                 <Path x:Name="HelloPath2"
                                       Data="M55.1624 181.135C60.6251 133.114 81.4118 98.0479 107.963 98.0479C123.844 98.0479 133.937 110.703 131.071 128.817C129.457 139.487 127.587 150.405 125.408 163.06C122.869 178.941 130.128 191.348 152.122 191.348C184.197 191.348 219.189 173.523 237.097 145.915C243.198 136.509 245.68 128.073 245.928 119.884C246.176 104.996 237.739 93.8296 222.851 93.8296C203.992 93.8296 189.6 115.17 189.6 142.465C189.6 171.745 205.481 192.341 239.208 192.341C285.066 192.341 335.86 137.292 359.199 75.8585C365.788 58.513 368.26 42.4065 368.26 31.1512C368.26 17.8057 364.042 7.55823 352.131 7.55823C340.469 7.55823 332.777 16.6141 325.829 30.9129C317.688 47.4967 311.667 71.4162 309.203 98.4549C303 166.301 316.896 191.348 349.936 191.348C390 191.348 434.542 135.534 457.286 75.6686C463.803 58.513 466.275 42.4065 466.275 31.1512C466.275 17.8057 462.057 7.55823 450.146 7.55823C438.484 7.55823 430.792 16.6141 423.844 30.9129C415.703 47.4967 409.682 71.4162 407.218 98.4549C401.015 166.301 414.911 191.348 444.416 191.348C473.874 191.348 489.877 165.67 499.471 138.402C508.955 111.447 520.618 94.8221 544.935 94.8221C565.035 94.8221 580.916 109.71 580.916 137.75C580.916 168.768 560.792 192.093 535.362 192.341C512.984 192.589 498.285 174.475 499.774 147.179C501.511 116.907 519.873 94.8221 543.943 94.8221C557.839 94.8221 569.51 100.999 578.682 107.725C603.549 125.866 622.709 114.656 630.047 96.7186"
                                       StrokeThickness="14.89"
@@ -588,7 +643,7 @@
                                 </Path>
                             </Canvas>
                         </Viewbox>
-                        <!-- Vietnamese "Xin Chào" handwriting paths -->
+
                         <Viewbox x:Name="XinChaoPathContainer" Stretch="Uniform"
                                  HorizontalAlignment="Center"
                                  VerticalAlignment="Center"
@@ -596,7 +651,7 @@
                                  Margin="40,0,40,0"
                                  Visibility="Collapsed">
                             <Canvas Width="1009" Height="200">
-                                <!-- x1 -->
+
                                 <Path x:Name="ViPath1"
                                       Data="M102.233 96.2277C75.6823 127.245 45.1612 158.759 11.4143 190.521"
                                       StrokeThickness="14.89"
@@ -612,7 +667,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- x2 -->
+
                                 <Path x:Name="ViPath2"
                                       Data="M7.69214 116.575C9.67725 105.16 16.8733 95.7311 28.5358 95.7311C40.4465 95.7311 46.8981 105.408 53.3497 124.019C56.7409 133.283 60.1322 142.547 63.5234 151.81C73.689 179.58 81.1988 191.513 100.855 191.513C128.722 191.513 154.043 159.148 161.595 118.502C162.929 111.321 164.774 103.736 166.043 96.2273"
                                       StrokeThickness="14.89"
@@ -628,7 +683,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- i -->
+
                                 <Path x:Name="ViPath3"
                                       Data="M166.043 96.2273C163.191 113.101 160.565 126.997 158.92 139.404C157.989 147.592 157.544 154.54 157.596 161.488C157.729 179.354 164.764 191.513 182.695 191.513C209.39 191.513 236.181 159.123 243.73 118.5C245.064 111.321 247.012 103.759 248.139 96.2273"
                                       StrokeThickness="14.89"
@@ -644,7 +699,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- i dot -->
+
                                 <Ellipse x:Name="ViDotI"
                                          Width="16" Height="16"
                                          Canvas.Left="162" Canvas.Top="68"
@@ -657,7 +712,7 @@
                                         </LinearGradientBrush>
                                     </Ellipse.Fill>
                                 </Ellipse>
-                                <!-- n1 -->
+
                                 <Path x:Name="ViPath4"
                                       Data="M248.139 96.2278C243.424 127.741 239.454 158.759 234.491 190.272"
                                       StrokeThickness="14.89"
@@ -673,7 +728,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- n2 -->
+
                                 <Path x:Name="ViPath5"
                                       Data="M237.873 167.951C244.704 121.32 265.508 94.2422 290.322 94.2422C307.692 94.2422 316.625 106.153 315.136 123.026C313.896 135.681 309.677 150.322 308.685 162.729C307.444 179.85 316.499 191.513 330.769 191.513C348.722 191.513 359.309 179.314 364.143 165.965"
                                       StrokeThickness="14.89"
@@ -689,7 +744,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- c, h1 -->
+
                                 <Path x:Name="ViPath6"
                                       Data="M535.91 109.876C531.265 100.446 520.943 93.4984 505.459 93.4984C476.516 93.4984 462.044 117.816 462.044 143.374C462.044 171.503 482.265 192.506 511.307 192.506C559.762 192.506 592.902 136.708 621.581 97.8807C640.764 71.9101 649.874 49.2359 650.372 31.1674C650.62 17.7684 644.168 7.60362 632.01 7.60362C618.61 7.60362 610.173 17.7684 604.963 41.1011C599.255 66.7441 595.037 96.1684 584.367 190.521"
                                       StrokeThickness="14.89"
@@ -705,7 +760,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- h2 -->
+
                                 <Path x:Name="ViPath7"
                                       Data="M585.413 181.299C590.677 135.025 611.663 98.2125 638.213 98.2125C654.094 98.2125 664.187 110.868 661.321 128.982C659.708 139.652 656.794 152.059 655.128 164.217C653.102 179.602 658.89 191.513 676.813 191.513C702.178 191.513 717.375 164.077 725.613 135.196"
                                       StrokeThickness="14.89"
@@ -721,7 +776,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- a1 -->
+
                                 <Path x:Name="ViPath8"
                                       Data="M803.871 112.995C799.007 101.8 788.666 94.2423 772.207 94.2423C744.912 94.2423 724.398 121.538 723.052 150.818C721.878 177.617 734.244 192.681 751.857 192.505C776.858 192.255 795.234 167.699 803.437 115.742C804.449 109.332 805.498 102.638 806.51 96.2274"
                                       StrokeThickness="14.89"
@@ -737,7 +792,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- a2, o -->
+
                                 <Path x:Name="ViPath9"
                                       Data="M806.51 96.2274C805.486 102.73 804.461 109.232 803.436 115.735C798.955 144.175 796.887 155.395 797.109 162.729C797.628 179.85 803.785 191.513 820.064 191.513C842.563 191.513 860.966 164.721 870.266 138.289C879.653 111.612 891.315 94.9867 915.633 94.9867C935.732 94.9867 951.613 109.875 951.613 137.915C951.613 168.932 931.489 192.257 906.059 192.505C883.681 192.753 868.983 174.639 870.471 147.344C872.208 117.071 890.571 94.9867 914.64 94.9867C928.536 94.9867 940.207 101.164 949.38 107.89C974.247 126.031 993.407 114.82 1000.74 96.8832"
                                       StrokeThickness="14.89"
@@ -753,7 +808,7 @@
                                         </LinearGradientBrush>
                                     </Path.Stroke>
                                 </Path>
-                                <!-- dấu huyền (accent sign) -->
+
                                 <Path x:Name="ViPath10"
                                       Data="M763.027 19.3039C768.734 34.6886 780.397 48.3362 792.059 55.5322"
                                       StrokeThickness="14.89"
@@ -773,7 +828,6 @@
                         </Viewbox>
                     </Grid>
 
-                    <!-- Privacy Indicator Dots (iOS-style mic/camera in-use) -->
                     <StackPanel x:Name="PrivacyIndicatorPanel"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
@@ -782,7 +836,7 @@
                                 Opacity="0"
                                 Visibility="Collapsed"
                                 IsHitTestVisible="False">
-                        <!-- Single unified dot — orange for mic, green for cam, gradient transition when both active -->
+
                         <Border x:Name="PrivacyDot"
                                 Width="7" Height="7"
                                 CornerRadius="3.5"
@@ -797,7 +851,6 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Bluetooth Connected Notification -->
                     <Grid x:Name="BluetoothNotification"
                           Opacity="0"
                           Visibility="Collapsed"
@@ -850,7 +903,6 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Bluetooth Disconnected Notification -->
                     <Grid x:Name="BluetoothDisconnectNotification"
                           Opacity="0"
                           Visibility="Collapsed"
@@ -903,7 +955,6 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Battery Charging Notification -->
                     <Grid x:Name="ChargingNotification"
                           Opacity="0"
                           Visibility="Collapsed"
@@ -921,7 +972,6 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Left: "Charging" text -->
                             <TextBlock x:Name="ChargingStatusText"
                                        Grid.Column="0"
                                        Text="Charging"
@@ -936,7 +986,6 @@
                                        SnapsToDevicePixels="True"
                                        VerticalAlignment="Center"/>
 
-                            <!-- Right: percentage + battery icon -->
                             <StackPanel Grid.Column="1"
                                         Orientation="Horizontal"
                                         VerticalAlignment="Center">
@@ -953,7 +1002,7 @@
                                            SnapsToDevicePixels="True"
                                            VerticalAlignment="Center"
                                            Margin="0,0,5,0"/>
-                                <!-- Watt readout (visible only when a live rate is available) -->
+
                                 <TextBlock x:Name="ChargingWattText"
                                            Text=""
                                            Foreground="#A0FFFFFF"
@@ -968,23 +1017,23 @@
                                            VerticalAlignment="Center"
                                            Visibility="Collapsed"
                                            Margin="0,0,6,0"/>
-                                <!-- Mini battery icon -->
+
                                 <Grid Width="22" Height="12" VerticalAlignment="Center"
                                       RenderTransformOrigin="0.5,0.5">
                                     <Grid.RenderTransform>
                                         <ScaleTransform x:Name="ChargingIconScale" ScaleX="1" ScaleY="1"/>
                                     </Grid.RenderTransform>
-                                    <!-- Battery body -->
+
                                     <Border BorderBrush="#60FFFFFF" BorderThickness="1" CornerRadius="2.5"
                                             HorizontalAlignment="Left" Width="20" Height="10"
                                             VerticalAlignment="Center"/>
-                                    <!-- Battery tip -->
+
                                     <Border Background="#60FFFFFF" Width="1.5" Height="5" CornerRadius="0,1,1,0"
                                             HorizontalAlignment="Right" VerticalAlignment="Center"
                                             Margin="0,0,-1,0"/>
-                                    <!-- Battery fill -->
+
                                     <Border x:Name="ChargingBatteryFill"
-                                            Background="#30D158" 
+                                            Background="#30D158"
                                             CornerRadius="1.5"
                                             HorizontalAlignment="Left"
                                             VerticalAlignment="Center"
@@ -1014,9 +1063,9 @@
 
                         <Border x:Name="CompactThumbnailBorder"
                                 Grid.Row="0"
-                                Grid.Column="0" 
-                                Width="22" Height="22" 
-                                CornerRadius="6" 
+                                Grid.Column="0"
+                                Width="22" Height="22"
+                                CornerRadius="6"
                                 Background="#1A1A1A"
                                 BorderBrush="Transparent"
                                 BorderThickness="0"
@@ -1030,10 +1079,10 @@
                                 <BlurEffect x:Name="MusicCompactContentBlur" Radius="0" RenderingBias="Performance"/>
                             </Border.Effect>
                             <Border.RenderTransform>
-                                <!-- Hover scale: scales from top-left (origin 0,0) so the thumbnail grows down+right within the notch as it expands. -->
+
                                 <ScaleTransform x:Name="CompactThumbnailScale" ScaleX="1" ScaleY="1"/>
                             </Border.RenderTransform>
-                            <!-- Two-layer crossfade host. Outgoing thumb is the base layer, incoming thumb fades in on top with a soft parallax zoom.... -->
+
                             <Grid Width="22" Height="22" ClipToBounds="True">
                                 <Grid.Clip>
                                     <RectangleGeometry x:Name="CompactThumbnailClip" RadiusX="6" RadiusY="6" Rect="0,0,22,22"/>
@@ -1091,9 +1140,9 @@
                                 </LinearGradientBrush>
                             </Grid.OpacityMask>
                             <Canvas x:Name="CompactTitleScrollContainer" Height="22" HorizontalAlignment="Stretch" ClipToBounds="True" Margin="0,2,0,0">
-                                <TextBlock x:Name="CompactTitleMarquee" 
-                                           Text="Title" 
-                                           Style="{StaticResource TitleText}" 
+                                <TextBlock x:Name="CompactTitleMarquee"
+                                           Text="Title"
+                                           Style="{StaticResource TitleText}"
                                            FontSize="10.5"
                                            FontWeight="Bold"
                                            Foreground="#EEFFFFFF"
@@ -1107,8 +1156,8 @@
                             </Canvas>
                         </Grid>
 
-                        <ctrl:MusicVisualizer x:Name="MusicViz" 
-                                              Grid.Row="0" Grid.Column="2" 
+                        <ctrl:MusicVisualizer x:Name="MusicViz"
+                                              Grid.Row="0" Grid.Column="2"
                                               Width="20" Height="17"
                                               Margin="0,2.5,-4,0"
                                               VerticalAlignment="Top"
@@ -1118,7 +1167,6 @@
                             </ctrl:MusicVisualizer.Effect>
                         </ctrl:MusicVisualizer>
 
-                        <!-- Clipboard copied checkmark (overlays MusicViz position) -->
                         <Canvas x:Name="ClipboardCheckIcon"
                                 Grid.Row="0" Grid.Column="2"
                                 Width="16" Height="16"
@@ -1141,7 +1189,6 @@
                                   Fill="Transparent"/>
                         </Canvas>
 
-                        <!-- Clipboard "Copied" text (between thumbnail and equalizer) -->
                         <TextBlock x:Name="ClipboardCopiedText"
                                    Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                                    Text="Copied"
@@ -1168,8 +1215,8 @@
 
                     </Grid>
 
-                    <Grid x:Name="ExpandedContent" 
-                          Opacity="0" 
+                    <Grid x:Name="ExpandedContent"
+                          Opacity="0"
                           Visibility="Collapsed"
                           Margin="8,2,8,8"
                           Background="{StaticResource NotchGradient}"
@@ -1181,15 +1228,11 @@
                             <ColumnDefinition Width="0.72*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Status Bar: Battery + Update + Settings (Overlay on top) -->
-                        <Grid x:Name="StatusBar" Grid.Column="0" Grid.ColumnSpan="3" 
-                              HorizontalAlignment="Right" VerticalAlignment="Top" 
+                        <Grid x:Name="StatusBar" Grid.Column="0" Grid.ColumnSpan="3"
+                              HorizontalAlignment="Right" VerticalAlignment="Top"
                               Margin="0,0,5,0" Panel.ZIndex="100">
                             <Grid.RenderTransform>
-                                <!-- Cancels the Dynamic-Island content nudge that ExpandedContent applies
-                                     to everything inside it, so the battery/update/settings icons sit at the
-                                     same height as the nav icons (which live outside ExpandedContent). Set in
-                                     ApplyDynamicIslandContentAlignment. -->
+
                                 <TranslateTransform x:Name="StatusBarTranslate" Y="0"/>
                             </Grid.RenderTransform>
                             <Grid.ColumnDefinitions>
@@ -1197,8 +1240,7 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            
-                            <!-- Battery Section -->
+
                             <Border x:Name="BatterySection" Grid.Column="0"
                                     Cursor="Hand"
                                     Background="Transparent"
@@ -1225,8 +1267,8 @@
                                                   Data="M17.71,7.71L12,2h-1v7.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L11,14.41V22h1l5.71-5.71L13.41,12L17.71,7.71z M13,5.83l1.88,1.88L13,9.59V5.83z M14.88,16.29L13,18.17v-3.76L14.88,16.29z"/>
                                         </Canvas>
                                     </Viewbox>
-                                    <TextBlock x:Name="BatteryPercent" 
-                                               Text="100%" 
+                                    <TextBlock x:Name="BatteryPercent"
+                                               Text="100%"
                                                Style="{StaticResource SubtitleText}"
                                                FontSize="12"
                                                Foreground="#CCFFFFFF"
@@ -1234,13 +1276,11 @@
                                                Margin="0,1.5,0,0"
                                                VerticalAlignment="Center"/>
                                     <Grid Margin="4.51,0,0,0">
-                                        <!-- Rasterize the battery glyph once so the hover scale (1.0->1.1)
-                                             transforms a stable bitmap instead of re-tessellating the thin
-                                             vector borders every frame (prevents edge shimmer / shape wobble). -->
+
                                         <Grid.CacheMode>
                                             <BitmapCache RenderAtScale="2" SnapsToDevicePixels="False"/>
                                         </Grid.CacheMode>
-                                        <!-- Battery Body -->
+
                                         <Border x:Name="BatteryIcon"
                                                 Width="27.08" Height="14.44"
                                                 BorderBrush="#666666"
@@ -1260,17 +1300,15 @@
                                                 </Border>
                                             </Grid>
                                         </Border>
-                                        
-                                        <!-- Battery Terminal -->
+
                                         <Border Width="2.71" Height="7.22"
                                                 Background="#666666"
                                                 CornerRadius="0,2.26,2.26,0"
                                                 HorizontalAlignment="Right"
                                                 Margin="0,0,-2.71,0"
                                                 Panel.ZIndex="1"/>
-                                        
-                                        <!-- Lightning Bolt Icon (Charging Indicator) - Overlay on top -->
-                                        <Viewbox x:Name="ChargingBolt" 
+
+                                        <Viewbox x:Name="ChargingBolt"
                                                  Width="13.3" Height="17.1"
                                                  HorizontalAlignment="Center"
                                                  VerticalAlignment="Center"
@@ -1282,14 +1320,14 @@
                                                 <ScaleTransform x:Name="ChargingBoltScale" ScaleX="0.95" ScaleY="0.95"/>
                                             </Viewbox.RenderTransform>
                                             <Grid>
-                                                <!-- Black border: filled black shape scaled up slightly -->
+
                                                 <Path Data="M 13 2 L 3 14 L 8 14 L 7 22 L 17 10 L 12 10 L 13 2 Z"
                                                       Fill="Black"
                                                       Stroke="Black"
                                                       StrokeThickness="5.5"
                                                       StrokeLineJoin="Round"
                                                       Stretch="Uniform"/>
-                                                <!-- White fill on top -->
+
                                                 <Path Data="M 13 2 L 3 14 L 8 14 L 7 22 L 17 10 L 12 10 L 13 2 Z"
                                                       Fill="White"
                                                       Stretch="Uniform"/>
@@ -1299,7 +1337,6 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Update Notification Button with Breathing Effect -->
                             <Border x:Name="UpdateNotificationButton" Grid.Column="1"
                                     Width="20" Height="20"
                                     Background="Transparent"
@@ -1322,7 +1359,7 @@
                                 </Border.RenderTransform>
                                 <Viewbox Width="16" Height="16" Stretch="Uniform">
                                     <Canvas Width="512" Height="512">
-                                        <!-- Update icon with breathing color animation -->
+
                                         <Path x:Name="UpdateIconPath"
                                               Data="M503.58,126.2a16.85,16.85,0,0,0-27.07-4.55L425.36,172.8a11.15,11.15,0,0,1-15.66,0l-22.48-22.48a11.17,11.17,0,0,1,0-15.67L438.1,83.76a16.85,16.85,0,0,0-5.27-27.4c-39.71-17-89.08-7.45-120,23.29-26.81,26.61-34.83,68-22,113.7a11,11,0,0,1-3.16,11.1L114.77,365.1a56.76,56.76,0,1,0,80.14,80.18L357,272.08a11,11,0,0,1,10.9-3.17c45,12,86,4,112.43-22,15.2-15,25.81-36.17,29.89-59.71C514.05,165,511.63,142.76,503.58,126.2Z M437.33,378.41c-13.94-11.59-43.72-38.4-74.07-66.22L297.19,382.8c28.24,30,53.8,57.85,65,70.88l.07.08A30,30,0,0,0,383.72,464l1.1,0a30.11,30.11,0,0,0,21-8.62l.07-.07,33.43-33.37a29.46,29.46,0,0,0-2-43.53Z M118.54,214.55a20.48,20.48,0,0,0-3-10.76,2.76,2.76,0,0,1,2.62-4.22h.06c.84.09,5.33.74,11.7,4.61,4.73,2.87,18.23,12.08,41.73,35.54a34.23,34.23,0,0,0,7.22,22.12l66.23-61.55a33.73,33.73,0,0,0-21.6-9.2,2.65,2.65,0,0,1-.21-.26l-.65-.69L198.1,156.3a28.45,28.45,0,0,1-4-26.11,35.23,35.23,0,0,1,11.78-16.35c5.69-4.41,18.53-9.72,29.44-10.62a52.92,52.92,0,0,1,15.19.94,65.57,65.57,0,0,1,7.06,2.13,15.46,15.46,0,0,0,2.15.63,16,16,0,0,0,16.38-25.06c-.26-.35-1.32-1.79-2.89-3.73a91.85,91.85,0,0,0-9.6-10.36c-8.15-7.36-29.27-19.77-57-19.77a123.13,123.13,0,0,0-46.3,9C121.94,72.45,96.84,93.58,85.3,104.79l-.09.09A222.14,222.14,0,0,0,63.7,129.5,27,27,0,0,0,59,141.27a7.33,7.33,0,0,1-7.71,6.17c-.36,0-.73,0-1.09,0a20.65,20.65,0,0,0-14.59,5.9L6.16,182.05l-.32.32a20.89,20.89,0,0,0-.24,28.72c.19.2.37.39.57.58L53.67,258A21,21,0,0,0,68.32,264a20.65,20.65,0,0,0,14.59-5.9l29.46-28.79A20.51,20.51,0,0,0,118.54,214.55Z">
                                             <Path.Fill>
@@ -1333,7 +1370,6 @@
                                 </Viewbox>
                             </Border>
 
-                            <!-- Settings Button -->
                             <Border x:Name="SettingsButton" Grid.Column="2"
                                     Width="24" Height="24"
                                     CornerRadius="12"
@@ -1362,7 +1398,7 @@
                                     <Canvas Width="56" Height="56"
                                             SnapsToDevicePixels="True"
                                             UseLayoutRounding="True">
-                                        <Path Data="M 28.0000 50.8281 C 28.6094 50.8281 29.1719 50.7578 29.8047 50.7110 L 31.1641 53.2891 C 31.4219 53.8047 31.9375 54.0859 32.5704 53.9922 C 33.1563 53.8750 33.5782 53.4532 33.6485 52.8203 L 34.0704 49.9844 C 35.2188 49.6797 36.3672 49.2344 37.4922 48.7422 L 39.6016 50.6406 C 40.0469 51.0625 40.6094 51.1563 41.1953 50.8281 C 41.7110 50.5469 41.9219 49.9844 41.8047 49.3750 L 41.2188 46.5625 C 42.1797 45.8828 43.1407 45.1094 44.0078 44.2422 L 46.6328 45.3438 C 47.2189 45.5781 47.7579 45.4610 48.2034 44.9219 C 48.6018 44.5000 48.6483 43.8906 48.3205 43.3750 L 46.7970 40.9375 C 47.5002 39.9532 48.0627 38.8984 48.6018 37.7735 L 51.4611 37.9141 C 52.0703 37.9375 52.5858 37.6094 52.7970 37.0235 C 52.9842 36.4375 52.7970 35.8750 52.3045 35.5 L 50.0783 33.7188 C 50.3831 32.5937 50.6173 31.3750 50.7109 30.1094 L 53.4296 29.2657 C 54.0157 29.0547 54.3906 28.6094 54.3906 27.9766 C 54.3906 27.3672 54.0157 26.9219 53.4296 26.7110 L 50.7109 25.8437 C 50.6173 24.5781 50.3831 23.4063 50.0783 22.2578 L 52.3045 20.4532 C 52.7970 20.1016 52.9842 19.5625 52.7970 18.9766 C 52.5858 18.3906 52.0703 18.0625 51.4611 18.0859 L 48.6018 18.2032 C 48.0627 17.0781 47.5002 16.0235 46.7970 15.0391 L 48.3205 12.6016 C 48.6483 12.1094 48.6018 11.5000 48.2034 11.0781 C 47.7579 10.5391 47.2189 10.3984 46.6328 10.6563 L 44.0078 11.7110 C 43.1407 10.8906 42.1797 10.0937 41.2188 9.4141 L 41.8047 6.6250 C 41.9219 5.9922 41.7110 5.4297 41.1953 5.1484 C 40.6094 4.8437 40.0469 4.8906 39.6016 5.3594 L 37.4922 7.2110 C 36.3672 6.7188 35.2188 6.3203 34.0704 5.9922 L 33.6485 3.1563 C 33.5782 2.5469 33.1563 2.1016 32.5704 2.0078 C 31.9375 1.9141 31.4219 2.1719 31.1641 2.6875 L 29.8047 5.2657 C 29.1719 5.2188 28.6094 5.1719 28.0000 5.1719 C 27.3672 5.1719 26.8047 5.2188 26.1485 5.2657 L 24.8126 2.6875 C 24.5547 2.1719 24.0391 1.9141 23.3829 2.0078 C 22.7969 2.1016 22.3985 2.5469 22.3047 3.1563 L 21.9063 5.9688 C 20.7344 6.3203 19.5860 6.7188 18.4844 7.2110 L 16.3751 5.3594 C 15.9063 4.8906 15.3438 4.8437 14.7813 5.1484 C 14.2657 5.4297 14.0547 5.9922 14.1719 6.6250 L 14.7578 9.4141 C 13.7735 10.0937 12.8126 10.8906 11.9453 11.7110 L 9.3438 10.6563 C 8.7578 10.3984 8.1953 10.5391 7.7500 11.0781 C 7.3751 11.5000 7.3282 12.1094 7.6329 12.5781 L 9.1797 15.0391 C 8.4766 16.0235 7.9141 17.0781 7.3751 18.2032 L 4.4922 18.0859 C 3.8829 18.0625 3.3672 18.3906 3.1797 18.9766 C 2.9922 19.5625 3.1563 20.1016 3.6485 20.4532 L 5.8985 22.2578 C 5.5938 23.4063 5.3360 24.5781 5.2657 25.8437 L 2.5469 26.7110 C 1.9375 26.8984 1.6094 27.3437 1.6094 27.9766 C 1.6094 28.6094 1.9375 29.0547 2.5469 29.2657 L 5.2657 30.1328 C 5.3360 31.3750 5.5938 32.5937 5.8985 33.7188 L 3.6485 35.5 C 3.1563 35.8750 2.9922 36.4375 3.1797 37.0235 C 3.3672 37.6094 3.8829 37.9375 4.4922 37.9141 L 7.3751 37.7735 C 7.9141 38.8984 8.4766 39.9532 9.1563 40.9375 L 7.6563 43.3750 C 7.3047 43.8906 7.3516 44.5000 7.7500 44.9219 C 8.1953 45.4610 8.7578 45.5781 9.3438 45.3438 L 11.9453 44.2422 C 12.8126 45.1094 13.7735 45.8828 14.7578 46.5625 L 14.1719 49.3750 C 14.0547 49.9844 14.2657 50.5469 14.7813 50.8281 C 15.3672 51.1563 15.9297 51.0625 16.3751 50.6406 L 18.4610 48.7422 C 19.5860 49.2344 20.7344 49.6797 21.9063 49.9844 L 22.3047 52.8203 C 22.3985 53.4532 22.7969 53.8750 23.3829 53.9922 C 24.0391 54.0859 24.5547 53.8047 24.8126 53.2891 L 26.1485 50.7110 C 26.7813 50.7578 27.3672 50.8281 28.0000 50.8281 Z M 33.8829 26.5000 C 32.7813 23.5469 30.6251 21.9297 27.9297 21.9297 C 27.5313 21.9297 27.0626 21.9766 26.3126 22.1406 L 19.5860 10.6563 C 22.0938 9.4141 24.9531 8.7344 28.0000 8.7344 C 38.2188 8.7344 46.2344 16.4922 46.9611 26.5000 Z M 8.9688 28.0000 C 8.9688 21.4844 12.0391 15.7422 16.8907 12.2735 L 23.6641 23.8281 C 22.3985 25.1406 21.8126 26.5703 21.8126 28.0937 C 21.8126 29.5703 22.3751 30.9297 23.6641 32.2891 L 16.7266 43.6328 C 11.9922 40.1406 8.9688 34.4688 8.9688 28.0000 Z M 25.1172 28.0703 C 25.1172 26.4766 26.4766 25.2344 27.9766 25.2344 C 29.5704 25.2344 30.8829 26.4766 30.8829 28.0703 C 30.8829 29.6406 29.5704 30.9297 27.9766 30.9297 C 26.4766 30.9297 25.1172 29.6406 25.1172 28.0703 Z M 28.0000 47.2656 C 24.8829 47.2656 21.9766 46.5391 19.4219 45.2735 L 26.3126 34 C 27.0391 34.1875 27.5313 34.2344 27.9297 34.2344 C 30.6485 34.2344 32.8047 32.5703 33.8829 29.5469 L 46.9611 29.5469 C 46.2109 39.5078 38.1953 47.2656 28.0000 47.2656 Z" 
+                                        <Path Data="M 28.0000 50.8281 C 28.6094 50.8281 29.1719 50.7578 29.8047 50.7110 L 31.1641 53.2891 C 31.4219 53.8047 31.9375 54.0859 32.5704 53.9922 C 33.1563 53.8750 33.5782 53.4532 33.6485 52.8203 L 34.0704 49.9844 C 35.2188 49.6797 36.3672 49.2344 37.4922 48.7422 L 39.6016 50.6406 C 40.0469 51.0625 40.6094 51.1563 41.1953 50.8281 C 41.7110 50.5469 41.9219 49.9844 41.8047 49.3750 L 41.2188 46.5625 C 42.1797 45.8828 43.1407 45.1094 44.0078 44.2422 L 46.6328 45.3438 C 47.2189 45.5781 47.7579 45.4610 48.2034 44.9219 C 48.6018 44.5000 48.6483 43.8906 48.3205 43.3750 L 46.7970 40.9375 C 47.5002 39.9532 48.0627 38.8984 48.6018 37.7735 L 51.4611 37.9141 C 52.0703 37.9375 52.5858 37.6094 52.7970 37.0235 C 52.9842 36.4375 52.7970 35.8750 52.3045 35.5 L 50.0783 33.7188 C 50.3831 32.5937 50.6173 31.3750 50.7109 30.1094 L 53.4296 29.2657 C 54.0157 29.0547 54.3906 28.6094 54.3906 27.9766 C 54.3906 27.3672 54.0157 26.9219 53.4296 26.7110 L 50.7109 25.8437 C 50.6173 24.5781 50.3831 23.4063 50.0783 22.2578 L 52.3045 20.4532 C 52.7970 20.1016 52.9842 19.5625 52.7970 18.9766 C 52.5858 18.3906 52.0703 18.0625 51.4611 18.0859 L 48.6018 18.2032 C 48.0627 17.0781 47.5002 16.0235 46.7970 15.0391 L 48.3205 12.6016 C 48.6483 12.1094 48.6018 11.5000 48.2034 11.0781 C 47.7579 10.5391 47.2189 10.3984 46.6328 10.6563 L 44.0078 11.7110 C 43.1407 10.8906 42.1797 10.0937 41.2188 9.4141 L 41.8047 6.6250 C 41.9219 5.9922 41.7110 5.4297 41.1953 5.1484 C 40.6094 4.8437 40.0469 4.8906 39.6016 5.3594 L 37.4922 7.2110 C 36.3672 6.7188 35.2188 6.3203 34.0704 5.9922 L 33.6485 3.1563 C 33.5782 2.5469 33.1563 2.1016 32.5704 2.0078 C 31.9375 1.9141 31.4219 2.1719 31.1641 2.6875 L 29.8047 5.2657 C 29.1719 5.2188 28.6094 5.1719 28.0000 5.1719 C 27.3672 5.1719 26.8047 5.2188 26.1485 5.2657 L 24.8126 2.6875 C 24.5547 2.1719 24.0391 1.9141 23.3829 2.0078 C 22.7969 2.1016 22.3985 2.5469 22.3047 3.1563 L 21.9063 5.9688 C 20.7344 6.3203 19.5860 6.7188 18.4844 7.2110 L 16.3751 5.3594 C 15.9063 4.8906 15.3438 4.8437 14.7813 5.1484 C 14.2657 5.4297 14.0547 5.9922 14.1719 6.6250 L 14.7578 9.4141 C 13.7735 10.0937 12.8126 10.8906 11.9453 11.7110 L 9.3438 10.6563 C 8.7578 10.3984 8.1953 10.5391 7.7500 11.0781 C 7.3751 11.5000 7.3282 12.1094 7.6329 12.5781 L 9.1797 15.0391 C 8.4766 16.0235 7.9141 17.0781 7.3751 18.2032 L 4.4922 18.0859 C 3.8829 18.0625 3.3672 18.3906 3.1797 18.9766 C 2.9922 19.5625 3.1563 20.1016 3.6485 20.4532 L 5.8985 22.2578 C 5.5938 23.4063 5.3360 24.5781 5.2657 25.8437 L 2.5469 26.7110 C 1.9375 26.8984 1.6094 27.3437 1.6094 27.9766 C 1.6094 28.6094 1.9375 29.0547 2.5469 29.2657 L 5.2657 30.1328 C 5.3360 31.3750 5.5938 32.5937 5.8985 33.7188 L 3.6485 35.5 C 3.1563 35.8750 2.9922 36.4375 3.1797 37.0235 C 3.3672 37.6094 3.8829 37.9375 4.4922 37.9141 L 7.3751 37.7735 C 7.9141 38.8984 8.4766 39.9532 9.1563 40.9375 L 7.6563 43.3750 C 7.3047 43.8906 7.3516 44.5000 7.7500 44.9219 C 8.1953 45.4610 8.7578 45.5781 9.3438 45.3438 L 11.9453 44.2422 C 12.8126 45.1094 13.7735 45.8828 14.7578 46.5625 L 14.1719 49.3750 C 14.0547 49.9844 14.2657 50.5469 14.7813 50.8281 C 15.3672 51.1563 15.9297 51.0625 16.3751 50.6406 L 18.4610 48.7422 C 19.5860 49.2344 20.7344 49.6797 21.9063 49.9844 L 22.3047 52.8203 C 22.3985 53.4532 22.7969 53.8750 23.3829 53.9922 C 24.0391 54.0859 24.5547 53.8047 24.8126 53.2891 L 26.1485 50.7110 C 26.7813 50.7578 27.3672 50.8281 28.0000 50.8281 Z M 33.8829 26.5000 C 32.7813 23.5469 30.6251 21.9297 27.9297 21.9297 C 27.5313 21.9297 27.0626 21.9766 26.3126 22.1406 L 19.5860 10.6563 C 22.0938 9.4141 24.9531 8.7344 28.0000 8.7344 C 38.2188 8.7344 46.2344 16.4922 46.9611 26.5000 Z M 8.9688 28.0000 C 8.9688 21.4844 12.0391 15.7422 16.8907 12.2735 L 23.6641 23.8281 C 22.3985 25.1406 21.8126 26.5703 21.8126 28.0937 C 21.8126 29.5703 22.3751 30.9297 23.6641 32.2891 L 16.7266 43.6328 C 11.9922 40.1406 8.9688 34.4688 8.9688 28.0000 Z M 25.1172 28.0703 C 25.1172 26.4766 26.4766 25.2344 27.9766 25.2344 C 29.5704 25.2344 30.8829 26.4766 30.8829 28.0703 C 30.8829 29.6406 29.5704 30.9297 27.9766 30.9297 C 26.4766 30.9297 25.1172 29.6406 25.1172 28.0703 Z M 28.0000 47.2656 C 24.8829 47.2656 21.9766 46.5391 19.4219 45.2735 L 26.3126 34 C 27.0391 34.1875 27.5313 34.2344 27.9297 34.2344 C 30.6485 34.2344 32.8047 32.5703 33.8829 29.5469 L 46.9611 29.5469 C 46.2109 39.5078 38.1953 47.2656 28.0000 47.2656 Z"
                                               Fill="#CCFFFFFF"
                                               SnapsToDevicePixels="True"
                                               UseLayoutRounding="True"/>
@@ -1420,7 +1456,6 @@
                             </Grid>
                         </Border>
 
-                        <!-- Lyrics blur background (blurred thumbnail glow at right side) -->
                         <Border x:Name="LyricsBlurBackground"
                                 Grid.Column="2"
                                 HorizontalAlignment="Stretch"
@@ -1458,7 +1493,6 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-
                                     <Grid Grid.Row="1" Margin="0,6,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -1467,7 +1501,7 @@
                                         </Grid.ColumnDefinitions>
 
                                     <Border x:Name="ThumbnailBorder"
-                                            Grid.Column="0" 
+                                            Grid.Column="0"
                                              Width="102" Height="102"
                                                VerticalAlignment="Center"
                                               CornerRadius="14"
@@ -1480,17 +1514,12 @@
                                             <ScaleTransform x:Name="ThumbnailScale" ScaleX="1" ScaleY="1"/>
                                         </Border.RenderTransform>
                                         <Grid Width="102" Height="102" ClipToBounds="True">
-                                            <!-- Single clip at the Grid level: clips both Image layers to a rounded
-                                                 rectangle in one shot. This is the actual rounding mechanism — the
-                                                 parent Border's CornerRadius only paints the stroke, it does NOT clip
-                                                 visual children to a rounded shape. Using one Grid.Clip instead of
-                                                 two per-Image clips also avoids fractional-DPI hairlines along the
-                                                 seam between the layers. -->
+
                                             <Grid.Clip>
                                                 <RectangleGeometry RadiusX="14" RadiusY="14" Rect="0,0,102,102"/>
                                             </Grid.Clip>
 
-                                            <Image x:Name="ThumbnailImage" 
+                                            <Image x:Name="ThumbnailImage"
                                                    Width="102" Height="102"
                                                    Stretch="UniformToFill"
                                                    HorizontalAlignment="Center"
@@ -1564,14 +1593,14 @@
                                                                 <TranslateTransform x:Name="TitleMorphTranslate" Y="0"/>
                                                             </TransformGroup>
                                                         </Grid.RenderTransform>
-                                                        
+
                                                         <TextBlock Text="{Binding Text, ElementName=TrackTitle}"
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
-                                                        
+
                                                         <TextBlock x:Name="TrackTitle"
                                                                    Text="No media playing"
                                                                    Style="{StaticResource TitleText}"
@@ -1587,14 +1616,14 @@
                                                                 <TranslateTransform x:Name="TitleMorphTranslateNext" Y="0"/>
                                                             </TransformGroup>
                                                         </Grid.RenderTransform>
-                                                        
+
                                                         <TextBlock Text="{Binding Text, ElementName=TrackTitleNext}"
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
-                                                        
+
                                                         <TextBlock x:Name="TrackTitleNext"
                                                                    Text=""
                                                                    Style="{StaticResource TitleText}"
@@ -1615,14 +1644,14 @@
                                                                 <TranslateTransform x:Name="ArtistMorphTranslate" Y="0"/>
                                                             </TransformGroup>
                                                         </Grid.RenderTransform>
-                                                        
+
                                                         <TextBlock Text="{Binding Text, ElementName=TrackArtist}"
                                                                    Style="{StaticResource SubtitleText}"
                                                                    FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
-                                                        
-                                                        <TextBlock x:Name="TrackArtist" 
+
+                                                        <TextBlock x:Name="TrackArtist"
                                                                     Text="Artist name"
                                                                      Style="{StaticResource SubtitleText}"
                                                                     Foreground="#BFFFFFFF"
@@ -1636,14 +1665,14 @@
                                                                 <TranslateTransform x:Name="ArtistMorphTranslateNext" Y="0"/>
                                                             </TransformGroup>
                                                         </Grid.RenderTransform>
-                                                        
+
                                                         <TextBlock Text="{Binding Text, ElementName=TrackArtistNext}"
                                                                    Style="{StaticResource SubtitleText}"
                                                                    FontWeight="Bold"
                                                                    Foreground="#80000000"
                                                                    Margin="0,1,0,0" />
-                                                        
-                                                         <TextBlock x:Name="TrackArtistNext" 
+
+                                                         <TextBlock x:Name="TrackArtistNext"
                                                                     Text=""
                                                                      Style="{StaticResource SubtitleText}"
                                                                     Foreground="#BFFFFFFF"
@@ -1797,7 +1826,7 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <Grid x:Name="ProgressBarContainer" 
+                                            <Grid x:Name="ProgressBarContainer"
                                                   Grid.Row="0"
                                                   Grid.Column="0"
                                                   Grid.ColumnSpan="3"
@@ -1819,8 +1848,8 @@
                                                         <Grid.Clip>
                                                             <RectangleGeometry x:Name="ProgressBarClip" RadiusX="2" RadiusY="2"/>
                                                         </Grid.Clip>
-                                                        <Border x:Name="ProgressBar" 
-                                                                Height="4" 
+                                                        <Border x:Name="ProgressBar"
+                                                                Height="4"
                                                                 HorizontalAlignment="Stretch"
                                                                 VerticalAlignment="Center"
                                                                 RenderTransformOrigin="0,0.5">
@@ -1837,9 +1866,9 @@
                                                     </Grid>
                                                 </Border>
 
-                                                <Border x:Name="IndeterminateProgress" 
-                                                        Background="White" 
-                                                        Height="4" 
+                                                <Border x:Name="IndeterminateProgress"
+                                                        Background="White"
+                                                        Height="4"
                                                         CornerRadius="2"
                                                         HorizontalAlignment="Stretch"
                                                         VerticalAlignment="Center"
@@ -1847,28 +1876,28 @@
                                                         Visibility="Collapsed"/>
                                             </Grid>
 
-                                            <TextBlock x:Name="RemainingTimeText" 
+                                            <TextBlock x:Name="RemainingTimeText"
                                                        Grid.Row="1"
                                                        Grid.Column="2"
                                                        Margin="6,2,0,0"
-                                                       Text="0:00" 
+                                                       Text="0:00"
                                                        Style="{StaticResource ProgressTimeText}"
                                                        VerticalAlignment="Center"/>
 
-                                            <TextBlock x:Name="CurrentTimeText" 
+                                            <TextBlock x:Name="CurrentTimeText"
                                                        Grid.Row="1"
                                                        Grid.Column="0"
                                                        Margin="0,2,6,0"
-                                                       Text="0:00" 
+                                                       Text="0:00"
                                                        Style="{StaticResource ProgressTimeText}"
                                                        VerticalAlignment="Center"/>
                                         </Grid>
                                     </Grid>
 
                                     <StackPanel x:Name="InlineControls"
-                                                Grid.Column="2" 
+                                                Grid.Column="2"
                                                 Orientation="Vertical"
-                                                VerticalAlignment="Center" 
+                                                VerticalAlignment="Center"
                                                 HorizontalAlignment="Right"
                                                 Visibility="Collapsed"
                                                 Opacity="0"
@@ -1888,17 +1917,17 @@
                                                         <ScaleTransform x:Name="VolumeIconScale" ScaleX="1" ScaleY="1"/>
                                                     </TextBlock.RenderTransform>
                                                 </TextBlock>
-                                                    <Grid x:Name="VolumeBarContainer" Width="100" Height="20" Cursor="Hand" 
+                                                    <Grid x:Name="VolumeBarContainer" Width="100" Height="20" Cursor="Hand"
                                                           Background="Transparent"
-                                                          MouseLeftButtonDown="VolumeBar_MouseDown" 
+                                                          MouseLeftButtonDown="VolumeBar_MouseDown"
                                                           MouseMove="VolumeBar_MouseMove"
                                                           MouseLeftButtonUp="VolumeBar_MouseUp">
                                                         <Border Background="#333333" Height="4" CornerRadius="2" VerticalAlignment="Center"/>
-                                                        <Border x:Name="VolumeBarFront" 
-                                                                Height="4" 
-                                                                CornerRadius="2" 
-                                                                VerticalAlignment="Center" 
-                                                                HorizontalAlignment="Stretch" 
+                                                        <Border x:Name="VolumeBarFront"
+                                                                Height="4"
+                                                                CornerRadius="2"
+                                                                VerticalAlignment="Center"
+                                                                HorizontalAlignment="Stretch"
                                                                 RenderTransformOrigin="0,0.5">
                                                             <Border.Background>
                                                                 <LinearGradientBrush x:Name="VolumeBarGradient" StartPoint="0,0" EndPoint="1,0">
@@ -2051,9 +2080,8 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            
                             <Border x:Name="CalendarWidget"
-                                    Grid.Row="0" 
+                                    Grid.Row="0"
                                     HorizontalAlignment="Left"
                                     Background="{StaticResource CardGradient}"
                                     CornerRadius="16"
@@ -2077,7 +2105,6 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    
                                     <TextBlock x:Name="MonthText"
                                                Grid.Column="0"
                                                Text="Dec"
@@ -2173,7 +2200,6 @@
                                                     TextOptions.TextRenderingMode="Grayscale"
                                                     TextOptions.TextHintingMode="Animated"/>
 
-                                    <!-- Weather widget mode (current location) — iOS-style vertical layout -->
                                     <Grid x:Name="WeatherWidgetContent"
                                           Grid.Column="0" Grid.ColumnSpan="2"
                                           VerticalAlignment="Center"
@@ -2182,7 +2208,6 @@
                                           Visibility="Collapsed">
                                         <StackPanel Orientation="Vertical" HorizontalAlignment="Left">
 
-                                            <!-- Location + current-location arrow -->
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <TextBlock x:Name="WeatherLocationText"
                                                            Text="—"
@@ -2203,7 +2228,6 @@
                                                 </Viewbox>
                                             </StackPanel>
 
-                                            <!-- Large temperature -->
                                             <TextBlock x:Name="WeatherTempText"
                                                        Text=""
                                                        FontFamily="{StaticResource MainSystemFont}"
@@ -2217,7 +2241,6 @@
                                                        TextOptions.TextRenderingMode="Grayscale"
                                                        TextOptions.TextHintingMode="Animated"/>
 
-                                            <!-- Condition text -->
                                             <TextBlock x:Name="WeatherConditionText"
                                                        Text=""
                                                        FontFamily="{StaticResource MainSystemFont}"
@@ -2231,7 +2254,6 @@
                                                        TextOptions.TextRenderingMode="Grayscale"
                                                        TextOptions.TextHintingMode="Animated"/>
 
-                                            <!-- Hi / Lo -->
                                             <TextBlock x:Name="WeatherHiLoText"
                                                        Text=""
                                                        FontFamily="{StaticResource MainSystemFont}"
@@ -2245,7 +2267,6 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <!-- System monitor widget mode (CPU / RAM / Network) -->
                                     <Grid x:Name="SystemMonitorWidgetContent"
                                           Grid.Column="0" Grid.ColumnSpan="2"
                                           VerticalAlignment="Center"
@@ -2254,7 +2275,6 @@
                                           Visibility="Collapsed">
                                         <StackPanel Orientation="Vertical" HorizontalAlignment="Left">
 
-                                            <!-- CPU -->
                                             <StackPanel Orientation="Vertical" Margin="0,0,0,13">
                                                 <Grid Width="130">
                                                     <TextBlock Text="CPU"
@@ -2290,7 +2310,6 @@
                                                 </Border>
                                             </StackPanel>
 
-                                            <!-- RAM -->
                                             <StackPanel Orientation="Vertical" Margin="0,0,0,13">
                                                 <Grid Width="130">
                                                     <TextBlock Text="RAM"
@@ -2326,7 +2345,6 @@
                                                 </Border>
                                             </StackPanel>
 
-                                            <!-- Network down / up -->
                                             <Grid Width="130">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
@@ -2372,7 +2390,6 @@
                                 </Grid>
                             </Border>
 
-                           
                             <Grid x:Name="GreetingSection" Grid.Row="1" Margin="4,-6,0,0">
                                 <Grid.Effect>
                                     <BlurEffect x:Name="CalendarGreetingContextBlur" Radius="0" RenderingBias="Performance"/>
@@ -2397,7 +2414,6 @@
                                            TextWrapping="Wrap"/>
                             </Grid>
 
-                            <!-- Synced Lyrics Widget (replaces calendar when lyrics available) -->
                             <Border x:Name="LyricsWidget"
                                     Grid.Row="0" Grid.RowSpan="2"
                                     Background="Transparent"
@@ -2418,7 +2434,7 @@
                                     </LinearGradientBrush>
                                 </Border.OpacityMask>
                                 <Grid ClipToBounds="True" VerticalAlignment="Center">
-                                    <!-- Track info placeholder (shown before first lyric line) -->
+
                                     <StackPanel x:Name="LyricsPlaceholderPanel"
                                                 VerticalAlignment="Center"
                                                 HorizontalAlignment="Stretch"
@@ -2449,7 +2465,7 @@
                                             <TranslateTransform x:Name="LyricsPlaceholderTranslate" Y="0"/>
                                         </StackPanel.RenderTransform>
                                     </StackPanel>
-                                    <!-- Lyric line A -->
+
                                     <TextBlock x:Name="LyricTextA"
                                                Text=""
                                                Style="{StaticResource SubtitleText}"
@@ -2470,7 +2486,7 @@
                                             <TranslateTransform x:Name="LyricTranslateA" Y="0"/>
                                         </TextBlock.RenderTransform>
                                     </TextBlock>
-                                    <!-- Lyric line B -->
+
                                     <TextBlock x:Name="LyricTextB"
                                                Text=""
                                                Style="{StaticResource SubtitleText}"
@@ -2496,8 +2512,8 @@
                         </Grid>
                     </Grid>
 
-                    <Grid x:Name="SecondaryContent" 
-                          Opacity="0" 
+                    <Grid x:Name="SecondaryContent"
+                          Opacity="0"
                           Visibility="Collapsed"
                           Margin="12,6,12,12"
                           MouseLeftButtonDown="SecondaryContent_Click"
@@ -2513,10 +2529,10 @@
 
                         <Border x:Name="CameraSection"
                                 Grid.Row="1"
-                                Grid.Column="0" 
-                                Background="#1A1A1A" 
-                                CornerRadius="12" 
-                                Margin="0,0,8,0" 
+                                Grid.Column="0"
+                                Background="#1A1A1A"
+                                CornerRadius="12"
+                                Margin="0,0,8,0"
                                 ClipToBounds="True"
                                 Cursor="Hand"
                                 RenderTransformOrigin="0.5,0.5"
@@ -2543,14 +2559,14 @@
                                     <Viewbox Width="28" Height="28" Stretch="Uniform"
                                              VerticalAlignment="Center" HorizontalAlignment="Center"
                                              Margin="0,-2,0,0">
-                                        <Path Data="M256,208A64,64,0,1,0,320,272,64,64,0,0,0,256,208Z M432,144H373c-3,0-6.72-1.94-9.62-5L337.44,98.06a15.52,15.52,0,0,0-1.37-1.85C327.11,85.76,315,80,302,80H210c-13,0-25.11,5.76-34.07,16.21a15.52,15.52,0,0,0-1.37,1.85l-25.94,41c-2.22,2.42-5.34,5-8.62,5v-8a16,16,0,0,0-16-16H100a16,16,0,0,0-16,16v8H80a48.05,48.05,0,0,0-48,48V384a48.05,48.05,0,0,0,48,48H432a48.05,48.05,0,0,0,48-48V192A48.05,48.05,0,0,0,432,144ZM256,368a96,96,0,1,1,96-96A96.11,96.11,0,0,1,256,368Z" 
+                                        <Path Data="M256,208A64,64,0,1,0,320,272,64,64,0,0,0,256,208Z M432,144H373c-3,0-6.72-1.94-9.62-5L337.44,98.06a15.52,15.52,0,0,0-1.37-1.85C327.11,85.76,315,80,302,80H210c-13,0-25.11,5.76-34.07,16.21a15.52,15.52,0,0,0-1.37,1.85l-25.94,41c-2.22,2.42-5.34,5-8.62,5v-8a16,16,0,0,0-16-16H100a16,16,0,0,0-16,16v8H80a48.05,48.05,0,0,0-48,48V384a48.05,48.05,0,0,0,48,48H432a48.05,48.05,0,0,0,48-48V192A48.05,48.05,0,0,0,432,144ZM256,368a96,96,0,1,1,96-96A96.11,96.11,0,0,1,256,368Z"
                                               Fill="#555555"/>
                                     </Viewbox>
                                 </Border>
 
                                 <Border x:Name="CameraErrorOverlay" Background="#60000000" Visibility="Collapsed">
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10">
-                                        <Path Data="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 17c-.77 1.333.192 3 1.732 3z" 
+                                        <Path Data="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 17c-.77 1.333.192 3 1.732 3z"
                                               Stroke="White" StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Center"/>
                                         <TextBlock Text="Cannot detect camera device" x:Name="CameraErrorText" Style="{StaticResource SmallText}" FontSize="9"
                                                    Foreground="White" HorizontalAlignment="Center" Margin="0,4,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
@@ -2565,17 +2581,17 @@
                         <Border x:Name="FileShelf"
                                 Grid.Row="0"
                                 Grid.RowSpan="2"
-                                Grid.Column="1" 
+                                Grid.Column="1"
                                 Margin="0,6,0,0"
-                                Background="#1A1A1A" 
-                                CornerRadius="16" 
+                                Background="#1A1A1A"
+                                CornerRadius="16"
                                 AllowDrop="True"
                                 BorderThickness="0"
-                                DragEnter="FileShelf_DragEnter" 
+                                DragEnter="FileShelf_DragEnter"
                                 DragOver="FileShelf_DragOver"
                                 DragLeave="FileShelf_DragLeave"
                                 Drop="FileShelf_Drop">
-                            <Grid x:Name="FileShelfGrid" 
+                            <Grid x:Name="FileShelfGrid"
                                   Background="Transparent"
                                   MouseLeftButtonDown="FileShelf_MouseDown"
                                   MouseMove="FileShelf_MouseMove"
@@ -2607,9 +2623,9 @@
                                 </Border>
 
                                 <Rectangle x:Name="FileShelfDashedBorder"
-                                           Stroke="#333333" 
-                                           StrokeThickness="1.5" 
-                                           StrokeDashArray="4 3" 
+                                           Stroke="#333333"
+                                           StrokeThickness="1.5"
+                                           StrokeDashArray="4 3"
                                            RadiusX="16" RadiusY="16"/>
 
                                 <StackPanel x:Name="ShelfPlaceholderPanel"
@@ -2621,7 +2637,7 @@
                                     </Viewbox>
                                     <TextBlock x:Name="ShelfPlaceholder"
                                                Text=""
-                                               HorizontalAlignment="Center" 
+                                               HorizontalAlignment="Center"
                                                Foreground="#555555"
                                                Style="{StaticResource SubtitleText}"/>
                                 </StackPanel>
@@ -2638,10 +2654,10 @@
                                            Style="{StaticResource SmallText}"
                                            Foreground="#FFC478"/>
 
-                                <ScrollViewer x:Name="ShelfScrollViewer" 
-                                             Background="Transparent" 
-                                             HorizontalScrollBarVisibility="Auto" 
-                                             VerticalScrollBarVisibility="Disabled" 
+                                <ScrollViewer x:Name="ShelfScrollViewer"
+                                             Background="Transparent"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Disabled"
                                              Padding="0"
                                              PreviewMouseWheel="ShelfScrollViewer_PreviewMouseWheel">
                                     <ScrollViewer.Resources>
@@ -2662,8 +2678,8 @@
                                                                     <Thumb>
                                                                         <Thumb.Template>
                                                                             <ControlTemplate TargetType="Thumb">
-                                                                                <Border Background="#60FFFFFF" 
-                                                                                        CornerRadius="2" 
+                                                                                <Border Background="#60FFFFFF"
+                                                                                        CornerRadius="2"
                                                                                         Margin="0,1"
                                                                                         MinWidth="20"/>
                                                                             </ControlTemplate>
@@ -2695,25 +2711,24 @@
                                             </Style.Triggers>
                                         </Style>
                                     </ScrollViewer.Resources>
-                                    <WrapPanel x:Name="ShelfItemsContainer" 
+                                    <WrapPanel x:Name="ShelfItemsContainer"
                                                Background="Transparent"
-                                               Orientation="Vertical" 
+                                               Orientation="Vertical"
                                                Height="112"
                                                Margin="8,4"
                                                VerticalAlignment="Center"/>
                                 </ScrollViewer>
 
-                                <Canvas x:Name="SelectionCanvas" 
-                                        Visibility="Collapsed" 
-                                        IsHitTestVisible="False" 
+                                <Canvas x:Name="SelectionCanvas"
+                                        Visibility="Collapsed"
+                                        IsHitTestVisible="False"
                                         Panel.ZIndex="1000"
-                                        HorizontalAlignment="Stretch" 
+                                        HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch"
                                         Background="Transparent">
                                     <Border x:Name="SelectionRect" Background="#24FFFFFF" BorderBrush="#99FFFFFF" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top" CornerRadius="3"/>
                                 </Canvas>
 
-                                <!-- Shelf Upload Limit Unlock Banner -->
                                 <Border x:Name="ShelfUnlockBanner"
                                         Visibility="Collapsed"
                                         Background="#E6181818"
@@ -2772,7 +2787,6 @@
                         </Border>
                     </Grid>
 
-                    <!-- Clock View (analog clock + month calendar, stacked above the Pomodoro timer) -->
                     <Grid x:Name="TimerContent"
                           Opacity="0"
                           Visibility="Collapsed"
@@ -2784,7 +2798,6 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- Clock + Calendar header (Apple-style), sits on top of the timer -->
                         <Grid x:Name="ClockViewHeader" Grid.Row="0" Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -2806,9 +2819,6 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Left margin is set in code (AlignMonthLabelToFirstColumn)
-                                     so the month label lines up exactly with the first
-                                     weekday header ("Sun"/"T2") for any language. -->
                                 <TextBlock x:Name="ClockViewMonthText"
                                            Grid.Row="0"
                                            Text="APRIL"
@@ -2837,7 +2847,8 @@
                         </Grid>
 
                         <Grid Grid.Row="1" VerticalAlignment="Center">
-                            <Border Height="58"
+                            <Border x:Name="TimerControlBar"
+                                    Height="58"
                                     CornerRadius="16"
                                     Padding="12,0"
                                     BorderBrush="#18FFFFFF"
@@ -2851,7 +2862,7 @@
                                     </LinearGradientBrush>
                                 </Border.Background>
                                 <Border.Effect>
-                                    <DropShadowEffect Color="Black" BlurRadius="18" ShadowDepth="4" Opacity="0.45" RenderingBias="Performance"/>
+                                    <DropShadowEffect x:Name="TimerControlBarShadow" Color="Black" BlurRadius="18" ShadowDepth="4" Opacity="0.45" RenderingBias="Performance"/>
                                 </Border.Effect>
 
                                 <Grid VerticalAlignment="Center">
@@ -3012,7 +3023,6 @@
 
                     </Grid>
 
-                    <!-- Audio View (table-style mixer: System + Applications) -->
                     <Grid x:Name="AudioContent"
                           Opacity="0"
                           Visibility="Collapsed"
@@ -3031,7 +3041,7 @@
                                       Padding="0,0,7,0"
                                       ScrollChanged="AudioScrollViewer_ScrollChanged">
                             <ScrollViewer.Resources>
-                                <!-- Invisible but hit-testable page-scroll regions -->
+
                                 <Style x:Key="AudioScrollPageButton" TargetType="RepeatButton">
                                     <Setter Property="Background" Value="Transparent"/>
                                     <Setter Property="Focusable" Value="False"/>
@@ -3044,7 +3054,7 @@
                                         </Setter.Value>
                                     </Setter>
                                 </Style>
-                                <!-- Slim rounded vertical scrollbar -->
+
                                 <Style TargetType="ScrollBar">
                                     <Setter Property="Width" Value="5"/>
                                     <Setter Property="MinWidth" Value="5"/>
@@ -3081,10 +3091,7 @@
                                 </Style>
                             </ScrollViewer.Resources>
                             <ScrollViewer.Template>
-                                <!-- Overlay scrollbar: the vertical bar floats over the content
-                                     instead of taking a layout column, so showing/hiding it (as
-                                     a section expands) never reflows or shifts the rows. The
-                                     content reserves a constant right inset via Padding. -->
+
                                 <ControlTemplate TargetType="ScrollViewer">
                                     <Grid>
                                         <ScrollContentPresenter Margin="{TemplateBinding Padding}"
@@ -3100,10 +3107,7 @@
                                     </Grid>
                                 </ControlTemplate>
                             </ScrollViewer.Template>
-                            <!-- Top/bottom fade marquee. The edge stops animate between Black
-                                 (no fade) and Transparent (fade) based on scroll position, so
-                                 the top fade only appears once scrolled down and the bottom
-                                 fade hides when the end is reached — see UpdateAudioScrollFades. -->
+
                             <ScrollViewer.OpacityMask>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                                     <GradientStop x:Name="AudioFadeTopStop" Color="Black" Offset="0"/>
@@ -3114,15 +3118,13 @@
                             </ScrollViewer.OpacityMask>
                             <StackPanel x:Name="AudioRoot"/>
                         </ScrollViewer>
-                        <!-- In-app device dropdown layer (avoids the unreliable system Popup
-                             inside the no-activate overlay window) -->
+
                         <Grid x:Name="AudioOverlay"
                               Background="Transparent"
                               Visibility="Collapsed"
                               Panel.ZIndex="100"/>
                     </Grid>
 
-                    <!-- Countdown Completion Overlay -->
                     <Grid x:Name="CountdownCompleteOverlay"
                           Opacity="0"
                           Visibility="Collapsed"
@@ -3235,7 +3237,6 @@
             </Border>
         </Border>
 
-            <!-- Inline tooltip outside clip region to avoid being hidden/cropped -->
             <Border x:Name="UpdateInlineTooltip"
                     Grid.Column="1"
                     HorizontalAlignment="Right"
@@ -3282,11 +3283,11 @@
                 </Border>
             </Border>
 
-            <Path x:Name="RightEar" 
-                  Grid.Column="2" 
-                  Data="M 11,0 L 1,0 L 1,10 Q 1,0 11,0 Z" 
-                  Fill="{StaticResource NotchGradient}" 
-                  Width="11" Height="10" 
+            <Path x:Name="RightEar"
+                  Grid.Column="2"
+                  Data="M 11,0 L 1,0 L 1,10 Q 1,0 11,0 Z"
+                  Fill="{StaticResource NotchGradient}"
+                  Width="11" Height="10"
                   Margin="-1,0,0,0"
                   VerticalAlignment="Top"
                   RenderOptions.EdgeMode="Unspecified"/>

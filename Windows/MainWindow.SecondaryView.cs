@@ -359,7 +359,7 @@ public partial class MainWindow
 
             ShowMediaBackground();
 
-            if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
+            if (_settings.EnableBlurEffects && !IsLiquidGlassEnabled && _isLyricsActive && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;

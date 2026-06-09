@@ -29,7 +29,13 @@ public partial class MainWindow
 
     private void UpdateMediaBackground(MediaInfo? info, bool forceRefresh = false)
     {
-        if (!_settings.EnableBlurEffects)
+        bool glass = IsLiquidGlassEnabled;
+
+        // Outside glass mode the blurred album-art backdrop honours the user's
+        // toggles. In glass mode we skip the backdrop image entirely but still
+        // derive the accent colours (progress bar, time text, visualiser, ...)
+        // from the album art so themed UI keeps working over the glass.
+        if (!glass && (!_settings.ShowMediaArtBackground || !_settings.EnableBlurEffects))
         {
             HideMediaBackground();
             return;
@@ -46,6 +52,8 @@ public partial class MainWindow
             return;
         }
 
+        bool suppressBackdrop = glass;
+
         var palette = DynamicIslandColorExtractor.GetDynamicIslandPalette(info.Thumbnail);
         var dominantColor = palette.Main;
         var subColor = palette.Sub;
@@ -54,16 +62,17 @@ public partial class MainWindow
         bool isNewTrack = _lastTrackId != null && _lastTrackId != currentTrackId;
         _lastTrackId = currentTrackId;
 
-        if (isNewTrack && !forceRefresh && !_isFadingTrack && _isExpanded)
+        if (isNewTrack && !forceRefresh && !_isFadingTrack && _isExpanded && !suppressBackdrop)
         {
             _isFadingTrack = true;
             FadeToBlackThenUpdate(info);
             return;
         }
 
-        UpdateBlurredBackgroundAsync(info.Thumbnail, allowInterimThumbnail: forceRefresh || isNewTrack).SafeFireAndForget("MEDIA-BG-BLUR");
+        if (!suppressBackdrop)
+            UpdateBlurredBackgroundAsync(info.Thumbnail, allowInterimThumbnail: forceRefresh || isNewTrack).SafeFireAndForget("MEDIA-BG-BLUR");
 
-        double brightnessDimOpacity = DynamicIslandColorExtractor.GetBrightnessDimOverlay(info.Thumbnail);
+        double brightnessDimOpacity = suppressBackdrop ? 0 : DynamicIslandColorExtractor.GetBrightnessDimOverlay(info.Thumbnail);
         var dimOverlayAnim = new DoubleAnimation
         {
             To = brightnessDimOpacity,
@@ -73,7 +82,8 @@ public partial class MainWindow
         BrightnessDimOverlay.BeginAnimation(OpacityProperty, dimOverlayAnim);
         BrightnessDimOverlay2.BeginAnimation(OpacityProperty, dimOverlayAnim);
 
-        if (!forceRefresh && dominantColor == _lastDominantColor && MediaBackground.Opacity > 0.49 && !isNewTrack)
+        if (!forceRefresh && dominantColor == _lastDominantColor && !isNewTrack
+            && (suppressBackdrop || MediaBackground.Opacity > 0.49))
         {
             return;
         }
@@ -102,9 +112,11 @@ public partial class MainWindow
             EasingFunction = _easeQuadOut
         };
 
-        double targetOpacity = (_isExpanded && (!_isAnimating || forceRefresh))
-            ? DynamicIslandColorExtractor.GetAdaptiveBlurOpacity(dominantLuminance, _settings.MediaBlurBrightnessBoost)
-            : 0;
+        double targetOpacity = suppressBackdrop
+            ? 0
+            : ((_isExpanded && (!_isAnimating || forceRefresh))
+                ? DynamicIslandColorExtractor.GetAdaptiveBlurOpacity(dominantLuminance, _settings.MediaBlurBrightnessBoost)
+                : 0);
         if (targetOpacity > 0 && dominantLuminance < 0.25)
         {
             double darknessBoost = 1.0 + (0.25 - dominantLuminance) * 1.4;
@@ -414,6 +426,7 @@ public partial class MainWindow
 
     private void ShowMediaBackground()
     {
+        if (IsLiquidGlassEnabled || !_settings.ShowMediaArtBackground) return;
         if (!_settings.EnableBlurEffects) return;
         if (!_isExpanded || _isAnimating || _currentMediaInfo == null) return;
 
@@ -452,6 +465,11 @@ public partial class MainWindow
 
     private void EnsureMediaBackgroundVisible(int recoveryVersion)
     {
+        if (IsLiquidGlassEnabled || !_settings.ShowMediaArtBackground)
+        {
+            return;
+        }
+
         if (!_settings.EnableBlurEffects)
         {
             return;

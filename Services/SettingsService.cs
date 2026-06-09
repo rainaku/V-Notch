@@ -95,6 +95,9 @@ public class SettingsService : ISettingsService
 
             if (File.Exists(_settingsPath))
             {
+                // Keep a rolling history of the previous on-disk state so a bad
+                // overwrite (e.g. losing hand-tuned values) can always be recovered.
+                BackupExistingSettings();
                 File.Replace(tempPath, _settingsPath, destinationBackupFileName: null);
             }
             else
@@ -107,6 +110,53 @@ public class SettingsService : ISettingsService
             RuntimeLog.Error("SETTINGS-SAVE", ex.ToString());
             System.Windows.MessageBox.Show($"Unable to save settings: {ex.Message}", "Error",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    private const int MaxSettingsBackups = 10;
+
+    /// <summary>
+    /// Snapshots the current settings.json into a timestamped backup before it is
+    /// overwritten, keeping the most recent <see cref="MaxSettingsBackups"/>. Skips
+    /// writing a new backup when the content is identical to the latest one so the
+    /// history stays meaningful instead of filling with duplicates.
+    /// </summary>
+    private void BackupExistingSettings()
+    {
+        try
+        {
+            string current = File.ReadAllText(_settingsPath);
+            if (string.IsNullOrWhiteSpace(current)) return;
+
+            var existing = Directory.GetFiles(_appFolder, "settings.bak-*.json");
+            Array.Sort(existing, StringComparer.OrdinalIgnoreCase);
+
+            if (existing.Length > 0)
+            {
+                try
+                {
+                    if (File.ReadAllText(existing[^1]) == current)
+                        return; // unchanged since last backup
+                }
+                catch { /* unreadable backup — proceed to write a fresh one */ }
+            }
+
+            var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+            File.WriteAllText(Path.Combine(_appFolder, $"settings.bak-{timestamp}.json"), current);
+
+            existing = Directory.GetFiles(_appFolder, "settings.bak-*.json");
+            if (existing.Length > MaxSettingsBackups)
+            {
+                Array.Sort(existing, StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < existing.Length - MaxSettingsBackups; i++)
+                {
+                    try { File.Delete(existing[i]); } catch { /* best effort */ }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("SETTINGS-SAVE", $"Settings backup skipped: {ex.Message}");
         }
     }
 

@@ -239,9 +239,26 @@ public partial class MainWindow
                 Sessions = SafeCall(() => AudioMixer.GetSessions(includeIcons: true)) ?? new(),
                 Capture = SafeCall(() => AudioMixer.GetCaptureVolume())
             };
-            Dispatcher.BeginInvoke(new Action(() => _lastAudioSnapshot ??= snap),
-                System.Windows.Threading.DispatcherPriority.Background);
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _lastAudioSnapshot ??= snap;
+                if (!_isAudioView && _appRows.Count == 0)
+                    BuildAudioUI(_lastAudioSnapshot!);
+            }), System.Windows.Threading.DispatcherPriority.Background);
         });
+    }
+
+    private void EnsureAudioUIBuilt(AudioSnapshot snap)
+    {
+        if (_appRows.Count > 0 && StructureKey(snap) == _audioStructureKey)
+        {
+            PatchInPlace(snap);
+            AudioScrollViewer?.ScrollToTop();
+        }
+        else
+        {
+            BuildAudioUI(snap);
+        }
     }
 
     private void BuildAudioUI(AudioSnapshot snap)
@@ -508,7 +525,9 @@ public partial class MainWindow
     private TextBlock ColumnLabel(string text) => new TextBlock
     {
         Text = text,
-        Foreground = AudioHeaderText,
+        // White on the liquid glass skin (the grey header reads poorly over the
+        // live refracted backdrop); default grey otherwise.
+        Foreground = IsLiquidGlassEnabled ? Brushes.White : AudioHeaderText,
         FontSize = 12,
         FontWeight = FontWeights.Bold,
         FontFamily = AudioFont,
@@ -627,7 +646,9 @@ public partial class MainWindow
     {
         var percent = new TextBlock
         {
-            Foreground = AudioMuted,
+            // White on the liquid glass skin so the percentages stay legible over
+            // the refracted backdrop; muted grey on the default skin.
+            Foreground = IsLiquidGlassEnabled ? Brushes.White : AudioMuted,
             FontSize = 12.5,
             FontWeight = FontWeights.Bold,
             FontFamily = AudioFont,

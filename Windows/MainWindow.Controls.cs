@@ -370,17 +370,40 @@ public partial class MainWindow
         return true;
     }
 
+    private bool _volumeBaselinePending;
+
     private void AdjustVolumeByScroll(int delta)
     {
         if (!_volumeSynced)
         {
-            if (_mediaService.TryGetCurrentSessionVolume(out float vol, out _))
+            // Read the baseline volume off the UI thread. The first (cold) COM
+            // query enumerates audio sessions and scans processes, which can stall
+            // the UI thread for tens of ms. That stalls the LiquidGlass present
+            // (it marshals each frame back onto the UI thread), showing up as a
+            // glass flicker on first boot. Defer applying this step until the real
+            // baseline is known so the volume bar doesn't jump from a stale value.
+            if (_volumeBaselinePending) return;
+            _volumeBaselinePending = true;
+
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
             {
-                _currentVolume = vol;
-            }
-            _volumeSynced = true;
+                bool ok = _mediaService.TryGetCurrentSessionVolume(out float vol, out bool _);
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _volumeBaselinePending = false;
+                    if (ok) _currentVolume = vol;
+                    _volumeSynced = true;
+                    ApplyVolumeStep(delta);
+                });
+            });
+            return;
         }
 
+        ApplyVolumeStep(delta);
+    }
+
+    private void ApplyVolumeStep(int delta)
+    {
         float step = (delta / 120f) * VolumeScrollStep;
         float newVolume = Math.Clamp(_currentVolume + step, 0f, 1f);
         _currentVolume = newVolume;

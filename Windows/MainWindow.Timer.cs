@@ -378,10 +378,16 @@ public partial class MainWindow
             ApplyExpandedContentRestTransform();
             ExpandedContent.HorizontalAlignment = HorizontalAlignment.Stretch;
             ExpandedContent.UseLayoutRounding = true;
+            // The exit shrink animation pinned a fixed Width/Height; reset to auto so
+            // the panel stretches to fill the notch instead of staying narrow and
+            // centered (which offsets the media control cluster).
+            ExpandedContent.Width = double.NaN;
+            ExpandedContent.Height = double.NaN;
+            ExpandedContent.UpdateLayout();
 
             ShowMediaBackground();
 
-            if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
+            if (_settings.EnableBlurEffects && !IsLiquidGlassEnabled && _isLyricsActive && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;

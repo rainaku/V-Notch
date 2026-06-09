@@ -461,10 +461,12 @@ public partial class MainWindow : Window
                 break;
 
             case WM_DISPLAYCHANGE:
+                InvalidateGlassDpiScale();
                 Dispatcher.BeginInvoke(() => PositionAtTop());
                 break;
 
             case WM_DPICHANGED:
+                InvalidateGlassDpiScale();
                 Dispatcher.BeginInvoke(() => PositionAtTop());
                 break;
 
@@ -1252,6 +1254,11 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         _mediaService.ArtworkService.ConfigureSmartCrop(_settings.EnableSmartCrop);
 
+        if (!_settings.ShowMediaArtBackground)
+            HideMediaBackground();
+
+        ApplyLiquidGlassSkin();
+
         if (_hwnd != IntPtr.Zero)
         {
             SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
@@ -1887,8 +1894,53 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
 
         if (w <= 0 || h <= 0) return;
 
-        double rBottom = NotchBorder.CornerRadius.BottomRight;
-        double rTop = NotchBorder.CornerRadius.TopLeft;
+        var geometry = BuildNotchClipGeometry(w, h);
+        if (geometry == null) return;
+
+        NotchContent.Clip = geometry;
+
+        // Keep the glass backdrop clipped to its own size (see UpdateGlassClip).
+        UpdateGlassClip();
+    }
+
+    /// <summary>
+    /// Clips the glass backdrop host to its OWN rounded bounds. The glass layer is
+    /// a separate element from <see cref="NotchContent"/>, and during a view swap
+    /// the content grid can briefly report a transient size on a different layout
+    /// pass — clipping the glass to that stale shape flashes black. Tracking the
+    /// host's own ActualWidth/Height keeps the clip locked to what's actually drawn.
+    /// </summary>
+    private void UpdateGlassClip()
+    {
+        if (GlassBackdropHost == null || GlassBackdropHost.Visibility != Visibility.Visible) return;
+
+        double w = GlassBackdropHost.ActualWidth;
+        double h = GlassBackdropHost.ActualHeight;
+        if (w <= 0 || h <= 0) return;
+
+        var geometry = BuildNotchClipGeometry(w, h);
+        if (geometry != null)
+            GlassBackdropHost.Clip = geometry;
+    }
+
+    private void GlassBackdropHost_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateGlassClip();
+    }
+
+    private StreamGeometry? BuildNotchClipGeometry(double w, double h)
+    {
+        if (w <= 0 || h <= 0) return null;
+
+        // Clamp the arc radii to the element's bounds. Unlike a Border's built-in
+        // rounding, a hand-built StreamGeometry will produce a degenerate (or
+        // inverted) shape when the radius exceeds half the width/height — which
+        // clips the glass backdrop to nothing and flickers black while the notch
+        // animates at small sizes (e.g. a 50px glass corner radius on a collapsed
+        // pill).
+        double maxR = Math.Min(w, h) / 2.0;
+        double rBottom = Math.Max(0, Math.Min(NotchBorder.CornerRadius.BottomRight, maxR));
+        double rTop = Math.Max(0, Math.Min(NotchBorder.CornerRadius.TopLeft, maxR));
 
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
@@ -1928,7 +1980,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
         }
 
-        NotchContent.Clip = geometry;
+        geometry.Freeze();
+        return geometry;
     }
 
     #endregion

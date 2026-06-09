@@ -403,7 +403,7 @@ public partial class MainWindow
             };
             LyricsWidget.BeginAnimation(OpacityProperty, fadeIn);
 
-            if (_settings.EnableBlurEffects && LyricsBlurBackground != null)
+            if (_settings.EnableBlurEffects && !IsLiquidGlassEnabled && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;

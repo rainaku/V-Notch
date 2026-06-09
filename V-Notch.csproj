@@ -6,15 +6,17 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>V-Notch</AssemblyName>
     <RootNamespace>VNotch</RootNamespace>
-    
+
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <!-- Precompile to native code to cut JIT warm-up at startup (always-on widget). -->
+
     <ReadyToRun>true</ReadyToRun>
-    <!-- Profile-guided + tiered compilation optimises steady-state hot paths. -->
+
     <TieredCompilation>true</TieredCompilation>
     <TieredPGO>true</TieredPGO>
     <DebugType>embedded</DebugType>
@@ -31,7 +33,7 @@
     <RepositoryType>git</RepositoryType>
     <Description>MacOS Notch for Windows - A beautiful and functional notch for your desktop</Description>
     <ApplicationIcon>Services\icons\logo.ico</ApplicationIcon>
-    
+
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
@@ -56,17 +58,14 @@
     <Compile Remove="Tests\**\*.cs" />
   </ItemGroup>
 
-  <!-- Expose internal helpers to the test project for white-box unit testing. -->
   <ItemGroup>
     <InternalsVisibleTo Include="VNotch.Tests" />
   </ItemGroup>
 
-  <!-- Copy Introduction Gifs to Output Directory -->
   <ItemGroup>
     <None Include="Introduction\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- YOLOv8n ONNX model for smart thumbnail cropping (optional, copy if present) -->
   <ItemGroup>
     <None Include="Models\yolov8n.onnx" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Models\yolov8n.onnx')" />
   </ItemGroup>

@@ -18,7 +18,10 @@ public class AnalogClock : FrameworkElement
     private static readonly Typeface DateTypeface;
 
     private readonly DispatcherTimer _timer;
+    private DispatcherTimer? _sweepStartDelay;
     private bool _isRunning;
+
+    private const int SweepStartDelayMs = 480;
 
     public static readonly DependencyProperty ShowDateProperty =
         DependencyProperty.Register(
@@ -98,6 +101,22 @@ public class AnalogClock : FrameworkElement
     {
         if (_isRunning) return;
         _isRunning = true;
+
+        InvalidateVisual();
+
+        _sweepStartDelay ??= new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TimeSpan.FromMilliseconds(SweepStartDelayMs)
+        };
+        _sweepStartDelay.Tick -= OnSweepStartDelayElapsed;
+        _sweepStartDelay.Tick += OnSweepStartDelayElapsed;
+        _sweepStartDelay.Start();
+    }
+
+    private void OnSweepStartDelayElapsed(object? sender, EventArgs e)
+    {
+        _sweepStartDelay?.Stop();
+        if (!_isRunning) return;
         _timer.Start();
         InvalidateVisual();
     }
@@ -106,6 +125,7 @@ public class AnalogClock : FrameworkElement
     {
         if (!_isRunning) return;
         _isRunning = false;
+        _sweepStartDelay?.Stop();
         _timer.Stop();
     }
 

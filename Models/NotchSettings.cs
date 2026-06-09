@@ -21,6 +21,7 @@ public class NotchSettings
     public double MediaBlurBrightnessBoost { get; set; } = 2.0;
     public double MediaBlurDarkOverlay { get; set; } = 0.0;
     public bool EnableBlurEffects { get; set; } = true;
+    public bool ShowMediaArtBackground { get; set; } = true;
     public int AnimationFps { get; set; } = 144;
 
     public int MonitorIndex { get; set; } = 0;
@@ -50,6 +51,16 @@ public class NotchSettings
     public bool EnableShadow { get; set; } = true;
     public bool EnableGlowOnHover { get; set; } = true;
     public string NotchStyle { get; set; } = "default";
+
+    public LiquidGlassConfig LiquidGlass { get; set; } = new();
+
+    // The user's personally tuned Liquid Glass values. Kept as a separate slot so
+    // that applying a built-in preset (Frosted/Dark) never destroys what the user
+    // hand-tuned — selecting "Custom Settings" always restores exactly this.
+    public LiquidGlassConfig? LiquidGlassCustom { get; set; }
+
+    // Which Liquid Glass preset is active: "custom", "frosted" or "dark".
+    public string LiquidGlassPreset { get; set; } = "custom";
 
     public bool EnableDynamicIslandMode { get; set; } = false;
 
@@ -109,6 +120,34 @@ public class NotchSettings
             var prop = _cloneableProperties[i];
             prop.SetValue(clone, prop.GetValue(this));
         }
+        clone.LiquidGlass = LiquidGlass?.Clone() ?? new LiquidGlassConfig();
+        clone.LiquidGlassCustom = LiquidGlassCustom?.Clone();
         return clone;
     }
+}
+
+public class LiquidGlassConfig
+{
+    public double BlurAmount { get; set; } = 0.15;
+    public double Refraction { get; set; } = 1.0;
+    public double ChromaticAberration { get; set; } = 0.32;
+    public double EdgeHighlight { get; set; } = 0.12;
+    public double Specular { get; set; } = 0.0;
+    public double Fresnel { get; set; } = 0.0;
+    public double Distortion { get; set; } = 0.0;
+    public int CornerRadius { get; set; } = 20;
+    public double ZRadius { get; set; } = 0.20;
+    public double Opacity { get; set; } = 1.0;
+    public double Saturation { get; set; } = 0.0;
+    public double Brightness { get; set; } = 0.0;
+    public double ShadowOpacity { get; set; } = 0.6;
+    public int ShadowSpread { get; set; } = 20;
+    public int BevelMode { get; set; } = 0;
+
+    // When true the notch is excluded from screen capture (WDA_EXCLUDEFROMCAPTURE),
+    // letting the glass sample exactly what's behind it with no self-feedback — at
+    // the cost of the notch being invisible in screenshots/recordings.
+    public bool HideFromScreenCapture { get; set; } = false;
+
+    public LiquidGlassConfig Clone() => (LiquidGlassConfig)MemberwiseClone();
 }
