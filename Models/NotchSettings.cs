@@ -50,7 +50,7 @@ public class NotchSettings
 
     public bool EnableShadow { get; set; } = true;
     public bool EnableGlowOnHover { get; set; } = true;
-    public string NotchStyle { get; set; } = "default";
+    public string NotchStyle { get; set; } = "liquidglass";
 
     public LiquidGlassConfig LiquidGlass { get; set; } = new();
 
@@ -128,26 +128,30 @@ public class NotchSettings
 
 public class LiquidGlassConfig
 {
-    public double BlurAmount { get; set; } = 0.15;
+    // Defaults are the project's tuned "house" Liquid Glass look (exported from a
+    // hand-tuned configuration) so the out-of-box appearance matches the intended
+    // design. ZRadius is kept normalised (0..~0.6) and scaled to the notch
+    // thickness internally.
+    public double BlurAmount { get; set; } = 0.3;
     public double Refraction { get; set; } = 1.0;
-    public double ChromaticAberration { get; set; } = 0.32;
-    public double EdgeHighlight { get; set; } = 0.12;
+    public double ChromaticAberration { get; set; } = 0.56;
+    public double EdgeHighlight { get; set; } = 0.1;
     public double Specular { get; set; } = 0.0;
     public double Fresnel { get; set; } = 0.0;
-    public double Distortion { get; set; } = 0.0;
+    public double Distortion { get; set; } = 0.32;
     public int CornerRadius { get; set; } = 20;
-    public double ZRadius { get; set; } = 0.20;
+    public double ZRadius { get; set; } = 0.23;
     public double Opacity { get; set; } = 1.0;
-    public double Saturation { get; set; } = 0.0;
-    public double Brightness { get; set; } = 0.0;
-    public double ShadowOpacity { get; set; } = 0.6;
-    public int ShadowSpread { get; set; } = 20;
+    public double Saturation { get; set; } = 0.15;
+    public double Brightness { get; set; } = -0.05;
+    public double ShadowOpacity { get; set; } = 0.85;
+    public int ShadowSpread { get; set; } = 24;
     public int BevelMode { get; set; } = 0;
 
     // When true the notch is excluded from screen capture (WDA_EXCLUDEFROMCAPTURE),
     // letting the glass sample exactly what's behind it with no self-feedback — at
     // the cost of the notch being invisible in screenshots/recordings.
-    public bool HideFromScreenCapture { get; set; } = false;
+    public bool HideFromScreenCapture { get; set; } = true;
 
     public LiquidGlassConfig Clone() => (LiquidGlassConfig)MemberwiseClone();
 }

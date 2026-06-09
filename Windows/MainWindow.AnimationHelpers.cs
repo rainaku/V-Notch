@@ -29,6 +29,10 @@ public partial class MainWindow
         var animX = MakeAnim(targetScale, duration, easing);
         NotchScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+
+        // Keep the liquid glass tracking the notch at full rate while the hover
+        // scale plays, so the refracted backdrop doesn't jump in throttled steps.
+        BeginGlassHoverMotion(animX);
     }
 
     private void AnimateThumbnailHover(bool isHovered)
@@ -66,6 +70,8 @@ public partial class MainWindow
             $"AnimateNotchHover -> {notchWidth} (hover={isHovered}, _isExpanded={_isExpanded}, _isAnimating={_isAnimating})");
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+        // Same as AnimateNotchHover: keep the glass at full rate for the resize.
+        BeginGlassHoverMotion(widthAnim);
         if (isHovered)
         {
             ApplyCompactTitleContainerWidth(notchWidth);

@@ -93,7 +93,14 @@ public partial class MainWindow : Window
     private bool _isAnimating
     {
         get => _notchState.IsAnimating;
-        set => _notchState.IsAnimating = value;
+        set
+        {
+            _notchState.IsAnimating = value;
+            // Drive the liquid-glass refresh rate off notch motion: full rate while
+            // animating (so the refraction maps track the moving edge), throttled
+            // when static (minimises steady-state CPU).
+            UpdateGlassMotionState();
+        }
     }
 
     private bool _isExpanded

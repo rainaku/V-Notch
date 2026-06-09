@@ -271,8 +271,25 @@ public partial class MainWindow
 
     private void ResetShelfDropVisualState()
     {
-        FileShelf.Background = _brushShelfNormalBg;
-        FileShelfDashedBorder.Stroke = _brushShelfNormalBorder;
+        // In the Liquid Glass skin the tray's resting state must keep the
+        // translucent glass material (so the refracted backdrop shows through),
+        // otherwise it snaps back to a solid dark panel as soon as files land or a
+        // drag ends. The active/reject/unlock states below keep their solid
+        // feedback colours — they're only shown transiently during a drag.
+        if (IsLiquidGlassEnabled)
+        {
+            FileShelf.Background = _glassPanelBg;
+            FileShelf.BorderBrush = _glassPanelBorder;
+            FileShelf.BorderThickness = new Thickness(1);
+            FileShelfDashedBorder.Stroke = _glassDashStroke;
+        }
+        else
+        {
+            FileShelf.Background = _brushShelfNormalBg;
+            FileShelf.BorderBrush = null;
+            FileShelf.BorderThickness = new Thickness(0);
+            FileShelfDashedBorder.Stroke = _brushShelfNormalBorder;
+        }
         FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 4, 3 };
         UpdateShelfCapacityIndicator();
     }

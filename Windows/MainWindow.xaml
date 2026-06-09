@@ -1275,11 +1275,9 @@
                                                FontWeight="Bold"
                                                Margin="0,1.5,0,0"
                                                VerticalAlignment="Center"/>
-                                    <Grid Margin="4.51,0,0,0">
-
-                                        <Grid.CacheMode>
-                                            <BitmapCache RenderAtScale="2" SnapsToDevicePixels="False"/>
-                                        </Grid.CacheMode>
+                                    <Grid Margin="4.51,0,0,0"
+                                          SnapsToDevicePixels="True"
+                                          UseLayoutRounding="True">
 
                                         <Border x:Name="BatteryIcon"
                                                 Width="27.08" Height="14.44"

@@ -5,19 +5,6 @@ using VNotch.Services;
 
 namespace VNotch.Controllers;
 
-/// <summary>
-/// Captures a screen region using the Windows Magnification API while EXCLUDING
-/// specific windows (the notch) from the result — without setting
-/// WDA_EXCLUDEFROMCAPTURE on them. This lets the glass "see behind" the notch
-/// (true refraction, correct position) while the notch stays fully visible in
-/// normal screenshots and recordings.
-///
-/// The Magnification API requires the magnifier window to live on a thread with a
-/// message pump, so this class owns a dedicated pump thread. Callers (e.g. the
-/// render worker thread) invoke <see cref="CaptureInto"/> synchronously; the
-/// request is marshalled to the pump thread, which drives the magnifier and an
-/// image-scaling callback that copies the filtered pixels into the destination.
-/// </summary>
 public sealed class MagnifierCaptureSource : IDisposable
 {
     // Set true if colours come out with red/blue swapped on a given machine.
@@ -124,7 +111,6 @@ public sealed class MagnifierCaptureSource : IDisposable
 
     // Request/response (request thread writes, pump thread reads).
     private int _rx, _ry, _rw, _rh;
-    private IntPtr _rdest;
     private volatile bool _captureResult;
 
     // Callback state (pump thread only). The callback copies the source into our
@@ -163,10 +149,31 @@ public sealed class MagnifierCaptureSource : IDisposable
     {
         if (!IsReady || !_running || destBits == IntPtr.Zero || w <= 0 || h <= 0) return false;
 
-        _rx = x; _ry = y; _rw = w; _rh = h; _rdest = destBits;
+        _rx = x; _ry = y; _rw = w; _rh = h;
+
+        // Clear any stale completion left by a previous request that timed out, so
+        // we only react to THIS request's fresh frame.
+        _done.WaitOne(0);
+
         _request.Set();
         if (!_done.WaitOne(60)) return false;
-        return _captureResult;
+        if (!_captureResult) return false;
+
+        // Copy the captured pixels into the caller's buffer HERE, on the caller
+        // thread. The pump thread is now parked waiting for the next request and
+        // the render worker calls us serially, so destBits is owned by us for the
+        // duration of this copy — it can't be freed/reallocated mid-write (which
+        // previously caused an AccessViolation crash when a capture overran the
+        // 60ms timeout).
+        try
+        {
+            CopyToDest(destBits, w, h);
+        }
+        catch
+        {
+            return false;
+        }
+        return true;
     }
 
     private void PumpThread()
@@ -245,8 +252,7 @@ public sealed class MagnifierCaptureSource : IDisposable
     private void DoCapture()
     {
         int w = _rw, h = _rh;
-        IntPtr dest = _rdest;
-        if (w <= 0 || h <= 0 || dest == IntPtr.Zero) { _captureResult = false; return; }
+        if (w <= 0 || h <= 0) { _captureResult = false; return; }
 
         _received = false;
 
@@ -281,10 +287,8 @@ public sealed class MagnifierCaptureSource : IDisposable
             return;
         }
 
-        // Copy our own buffer into the caller's destination synchronously. The
-        // caller is blocked in CaptureInto until _done is set, so this is the only
-        // write to caller memory and it can't race with the caller freeing it.
-        CopyToDest(dest, w, h);
+        // The actual copy into the caller's buffer is done by CaptureInto on the
+        // caller thread (see comment there). The pump thread only fills _ownBuffer.
         _captureResult = true;
     }
 
@@ -317,17 +321,29 @@ public sealed class MagnifierCaptureSource : IDisposable
 
     private unsafe void CopyToDest(IntPtr dest, int destW, int destH)
     {
-        if (_ownBuffer.Length == 0 || _ownRows == 0 || _ownStride == 0) return;
+        // Snapshot the buffer reference and its dimensions together. A late
+        // callback on the pump thread could reassign _ownBuffer / change the
+        // strides concurrently; pinning the snapshotted array and clamping to its
+        // real length keeps this copy from over-reading freed/short memory.
+        byte[] src = _ownBuffer;
+        int ownRows = _ownRows;
+        int ownStride = _ownStride;
+        if (src.Length == 0 || ownRows <= 0 || ownStride <= 0) return;
 
-        int rows = Math.Min(_ownRows, destH);
+        int maxRowsInBuffer = src.Length / ownStride;
+        if (maxRowsInBuffer <= 0) return;
+
+        int rows = Math.Min(Math.Min(ownRows, destH), maxRowsInBuffer);
+        if (rows <= 0) return;
+
         int dstStride = destW * 4;
-        int copyBytes = Math.Min(_ownStride, dstStride);
+        int copyBytes = Math.Min(ownStride, dstStride);
 
-        fixed (byte* srcBase = _ownBuffer)
+        fixed (byte* srcBase = src)
         {
             byte* dst = (byte*)dest;
             for (int row = 0; row < rows; row++)
-                Buffer.MemoryCopy(srcBase + row * _ownStride, dst + row * dstStride, dstStride, copyBytes);
+                Buffer.MemoryCopy(srcBase + row * ownStride, dst + row * dstStride, dstStride, copyBytes);
         }
     }
 

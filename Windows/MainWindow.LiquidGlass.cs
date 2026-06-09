@@ -24,6 +24,13 @@ public partial class MainWindow
             NotchBackground.Opacity = 0;
             ExpandedContent.Background = System.Windows.Media.Brushes.Transparent;
 
+            // Opaque dark base behind the live glass image. The refraction image is
+            // fully opaque and fills the host, so this is never visible normally —
+            // but if a frame is dropped during a heavy view-switch composite, the
+            // gap shows dark glass instead of the window's pure black (the 1-frame
+            // black flash users saw when changing views on the glass skin).
+            GlassBackdropHost.Background = _glassBaseFill;
+
             GlassBackdropHost.Visibility = Visibility.Visible;
             GlassTintOverlay.Visibility = Visibility.Visible;
             GlassFresnelBorder.Visibility = Visibility.Visible;
@@ -34,7 +41,12 @@ public partial class MainWindow
                 GlassBackdropImage,
                 () => _hwnd,
                 GetGlassCaptureRegion,
-                fps: 60);
+                activeFps: 90,
+                idleFps: 30);
+
+            // Match the controller to the notch's current motion state so it starts
+            // at the right cadence (e.g. enabled mid-animation).
+            _liquidGlass.SetAnimating(_isAnimating);
 
             ApplyLiquidGlassConfig();
             _liquidGlass.Start();
@@ -56,6 +68,7 @@ public partial class MainWindow
             ApplyGlassPanelMaterial(false);
 
             GlassBackdropHost.Visibility = Visibility.Collapsed;
+            GlassBackdropHost.Background = null;
             GlassTintOverlay.Visibility = Visibility.Collapsed;
             GlassFresnelBorder.Visibility = Visibility.Collapsed;
             GlassSpecularOverlay.Visibility = Visibility.Collapsed;
@@ -105,9 +118,16 @@ public partial class MainWindow
             ZRadius = cfg.ZRadius,
             Saturation = cfg.Saturation,
             Brightness = cfg.Brightness,
-            BevelMode = cfg.BevelMode
+            BevelMode = cfg.BevelMode,
+            // Drive the refraction SDF off the notch's actual rounded-rect so the
+            // bent edges line up with the visible corners.
+            CornerRadius = NotchBorder.CornerRadius.TopLeft
         });
     }
+
+    // Dark base shown behind the live glass image to avoid a black flash if a
+    // frame is dropped during a heavy composite (e.g. view switches).
+    private static readonly SolidColorBrush _glassBaseFill = Frozen(0xFF, 0x0B, 0x0E, 0x12);
 
     private static SolidColorBrush MakeWhite(double alpha)
     {
@@ -140,6 +160,8 @@ public partial class MainWindow
     private void ApplyGlassPanelMaterial(bool glass)
     {
         if (CameraSection == null) return;
+
+        ApplyGlassToProgressBar(glass);
 
         if (glass)
         {
@@ -175,6 +197,26 @@ public partial class MainWindow
         }
     }
 
+    // Frosted translucent track for the media progress bar while the Liquid Glass
+    // skin is active, so the unfilled portion reads as a light glass groove (with
+    // the refracted backdrop showing through) instead of a solid dark bar.
+    private static readonly SolidColorBrush _glassProgressTrack = Frozen(0x59, 255, 255, 255);
+    private Brush? _progressTrackDefaultBg;
+    private bool _progressTrackDefaultCaptured;
+
+    private void ApplyGlassToProgressBar(bool glass)
+    {
+        if (ProgressBarBg == null) return;
+
+        if (!_progressTrackDefaultCaptured)
+        {
+            _progressTrackDefaultBg = ProgressBarBg.Background;
+            _progressTrackDefaultCaptured = true;
+        }
+
+        ProgressBarBg.Background = glass ? _glassProgressTrack : _progressTrackDefaultBg;
+    }
+
     private bool _notchShadowDefaultsCaptured;
     private double _notchShadowDefaultOpacity = 0.6;
     private double _notchShadowDefaultBlur = 20;
@@ -192,9 +234,6 @@ public partial class MainWindow
     private void SyncGlassCornerRadius(CornerRadius cr)
     {
         if (GlassBackdropHost == null) return;
-
-        // Always follow the notch body's actual corner radius (already DI-aware
-        // and animated by the caller) so the glass matches the notch border.
         GlassBackdropHost.CornerRadius = cr;
         GlassTintOverlay.CornerRadius = cr;
         GlassFresnelBorder.CornerRadius = cr;
@@ -214,6 +253,37 @@ public partial class MainWindow
     }
 
     private void InvalidateGlassDpiScale() => _glassDpiScale = 0;
+
+    // Hover applies a transient scale to the collapsed notch without flipping the
+    // _isAnimating flag. The glass must still run at full rate (and re-query the
+    // moving region every frame) for that scale, otherwise the throttled idle path
+    // updates the backdrop position in coarse steps and it visibly jumps.
+    private bool _glassHoverMotion;
+    private int _glassHoverGen;
+
+    /// <summary>
+    /// Marks the glass as "in motion" for the lifetime of a hover scale animation,
+    /// so it tracks the moving notch smoothly. A generation token guards against a
+    /// superseded animation's Completed event clearing a newer motion state.
+    /// </summary>
+    private void BeginGlassHoverMotion(System.Windows.Media.Animation.AnimationTimeline completionAnim)
+    {
+        if (_liquidGlass == null || !IsLiquidGlassEnabled || completionAnim == null) return;
+
+        int gen = ++_glassHoverGen;
+        _glassHoverMotion = true;
+        UpdateGlassMotionState();
+
+        completionAnim.Completed += (_, _) =>
+        {
+            if (gen != _glassHoverGen) return;
+            _glassHoverMotion = false;
+            UpdateGlassMotionState();
+        };
+    }
+
+    private void UpdateGlassMotionState()
+        => _liquidGlass?.SetAnimating(_isAnimating || _glassHoverMotion);
 
     private System.Windows.Media.Effects.DropShadowEffect? _glassContentShadow;
 
@@ -368,20 +438,47 @@ public partial class MainWindow
 
         int physW = (int)Math.Round(notchW * dpiScale);
         int physH = (int)Math.Round(notchH * dpiScale);
-        int physLeft = _fixedX + (int)Math.Round((_windowWidth - physW) / 2.0);
-        int physTop = _fixedY;
 
-        double translateY = NotchContainerTranslate?.Y ?? 0;
-        physTop += (int)Math.Round(translateY * dpiScale);
+        int physLeft;
+        int physTop;
+        try
+        {
+            // Anchor the capture rectangle to the notch's ACTUAL on-screen position.
+            // PointToScreen accounts for every transform/offset (island float, slide
+            // animation, layout margins), so the sampled desktop lines up 1:1 with
+            // the glass. Reconstructing it from _fixedY + translateY drifted slightly
+            // low, which pulled content from below the pill (white showing as a
+            // reflection before it actually reached the notch).
+            var topLeft = NotchBorder.PointToScreen(new Point(0, 0));
+            physLeft = (int)Math.Round(topLeft.X);
+            physTop = (int)Math.Round(topLeft.Y);
+        }
+        catch
+        {
+            // Fallback: notch not connected to a presentation source yet.
+            physLeft = _fixedX + (int)Math.Round((_windowWidth - physW) / 2.0);
+            physTop = _fixedY + (int)Math.Round((NotchContainerTranslate?.Y ?? 0) * dpiScale);
+        }
 
-        // The region is exactly behind the notch. The magnifier capture excludes
-        // the notch itself, so there's no self-feedback (the BitBlt fallback adds
-        // its own below-notch offset instead).
+        double subX = 0, subY = 0;
+        try
+        {
+            // The capture must snap to an integer desktop pixel, but the notch is
+            // laid out at a sub-pixel position. Carry the fractional remainder so
+            // the present can compensate it with a sub-pixel transform; otherwise
+            // the captured content wobbles ±0.5px horizontally as the notch width
+            // animates through odd/even pixel values.
+            var tl = NotchBorder.PointToScreen(new Point(0, 0));
+            subX = tl.X - Math.Round(tl.X);
+            subY = tl.Y - Math.Round(tl.Y);
+        }
+        catch { /* not connected yet */ }
 
         if (physTop < 0) { physH += physTop; physTop = 0; }
         if (physLeft < 0) { physW += physLeft; physLeft = 0; }
         if (physW <= 1 || physH <= 1) return null;
 
-        return new LiquidGlassController.CaptureRegion(physLeft, physTop, physW, physH);
+        return new LiquidGlassController.CaptureRegion(
+            physLeft, physTop, physW, physH, NotchBorder.CornerRadius.TopLeft, subX, subY);
     }
 }

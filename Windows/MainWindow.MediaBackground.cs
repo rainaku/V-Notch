@@ -426,9 +426,21 @@ public partial class MainWindow
 
     private void ShowMediaBackground()
     {
-        if (IsLiquidGlassEnabled || !_settings.ShowMediaArtBackground) return;
-        if (!_settings.EnableBlurEffects) return;
         if (!_isExpanded || _isAnimating || _currentMediaInfo == null) return;
+
+        // In Liquid Glass mode there's no blurred album-art backdrop, but the
+        // accent colours (progress bar, time text, visualiser, ...) still need to
+        // be re-derived after a view switch — the music view brushes get reset
+        // when the file tray / secondary view is shown, so without this they stay
+        // grey ("mất màu chủ đạo") on the way back.
+        if (IsLiquidGlassEnabled)
+        {
+            UpdateMediaBackground(_currentMediaInfo, forceRefresh: true);
+            return;
+        }
+
+        if (!_settings.ShowMediaArtBackground) return;
+        if (!_settings.EnableBlurEffects) return;
 
         MediaBackground.BeginAnimation(OpacityProperty, null);
         MediaBackground2.BeginAnimation(OpacityProperty, null);
