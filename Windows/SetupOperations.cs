@@ -325,8 +325,20 @@ internal static class SetupOperations
         uninstallKey.SetValue("URLInfoAbout", AppUrl);
         uninstallKey.SetValue("DisplayIcon", installedExePath);
         uninstallKey.SetValue("InstallLocation", installDirectory);
-        uninstallKey.SetValue("UninstallString", $"\"{installedExePath}\" --uninstall");
-        uninstallKey.SetValue("QuietUninstallString", $"\"{installedExePath}\" --uninstall");
+
+        // Prefer the dedicated uninstaller (full clean wipe, incl. app data).
+        // Fall back to the in-app flow if it wasn't shipped with this build.
+        var uninstallerPath = Path.Combine(installDirectory, "uninstall.exe");
+        if (File.Exists(uninstallerPath))
+        {
+            uninstallKey.SetValue("UninstallString", $"\"{uninstallerPath}\"");
+            uninstallKey.SetValue("QuietUninstallString", $"\"{uninstallerPath}\" /S");
+        }
+        else
+        {
+            uninstallKey.SetValue("UninstallString", $"\"{installedExePath}\" --uninstall");
+            uninstallKey.SetValue("QuietUninstallString", $"\"{installedExePath}\" --uninstall");
+        }
 
         using var appKey = Registry.CurrentUser.CreateSubKey($@"Software\{AppName}");
         appKey?.SetValue("InstallDir", installDirectory);

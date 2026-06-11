@@ -891,6 +891,8 @@ public event EventHandler? AnimatedClosing;
 
             var c = _settings.LiquidGlass ?? new Models.LiquidGlassConfig();
             ApplyGlassConfigToSliders(c);
+            if (GpuRefractionCheck != null)
+                GpuRefractionCheck.IsChecked = c.UseGpuRefraction;
 
             // The user's tuned values live in their own persistent slot. If it's
             // missing (first run / upgrade), seed it from whatever is currently
@@ -929,6 +931,7 @@ public event EventHandler? AnimatedClosing;
         c.ShadowOpacity = ui.ShadowOpacity;
         c.ShadowSpread = ui.ShadowSpread;
         c.BevelMode = ui.BevelMode;
+        c.UseGpuRefraction = GpuRefractionCheck?.IsChecked ?? false;
 
         // Persist which preset is active and the user's custom slot. A built-in
         // preset being active must NOT overwrite the custom slot.
@@ -994,6 +997,12 @@ public event EventHandler? AnimatedClosing;
     }
 
     private void GlassConfigCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        PushLivePreview();
+    }
+
+    private void GpuRefractionCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_isLoadingSettings) return;
         PushLivePreview();

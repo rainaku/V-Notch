@@ -56,6 +56,7 @@
   <ItemGroup>
     <Compile Remove="artifacts\**\*.cs" />
     <Compile Remove="Tests\**\*.cs" />
+    <Compile Remove="Uninstall\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -93,6 +94,25 @@
     <Resource Include="Assets\play-and-pause.svg" />
     <Resource Include="Assets\QR.PNG" />
     <Resource Include="Assets\update-button.svg" />
+    <Resource Include="Shaders\LiquidGlassRefraction.ps" />
   </ItemGroup>
+
+  <!-- Recompile the Liquid Glass HLSL shader to ps_3_0 bytecode if fxc.exe is
+       available and the source is newer than the compiled output. The .ps file is
+       also committed so builds without the Windows SDK still work. fxc lives under
+       a versioned SDK bin folder, so glob for any version rather than guessing. -->
+  <Target Name="CompileLiquidGlassShader" BeforeTargets="BeforeBuild"
+          Inputs="Shaders\LiquidGlassRefraction.hlsl" Outputs="Shaders\LiquidGlassRefraction.ps">
+    <ItemGroup>
+      <_FxcCandidate Include="$(WindowsSdkDir)bin\**\x64\fxc.exe" />
+      <_FxcCandidate Include="C:\Program Files (x86)\Windows Kits\10\bin\**\x64\fxc.exe" />
+    </ItemGroup>
+    <PropertyGroup>
+      <FxcPath Condition="'@(_FxcCandidate)' != ''">%(_FxcCandidate.FullPath)</FxcPath>
+    </PropertyGroup>
+    <Exec Condition="'$(FxcPath)' != '' And Exists('$(FxcPath)')"
+          Command="&quot;$(FxcPath)&quot; /nologo /T ps_3_0 /E main /Fo &quot;Shaders\LiquidGlassRefraction.ps&quot; &quot;Shaders\LiquidGlassRefraction.hlsl&quot;"
+          ContinueOnError="true" />
+  </Target>
 
 </Project>

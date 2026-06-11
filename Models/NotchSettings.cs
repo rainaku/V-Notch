@@ -35,7 +35,7 @@ public class NotchSettings
     public bool EnableCursorBypass { get; set; } = false;
     public bool EnableAnimations { get; set; } = true;
     public bool DisableMouseLeaveAutoClose { get; set; } = true;
-    public bool ReopenLastViewOnExpand { get; set; } = true;
+    public bool ReopenLastViewOnExpand { get; set; } = false;
 
     public double AnimationSpeed { get; set; } = 2.0;
     public bool EnableBounceEffect { get; set; } = true;
@@ -152,6 +152,10 @@ public class LiquidGlassConfig
     // letting the glass sample exactly what's behind it with no self-feedback — at
     // the cost of the notch being invisible in screenshots/recordings.
     public bool HideFromScreenCapture { get; set; } = true;
+
+    // Opt-in: run the refraction on the GPU (ps_3_0 ShaderEffect) instead of the CPU
+    // pixel pipeline. Default false so the tuned CPU look stays until verified.
+    public bool UseGpuRefraction { get; set; } = false;
 
     public LiquidGlassConfig Clone() => (LiquidGlassConfig)MemberwiseClone();
 }

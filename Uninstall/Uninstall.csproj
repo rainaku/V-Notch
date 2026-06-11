@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <AssemblyName>uninstall</AssemblyName>
+    <RootNamespace>VNotch.Uninstaller</RootNamespace>
+
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+
+    <Version>1.8.0</Version>
+    <Authors>rainaku</Authors>
+    <Company>V-Notch</Company>
+    <Product>V-Notch Uninstaller</Product>
+    <Copyright>Copyright © 2026 rainaku</Copyright>
+    <Description>Completely removes V-Notch and all of its data from this computer.</Description>
+    <ApplicationIcon>..\Services\icons\logo.ico</ApplicationIcon>
+  </PropertyGroup>
+
+</Project>

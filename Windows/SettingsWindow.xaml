@@ -1152,6 +1152,17 @@
                                                        TextWrapping="Wrap"
                                                        Margin="2,2,2,10"/>
                                             <Border Style="{StaticResource SettingRowBorder}">
+                                                <StackPanel>
+                                                    <CheckBox x:Name="GpuRefractionCheck"
+                                                              Content="GPU refraction (experimental)"
+                                                              Checked="GpuRefractionCheck_Changed"
+                                                              Unchecked="GpuRefractionCheck_Changed"/>
+                                                    <TextBlock x:Name="GpuRefractionHint"
+                                                               Text="Render the glass refraction on the GPU instead of the CPU. Much lower CPU usage. If the look differs or it doesn't work on your GPU, turn it off."
+                                                               Style="{StaticResource SettingHintText}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource SettingRowBorder}">
                                                 <controls:ElasticSlider x:Name="GlassBlurSlider" Label="Blur Amount" Unit="%"
                                                         Minimum="0" Maximum="100" Value="15" TickFrequency="5" IsSnapToTickEnabled="True"
                                                         ValueChanged="GlassConfigSlider_Changed"/>

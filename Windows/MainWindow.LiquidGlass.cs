@@ -12,6 +12,11 @@ public partial class MainWindow
 
     private const string LiquidGlassStyleId = "liquidglass";
 
+    private LiquidGlassRefractionEffect? _glassRefractionEffect;
+
+    private bool UseGpuRefraction =>
+        (_settings.LiquidGlass?.UseGpuRefraction ?? false) && LiquidGlassRefractionEffect.IsAvailable;
+
     private bool IsLiquidGlassEnabled =>
         string.Equals(_settings.NotchStyle, LiquidGlassStyleId, StringComparison.OrdinalIgnoreCase);
 
@@ -42,11 +47,13 @@ public partial class MainWindow
                 () => _hwnd,
                 GetGlassCaptureRegion,
                 activeFps: 90,
-                idleFps: 30);
+                idleFps: 10);
 
             // Match the controller to the notch's current motion state so it starts
             // at the right cadence (e.g. enabled mid-animation).
             _liquidGlass.SetAnimating(_isAnimating);
+
+            ConfigureGpuRefraction();
 
             ApplyLiquidGlassConfig();
             _liquidGlass.Start();
@@ -61,6 +68,7 @@ public partial class MainWindow
         else
         {
             _liquidGlass?.Stop();
+            DetachGpuRefraction();
 
             ApplyGlassContentShadow(false);
             ApplyGlassToTimerBar(false);
@@ -89,6 +97,9 @@ public partial class MainWindow
         double boxScale = GetGlassDpiScale();
         int boxRadius = (int)Math.Round(dipRadius * boxScale / 3.0);
         _liquidGlass?.SetBlur(boxRadius);
+
+        // GPU mode blurs on the host element instead of the CPU box blur.
+        ApplyGpuBlur(cfg.BlurAmount);
 
         GlassBackdropHost.Opacity = Math.Clamp(cfg.Opacity, 0, 1);
 
@@ -123,6 +134,90 @@ public partial class MainWindow
             // bent edges line up with the visible corners.
             CornerRadius = NotchBorder.CornerRadius.TopLeft
         });
+    }
+
+    // ── GPU refraction wiring (opt-in) ──
+
+    private System.Windows.Media.Effects.BlurEffect? _glassHostBlur;
+
+    private void ConfigureGpuRefraction()
+    {
+        if (_liquidGlass == null) return;
+
+        if (UseGpuRefraction)
+        {
+            _glassRefractionEffect ??= new LiquidGlassRefractionEffect();
+            GlassBackdropImage.Effect = _glassRefractionEffect;
+            _liquidGlass.SetGpuMode(true, ApplyGpuGeometry);
+        }
+        else
+        {
+            DetachGpuRefraction();
+            _liquidGlass.SetGpuMode(false, null);
+        }
+    }
+
+    private void DetachGpuRefraction()
+    {
+        if (GlassBackdropImage != null)
+        {
+            GlassBackdropImage.Effect = null;
+            // Restore CPU-present layout defaults (GPU mode set explicit size).
+            GlassBackdropImage.Width = double.NaN;
+            GlassBackdropImage.Height = double.NaN;
+        }
+        if (GlassBackdropHost != null)
+            GlassBackdropHost.Effect = null;
+        _glassHostBlur = null;
+    }
+
+    /// <summary>Pushes the per-frame shader geometry from the controller into the
+    /// effect. Invoked on the UI thread by the controller's present.</summary>
+    private void ApplyGpuGeometry(LiquidGlassController.GpuGeometry g)
+    {
+        var fx = _glassRefractionEffect;
+        if (fx == null) return;
+
+        fx.SrcW = g.SrcW;
+        fx.SrcH = g.SrcH;
+        fx.NotchW = g.NotchW;
+        fx.NotchH = g.NotchH;
+        fx.OffX = g.OffX;
+        fx.OffY = g.OffY;
+        fx.CornerR = g.CornerR;
+        fx.ZR = g.ZR;
+        fx.Refraction = g.Refraction;
+        fx.Chroma = g.Chroma;
+        fx.Distort = g.Distort;
+        fx.BevelMode = g.BevelMode;
+        fx.SatFactor = g.SatFactor;
+        fx.BrightAdd = g.BrightAdd;
+    }
+
+    /// <summary>Applies the GPU-mode Gaussian blur (host element) from BlurAmount,
+    /// matching the CPU "refract then blur" order. No-op when not in GPU mode.</summary>
+    private void ApplyGpuBlur(double blurAmount)
+    {
+        if (!UseGpuRefraction || GlassBackdropHost == null) return;
+
+        double radius = Math.Clamp(blurAmount, 0, 1) * 14.0;
+        if (radius < 0.5)
+        {
+            GlassBackdropHost.Effect = null;
+            _glassHostBlur = null;
+            return;
+        }
+
+        if (_glassHostBlur == null)
+        {
+            _glassHostBlur = new System.Windows.Media.Effects.BlurEffect
+            {
+                KernelType = System.Windows.Media.Effects.KernelType.Gaussian,
+                RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance
+            };
+            GlassBackdropHost.Effect = _glassHostBlur;
+        }
+        _glassHostBlur.Radius = radius;
     }
 
     // Dark base shown behind the live glass image to avoid a black flash if a
@@ -284,8 +379,38 @@ public partial class MainWindow
         };
     }
 
+    private bool _glassRegionPushActive;
+
     private void UpdateGlassMotionState()
-        => _liquidGlass?.SetAnimating(_isAnimating || _glassHoverMotion);
+    {
+        bool motion = _isAnimating || _glassHoverMotion;
+        _liquidGlass?.SetAnimating(motion);
+        SetGlassRegionPush(motion && _liquidGlass != null && IsLiquidGlassEnabled);
+    }
+
+    /// <summary>While the notch moves, push the capture region from the UI thread each
+    /// compositor frame so the worker need not pull it synchronously at Send priority.</summary>
+    private void SetGlassRegionPush(bool enabled)
+    {
+        if (enabled == _glassRegionPushActive) return;
+        _glassRegionPushActive = enabled;
+
+        if (enabled)
+        {
+            CompositionTarget.Rendering += OnGlassRegionRendering;
+        }
+        else
+        {
+            CompositionTarget.Rendering -= OnGlassRegionRendering;
+            _liquidGlass?.ClearLiveRegion();
+        }
+    }
+
+    private void OnGlassRegionRendering(object? sender, EventArgs e)
+    {
+        if (_liquidGlass == null) { SetGlassRegionPush(false); return; }
+        _liquidGlass.SetLiveRegion(GetGlassCaptureRegion());
+    }
 
     private System.Windows.Media.Effects.DropShadowEffect? _glassContentShadow;
 
