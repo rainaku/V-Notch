@@ -106,6 +106,10 @@ public partial class MainWindow
         e.Handled = true;
 
         var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+        if (files == null || files.Length == 0)
+        {
+            return;
+        }
 
         if (!_isExpanded)
         {

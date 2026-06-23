@@ -103,10 +103,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool _isExpandedBacking;
     private bool _isExpanded
     {
         get => _notchState.IsExpanded;
-        set {  }
+        set
+        {
+            _isExpandedBacking = value;
+            UpdateGlassMotionState();
+        }
     }
 
     private bool _isStartupLayoutReady = false;

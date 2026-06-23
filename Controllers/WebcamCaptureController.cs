@@ -28,9 +28,6 @@ public sealed class WebcamCaptureController : IDisposable
 
     private long _lastFrameTimestamp;
     private const long FrameIntervalTicks = 333_333;
-    private byte[]? _frameBuffer;
-    private int _frameBufferSize;
-
     public bool IsActive => _isActive;
 
     public bool IsStarting => _starting;
@@ -213,8 +210,6 @@ public sealed class WebcamCaptureController : IDisposable
         _starting = false;
         _stopping = false;
         _fadeToken++;
-        _frameBuffer = null;
-        _frameBufferSize = 0;
 
         MediaCapture? initializingCapture;
         lock (_lifecycleLock)
@@ -245,8 +240,6 @@ public sealed class WebcamCaptureController : IDisposable
         if (_stopping) return false;
         _stopping = true;
         _isActive = false;
-        _frameBuffer = null;
-        _frameBufferSize = 0;
         fadeToken = ++_fadeToken;
 
         reader = _frameReader;
@@ -288,26 +281,27 @@ public sealed class WebcamCaptureController : IDisposable
 
         var softwareBitmap = frame.VideoMediaFrame.SoftwareBitmap;
 
+        var converted = false;
         if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 ||
             softwareBitmap.BitmapAlphaMode != BitmapAlphaMode.Premultiplied)
         {
             softwareBitmap = SoftwareBitmap.Convert(softwareBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+            converted = true;
         }
 
         int width = softwareBitmap.PixelWidth;
         int height = softwareBitmap.PixelHeight;
         int requiredSize = width * height * 4;
 
-        if (_frameBuffer == null || _frameBufferSize < requiredSize)
+        var frameBuffer = new byte[requiredSize];
+        softwareBitmap.CopyToBuffer(frameBuffer.AsBuffer());
+
+        if (converted)
         {
-            _frameBuffer = new byte[requiredSize];
-            _frameBufferSize = requiredSize;
+            softwareBitmap.Dispose();
         }
 
-        softwareBitmap.CopyToBuffer(_frameBuffer.AsBuffer());
-        softwareBitmap.Dispose();
-
-        FrameAvailable?.Invoke(_frameBuffer, width, height);
+        FrameAvailable?.Invoke(frameBuffer, width, height);
     }
 
     public void Dispose()
