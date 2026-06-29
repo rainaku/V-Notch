@@ -32,7 +32,9 @@
 ---
 
 ## Preview
-
+<p align="center">
+  These previews are from version 1.6, maybe changed in later versions.
+</p>
 <table>
   <tr>
     <td align="center" width="50%">
