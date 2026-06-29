@@ -24,7 +24,11 @@ public partial class MainWindow
 
     private bool IsNonCalendarWidgetMode => IsAnyClockWidgetMode || IsWeatherWidgetMode || IsSystemMonitorWidgetMode;
 
-    private void ApplyExpandedWidgetMode() => _clockWidgetPresenter?.ApplyExpandedWidgetMode();
+    private void ApplyExpandedWidgetMode()
+    {
+        if (_clockWidgetPresenter == null) InitializeClockWidgetPresenter();
+        _clockWidgetPresenter?.ApplyExpandedWidgetMode();
+    }
 
     #endregion
 
