@@ -132,6 +132,7 @@ public partial class MainWindow
                                     LyricsBlurImageNext.Opacity = 0;
                                 }
                             };
+                            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
                             LyricsBlurImageNext.BeginAnimation(OpacityProperty, fadeIn);
                         }
                     }
@@ -187,6 +188,7 @@ public partial class MainWindow
                         {
                             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
                         };
+                        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(transitionBlur, VNotch.Services.AnimationConfig.TargetFps);
                         ThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty, transitionBlur);
                         CompactThumbnailOutBlur.BeginAnimation(BlurEffect.RadiusProperty,
                             new DoubleAnimation(0, _settings.EnableBlurEffects ? 6 : 0, TimeSpan.FromMilliseconds(300))
@@ -334,8 +336,8 @@ public partial class MainWindow
         var outBlurCompact  = new DoubleAnimation(0.0, compactPeakBlur,  outDur) { EasingFunction = cubicOut };
         var outFade         = new DoubleAnimation(1.0, 0.0, outDur)              { EasingFunction = cubicIn };
         var outScale        = new DoubleAnimation(1.0, 0.96, totalDur)           { EasingFunction = sineInOut };
-        Timeline.SetDesiredFrameRate(outBlurExpanded, 60);
-        Timeline.SetDesiredFrameRate(outBlurCompact, 60);
+        Timeline.SetDesiredFrameRate(outBlurExpanded, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(outBlurCompact, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(outFade, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(outScale, VNotch.Services.AnimationConfig.TargetFps);
 
@@ -361,8 +363,8 @@ public partial class MainWindow
         inScale.KeyFrames.Add(new DiscreteDoubleKeyFrame(1.05, KeyTime.FromTimeSpan(overlap)));
         inScale.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(totalDur), quintOut));
 
-        Timeline.SetDesiredFrameRate(inBlurExpanded, 60);
-        Timeline.SetDesiredFrameRate(inBlurCompact, 60);
+        Timeline.SetDesiredFrameRate(inBlurExpanded, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(inBlurCompact, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(inFade, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(inScale, VNotch.Services.AnimationConfig.TargetFps);
 
@@ -680,6 +682,7 @@ public partial class MainWindow
             {
                 EasingFunction = _easeExpOut6
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnim, VNotch.Services.AnimationConfig.TargetFps);
             NotchBorder.BeginAnimation(WidthProperty, widthAnim);
 
             if (_isMusicCompactMode)
@@ -764,7 +767,7 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(scaleAnimY, VNotch.Services.AnimationConfig.TargetFps);
 
         var opacityAnim = MakeAnim(0.0, 1.0, new Duration(TimeSpan.FromMilliseconds(250)), _easeQuadOut);
-        Timeline.SetDesiredFrameRate(opacityAnim, 60);
+        Timeline.SetDesiredFrameRate(opacityAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimX);
         CompactThumbnailScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimY);
@@ -809,7 +812,7 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(scaleAnimY, VNotch.Services.AnimationConfig.TargetFps);
 
         var opacityAnim = MakeAnim(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
-        Timeline.SetDesiredFrameRate(opacityAnim, 60);
+        Timeline.SetDesiredFrameRate(opacityAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         MusicViz.BeginAnimation(OpacityProperty, null);
         var vizFadeOut = MakeAnim(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(200)), _easeQuadIn);
@@ -924,7 +927,7 @@ public partial class MainWindow
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
-        Timeline.SetDesiredFrameRate(storyboard, 30);
+        Timeline.SetDesiredFrameRate(storyboard, VNotch.Services.AnimationConfig.TargetFps);
 
         var anim0 = new DoubleAnimation
         {
@@ -956,8 +959,11 @@ public partial class MainWindow
         Storyboard.SetTargetProperty(anim2,
             new PropertyPath("(TextBlock.Foreground).(GradientBrush.GradientStops)[2].(GradientStop.Offset)"));
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim0, VNotch.Services.AnimationConfig.TargetFps);
         storyboard.Children.Add(anim0);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim1, VNotch.Services.AnimationConfig.TargetFps);
         storyboard.Children.Add(anim1);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim2, VNotch.Services.AnimationConfig.TargetFps);
         storyboard.Children.Add(anim2);
 
         _titleShimmerStoryboard = storyboard;

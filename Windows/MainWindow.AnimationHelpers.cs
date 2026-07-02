@@ -249,7 +249,9 @@ public partial class MainWindow
         var animX = new DoubleAnimation(scaleTransform.ScaleX, targetScale, _dur150) { EasingFunction = _easeQuadOut };
         var animY = new DoubleAnimation(scaleTransform.ScaleY, targetScale, _dur150) { EasingFunction = _easeQuadOut };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(animX, VNotch.Services.AnimationConfig.TargetFps);
         scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(animY, VNotch.Services.AnimationConfig.TargetFps);
         scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
     }
 
@@ -300,12 +302,16 @@ public partial class MainWindow
             capturedFromIcon.BeginAnimation(OpacityProperty, null);
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(scaleDown, VNotch.Services.AnimationConfig.TargetFps);
         fromTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);
         fromTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDown);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
         fromIcon.BeginAnimation(OpacityProperty, fadeOut);
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(scaleUp, VNotch.Services.AnimationConfig.TargetFps);
         toTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleUp);
         toTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleUp);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
         toIcon.BeginAnimation(OpacityProperty, fadeIn);
     }
 
@@ -358,9 +364,13 @@ public partial class MainWindow
         var slideIn0 = new DoubleAnimation(-slideDistance, 0, _dur250) { EasingFunction = _easeQuadOut };
         var fadeIn0 = new DoubleAnimation(0, 1, _dur250) { EasingFunction = _easeQuadOut };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideOut1, VNotch.Services.AnimationConfig.TargetFps);
         arrow1Transform.BeginAnimation(TranslateTransform.XProperty, slideOut1);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut1, VNotch.Services.AnimationConfig.TargetFps);
         arrow1.BeginAnimation(OpacityProperty, fadeOut1);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideIn0, VNotch.Services.AnimationConfig.TargetFps);
         arrow0Transform.BeginAnimation(TranslateTransform.XProperty, slideIn0);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn0, VNotch.Services.AnimationConfig.TargetFps);
         arrow0.BeginAnimation(OpacityProperty, fadeIn0);
 
         fadeOut1.Completed += (s, e) =>
@@ -398,9 +408,13 @@ public partial class MainWindow
         var slideIn0 = new DoubleAnimation(slideDistance, 0, _dur250) { EasingFunction = _easeQuadOut };
         var fadeIn0 = new DoubleAnimation(0, 1, _dur250) { EasingFunction = _easeQuadOut };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideOut2, VNotch.Services.AnimationConfig.TargetFps);
         arrow2Transform.BeginAnimation(TranslateTransform.XProperty, slideOut2);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut2, VNotch.Services.AnimationConfig.TargetFps);
         arrow2.BeginAnimation(OpacityProperty, fadeOut2);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideIn0, VNotch.Services.AnimationConfig.TargetFps);
         arrow0Transform.BeginAnimation(TranslateTransform.XProperty, slideIn0);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn0, VNotch.Services.AnimationConfig.TargetFps);
         arrow0.BeginAnimation(OpacityProperty, fadeIn0);
 
         fadeOut2.Completed += (s, e) =>
@@ -445,6 +459,7 @@ public partial class MainWindow
             };
         }
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(opacityAnim, VNotch.Services.AnimationConfig.TargetFps);
         NotchBorder.BeginAnimation(OpacityProperty, opacityAnim);
     }
 

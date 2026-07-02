@@ -61,6 +61,7 @@ public partial class SetupWindow : Window
     public SetupWindow(string? sourceDirectory = null)
     {
         InitializeComponent();
+        AnimationPrimitives.ApplyFpsToTree(this);
 
         _sourceDirectory = sourceDirectory ?? AppContext.BaseDirectory;
         _introductionPage = new IntroductionPage();
@@ -115,7 +116,8 @@ public partial class SetupWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        var storyboard = (Storyboard)FindResource("WindowEntranceStoryboard");
+        AnimationPrimitives.ApplyFpsToTree(this);
+        var storyboard = AnimationPrimitives.WithFps((Storyboard)FindResource("WindowEntranceStoryboard"));
         storyboard.Begin();
         ForceWindowToFront();
 
@@ -417,7 +419,9 @@ public partial class SetupWindow : Window
             onComplete?.Invoke();
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideOut, VNotch.Services.AnimationConfig.TargetFps);
         transform.BeginAnimation(TranslateTransform.YProperty, slideOut);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
         ContentPresenter.BeginAnimation(OpacityProperty, fadeOut);
     }
 
@@ -453,7 +457,9 @@ public partial class SetupWindow : Window
             onComplete?.Invoke();
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideIn, VNotch.Services.AnimationConfig.TargetFps);
         transform.BeginAnimation(TranslateTransform.YProperty, slideIn);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
         ContentPresenter.BeginAnimation(OpacityProperty, fadeIn);
     }
 
@@ -546,7 +552,9 @@ public partial class SetupWindow : Window
             onComplete?.Invoke();
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideIn, VNotch.Services.AnimationConfig.TargetFps);
         transform.BeginAnimation(TranslateTransform.YProperty, slideIn);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
         element.BeginAnimation(OpacityProperty, fadeIn);
     }
 
@@ -580,7 +588,9 @@ public partial class SetupWindow : Window
             onComplete?.Invoke();
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideOut, VNotch.Services.AnimationConfig.TargetFps);
         transform.BeginAnimation(TranslateTransform.YProperty, slideOut);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
         element.BeginAnimation(OpacityProperty, fadeOut);
     }
 
@@ -604,7 +614,9 @@ public partial class SetupWindow : Window
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
         ButtonPanel.BeginAnimation(OpacityProperty, fadeIn);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideIn, VNotch.Services.AnimationConfig.TargetFps);
         ButtonTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
     }
 
@@ -1709,7 +1721,9 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(glowFade, VNotch.Services.AnimationConfig.TargetFps);
         glow.BeginAnimation(OpacityProperty, glowFade);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(drawCheck, VNotch.Services.AnimationConfig.TargetFps);
         checkPath.BeginAnimation(Shape.StrokeDashOffsetProperty, drawCheck);
     }
 

@@ -95,6 +95,7 @@ public sealed class SystemMonitorPresenter : IDisposable
             FillBehavior = FillBehavior.HoldEnd
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         bar.BeginAnimation(FrameworkElement.WidthProperty, anim);
     }
 

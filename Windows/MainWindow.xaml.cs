@@ -213,6 +213,7 @@ public partial class MainWindow : Window
         SystemMonitorModule systemMonitorModule)
     {
         InitializeComponent();
+        AnimationPrimitives.ApplyFpsToTree(this);
         _settingsService = (SettingsService)settingsService;
         _settings = _settingsService.Load();
         _notchManager = new NotchManager(this, _settings);
@@ -1070,6 +1071,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     private void ApplySettings(bool animatePulse = false)
     {
         VNotch.Services.AnimationConfig.Configure(_settings.AnimationFps);
+        AnimationPrimitives.ApplyFpsToTree(this);
         VNotch.Controls.MusicVisualizer.ConfigureAudioDevice(_settings.VisualizerAudioDeviceId);
         ApplyPerformanceSettings();
 
@@ -1894,6 +1896,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             Duration = duration,
             EasingFunction = ease
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         ((FrameworkElement)target).BeginAnimation(prop, anim);
     }
 

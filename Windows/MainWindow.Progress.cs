@@ -473,7 +473,7 @@ public partial class MainWindow
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever
         };
-        Timeline.SetDesiredFrameRate(anim, 15);
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         IndeterminateProgress.BeginAnimation(OpacityProperty, anim);
     }
 

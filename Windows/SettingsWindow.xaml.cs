@@ -27,7 +27,6 @@ public partial class SettingsWindow : Window
     private UpdateInfo? _availableUpdate;
     private bool _isLoadingSettings = true;
     private DispatcherTimer? _livePreviewDebounce;
-    private const int SettingsAnimationFps = 60;
 
     public event EventHandler<NotchSettings>? SettingsChanged;
 public event EventHandler? AnimatedClosing;
@@ -35,6 +34,7 @@ public event EventHandler? AnimatedClosing;
     public SettingsWindow(NotchSettings settings, SettingsService settingsService, BluetoothModule? bluetoothModule = null)
     {
         InitializeComponent();
+        AnimationPrimitives.ApplyFpsToTree(this);
 
         _settings = settings.Clone();
         _originalSettings = settings.Clone();
@@ -569,6 +569,7 @@ public event EventHandler? AnimatedClosing;
                     {
                         EasingFunction = ease
                     };
+                    System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
                     translate.BeginAnimation(TranslateTransform.YProperty, anim);
                 }
 
@@ -588,6 +589,7 @@ public event EventHandler? AnimatedClosing;
                         {
                             EasingFunction = ease
                         };
+                        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(scaleAnim, VNotch.Services.AnimationConfig.TargetFps);
                         sc.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
                         sc.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
                     }
@@ -1094,7 +1096,9 @@ public event EventHandler? AnimatedClosing;
 
             var fadeOutOpen = new DoubleAnimation(1, 0, duration) { EasingFunction = easeOut };
             var fadeInClosed = new DoubleAnimation(0, 1, duration) { EasingFunction = easeOut, BeginTime = TimeSpan.FromMilliseconds(100) };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOutOpen, VNotch.Services.AnimationConfig.TargetFps);
             EyeOpenIcon.BeginAnimation(OpacityProperty, fadeOutOpen);
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeInClosed, VNotch.Services.AnimationConfig.TargetFps);
             EyeClosedIcon.BeginAnimation(OpacityProperty, fadeInClosed);
         }
         else
@@ -1105,7 +1109,9 @@ public event EventHandler? AnimatedClosing;
 
             var fadeOutClosed = new DoubleAnimation(1, 0, duration) { EasingFunction = easeOut };
             var fadeInOpen = new DoubleAnimation(0, 1, duration) { EasingFunction = easeOut, BeginTime = TimeSpan.FromMilliseconds(100) };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOutClosed, VNotch.Services.AnimationConfig.TargetFps);
             EyeClosedIcon.BeginAnimation(OpacityProperty, fadeOutClosed);
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeInOpen, VNotch.Services.AnimationConfig.TargetFps);
             EyeOpenIcon.BeginAnimation(OpacityProperty, fadeInOpen);
         }
     }
@@ -1143,7 +1149,7 @@ public event EventHandler? AnimatedClosing;
     private void AnimateLocalizationChange()
     {
         var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        const int fps = 30;
+        int fps = VNotch.Services.AnimationConfig.TargetFps;
         const double slideDist = 3.0;
         int staggerMs = 0;
         const int staggerStep = 12;
@@ -1320,7 +1326,7 @@ public event EventHandler? AnimatedClosing;
             EasingFunction = easing,
             BeginTime = TimeSpan.FromMilliseconds(delayMs)
         };
-        Timeline.SetDesiredFrameRate(fadeOut, 30);
+        Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
 
         var slideOut = new DoubleAnimation
         {
@@ -1329,7 +1335,7 @@ public event EventHandler? AnimatedClosing;
             EasingFunction = easing,
             BeginTime = TimeSpan.FromMilliseconds(delayMs)
         };
-        Timeline.SetDesiredFrameRate(slideOut, 30);
+        Timeline.SetDesiredFrameRate(slideOut, VNotch.Services.AnimationConfig.TargetFps);
 
         fadeOut.Completed += (s, e) =>
         {
@@ -1344,7 +1350,7 @@ public event EventHandler? AnimatedClosing;
                 Duration = TimeSpan.FromMilliseconds(220),
                 EasingFunction = easing
             };
-            Timeline.SetDesiredFrameRate(fadeIn, 30);
+            Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
 
             var slideIn = new DoubleAnimation
             {
@@ -1353,7 +1359,7 @@ public event EventHandler? AnimatedClosing;
                 Duration = TimeSpan.FromMilliseconds(300),
                 EasingFunction = easing
             };
-            Timeline.SetDesiredFrameRate(slideIn, 30);
+            Timeline.SetDesiredFrameRate(slideIn, VNotch.Services.AnimationConfig.TargetFps);
 
             slideIn.Completed += (s2, e2) =>
             {
@@ -1577,7 +1583,7 @@ private void PushLivePreview()
             EasingFunction = easing
         };
 
-        Timeline.SetDesiredFrameRate(animation, SettingsAnimationFps);
+        Timeline.SetDesiredFrameRate(animation, VNotch.Services.AnimationConfig.TargetFps);
         return animation;
     }
 
@@ -1981,6 +1987,8 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.MediaBlurBrightnessBoost = BlurBrightnessSlider.Value / 100.0;
         _settings.MediaBlurDarkOverlay = BlurDarkOverlaySlider.Value / 100.0;
         _settings.AnimationFps = (int)Math.Round(AnimationFpsSlider.Value);
+        VNotch.Services.AnimationConfig.Configure(_settings.AnimationFps);
+        AnimationPrimitives.ApplyFpsToTree(this);
         _settings.EnableBlurEffects = EnableBlurEffectsCheck.IsChecked ?? true;
         _settings.ShowMediaArtBackground = MediaArtBackgroundCheck.IsChecked ?? true;
         SaveLiquidGlassUi();
@@ -2256,9 +2264,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         translate.Y = 12;
 
         var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350)) { EasingFunction = ease };
-        Timeline.SetDesiredFrameRate(fade, 60);
+        Timeline.SetDesiredFrameRate(fade, VNotch.Services.AnimationConfig.TargetFps);
         var slide = new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(420)) { EasingFunction = ease };
-        Timeline.SetDesiredFrameRate(slide, 60);
+        Timeline.SetDesiredFrameRate(slide, VNotch.Services.AnimationConfig.TargetFps);
 
         card.BeginAnimation(OpacityProperty, fade);
         translate.BeginAnimation(TranslateTransform.YProperty, slide);

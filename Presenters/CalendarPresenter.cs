@@ -218,9 +218,9 @@ public sealed class CalendarPresenter : IDisposable
                 }
             };
 
-            Timeline.SetDesiredFrameRate(fadeIn, 60);
-            Timeline.SetDesiredFrameRate(scaleUp, 60);
-            Timeline.SetDesiredFrameRate(slideDown, 60);
+            Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(scaleUp, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(slideDown, VNotch.Services.AnimationConfig.TargetFps);
 
             _refs.MonthText.BeginAnimation(UIElement.OpacityProperty, fadeIn);
             _refs.MonthTextScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleUp);
@@ -228,9 +228,9 @@ public sealed class CalendarPresenter : IDisposable
             _refs.MonthTextTranslate.BeginAnimation(TranslateTransform.YProperty, slideDown);
         };
 
-        Timeline.SetDesiredFrameRate(fadeOut, 60);
-        Timeline.SetDesiredFrameRate(scaleDown, 60);
-        Timeline.SetDesiredFrameRate(slideUp, 60);
+        Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(scaleDown, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(slideUp, VNotch.Services.AnimationConfig.TargetFps);
 
         _refs.MonthText.BeginAnimation(UIElement.OpacityProperty, fadeOut);
         _refs.MonthTextScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);

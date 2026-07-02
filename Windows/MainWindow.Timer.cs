@@ -397,6 +397,7 @@ public partial class MainWindow
                 {
                     EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
                 };
+                System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(lyricsBlurFadeIn, VNotch.Services.AnimationConfig.TargetFps);
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, lyricsBlurFadeIn);
             }
         };
@@ -963,7 +964,7 @@ public partial class MainWindow
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever
         };
-        Timeline.SetDesiredFrameRate(flash, 30);
+        Timeline.SetDesiredFrameRate(flash, VNotch.Services.AnimationConfig.TargetFps);
         CountdownCompleteText.BeginAnimation(OpacityProperty, flash);
     }
 

@@ -180,7 +180,7 @@ public partial class MainWindow
                 Duration = new Duration(TimeSpan.FromMilliseconds(300)),
                 EasingFunction = _easeSineInOut
             };
-            Timeline.SetDesiredFrameRate(colorAnim, 60);
+            Timeline.SetDesiredFrameRate(colorAnim, VNotch.Services.AnimationConfig.TargetFps);
             PrivacyDotBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnim);
         }
         else
@@ -213,7 +213,7 @@ public partial class MainWindow
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = _easeSineInOut
         };
-        Timeline.SetDesiredFrameRate(breathing, 24);
+        Timeline.SetDesiredFrameRate(breathing, VNotch.Services.AnimationConfig.TargetFps);
         dot.BeginAnimation(OpacityProperty, breathing);
     }
 

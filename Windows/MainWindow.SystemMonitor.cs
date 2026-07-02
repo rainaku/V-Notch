@@ -90,6 +90,7 @@ public partial class MainWindow
             FillBehavior = FillBehavior.HoldEnd
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         bar.BeginAnimation(System.Windows.FrameworkElement.WidthProperty, anim);
     }
 

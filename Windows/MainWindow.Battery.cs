@@ -52,6 +52,7 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(300),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnimation, VNotch.Services.AnimationConfig.TargetFps);
         BatteryFill.BeginAnimation(WidthProperty, widthAnimation);
 
         SolidColorBrush fillBrush;
@@ -310,6 +311,7 @@ public partial class MainWindow
         else if (element is Border borderElement2)
             borderElement2.Background = animatedBrush;
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(colorAnimation, VNotch.Services.AnimationConfig.TargetFps);
         animatedBrush.BeginAnimation(SolidColorBrush.ColorProperty, colorAnimation);
     }
 
@@ -329,7 +331,9 @@ public partial class MainWindow
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(opacityAnimation, VNotch.Services.AnimationConfig.TargetFps);
         ChargingBolt.BeginAnimation(OpacityProperty, opacityAnimation);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(scaleAnimation, VNotch.Services.AnimationConfig.TargetFps);
         ChargingBoltScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimation);
         ChargingBoltScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimation);
     }
@@ -344,7 +348,7 @@ public partial class MainWindow
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
-        Timeline.SetDesiredFrameRate(_chargingPulseStoryboard, 24);
+        Timeline.SetDesiredFrameRate(_chargingPulseStoryboard, VNotch.Services.AnimationConfig.TargetFps);
 
         var pulseAnimation = new DoubleAnimation
         {
@@ -357,6 +361,7 @@ public partial class MainWindow
 
         Storyboard.SetTarget(pulseAnimation, BatteryFill);
         Storyboard.SetTargetProperty(pulseAnimation, new PropertyPath("Opacity"));
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(pulseAnimation, VNotch.Services.AnimationConfig.TargetFps);
         _chargingPulseStoryboard.Children.Add(pulseAnimation);
 
         _chargingPulseStoryboard.Begin();
@@ -381,6 +386,7 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(200),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(resetAnimation, VNotch.Services.AnimationConfig.TargetFps);
         BatteryFill.BeginAnimation(OpacityProperty, resetAnimation);
     }
 

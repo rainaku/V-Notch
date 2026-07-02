@@ -85,6 +85,7 @@ public partial class MainWindow
                 EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut
             }
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         stop.BeginAnimation(GradientStop.ColorProperty, anim);
     }
 
@@ -214,6 +215,7 @@ public partial class MainWindow
                     {
                         EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
                     };
+                    System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(lyricsBlurFadeIn, VNotch.Services.AnimationConfig.TargetFps);
                     LyricsBlurBackground.BeginAnimation(OpacityProperty, lyricsBlurFadeIn);
                 }
             });

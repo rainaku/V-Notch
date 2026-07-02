@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 namespace VNotch.Services;
@@ -53,6 +56,154 @@ internal static class AnimationPrimitives
     #endregion
 
     #region Animation Factories
+
+    public static T WithFps<T>(T timeline) where T : Timeline
+    {
+        try
+        {
+            Timeline.SetDesiredFrameRate(timeline, AnimationConfig.TargetFps);
+        }
+        catch
+        {
+            return timeline;
+        }
+
+        if (timeline is TimelineGroup group)
+        {
+            foreach (var child in group.Children)
+                WithFps(child);
+        }
+
+        return timeline;
+    }
+
+    public static void ApplyFpsToTree(DependencyObject root)
+    {
+        var styles = new HashSet<Style>();
+        var templates = new HashSet<FrameworkTemplate>();
+        var resources = new HashSet<ResourceDictionary>();
+
+        void Visit(DependencyObject node)
+        {
+            if (node is FrameworkElement fe)
+            {
+                ApplyFpsToResources(fe.Resources, styles, templates, resources);
+                ApplyFpsToStyle(fe.Style, styles, templates, resources);
+                if (fe is Control control)
+                    ApplyFpsToTemplate(control.Template, styles, templates, resources);
+            }
+            else if (node is FrameworkContentElement fce)
+            {
+                ApplyFpsToResources(fce.Resources, styles, templates, resources);
+                ApplyFpsToStyle(fce.Style, styles, templates, resources);
+            }
+
+            int count;
+            try { count = VisualTreeHelper.GetChildrenCount(node); }
+            catch { return; }
+
+            for (int i = 0; i < count; i++)
+                Visit(VisualTreeHelper.GetChild(node, i));
+        }
+
+        ApplyFpsToResources(Application.Current?.Resources, styles, templates, resources);
+        Visit(root);
+    }
+
+    private static void ApplyFpsToResources(ResourceDictionary? dictionary, HashSet<Style> styles,
+        HashSet<FrameworkTemplate> templates, HashSet<ResourceDictionary> resources)
+    {
+        if (dictionary == null || !resources.Add(dictionary)) return;
+
+        foreach (var merged in dictionary.MergedDictionaries)
+            ApplyFpsToResources(merged, styles, templates, resources);
+
+        foreach (var value in dictionary.Values)
+        {
+            switch (value)
+            {
+                case Timeline timeline:
+                    WithFps(timeline);
+                    break;
+                case Style style:
+                    ApplyFpsToStyle(style, styles, templates, resources);
+                    break;
+                case FrameworkTemplate template:
+                    ApplyFpsToTemplate(template, styles, templates, resources);
+                    break;
+                case ResourceDictionary nested:
+                    ApplyFpsToResources(nested, styles, templates, resources);
+                    break;
+            }
+        }
+    }
+
+    private static void ApplyFpsToStyle(Style? style, HashSet<Style> styles,
+        HashSet<FrameworkTemplate> templates, HashSet<ResourceDictionary> resources)
+    {
+        if (style == null || !styles.Add(style)) return;
+
+        ApplyFpsToStyle(style.BasedOn, styles, templates, resources);
+        ApplyFpsToTriggers(style.Triggers);
+
+        foreach (SetterBase setterBase in style.Setters)
+        {
+            if (setterBase is Setter { Value: Style setterStyle })
+                ApplyFpsToStyle(setterStyle, styles, templates, resources);
+            else if (setterBase is Setter { Value: FrameworkTemplate setterTemplate })
+                ApplyFpsToTemplate(setterTemplate, styles, templates, resources);
+        }
+    }
+
+    private static void ApplyFpsToTemplate(FrameworkTemplate? template, HashSet<Style> styles,
+        HashSet<FrameworkTemplate> templates, HashSet<ResourceDictionary> resources)
+    {
+        if (template == null || !templates.Add(template)) return;
+
+        ApplyFpsToResources(template.Resources, styles, templates, resources);
+        if (template is ControlTemplate controlTemplate)
+            ApplyFpsToTriggers(controlTemplate.Triggers);
+        else if (template is DataTemplate dataTemplate)
+            ApplyFpsToTriggers(dataTemplate.Triggers);
+    }
+
+    private static void ApplyFpsToTriggers(TriggerCollection triggers)
+    {
+        foreach (TriggerBase trigger in triggers)
+        {
+            switch (trigger)
+            {
+                case Trigger t:
+                    ApplyFpsToActions(t.EnterActions);
+                    ApplyFpsToActions(t.ExitActions);
+                    break;
+                case MultiTrigger t:
+                    ApplyFpsToActions(t.EnterActions);
+                    ApplyFpsToActions(t.ExitActions);
+                    break;
+                case DataTrigger t:
+                    ApplyFpsToActions(t.EnterActions);
+                    ApplyFpsToActions(t.ExitActions);
+                    break;
+                case MultiDataTrigger t:
+                    ApplyFpsToActions(t.EnterActions);
+                    ApplyFpsToActions(t.ExitActions);
+                    break;
+                case EventTrigger t:
+                    ApplyFpsToActions(t.Actions);
+                    break;
+            }
+        }
+    }
+
+    private static void ApplyFpsToActions(System.Collections.IEnumerable actions)
+    {
+        foreach (var action in actions)
+        {
+            if (action is BeginStoryboard { Storyboard: { } storyboard })
+                WithFps(storyboard);
+        }
+    }
 
     public static DoubleAnimation MakeAnim(double? from, double to, Duration duration, IEasingFunction? easing = null, int? fps = null)
     {

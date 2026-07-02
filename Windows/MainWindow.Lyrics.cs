@@ -379,6 +379,7 @@ public partial class MainWindow
                 CalendarWidget.Visibility = Visibility.Collapsed;
                 CalendarWidget.BeginAnimation(OpacityProperty, null);
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOutCalendar, VNotch.Services.AnimationConfig.TargetFps);
             CalendarWidget.BeginAnimation(OpacityProperty, fadeOutCalendar);
 
             var fadeOutGreeting = new DoubleAnimation(GreetingSection.Opacity, 0, new Duration(TimeSpan.FromMilliseconds(250)))
@@ -390,6 +391,7 @@ public partial class MainWindow
                 GreetingSection.Visibility = Visibility.Collapsed;
                 GreetingSection.BeginAnimation(OpacityProperty, null);
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOutGreeting, VNotch.Services.AnimationConfig.TargetFps);
             GreetingSection.BeginAnimation(OpacityProperty, fadeOutGreeting);
 
             LyricsWidget.BeginAnimation(OpacityProperty, null);
@@ -401,6 +403,7 @@ public partial class MainWindow
                 EasingFunction = new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut },
                 BeginTime = TimeSpan.FromMilliseconds(100)
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
             LyricsWidget.BeginAnimation(OpacityProperty, fadeIn);
 
             if (_settings.EnableBlurEffects && !IsLiquidGlassEnabled && LyricsBlurBackground != null)
@@ -450,6 +453,7 @@ public partial class MainWindow
                     LyricsPlaceholderPanel.Opacity = 0;
                 }
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOutLyrics, VNotch.Services.AnimationConfig.TargetFps);
             LyricsWidget.BeginAnimation(OpacityProperty, fadeOutLyrics);
 
             if (LyricsBlurBackground != null && LyricsBlurBackground.Visibility == Visibility.Visible)
@@ -464,6 +468,7 @@ public partial class MainWindow
                     LyricsBlurBackground.Visibility = Visibility.Collapsed;
                     LyricsBlurBackground.BeginAnimation(OpacityProperty, null);
                 };
+                System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOutBlur, VNotch.Services.AnimationConfig.TargetFps);
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeOutBlur);
             }
 
@@ -474,6 +479,7 @@ public partial class MainWindow
                 EasingFunction = new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut },
                 BeginTime = TimeSpan.FromMilliseconds(150)
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeInCalendar, VNotch.Services.AnimationConfig.TargetFps);
             CalendarWidget.BeginAnimation(OpacityProperty, fadeInCalendar);
 
             if (!IsNonCalendarWidgetMode && !_isLyricsActive)
@@ -485,6 +491,7 @@ public partial class MainWindow
                     EasingFunction = new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut },
                     BeginTime = TimeSpan.FromMilliseconds(150)
                 };
+                System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeInGreeting, VNotch.Services.AnimationConfig.TargetFps);
                 GreetingSection.BeginAnimation(OpacityProperty, fadeInGreeting);
             }
             else

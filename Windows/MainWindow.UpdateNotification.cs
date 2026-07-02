@@ -100,7 +100,9 @@ public partial class MainWindow
             }), DispatcherPriority.Render);
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
         UpdateNotificationButton.BeginAnimation(OpacityProperty, fadeIn);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(slideIn, VNotch.Services.AnimationConfig.TargetFps);
         UpdateNotificationTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
     }
 
@@ -127,6 +129,7 @@ public partial class MainWindow
             UpdateNotificationButton.Visibility = Visibility.Collapsed;
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
         UpdateNotificationButton.BeginAnimation(OpacityProperty, fadeOut);
     }
 
@@ -344,6 +347,7 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(140),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
         UpdateInlineTooltip.BeginAnimation(OpacityProperty, fadeIn, HandoffBehavior.SnapshotAndReplace);
     }
 
@@ -368,6 +372,7 @@ public partial class MainWindow
             UpdateInlineTooltip.Opacity = 0;
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
         UpdateInlineTooltip.BeginAnimation(OpacityProperty, fadeOut, HandoffBehavior.SnapshotAndReplace);
     }
 

@@ -670,7 +670,9 @@ public partial class MainWindow
     {
         var animX = new DoubleAnimation(1, 1.2, _dur150) { EasingFunction = _easeQuadOut };
         var animY = new DoubleAnimation(1, 1.2, _dur150) { EasingFunction = _easeQuadOut };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(animX, VNotch.Services.AnimationConfig.TargetFps);
         VolumeIconScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(animY, VNotch.Services.AnimationConfig.TargetFps);
         VolumeIconScale.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
     }
 
@@ -678,7 +680,9 @@ public partial class MainWindow
     {
         var animX = new DoubleAnimation(VolumeIconScale.ScaleX, 1, _dur150) { EasingFunction = _easeQuadOut };
         var animY = new DoubleAnimation(VolumeIconScale.ScaleY, 1, _dur150) { EasingFunction = _easeQuadOut };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(animX, VNotch.Services.AnimationConfig.TargetFps);
         VolumeIconScale.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(animY, VNotch.Services.AnimationConfig.TargetFps);
         VolumeIconScale.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
     }
 

@@ -145,6 +145,7 @@ public partial class MainWindow
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
             };
 
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
             path.BeginAnimation(Shape.StrokeDashOffsetProperty, anim);
         }
 
@@ -160,6 +161,7 @@ public partial class MainWindow
             BeginTime = TimeSpan.FromMilliseconds(340),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(dotFadeIn, VNotch.Services.AnimationConfig.TargetFps);
         ViDotI.BeginAnimation(OpacityProperty, dotFadeIn);
 
         _greetingDismissTimer = new DispatcherTimer
@@ -257,7 +259,9 @@ public partial class MainWindow
             _greetingDismissTimer.Start();
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(path1Anim, VNotch.Services.AnimationConfig.TargetFps);
         HelloPath1.BeginAnimation(Shape.StrokeDashOffsetProperty, path1Anim);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(path2Anim, VNotch.Services.AnimationConfig.TargetFps);
         HelloPath2.BeginAnimation(Shape.StrokeDashOffsetProperty, path2Anim);
     }
 
@@ -301,6 +305,7 @@ public partial class MainWindow
             CollapseAfterGreeting();
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
         GreetingOverlay.BeginAnimation(OpacityProperty, fadeOut);
     }
 
@@ -324,6 +329,7 @@ public partial class MainWindow
                 Duration = TimeSpan.FromMilliseconds(300),
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(restoreFade, VNotch.Services.AnimationConfig.TargetFps);
             CollapsedContent.BeginAnimation(OpacityProperty, restoreFade);
 
             if (_isStartupLayoutReady)

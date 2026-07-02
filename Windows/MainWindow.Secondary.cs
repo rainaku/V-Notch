@@ -478,6 +478,7 @@ public partial class MainWindow
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
         ShelfUnlockBanner.BeginAnimation(OpacityProperty, fadeIn);
     }
 
@@ -511,6 +512,7 @@ public partial class MainWindow
             ShelfCountBadge.Visibility = _isSecondaryView ? Visibility.Visible : Visibility.Collapsed;
             UpdateShelfCapacityIndicator();
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
         ShelfUnlockBanner.BeginAnimation(OpacityProperty, fadeOut);
     }
 
@@ -1177,6 +1179,7 @@ public partial class MainWindow
                         border.Child = only;
                     }
                 };
+                System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fade, VNotch.Services.AnimationConfig.TargetFps);
                 progressBar.BeginAnimation(OpacityProperty, fade);
             };
             progressBar.BeginAnimation(WidthProperty, grow);
@@ -1205,7 +1208,9 @@ public partial class MainWindow
         var scrollBar = FindVisualChild<System.Windows.Controls.Primitives.ScrollBar>(ShelfScrollViewer);
         if (scrollBar != null)
         {
-            scrollBar.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(150)));
+            var fadeIn = new DoubleAnimation(1, TimeSpan.FromMilliseconds(150));
+            Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
+            scrollBar.BeginAnimation(OpacityProperty, fadeIn);
         }
 
         _scrollbarFadeTimer?.Stop();
@@ -1218,7 +1223,9 @@ public partial class MainWindow
             _scrollbarFadeTimer.Stop();
             if (scrollBar != null)
             {
-                scrollBar.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(400)));
+                var fadeOut = new DoubleAnimation(0, TimeSpan.FromMilliseconds(400));
+                Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
+                scrollBar.BeginAnimation(OpacityProperty, fadeOut);
             }
         };
         _scrollbarFadeTimer.Start();
@@ -1293,6 +1300,7 @@ public partial class MainWindow
                 target.BorderBrush = _brushShelfItemBorder;
                 target.BorderThickness = new Thickness(1);
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeBack, VNotch.Services.AnimationConfig.TargetFps);
             currentBrush.BeginAnimation(SolidColorBrush.ColorProperty, fadeBack);
         };
 

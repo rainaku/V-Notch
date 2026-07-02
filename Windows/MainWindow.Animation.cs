@@ -479,6 +479,7 @@ public partial class MainWindow
                 {
                     EasingFunction = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseOut }
                 };
+                System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeIn);
             }
 

@@ -79,6 +79,7 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(400),
             EasingFunction = _easeQuadOut
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(dimOverlayAnim, VNotch.Services.AnimationConfig.TargetFps);
         BrightnessDimOverlay.BeginAnimation(OpacityProperty, dimOverlayAnim);
         BrightnessDimOverlay2.BeginAnimation(OpacityProperty, dimOverlayAnim);
 
@@ -153,6 +154,7 @@ public partial class MainWindow
             };
         }
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(opacityAnim, VNotch.Services.AnimationConfig.TargetFps);
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
         EnsureUnfrozen(IndeterminateProgress.Background, c => IndeterminateProgress.Background = new SolidColorBrush(c ?? Colors.White));
@@ -179,9 +181,12 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(420),
             EasingFunction = _easeQuadOut
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(progressStartAnim, VNotch.Services.AnimationConfig.TargetFps);
         ProgressBarGradientStart.BeginAnimation(GradientStop.ColorProperty, progressStartAnim);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(progressEndAnim, VNotch.Services.AnimationConfig.TargetFps);
         ProgressBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, progressEndAnim);
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(uiColorAnim, VNotch.Services.AnimationConfig.TargetFps);
         if (IndeterminateProgress.Background is SolidColorBrush ipb && !ipb.IsFrozen)
             ipb.BeginAnimation(SolidColorBrush.ColorProperty, uiColorAnim);
 
@@ -216,7 +221,9 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(420),
             EasingFunction = _easeQuadOut
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(volStartAnim, VNotch.Services.AnimationConfig.TargetFps);
         VolumeBarGradientStart.BeginAnimation(GradientStop.ColorProperty, volStartAnim);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(volEndAnim, VNotch.Services.AnimationConfig.TargetFps);
         VolumeBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, volEndAnim);
 
         if (VolumeIndicatorFill != null)
@@ -233,7 +240,9 @@ public partial class MainWindow
                 Duration = TimeSpan.FromMilliseconds(420),
                 EasingFunction = _easeQuadOut
             };
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(volIndStartAnim, VNotch.Services.AnimationConfig.TargetFps);
             VolumeIndicatorGradientStart.BeginAnimation(GradientStop.ColorProperty, volIndStartAnim);
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(volIndEndAnim, VNotch.Services.AnimationConfig.TargetFps);
             VolumeIndicatorGradientEnd.BeginAnimation(GradientStop.ColorProperty, volIndEndAnim);
         }
 
@@ -312,7 +321,7 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(400),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
         };
-        Timeline.SetDesiredFrameRate(fadeOut, 90);
+        Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
 
         fadeOut.Completed += (_, _) =>
         {
@@ -349,13 +358,16 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(400)
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(defaultColorAnim, VNotch.Services.AnimationConfig.TargetFps);
         ProgressBarGradientStart.BeginAnimation(GradientStop.ColorProperty, defaultColorAnim);
         var defaultGradientEndAnim = new ColorAnimation
         {
             To = Color.FromRgb(140, 140, 140),
             Duration = TimeSpan.FromMilliseconds(400)
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(defaultGradientEndAnim, VNotch.Services.AnimationConfig.TargetFps);
         ProgressBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, defaultGradientEndAnim);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(defaultTextAnim, VNotch.Services.AnimationConfig.TargetFps);
         if (IndeterminateProgress.Background is SolidColorBrush ipb && !ipb.IsFrozen) ipb.BeginAnimation(SolidColorBrush.ColorProperty, defaultColorAnim);
         if (CurrentTimeText.Foreground is SolidColorBrush st && !st.IsFrozen) st.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
         if (RemainingTimeText.Foreground is SolidColorBrush rt && !rt.IsFrozen) rt.BeginAnimation(SolidColorBrush.ColorProperty, defaultTextAnim);
@@ -370,6 +382,7 @@ public partial class MainWindow
             To = Color.FromRgb(140, 140, 140),
             Duration = TimeSpan.FromMilliseconds(400)
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(defaultVolEndAnim, VNotch.Services.AnimationConfig.TargetFps);
         VolumeBarGradientEnd.BeginAnimation(GradientStop.ColorProperty, defaultVolEndAnim);
         var defaultVolIndEndAnim = new ColorAnimation
         {
@@ -377,6 +390,7 @@ public partial class MainWindow
             Duration = TimeSpan.FromMilliseconds(400)
         };
         VolumeIndicatorGradientStart.BeginAnimation(GradientStop.ColorProperty, defaultColorAnim);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(defaultVolIndEndAnim, VNotch.Services.AnimationConfig.TargetFps);
         VolumeIndicatorGradientEnd.BeginAnimation(GradientStop.ColorProperty, defaultVolIndEndAnim);
 
         void ResetUnfrozenFill(System.Windows.Shapes.Shape shape)
@@ -420,6 +434,7 @@ public partial class MainWindow
             }
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(opacityAnim, VNotch.Services.AnimationConfig.TargetFps);
         MediaBackground.BeginAnimation(OpacityProperty, opacityAnim);
         MediaBackground2.BeginAnimation(OpacityProperty, opacityAnim);
     }
@@ -698,8 +713,8 @@ public partial class MainWindow
         var fadeIn = new DoubleAnimation { From = 0.0, To = 1.0, Duration = dur, EasingFunction = ease };
         var fadeOut = new DoubleAnimation { From = activeOpacity, To = 0.0, Duration = dur, EasingFunction = ease };
 
-        Timeline.SetDesiredFrameRate(fadeIn, 90);
-        Timeline.SetDesiredFrameRate(fadeOut, 90);
+        Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(fadeOut, VNotch.Services.AnimationConfig.TargetFps);
 
         fadeIn.Completed += (_, _) =>
         {
@@ -747,11 +762,15 @@ public partial class MainWindow
 
         var colorAnim = new ColorAnimation { To = tintedWhite, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
         var artistColorAnim = new ColorAnimation { To = tintedArtist, Duration = TimeSpan.FromMilliseconds(500), EasingFunction = _easeQuadOut };
+        Timeline.SetDesiredFrameRate(colorAnim, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(artistColorAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         if (Resources["TrackTitleGradient"] is LinearGradientBrush titleBrush)
         {
             foreach (var stop in titleBrush.GradientStops)
+            {
                 stop.BeginAnimation(GradientStop.ColorProperty, colorAnim);
+            }
         }
 
         if (Resources["TrackTitleNextGradient"] is LinearGradientBrush titleNextBrush)
@@ -839,11 +858,15 @@ public partial class MainWindow
             To = Color.FromArgb(191, 255, 255, 255),
             Duration = TimeSpan.FromMilliseconds(400)
         };
+        Timeline.SetDesiredFrameRate(whiteAnim, VNotch.Services.AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(artistWhiteAnim, VNotch.Services.AnimationConfig.TargetFps);
 
         if (Resources["TrackTitleGradient"] is LinearGradientBrush titleBrush)
         {
             foreach (var stop in titleBrush.GradientStops)
+            {
                 stop.BeginAnimation(GradientStop.ColorProperty, whiteAnim);
+            }
         }
 
         if (Resources["TrackTitleNextGradient"] is LinearGradientBrush titleNextBrush)

@@ -110,7 +110,9 @@ public partial class MainWindow
             _notchState.TryTransitionTo(NotchState.MusicExpanded);
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnim, VNotch.Services.AnimationConfig.TargetFps);
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(marginAnim, VNotch.Services.AnimationConfig.TargetFps);
         MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
 
         InlineControls.Visibility = Visibility.Visible;
@@ -180,7 +182,9 @@ public partial class MainWindow
             _notchState.TryTransitionTo(NotchState.Expanded);
         };
 
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnim, VNotch.Services.AnimationConfig.TargetFps);
         MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(marginAnim, VNotch.Services.AnimationConfig.TargetFps);
         MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
 
         MediaControls.BeginAnimation(OpacityProperty, null);

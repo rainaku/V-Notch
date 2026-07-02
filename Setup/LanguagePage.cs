@@ -227,7 +227,9 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
             if (card.Background is not SolidColorBrush || card.Background.IsFrozen)
                 card.Background = new SolidColorBrush(((SolidColorBrush)card.Background).Color);
 
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(borderAnim, VNotch.Services.AnimationConfig.TargetFps);
             ((SolidColorBrush)card.BorderBrush).BeginAnimation(SolidColorBrush.ColorProperty, borderAnim);
+            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(bgAnim, VNotch.Services.AnimationConfig.TargetFps);
             ((SolidColorBrush)card.Background).BeginAnimation(SolidColorBrush.ColorProperty, bgAnim);
 
             if (isSelected && card.RenderTransform is ScaleTransform st)
@@ -248,6 +250,7 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
                 kf.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(400)),
                     new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 }));
 
+                System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(kf, VNotch.Services.AnimationConfig.TargetFps);
                 st.BeginAnimation(ScaleTransform.ScaleXProperty, kf);
                 st.BeginAnimation(ScaleTransform.ScaleYProperty, kf);
             }
@@ -273,6 +276,7 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
                         {
                             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
                         };
+                        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeAnim, VNotch.Services.AnimationConfig.TargetFps);
                         tb.BeginAnimation(OpacityProperty, fadeAnim);
 
                         if (tb.RenderTransform is ScaleTransform checkSt)
@@ -283,6 +287,7 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
                                     ? new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 6 }
                                     : (IEasingFunction)new QuadraticEase { EasingMode = EasingMode.EaseIn }
                             };
+                            System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(scaleAnim, VNotch.Services.AnimationConfig.TargetFps);
                             checkSt.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
                             checkSt.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
                         }
@@ -310,6 +315,7 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         ((SolidColorBrush)border.Background).BeginAnimation(SolidColorBrush.ColorProperty, anim);
     }
 }
