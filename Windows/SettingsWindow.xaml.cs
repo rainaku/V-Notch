@@ -1802,23 +1802,13 @@ private void CloseWithAnimation()
 
         var totalDur = TimeSpan.FromMilliseconds(650);
 
-        var windowInteropHelper = new System.Windows.Interop.WindowInteropHelper(this);
-        var hwnd = windowInteropHelper.Handle;
         double currentTop = Top;
         double currentLeft = Left;
-        if (hwnd != IntPtr.Zero)
-        {
-            VNotch.Services.Win32Interop.GetWindowRect(hwnd, out var rect);
-            var source = PresentationSource.FromVisual(this);
-            double dpiX = source?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
-            double dpiY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1.0;
-            currentTop = rect.Top * dpiY;
-            currentLeft = rect.Left * dpiX;
-        }
 
         MainShell.BeginAnimation(OpacityProperty, null);
         ShellScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         ShellScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        ShellTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         ShellTranslate.BeginAnimation(TranslateTransform.YProperty, null);
         this.BeginAnimation(TopProperty, null);
         this.BeginAnimation(LeftProperty, null);
@@ -1830,6 +1820,7 @@ private void CloseWithAnimation()
         MainShell.Opacity = 1.0;
         ShellScale.ScaleX = 1.0;
         ShellScale.ScaleY = 1.0;
+        ShellTranslate.X = 0;
         ShellTranslate.Y = 0;
 
         MainShell.RenderTransformOrigin = new Point(0.5, 0.0);
@@ -1915,13 +1906,13 @@ private void CloseWithAnimation()
         {
             EasingFunction = easeInStrong
         };
-        Timeline.SetDesiredFrameRate(flyUpWindow, fps);
+        Timeline.SetDesiredFrameRate(flyUpWindow, Math.Min(60, fps));
 
         var flyLeftWindow = new DoubleAnimation(Left, targetLeft, totalDur)
         {
             EasingFunction = easeInStrong
         };
-        Timeline.SetDesiredFrameRate(flyLeftWindow, fps);
+        Timeline.SetDesiredFrameRate(flyLeftWindow, Math.Min(60, fps));
 
         squishX.Completed += (s, e) =>
         {
@@ -1936,17 +1927,17 @@ private void CloseWithAnimation()
 
         void AnimateExitItem(UIElement element, TranslateTransform translate, int delayMs)
         {
-            var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(200))
+            var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(550))
             {
-                EasingFunction = itemEase,
+                EasingFunction = easeInStrong,
                 BeginTime = TimeSpan.FromMilliseconds(delayMs)
             };
             Timeline.SetDesiredFrameRate(fade, fps);
             element.BeginAnimation(OpacityProperty, fade);
 
-            var slide = new DoubleAnimation(0, 12, TimeSpan.FromMilliseconds(250))
+            var slide = new DoubleAnimation(0, 12, TimeSpan.FromMilliseconds(550))
             {
-                EasingFunction = itemEase,
+                EasingFunction = easeInStrong,
                 BeginTime = TimeSpan.FromMilliseconds(delayMs)
             };
             Timeline.SetDesiredFrameRate(slide, fps);

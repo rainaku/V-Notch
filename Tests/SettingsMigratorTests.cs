@@ -44,7 +44,7 @@ public class SettingsMigratorTests
     {
         var settings = new NotchSettings();
 
-        Assert.Equal(260, settings.DynamicIslandWidth);
+        Assert.Equal(220, settings.DynamicIslandWidth);
     }
 
     [Fact]
