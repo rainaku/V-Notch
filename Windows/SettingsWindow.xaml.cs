@@ -109,6 +109,9 @@ public event EventHandler? AnimatedClosing;
     {
         _isLoadingSettings = true;
 
+        // Apply tooltips to UI elements
+        ApplyTooltips();
+
         WidthSlider.Value = _settings.Width;
         DynamicIslandWidthSlider.Value = _settings.DynamicIslandWidth;
         DynamicIslandHeightSlider.Value = _settings.DynamicIslandHeight;
@@ -163,9 +166,18 @@ public event EventHandler? AnimatedClosing;
         ShowBatteryCheck.IsChecked = _settings.ShowBatteryIndicator;
 
         LanguageCombo.Items.Clear();
-        LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "English", Tag = "en" });
-        LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "Tiếng Việt", Tag = "vi" });
-        LanguageCombo.SelectedIndex = _settings.Language == "vi" ? 1 : 0;
+        var availableLanguages = Loc.GetAvailableLanguages();
+        int selectedIndex = 0;
+        for (int i = 0; i < availableLanguages.Count; i++)
+        {
+            var lang = availableLanguages[i];
+            LanguageCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = lang.Name, Tag = lang.Code });
+            if (lang.Code == _settings.Language)
+            {
+                selectedIndex = i;
+            }
+        }
+        LanguageCombo.SelectedIndex = selectedIndex;
 
         PopulateWidgetCombo();
 
@@ -191,8 +203,67 @@ public event EventHandler? AnimatedClosing;
             ? $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}"
             : $"{v.Major}.{v.Minor}.{v.Build}";
     }
+    private void ApplyTooltips()
+    {
+        // Header tooltips
+        TooltipHelper.SetLocalizedTooltip(SocialWebsite, "tooltip.website");
+        TooltipHelper.SetLocalizedTooltip(SocialGitHub, "tooltip.github");
+        TooltipHelper.SetLocalizedTooltip(SocialFacebook, "tooltip.facebook");
+        TooltipHelper.SetLocalizedTooltip(SocialDiscord, "tooltip.discord");
+
+        // Navigation tooltips
+        TooltipHelper.SetLocalizedTooltip(NavAppearance, "tooltip.nav.appearance");
+        TooltipHelper.SetLocalizedTooltip(NavSkins, "tooltip.nav.skins");
+        TooltipHelper.SetLocalizedTooltip(NavBehavior, "tooltip.nav.behavior");
+        TooltipHelper.SetLocalizedTooltip(NavDevices, "tooltip.nav.devices");
+        TooltipHelper.SetLocalizedTooltip(NavSystem, "tooltip.nav.system");
+        TooltipHelper.SetLocalizedTooltip(NavAdvanced, "tooltip.nav.advanced");
+        TooltipHelper.SetLocalizedTooltip(NavPerformance, "tooltip.nav.performance");
+        TooltipHelper.SetLocalizedTooltip(NavUpdates, "tooltip.nav.updates");
+        TooltipHelper.SetLocalizedTooltip(NavDonating, "tooltip.nav.donating");
+
+        // Button tooltips
+        TooltipHelper.SetLocalizedTooltip(CheckUpdateButton, "tooltip.checkUpdates");
+        TooltipHelper.SetLocalizedTooltip(ResetButton, "tooltip.resetSettings");
+        TooltipHelper.SetLocalizedTooltip(ApplyButton, "tooltip.applySettings");
+        TooltipHelper.SetLocalizedTooltip(SaveButton, "tooltip.saveSettings");
+
+        // Checkbox tooltips
+        TooltipHelper.SetLocalizedTooltip(AutoStartCheck, "tooltip.autoStart");
+        TooltipHelper.SetLocalizedTooltip(EnableBlurEffectsCheck, "tooltip.blurEffects");
+        TooltipHelper.SetLocalizedTooltip(MediaArtBackgroundCheck, "tooltip.mediaArtBackground");
+        TooltipHelper.SetLocalizedTooltip(EnableSubjectBlurCheck, "tooltip.subjectBlur");
+        TooltipHelper.SetLocalizedTooltip(EnableSmartCropCheck, "tooltip.smartCrop");
+        TooltipHelper.SetLocalizedTooltip(DynamicIslandModeCheck, "tooltip.dynamicIsland");
+        TooltipHelper.SetLocalizedTooltip(HoverExpandCheck, "tooltip.hoverExpand");
+        TooltipHelper.SetLocalizedTooltip(DisableMouseLeaveAutoCloseCheck, "tooltip.disableAutoClose");
+        TooltipHelper.SetLocalizedTooltip(ReopenLastViewCheck, "tooltip.reopenLastView");
+        TooltipHelper.SetLocalizedTooltip(IdleAutoHideCheck, "tooltip.idleAutoHide");
+        TooltipHelper.SetLocalizedTooltip(EnableSpotifyLyricsCheck, "tooltip.spotifyLyrics");
+        TooltipHelper.SetLocalizedTooltip(EnableYouTubeSubtitlesCheck, "tooltip.youtubeSubtitles");
+        TooltipHelper.SetLocalizedTooltip(YouTubeApiCheck, "tooltip.youtubeApi");
+        TooltipHelper.SetLocalizedTooltip(HideOnExclusiveFullscreenCheck, "tooltip.hideExclusiveFs");
+        TooltipHelper.SetLocalizedTooltip(HideOnWindowedFullscreenCheck, "tooltip.hideWindowedFs");
+        TooltipHelper.SetLocalizedTooltip(MusicNotifyCheck, "tooltip.musicNotify");
+        TooltipHelper.SetLocalizedTooltip(SystemNotifyCheck, "tooltip.systemNotify");
+        TooltipHelper.SetLocalizedTooltip(ShowBatteryCheck, "tooltip.showBattery");
+        TooltipHelper.SetLocalizedTooltip(ShelfUnlockCheck, "tooltip.shelfUnlock");
+        TooltipHelper.SetLocalizedTooltip(CopyShelfClipboardCheck, "tooltip.copyShelfClipboard");
+        TooltipHelper.SetLocalizedTooltip(HelloGreetingCheck, "tooltip.helloGreeting");
+
+        // Combo box tooltips
+        TooltipHelper.SetLocalizedTooltip(WidgetCombo, "tooltip.widgetCombo");
+        TooltipHelper.SetLocalizedTooltip(MonitorCombo, "tooltip.monitorCombo");
+        TooltipHelper.SetLocalizedTooltip(CameraCombo, "tooltip.cameraCombo");
+        TooltipHelper.SetLocalizedTooltip(VisualizerAudioCombo, "tooltip.visualizerAudioCombo");
+        TooltipHelper.SetLocalizedTooltip(LanguageCombo, "tooltip.languageCombo");
+        TooltipHelper.SetLocalizedTooltip(SkinCombo, "tooltip.skinCombo");
+        TooltipHelper.SetLocalizedTooltip(GlassPresetCombo, "tooltip.glassPresetCombo");
+    }
+
     private void ApplyLocalization()
     {
+        ApplyTooltips();
         SettingsTitleText.Text = Loc.Get("settings.title");
         SettingsSubtitleText.Text = Loc.Get("settings.subtitle");
         SearchPlaceholder.Text = Loc.Get("settings.searchPlaceholder");
@@ -277,6 +348,7 @@ public event EventHandler? AnimatedClosing;
         CheckUpdateButton.Content = Loc.Get("settings.checkUpdate");
         UpdateStatusText.Text = Loc.Get("settings.upToDate");
         CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion());
+        ViewChangelogButton.Content = Loc.Get("settings.btn.changelog");
         ReportBugLabel.Text = Loc.Get("settings.reportBug");
         ReportBugHint.Text = Loc.Get("settings.reportBug.hint");
         RequestFeatureLabel.Text = Loc.Get("settings.requestFeature");
@@ -286,6 +358,11 @@ public event EventHandler? AnimatedClosing;
 
         MonitorLabel.Text = Loc.Get("settings.activeMonitor");
         MonitorHint.Text = Loc.Get("settings.activeMonitor.hint");
+        int monitorIdx = MonitorCombo.SelectedIndex;
+        var monitors = NotchManager.GetMonitorNames();
+        MonitorCombo.ItemsSource = monitors;
+        MonitorCombo.SelectedIndex = Math.Min(monitorIdx < 0 ? _settings.MonitorIndex : monitorIdx, monitors.Length - 1);
+
         CameraLabel.Text = Loc.Get("settings.camera");
         CameraHint.Text = Loc.Get("settings.camera.hint");
         VisualizerAudioLabel.Text = Loc.Get("settings.visualizerAudio");
@@ -1203,7 +1280,7 @@ public event EventHandler? AnimatedClosing;
             (IdleAutoHideDelaySlider, () => { IdleAutoHideDelaySlider.Label = Loc.Get("settings.idleAutoHideDelay"); IdleAutoHideDelaySlider.Description = Loc.Get("settings.idleAutoHideDelay.hint"); }),
 
             (UpdateStatusText, () => UpdateStatusText.Text = Loc.Get("settings.upToDate")),
-            (CurrentVersionText, () => CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion())),
+            (CurrentVersionText, () => { CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion()); ViewChangelogButton.Content = Loc.Get("settings.btn.changelog"); }),
             (ReportBugLabel, () => ReportBugLabel.Text = Loc.Get("settings.reportBug")),
             (ReportBugHint, () => ReportBugHint.Text = Loc.Get("settings.reportBug.hint")),
             (RequestFeatureLabel, () => RequestFeatureLabel.Text = Loc.Get("settings.requestFeature")),
@@ -1212,9 +1289,20 @@ public event EventHandler? AnimatedClosing;
             (ClearCacheHint, () => ClearCacheHint.Text = Loc.Get("settings.clearCache.hint")),
 
             (MonitorLabel, () => MonitorLabel.Text = Loc.Get("settings.activeMonitor")),
-            (MonitorHint, () => MonitorHint.Text = Loc.Get("settings.activeMonitor.hint")),
+            (MonitorHint, () =>
+            {
+                MonitorHint.Text = Loc.Get("settings.activeMonitor.hint");
+                int monitorIdx = MonitorCombo.SelectedIndex;
+                var monitors = NotchManager.GetMonitorNames();
+                MonitorCombo.ItemsSource = monitors;
+                MonitorCombo.SelectedIndex = Math.Min(monitorIdx < 0 ? _settings.MonitorIndex : monitorIdx, monitors.Length - 1);
+            }),
             (CameraLabel, () => CameraLabel.Text = Loc.Get("settings.camera")),
-            (CameraHint, () => CameraHint.Text = Loc.Get("settings.camera.hint")),
+            (CameraHint, () =>
+            {
+                CameraHint.Text = Loc.Get("settings.camera.hint");
+                LoadCameraDevices().SafeFireAndForget("SETTINGS-CAMERA-DEVICES");
+            }),
             (VisualizerAudioLabel, () => VisualizerAudioLabel.Text = Loc.Get("settings.visualizerAudio")),
             (VisualizerAudioHint, () =>
             {
@@ -1242,6 +1330,7 @@ public event EventHandler? AnimatedClosing;
             (EnableBlurEffectsHint, () => EnableBlurEffectsHint.Text = Loc.Get("settings.enableBlurEffects.hint")),
             (EnableSubjectBlurHint, () => EnableSubjectBlurHint.Text = Loc.Get("settings.enableSubjectBlur.hint")),
             (EnableSmartCropHint, () => EnableSmartCropHint.Text = Loc.Get("settings.enableSmartCrop.hint")),
+            (MediaArtBackgroundHint, () => { MediaArtBackgroundCheck.Content = Loc.Get("settings.mediaArtBackground"); MediaArtBackgroundHint.Text = Loc.Get("settings.mediaArtBackground.hint"); }),
 
             (DonatingTitle, () => DonatingTitle.Text = Loc.Get("settings.donating.title")),
             (DonatingDescription, () => DonatingDescription.Text = Loc.Get("settings.donating.description")),
@@ -1305,6 +1394,8 @@ public event EventHandler? AnimatedClosing;
             AnimateTextSwap(element, update, staggerMs, easeOut, fps, slideDist);
             staggerMs += staggerStep;
         }
+
+        ApplyLiquidGlassLocalization();
     }
 
     private void AnimateTextSwap(FrameworkElement element, Action updateText, int delayMs, IEasingFunction easing, int fps, double slideDist)
@@ -1593,13 +1684,16 @@ private void PushLivePreview()
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        var result = MessageBox.Show(
+        bool confirmed = VNotch.Windows.ConfirmationDialog.Show(
+            this,
             Loc.Get("settings.reset.confirm"),
             Loc.Get("settings.reset.title"),
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+            Loc.Get("dialog.confirm"),
+            Loc.Get("dialog.cancel"),
+            VNotch.Windows.ConfirmationDialog.DialogIcon.Warning,
+            VNotch.Windows.ConfirmationDialog.DialogStyle.Danger);
 
-        if (result != MessageBoxResult.Yes) return;
+        if (!confirmed) return;
 
         var defaults = new NotchSettings();
 
@@ -1650,7 +1744,16 @@ private void PushLivePreview()
         IdleAutoHideDelaySlider.Value = Math.Max(2, defaults.IdleAutoHideDelay / 1000.0);
         IdleAutoHideDelaySlider.IsEnabled = defaults.EnableIdleAutoHide;
         IdleAutoHideDelaySlider.Opacity = defaults.EnableIdleAutoHide ? 1.0 : 0.4;
-        LanguageCombo.SelectedIndex = defaults.Language == "vi" ? 1 : 0;
+        int defLangIndex = 0;
+        for (int i = 0; i < LanguageCombo.Items.Count; i++)
+        {
+            if (LanguageCombo.Items[i] is System.Windows.Controls.ComboBoxItem item && item.Tag as string == defaults.Language)
+            {
+                defLangIndex = i;
+                break;
+            }
+        }
+        LanguageCombo.SelectedIndex = defLangIndex;
         _settings.ExpandedWidget = defaults.ExpandedWidget;
         WidgetCombo.SelectedIndex = defaults.ExpandedWidget switch
         {
@@ -1737,6 +1840,18 @@ private void RevertLivePreviewIfNeeded()
 
     private void ClearCache_Click(object sender, RoutedEventArgs e)
     {
+        bool confirmed = VNotch.Windows.ConfirmationDialog.Show(
+            this,
+            Loc.Get("settings.clearCache.confirm"),
+            Loc.Get("settings.clearCache.title"),
+            Loc.Get("dialog.confirm"),
+            Loc.Get("dialog.cancel"),
+            VNotch.Windows.ConfirmationDialog.DialogIcon.Question,
+            VNotch.Windows.ConfirmationDialog.DialogStyle.Normal,
+            Loc.Get("settings.clearCache.detail"));
+
+        if (!confirmed) return;
+
         int deletedCount = 0;
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "V-Notch");
         var baseDir = AppContext.BaseDirectory;
@@ -1822,10 +1937,18 @@ private void CloseWithAnimation()
         ShellScale.ScaleY = 1.0;
         ShellTranslate.X = 0;
         ShellTranslate.Y = 0;
-
         MainShell.RenderTransformOrigin = new Point(0.5, 0.0);
 
         MainShell.Effect = null;
+
+        // --- Performance Optimizations ---
+        // 1. Enable Bitmap Cache to render the entire shell on GPU during scaling
+        MainShell.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
+        // 2. Disable pixel snapping and layout rounding during animation to prevent animation jitter
+        MainShell.SnapsToDevicePixels = false;
+        MainShell.UseLayoutRounding = false;
+        // 3. Set scaling mode to LowQuality (bilinear) for faster scaling animation on the GPU
+        RenderOptions.SetBitmapScalingMode(MainShell, BitmapScalingMode.LowQuality);
 
         AnimateExitItem(FooterBar, FooterTranslate, 0);
         AnimateExitItem(NavPanel, NavPanelTranslate, 40);
@@ -1927,6 +2050,9 @@ private void CloseWithAnimation()
 
         void AnimateExitItem(UIElement element, TranslateTransform translate, int delayMs)
         {
+            // Enable bitmap caching on child elements to animate their fade & slide on GPU
+            element.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
+
             var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(550))
             {
                 EasingFunction = easeInStrong,
@@ -2133,6 +2259,28 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
             UpdateStatusText.Text = $"Error: {ex.Message}";
             DownloadUpdateButton.IsEnabled = true;
             CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private void ViewChangelog_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var changelogWindow = new VNotch.Windows.ChangelogWindow(_updateService)
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            changelogWindow.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("SETTINGS", ex, "Failed to open changelog window");
+            MessageBox.Show(
+                $"Failed to open changelog: {ex.Message}",
+                "Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -2753,15 +2901,15 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
     {
         try
         {
-            var groups = await Windows.Media.Capture.Frames.MediaFrameSourceGroup.FindAllAsync();
+            var groups = await global::Windows.Media.Capture.Frames.MediaFrameSourceGroup.FindAllAsync();
             var cameras = groups
-                .Where(g => g.SourceInfos.Any(s => s.SourceKind == Windows.Media.Capture.Frames.MediaFrameSourceKind.Color))
+                .Where(g => g.SourceInfos.Any(s => s.SourceKind == global::Windows.Media.Capture.Frames.MediaFrameSourceKind.Color))
                 .Select(g => new CameraDeviceItem { Id = g.Id, Name = g.DisplayName })
                 .ToList();
 
             if (cameras.Count == 0)
             {
-                cameras.Add(new CameraDeviceItem { Id = "", Name = "No camera detected" });
+                cameras.Add(new CameraDeviceItem { Id = "", Name = Loc.Get("settings.camera.none") });
             }
 
             CameraCombo.ItemsSource = cameras;
@@ -2772,7 +2920,7 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         }
         catch
         {
-            CameraCombo.ItemsSource = new[] { new CameraDeviceItem { Id = "", Name = "No camera detected" } };
+            CameraCombo.ItemsSource = new[] { new CameraDeviceItem { Id = "", Name = Loc.Get("settings.camera.none") } };
             CameraCombo.DisplayMemberPath = "Name";
             CameraCombo.SelectedIndex = 0;
         }

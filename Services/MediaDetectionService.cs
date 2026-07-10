@@ -2635,7 +2635,7 @@ public class MediaDetectionService : IMediaDetectionService
     private BitmapImage? CropToSquare(BitmapImage source, string mediaSource, bool forceCenterCrop = false)
         => _artworkService.CropToSquare(source, mediaSource, forceCenterCrop);
 
-    private Task<BitmapImage?> ConvertToWpfBitmapAsync(Windows.Storage.Streams.IRandomAccessStreamWithContentType stream, CancellationToken ct = default)
+    private Task<BitmapImage?> ConvertToWpfBitmapAsync(global::Windows.Storage.Streams.IRandomAccessStreamWithContentType stream, CancellationToken ct = default)
         => _artworkService.ConvertToWpfBitmapAsync(stream, ct);
 
     private List<string> GetAllWindowTitles()

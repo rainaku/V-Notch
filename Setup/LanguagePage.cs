@@ -12,9 +12,26 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
 {
     private readonly TextBlock _headline;
     private readonly TextBlock _description;
-    private readonly Border _englishCard;
-    private readonly Border _vietnameseCard;
+    private readonly Dictionary<string, Border> _cards = new();
     private string _selectedLanguage = "en";
+
+    private class LanguageMetadata
+    {
+        public string FlagCode { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Code { get; set; } = "";
+    }
+
+    private static readonly List<LanguageMetadata> AvailableLanguages = new()
+    {
+        new LanguageMetadata { FlagCode = "US", Name = "English", Description = "Use V-Notch in English", Code = "en" },
+        new LanguageMetadata { FlagCode = "VN", Name = "Tiếng Việt", Description = "Sử dụng V-Notch bằng tiếng Việt", Code = "vi" },
+        new LanguageMetadata { FlagCode = "ES", Name = "Español", Description = "Usar V-Notch en español", Code = "es" },
+        new LanguageMetadata { FlagCode = "FR", Name = "Français", Description = "Utiliser V-Notch en français", Code = "fr" },
+        new LanguageMetadata { FlagCode = "DE", Name = "Deutsch", Description = "V-Notch auf Deutsch verwenden", Code = "de" },
+        new LanguageMetadata { FlagCode = "JP", Name = "日本語", Description = "V-Notchを日本語で使用する", Code = "ja" }
+    };
 
     private static readonly FontFamily SFProBold = new("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif");
     private static readonly FontFamily SFProText = new("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif");
@@ -39,8 +56,11 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
         var grid = new Grid();
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+
+        for (int i = 0; i < AvailableLanguages.Count; i++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+        }
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         _headline = new TextBlock
@@ -69,13 +89,14 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
         Grid.SetRow(_description, 1);
         grid.Children.Add(_description);
 
-        _englishCard = CreateLanguageCard("US", "English", "Use V-Notch in English", "en");
-        Grid.SetRow(_englishCard, 2);
-        grid.Children.Add(_englishCard);
-
-        _vietnameseCard = CreateLanguageCard("VN", "Tiếng Việt", "Sử dụng V-Notch bằng tiếng Việt", "vi");
-        Grid.SetRow(_vietnameseCard, 3);
-        grid.Children.Add(_vietnameseCard);
+        for (int i = 0; i < AvailableLanguages.Count; i++)
+        {
+            var lang = AvailableLanguages[i];
+            var card = CreateLanguageCard(lang.FlagCode, lang.Name, lang.Description, lang.Code);
+            Grid.SetRow(card, i + 2);
+            grid.Children.Add(card);
+            _cards[lang.Code] = card;
+        }
 
         UpdateSelectionVisuals(animate: false);
         Content = grid;
@@ -83,7 +104,15 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
 
     public IReadOnlyList<UIElement> GetAnimatedElements()
     {
-        return new UIElement[] { _headline, _description, _englishCard, _vietnameseCard };
+        var elements = new List<UIElement> { _headline, _description };
+        foreach (var lang in AvailableLanguages)
+        {
+            if (_cards.TryGetValue(lang.Code, out var card))
+            {
+                elements.Add(card);
+            }
+        }
+        return elements;
     }
 
     private Border CreateLanguageCard(string code, string title, string subtitle, string langCode)
@@ -197,8 +226,10 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
 
     private void UpdateSelectionVisuals(bool animate)
     {
-        UpdateCardVisual(_englishCard, _selectedLanguage == "en", animate);
-        UpdateCardVisual(_vietnameseCard, _selectedLanguage == "vi", animate);
+        foreach (var kvp in _cards)
+        {
+            UpdateCardVisual(kvp.Value, kvp.Key == _selectedLanguage, animate);
+        }
     }
 
     private static void UpdateCardVisual(Border card, bool isSelected, bool animate)
@@ -317,5 +348,11 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
         };
         System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         ((SolidColorBrush)border.Background).BeginAnimation(SolidColorBrush.ColorProperty, anim);
+    }
+
+    public void RefreshLocalization()
+    {
+        _headline.Text = VNotch.Services.Loc.Get("setup.language.headline");
+        _description.Text = VNotch.Services.Loc.Get("setup.language.description");
     }
 }

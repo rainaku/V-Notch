@@ -104,10 +104,10 @@ internal static class SetupOperations
                 throw new FileNotFoundException($"Setup source is missing {AppExeName}.", sourceExePath);
             }
 
-            reportProgress(new SetupProgressInfo("Closing running V-Notch instances...", IsIndeterminate: true));
+            reportProgress(new SetupProgressInfo(VNotch.Services.Loc.Get("setup.install.closingRunning"), IsIndeterminate: true));
             StopOtherRunningInstances();
 
-            reportProgress(new SetupProgressInfo("Preparing installation folder...", IsIndeterminate: true));
+            reportProgress(new SetupProgressInfo(VNotch.Services.Loc.Get("setup.install.preparingFolder"), IsIndeterminate: true));
             Directory.CreateDirectory(installDirectory);
 
             var files = Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories);
@@ -130,22 +130,22 @@ internal static class SetupOperations
 
                 CopyFileWithRetry(sourceFile, destinationFile);
                 reportProgress(new SetupProgressInfo(
-                    $"Installing {relativePath}...",
+                    VNotch.Services.Loc.Get("setup.install.installingFile", relativePath),
                     i + 1,
                     files.Length));
             }
 
             var installedExePath = Path.Combine(installDirectory, AppExeName);
-            reportProgress(new SetupProgressInfo("Creating shortcuts...", files.Length, files.Length));
+            reportProgress(new SetupProgressInfo(VNotch.Services.Loc.Get("setup.install.creatingShortcuts"), files.Length, files.Length));
             CreateShortcuts(installedExePath, installDirectory);
 
-            reportProgress(new SetupProgressInfo("Saving startup preference...", files.Length, files.Length));
+            reportProgress(new SetupProgressInfo(VNotch.Services.Loc.Get("setup.install.savingStartup"), files.Length, files.Length));
             ConfigureStartup(installedExePath, options.StartWithWindows);
 
-            reportProgress(new SetupProgressInfo("Registering uninstall information...", files.Length, files.Length));
+            reportProgress(new SetupProgressInfo(VNotch.Services.Loc.Get("setup.install.registeringUninstall"), files.Length, files.Length));
             RegisterUninstall(installedExePath, installDirectory);
 
-            reportProgress(new SetupProgressInfo("Saving preferences...", files.Length, files.Length));
+            reportProgress(new SetupProgressInfo(VNotch.Services.Loc.Get("setup.install.savingPreferences"), files.Length, files.Length));
             SaveInitialSettings(options.Language);
         });
     }

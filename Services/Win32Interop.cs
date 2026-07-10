@@ -210,6 +210,7 @@ internal static class Win32Interop
     [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
     public static extern int DwmGetWindowAttributeInt(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
 
+
     #endregion
 
     #region Constants

@@ -90,6 +90,22 @@ public partial class SetupWindow : Window
     {
         Loc.SetLanguage(lang);
         ApplyLocalizationToSetupUi();
+
+        if (_currentPageIndex >= 0 && _currentPageIndex < _pageFactories.Length)
+        {
+            var page = _pageFactories[_currentPageIndex]();
+            if (page is LanguagePage langPage) langPage.RefreshLocalization();
+            else if (page is IntroductionPage intro) intro.RefreshLocalization();
+            else if (page is DirectoryPage dir) dir.RefreshLocalization();
+            else if (page is StartupOptionsPage startup) startup.RefreshLocalization();
+            else if (page is InstallProgressPage progress) progress.RefreshLocalization();
+            else if (page is FinishPage finish) finish.RefreshLocalization();
+        }
+
+        if (_cancelSetupPage != null)
+        {
+            _cancelSetupPage.RefreshLocalization();
+        }
     }
 
     private void ApplyLocalizationToSetupUi()
@@ -302,9 +318,12 @@ public partial class SetupWindow : Window
     {
         var page = _pageFactories[index]();
 
-        if (page is IntroductionPage intro) intro.RefreshLocalization();
+        if (page is LanguagePage langPage) langPage.RefreshLocalization();
+        else if (page is IntroductionPage intro) intro.RefreshLocalization();
         else if (page is DirectoryPage dir) dir.RefreshLocalization();
         else if (page is StartupOptionsPage startup) startup.RefreshLocalization();
+        else if (page is InstallProgressPage progress) progress.RefreshLocalization();
+        else if (page is FinishPage finish) finish.RefreshLocalization();
 
         ShowDynamicContent(page, direction, () =>
         {
@@ -934,7 +953,7 @@ public partial class SetupWindow : Window
         }
 
         _isInstalling = true;
-        _installProgressPage.ShowIndeterminate("Preparing installation...");
+        _installProgressPage.ShowIndeterminate(Loc.Get("setup.install.preparing"));
 
         try
         {
@@ -964,7 +983,7 @@ public partial class SetupWindow : Window
 
             _isInstalling = false;
             _installationSucceeded = true;
-            _installProgressPage.SetProgress(1, 1, "Installation complete.");
+            _installProgressPage.SetProgress(1, 1, Loc.Get("setup.install.complete"));
             AutoAdvanceToFinish();
         }
         catch (Exception ex)
@@ -1515,6 +1534,12 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
         Content = grid;
     }
 
+    public void RefreshLocalization()
+    {
+        _headline.Text = Loc.Get("setup.install.headline");
+        _status.Text = Loc.Get("setup.install.copying");
+    }
+
     public IReadOnlyList<UIElement> GetAnimatedElements()
     {
         return new UIElement[] { _headline, _status, _progressBar };
@@ -1682,6 +1707,13 @@ public class FinishPage : UserControl, ISetupEntryAwarePage, ISetupAnimatedPage
         grid.Children.Add(_checkbox);
 
         Content = grid;
+    }
+
+    public void RefreshLocalization()
+    {
+        _headline.Text = Loc.Get("setup.finish.headline");
+        _description.Text = Loc.Get("setup.finish.description");
+        _checkbox.Content = Loc.Get("setup.finish.launch");
     }
 
     public IReadOnlyList<UIElement> GetAnimatedElements()

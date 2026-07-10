@@ -123,7 +123,7 @@ public class NotchManager : INotchManager
     public static string[] GetMonitorNames()
     {
         return Screen.AllScreens
-            .Select((s, i) => $"Display {i + 1}" + (s.Primary ? " (Primary)" : ""))
+            .Select((s, i) => Loc.Get("settings.display.name", i + 1) + (s.Primary ? Loc.Get("settings.display.primary") : ""))
             .ToArray();
     }
 
