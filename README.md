@@ -25,6 +25,10 @@
 </p>
 
 <p align="center">
+  MyDockFinder 100% compatible for immersive experience !<br>
+</p>
+
+<p align="center">
   This project is entirely <b>non-profit</b> and <b>free</b>.<br>
   If you'd like to support my work, you can donate at: <a href="https://www.paypal.me/PhuocLe678"><b>PayPal</b></a>
 </p>
