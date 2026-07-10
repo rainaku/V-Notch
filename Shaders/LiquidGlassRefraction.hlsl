@@ -78,19 +78,30 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     {
         const float e = 2.0;
         float hC = bevel(inside, zR);
-        float hR = bevel(-rrsdf(lx + e, ly, halfX, halfY, cornerR), zR);
-        float hL = bevel(-rrsdf(lx - e, ly, halfX, halfY, cornerR), zR);
-        float hU = bevel(-rrsdf(lx, ly + e, halfX, halfY, cornerR), zR);
-        float hD = bevel(-rrsdf(lx, ly - e, halfX, halfY, cornerR), zR);
+        float hGradX = 0.0;
+        float hGradY = 0.0;
+        float nx = 0.0;
+        float ny = 0.0;
 
-        float hGradX = (hR - hL) / (2.0 * e);
-        float hGradY = (hU - hD) / (2.0 * e);
+        // Once a pixel is more than e past the bevel, all four finite-difference
+        // samples are on the flat plateau. Their gradient is exactly zero, so skip
+        // four rounded-rect SDFs (and their square roots) across the glass interior.
+        if (inside < zR + e)
+        {
+            float hR = bevel(-rrsdf(lx + e, ly, halfX, halfY, cornerR), zR);
+            float hL = bevel(-rrsdf(lx - e, ly, halfX, halfY, cornerR), zR);
+            float hU = bevel(-rrsdf(lx, ly + e, halfX, halfY, cornerR), zR);
+            float hD = bevel(-rrsdf(lx, ly - e, halfX, halfY, cornerR), zR);
 
-        float nx = -hGradX;
-        float ny = -hGradY;
-        float nLen = sqrt(nx * nx + ny * ny + 1.0);
-        nx /= nLen;
-        ny /= nLen;
+            hGradX = (hR - hL) / (2.0 * e);
+            hGradY = (hU - hD) / (2.0 * e);
+
+            nx = -hGradX;
+            ny = -hGradY;
+            float invNLen = rsqrt(nx * nx + ny * ny + 1.0);
+            nx *= invNLen;
+            ny *= invNLen;
+        }
 
         float depth = sstep(0.0, zR, inside);
 
@@ -123,11 +134,17 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     float gx = baseX + dispX;
     float gy = baseY + dispY;
 
-    float g = tex2D(input, float2(gx / srcW, gy / srcH)).g;
-    float r = tex2D(input, float2((gx + caX) / srcW, (gy + caY) / srcH)).r;
-    float b = tex2D(input, float2((gx - caX) / srcW, (gy - caY) / srcH)).b;
+    float2 centerUv = float2(gx / srcW, gy / srcH);
+    float3 col = tex2D(input, centerUv).rgb;
 
-    float3 col = float3(r, g, b);
+    // Most interior pixels have no chromatic displacement. Reuse the centre sample
+    // there instead of issuing two identical texture reads; only the bevel fringe
+    // pays for the separated red/blue samples.
+    if (abs(caX) + abs(caY) > 0.0001)
+    {
+        col.r = tex2D(input, float2((gx + caX) / srcW, (gy + caY) / srcH)).r;
+        col.b = tex2D(input, float2((gx - caX) / srcW, (gy - caY) / srcH)).b;
+    }
 
     float lum = dot(col, float3(0.299, 0.587, 0.114));
     col = lum + (col - lum) * satFactor + brightAdd;

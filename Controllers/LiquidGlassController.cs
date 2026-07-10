@@ -60,6 +60,12 @@ public sealed class LiquidGlassController
     // edge crispness on the bevel.
     private const double MagProcessScale = 0.85;
 
+    // GPU source textures are rounded to a small allocation quantum while the
+    // notch resizes. This avoids creating a brand-new D3D texture for every
+    // single-pixel animation step, with negligible extra upload area.
+    private const int GpuTextureSizeQuantum = 32;
+    private const double GpuActiveIntervalMs = 1000.0 / 60.0;
+
     private readonly Image _host;
     private readonly Dispatcher _dispatcher;
     private readonly Func<IntPtr> _getHwnd;
@@ -152,6 +158,8 @@ public sealed class LiquidGlassController
         double CornerR, double ZR, double Refraction, double Chroma, double Distort,
         double BevelMode, double SatFactor, double BrightAdd);
     private Action<GpuGeometry>? _onGpuGeometry;
+    private GpuGeometry _lastPresentedGpuGeometry;
+    private bool _hasPresentedGpuGeometry;
 
     /// <summary>Enables GPU refraction mode. <paramref name="onGeometry"/> runs on
     /// the UI thread with the shader params each time a fresh raw frame is presented.</summary>
@@ -159,6 +167,9 @@ public sealed class LiquidGlassController
     {
         _onGpuGeometry = onGeometry;
         _gpuMode = enabled;
+        _hasPresentedGpuGeometry = false;
+        if (!enabled)
+            _gpuBitmap = null;
         _mapsDirty = true;
     }
 
@@ -272,6 +283,8 @@ public sealed class LiquidGlassController
         {
             _host.Source = null;
             _bitmap = null;
+            _gpuBitmap = null;
+            _hasPresentedGpuGeometry = false;
         }
         catch { /* shutting down */ }
     }
@@ -305,7 +318,13 @@ public sealed class LiquidGlassController
                 double frameIntervalMs;
                 if (animating)
                 {
-                    frameIntervalMs = _activeIntervalMs;
+                    // The ShaderEffect is substantially more expensive than the
+                    // bitmap-only CPU present. Sixty fresh source frames per second
+                    // stays fluid while preventing high-refresh displays from
+                    // needlessly re-running the shader at 90+ FPS.
+                    frameIntervalMs = _gpuMode
+                        ? Math.Max(_activeIntervalMs, GpuActiveIntervalMs)
+                        : _activeIntervalMs;
                     _consecutiveSkips = 0;
                 }
                 else if (_consecutiveSkips >= DeepIdleThreshold)
@@ -637,6 +656,10 @@ public sealed class LiquidGlassController
         int displayH = Math.Min(region.Height, MaxHeight);
         if (displayW <= 1 || displayH <= 1) return false;
 
+        // Snapshot the mode once so sizing, capture, and presentation all use the
+        // same path even if settings change on the UI thread during this frame.
+        bool gpuMode = _gpuMode;
+
         // Both paths render at a reduced internal scale and let the present upscale
         // back to native — the refraction is soft, so the resolution loss is
         // invisible but the per-pixel work (maps + refract + blur) drops by ~scale².
@@ -650,10 +673,18 @@ public sealed class LiquidGlassController
         _outScale = displayW > 0 ? (double)outW / displayW * (_bitmapDpi / 96.0) : 1.0;
 
 
-        int overscan = Math.Clamp((int)Math.Round(80 * (_bitmapDpi / 96.0)), 64, 150);
-        int bufW = outW + overscan * 2;
-        int bufH = outH + overscan;
-        int notchOffX = overscan;
+        // The CPU bitmap needs an overscan ring because it is presented at native
+        // scale while the host resizes asynchronously. GPU mode always draws into
+        // the current host bounds, so that ring was never sampled and only enlarged
+        // every capture and texture upload.
+        int overscan = gpuMode
+            ? 0
+            : Math.Clamp((int)Math.Round(80 * (_bitmapDpi / 96.0)), 64, 150);
+        int baseBufW = outW + overscan * 2;
+        int baseBufH = outH + overscan;
+        int bufW = gpuMode ? RoundUp(baseBufW, GpuTextureSizeQuantum) : baseBufW;
+        int bufH = gpuMode ? RoundUp(baseBufH, GpuTextureSizeQuantum) : baseBufH;
+        int notchOffX = overscan + (bufW - baseBufW) / 2;
         int notchOffY = 0;
 
         // Constant sample padding (independent of notch size) so the refraction
@@ -662,7 +693,10 @@ public sealed class LiquidGlassController
         int srcW = bufW + margin * 2;
         int srcH = bufH + margin * 2;
 
-        EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH, notchOffX, notchOffY);
+        // GPU mode computes refraction in the pixel shader. Building six CPU sample
+        // maps and an edge mask here duplicated the most expensive CPU-side work.
+        if (!gpuMode)
+            EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH, notchOffX, notchOffY);
 
         IntPtr screenDc = GetDC(IntPtr.Zero);
         if (screenDc == IntPtr.Zero) return false;
@@ -672,7 +706,7 @@ public sealed class LiquidGlassController
 
             double inv = 1.0 / scale;
             int physMargin = (int)Math.Round(margin * inv);
-            int physOverscan = (int)Math.Round(overscan * inv);
+            int physNotchOffX = (int)Math.Round(notchOffX * inv);
             int physSrcW = (int)Math.Round(srcW * inv);
             int physSrcH = (int)Math.Round(srcH * inv);
 
@@ -680,7 +714,7 @@ public sealed class LiquidGlassController
             {
                 // The magnifier excludes the notch from its capture, so we can sample
                 // the notch's own rectangle directly (no below-notch feedback offset).
-                int srcX = region.X - physOverscan - physMargin;
+                int srcX = region.X - physNotchOffX - physMargin;
                 int srcY = region.Y - physMargin;
                 if (srcX < 0) srcX = 0;
                 if (srcY < 0) srcY = 0;
@@ -709,7 +743,7 @@ public sealed class LiquidGlassController
             }
             else
             {
-                int srcX = region.X - physOverscan - physMargin;
+                int srcX = region.X - physNotchOffX - physMargin;
                 // Offset the sample below the notch so the BitBlt doesn't capture
                 // the notch itself (DWM composites it -> feedback ghost).
                 int srcY = region.Y + displayH + 2;
@@ -736,7 +770,7 @@ public sealed class LiquidGlassController
             }
 
             // GPU mode: present the raw desktop; the ShaderEffect does the refraction.
-            if (_gpuMode)
+            if (gpuMode)
             {
                 double halfX = outW * 0.5;
                 double halfY = outH * 0.5;
@@ -790,6 +824,9 @@ public sealed class LiquidGlassController
         }
     }
 
+    private static int RoundUp(int value, int quantum) =>
+        ((value + quantum - 1) / quantum) * quantum;
+
     private void Present()
     {
         if (!_isActive) return;
@@ -830,10 +867,27 @@ public sealed class LiquidGlassController
                 {
                     if (!_isActive) return;
 
-                    if (_bitmap == null || _bitmap.PixelWidth != w || _bitmap.PixelHeight != h
-                        || Math.Abs(_bitmap.DpiX - presentDpi) > 0.5)
+                    bool dpiChanged = _bitmap != null && Math.Abs(_bitmap.DpiX - presentDpi) > 0.5;
+                    bool needsBitmap = _bitmap == null || dpiChanged ||
+                        _bitmap.PixelWidth < w || _bitmap.PixelHeight < h;
+
+                    if (needsBitmap)
                     {
-                        _bitmap = new WriteableBitmap(w, h, presentDpi, presentDpi, PixelFormats.Bgra32, null);
+                        int previousW = dpiChanged ? 0 : _bitmap?.PixelWidth ?? 0;
+                        int previousH = dpiChanged ? 0 : _bitmap?.PixelHeight ?? 0;
+                        int capacityW = GrowPresentCapacity(previousW, w, 128);
+                        int capacityH = GrowPresentCapacity(previousH, h, 96);
+                        var nextBitmap = new WriteableBitmap(
+                            capacityW, capacityH, presentDpi, presentDpi, PixelFormats.Bgra32, null);
+
+                        // Populate the new surface before publishing it to the Image.
+                        // During notch resize animations the old code swapped in a
+                        // brand-new (zero-filled) bitmap first and then uploaded the
+                        // frame, which could let WPF composite a black surface.
+                        int nextX = (capacityW - w) / 2;
+                        nextBitmap.WritePixels(new Int32Rect(nextX, 0, w, h), buffer, w * 4, 0);
+                        _bitmap = nextBitmap;
+
                         _host.Stretch = Stretch.None;
                         _host.HorizontalAlignment = HorizontalAlignment.Center;
                         _host.VerticalAlignment = VerticalAlignment.Top;
@@ -846,12 +900,20 @@ public sealed class LiquidGlassController
                         _host.RenderTransform = _hostTransform;
                         _host.Source = _bitmap;
                     }
+                    else
+                    {
+                        // Keep one high-water-mark bitmap through the animation and
+                        // center the current frame inside it. This avoids allocating
+                        // and swapping a GPU surface on every intermediate size.
+                        var bitmap = _bitmap!;
+                        int frameX = (bitmap.PixelWidth - w) / 2;
+                        bitmap.WritePixels(new Int32Rect(frameX, 0, w, h), buffer, w * 4, 0);
+                    }
                     if (_hostTransform != null)
                     {
                         _hostTransform.X = txDip;
                         _hostTransform.Y = tyDip;
                     }
-                    _bitmap.WritePixels(new Int32Rect(0, 0, w, h), buffer, w * 4, 0);
                     if (!ReferenceEquals(_host.Source, _bitmap))
                         _host.Source = _bitmap;
                 }
@@ -866,6 +928,18 @@ public sealed class LiquidGlassController
             _presentInFlight = false;
             // Dispatcher shutting down.
         }
+    }
+
+    internal static int GrowPresentCapacity(int current, int required, int slack)
+    {
+        if (required <= 0) return 0;
+        if (current >= required) return current;
+
+        int target = current > 0
+            ? Math.Max(required, checked(current + slack))
+            : checked(required + slack);
+        const int quantum = 64;
+        return checked(((target + quantum - 1) / quantum) * quantum);
     }
 
     // GPU-mode bitmap holding the raw (un-refracted) captured desktop.
@@ -910,7 +984,15 @@ public sealed class LiquidGlassController
                     if (!ReferenceEquals(_host.Source, _gpuBitmap))
                         _host.Source = _gpuBitmap;
 
-                    _onGpuGeometry?.Invoke(geom);
+                    // Updating unchanged effect constants invalidates WPF's effect
+                    // graph even though only the source bitmap changed. Keep the
+                    // shader constants stable for desktop-only frame updates.
+                    if (!_hasPresentedGpuGeometry || !_lastPresentedGpuGeometry.Equals(geom))
+                    {
+                        _onGpuGeometry?.Invoke(geom);
+                        _lastPresentedGpuGeometry = geom;
+                        _hasPresentedGpuGeometry = true;
+                    }
                 }
                 finally
                 {

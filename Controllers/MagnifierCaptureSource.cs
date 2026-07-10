@@ -8,7 +8,7 @@ namespace VNotch.Controllers;
 public sealed class MagnifierCaptureSource : IDisposable
 {
     // Set true if colours come out with red/blue swapped on a given machine.
-    private const bool SwapRedBlue = false;
+    private static readonly bool SwapRedBlue = false;
 
     private const string MagDll = "Magnification.dll";
     private const string WC_MAGNIFIER = "Magnifier";
@@ -109,17 +109,31 @@ public sealed class MagnifierCaptureSource : IDisposable
     private const int MagWindowW = 1600;
     private const int MagWindowH = 700;
 
-    // Request/response (request thread writes, pump thread reads).
-    private int _rx, _ry, _rw, _rh;
+    // Request/response. A request id prevents a completion from a timed-out frame
+    // being mistaken for the next frame, and the lock snapshots all coordinates as
+    // one unit so the pump can never combine two requests.
+    private readonly object _requestSync = new();
+    private CaptureRequest _pendingRequest;
+    private long _requestSequence;
+    private long _completedRequestId;
     private volatile bool _captureResult;
+
+    private readonly record struct CaptureRequest(long Id, int X, int Y, int Width, int Height);
 
     // Callback state (pump thread only). The callback copies the source into our
     // OWN buffer; DoCapture then copies that into the caller's buffer synchronously
     // (while the caller is blocked), so the callback never touches caller memory
     // that could be freed on another thread.
     private byte[] _ownBuffer = Array.Empty<byte>();
-    private int _ownRows, _ownStride;
+    private int _ownWidth, _ownRows, _ownStride;
     private volatile bool _received;
+
+    // Completed frames live in a separate tightly-packed buffer. Magnification can
+    // invoke the callback again while the pump drains messages; keeping that traffic
+    // away from the completed buffer prevents a late callback from tearing a frame
+    // while the render worker copies it into the staging DIB.
+    private byte[] _completedBuffer = Array.Empty<byte>();
+    private int _completedWidth, _completedHeight;
 
     public bool IsReady { get; private set; }
 
@@ -149,31 +163,35 @@ public sealed class MagnifierCaptureSource : IDisposable
     {
         if (!IsReady || !_running || destBits == IntPtr.Zero || w <= 0 || h <= 0) return false;
 
-        _rx = x; _ry = y; _rw = w; _rh = h;
-
-        // Clear any stale completion left by a previous request that timed out, so
-        // we only react to THIS request's fresh frame.
-        _done.WaitOne(0);
+        long requestId = Interlocked.Increment(ref _requestSequence);
+        lock (_requestSync)
+            _pendingRequest = new CaptureRequest(requestId, x, y, w, h);
 
         _request.Set();
-        if (!_done.WaitOne(60)) return false;
+
+        // A timed-out request can complete after the next request has started. Wait
+        // only for our own id and ignore stale completion signals within the same
+        // deadline instead of copying the wrong-sized/partially updated frame.
+        long deadline = Environment.TickCount64 + 60;
+        while (Volatile.Read(ref _completedRequestId) != requestId)
+        {
+            int remaining = (int)Math.Clamp(deadline - Environment.TickCount64, 0, 60);
+            if (remaining == 0 || !_done.WaitOne(remaining)) return false;
+        }
         if (!_captureResult) return false;
 
         // Copy the captured pixels into the caller's buffer HERE, on the caller
-        // thread. The pump thread is now parked waiting for the next request and
-        // the render worker calls us serially, so destBits is owned by us for the
-        // duration of this copy — it can't be freed/reallocated mid-write (which
-        // previously caused an AccessViolation crash when a capture overran the
-        // 60ms timeout).
+        // thread. The completed buffer is immutable until the render worker's next
+        // serial request, so neither side can change memory during this copy (which
+        // previously caused an AccessViolation when a capture overran the timeout).
         try
         {
-            CopyToDest(destBits, w, h);
+            return CopyToDest(destBits, w, h);
         }
         catch
         {
             return false;
         }
-        return true;
     }
 
     private void PumpThread()
@@ -231,8 +249,12 @@ public sealed class MagnifierCaptureSource : IDisposable
                 if (_request.WaitOne(15))
                 {
                     if (!_running) break;
-                    try { DoCapture(); }
+                    CaptureRequest request;
+                    lock (_requestSync) request = _pendingRequest;
+
+                    try { DoCapture(request); }
                     catch (Exception ex) { _captureResult = false; RuntimeLog.Log("LIQUIDGLASS", $"Mag capture failed: {ex.Message}"); }
+                    Volatile.Write(ref _completedRequestId, request.Id);
                     _done.Set();
                 }
                 DrainMessages();
@@ -249,14 +271,20 @@ public sealed class MagnifierCaptureSource : IDisposable
         }
     }
 
-    private void DoCapture()
+    private void DoCapture(CaptureRequest request)
     {
-        int w = _rw, h = _rh;
+        int w = request.Width, h = request.Height;
         if (w <= 0 || h <= 0) { _captureResult = false; return; }
 
         _received = false;
 
-        var rect = new Win32Interop.RECT { Left = _rx, Top = _ry, Right = _rx + w, Bottom = _ry + h };
+        var rect = new Win32Interop.RECT
+        {
+            Left = request.X,
+            Top = request.Y,
+            Right = request.X + w,
+            Bottom = request.Y + h
+        };
         if (!MagSetWindowSource(_magWnd, rect))
         {
             _captureResult = false;
@@ -278,18 +306,37 @@ public sealed class MagnifierCaptureSource : IDisposable
             return;
         }
 
-        // The magnifier occasionally emits an all-black frame (right after init or
-        // during heavy redraws). Presenting those causes a black flicker, so treat
-        // a blank frame as a miss and keep the previous good frame.
-        if (IsBlankFrame(w, h))
+        // Never accept a callback that did not supply the entire requested image.
+        // CopyToDest used to copy the available rows and still return success,
+        // leaving the rest of a newly allocated staging DIB black for one frame.
+        if (!IsCompleteFrame(w, h, _ownWidth, _ownRows, _ownStride, _ownBuffer.Length) ||
+            IsBlankFrame(w, h))
         {
             _captureResult = false;
             return;
         }
 
-        // The actual copy into the caller's buffer is done by CaptureInto on the
-        // caller thread (see comment there). The pump thread only fills _ownBuffer.
+        SnapshotCompletedFrame(w, h);
         _captureResult = true;
+    }
+
+    internal static bool IsCompleteFrame(
+        int requestedWidth,
+        int requestedHeight,
+        int receivedWidth,
+        int receivedHeight,
+        int receivedStride,
+        int bufferLength)
+    {
+        if (requestedWidth <= 0 || requestedHeight <= 0 ||
+            receivedWidth < requestedWidth || receivedHeight < requestedHeight)
+            return false;
+
+        long rowBytes = (long)requestedWidth * 4;
+        if (receivedStride < rowBytes) return false;
+
+        long requiredBytes = ((long)requestedHeight - 1) * receivedStride + rowBytes;
+        return requiredBytes <= bufferLength;
     }
 
     private unsafe bool IsBlankFrame(int w, int h)
@@ -306,7 +353,8 @@ public sealed class MagnifierCaptureSource : IDisposable
             {
                 int y = (rows - 1) * gy / (steps - 1);
                 byte* rowP = baseP + y * _ownStride;
-                int pixels = _ownStride / 4;
+                int pixels = Math.Min(_ownWidth, w);
+                if (pixels <= 0) return true;
                 for (int gx = 0; gx < steps; gx++)
                 {
                     int x = (pixels - 1) * gx / (steps - 1);
@@ -319,32 +367,33 @@ public sealed class MagnifierCaptureSource : IDisposable
         return true;
     }
 
-    private unsafe void CopyToDest(IntPtr dest, int destW, int destH)
+    private void SnapshotCompletedFrame(int width, int height)
     {
-        // Snapshot the buffer reference and its dimensions together. A late
-        // callback on the pump thread could reassign _ownBuffer / change the
-        // strides concurrently; pinning the snapshotted array and clamping to its
-        // real length keeps this copy from over-reading freed/short memory.
-        byte[] src = _ownBuffer;
-        int ownRows = _ownRows;
-        int ownStride = _ownStride;
-        if (src.Length == 0 || ownRows <= 0 || ownStride <= 0) return;
+        int dstStride = checked(width * 4);
+        int needed = checked(dstStride * height);
+        if (_completedBuffer.Length < needed)
+            _completedBuffer = new byte[needed];
 
-        int maxRowsInBuffer = src.Length / ownStride;
-        if (maxRowsInBuffer <= 0) return;
+        for (int row = 0; row < height; row++)
+            Buffer.BlockCopy(_ownBuffer, row * _ownStride, _completedBuffer, row * dstStride, dstStride);
 
-        int rows = Math.Min(Math.Min(ownRows, destH), maxRowsInBuffer);
-        if (rows <= 0) return;
+        _completedWidth = width;
+        _completedHeight = height;
+    }
 
-        int dstStride = destW * 4;
-        int copyBytes = Math.Min(ownStride, dstStride);
+    private unsafe bool CopyToDest(IntPtr dest, int destW, int destH)
+    {
+        byte[] src = _completedBuffer;
+        if (src.Length == 0 || _completedWidth != destW || _completedHeight != destH)
+            return false;
+
+        int stride = checked(destW * 4);
+        int bytes = checked(stride * destH);
+        if (src.Length < bytes) return false;
 
         fixed (byte* srcBase = src)
-        {
-            byte* dst = (byte*)dest;
-            for (int row = 0; row < rows; row++)
-                Buffer.MemoryCopy(srcBase + row * ownStride, dst + row * dstStride, dstStride, copyBytes);
-        }
+            Buffer.MemoryCopy(srcBase, (void*)dest, bytes, bytes);
+        return true;
     }
 
     private bool DrainMessages()
@@ -402,6 +451,7 @@ public sealed class MagnifierCaptureSource : IDisposable
                 }
             }
 
+            _ownWidth = (int)srcheader.width;
             _ownRows = rows;
             _ownStride = srcStride;
             _received = true;

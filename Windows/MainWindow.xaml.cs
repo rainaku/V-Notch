@@ -957,8 +957,8 @@ public partial class MainWindow : Window
     }
 public (double Left, double Top, double Width, double Height, double CornerRadius) GetNotchScreenRect()
     {
-        double notchW = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
-        double notchH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight;
+        double notchW = _collapsedWidth;
+        double notchH = _collapsedHeight;
 
         double dpiScale = 1.0;
         if (_hwnd != IntPtr.Zero)
