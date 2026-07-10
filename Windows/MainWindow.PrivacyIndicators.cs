@@ -96,7 +96,8 @@ public partial class MainWindow
 
         StartBreathingAnimation(PrivacyDot);
 
-        RuntimeLog.Log("PRIVACY", $"Dot shown — Mic: {state.MicrophoneInUse}, Cam: {state.CameraInUse}");
+        RuntimeLog.Log("PRIVACY",
+            $"Dot shown — Mic: {state.MicrophoneInUse}, Cam: {state.CameraInUse}, Screen: {state.ScreenRecordingActive}");
     }
 
     private void HidePrivacyIndicators()
