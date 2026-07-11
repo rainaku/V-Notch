@@ -62,6 +62,24 @@ public sealed class UpdateServiceSecurityTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.DownloadInstallerAsync("https://example.test/setup", temp.Path, null, cts.Token));
     }
 
+    [Fact]
+    public async Task CheckForUpdates_InvalidReleaseJson_ReturnsNull()
+    {
+        var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("not json") });
+        Assert.Null(await service.CheckForUpdatesAsync());
+    }
+
+    [Theory]
+    [InlineData("1.8.0", "1.7.9", 1)]
+    [InlineData("1.7.0", "1.7.0", 0)]
+    [InlineData("1.7.0", "1.7.1", -1)]
+    [InlineData("invalid", "1.7.0", 0)]
+    public void CompareVersions_HandlesValidAndInvalidValues(string left, string right, int expectedSign)
+    {
+        var result = UpdateService.CompareVersions(left, right);
+        Assert.Equal(expectedSign, Math.Sign(result));
+    }
+
     private static UpdateService CreateService(Func<HttpRequestMessage, HttpResponseMessage> reply) =>
         new(new HttpClient(new StubHandler(reply)), new UpdateSecurityPolicy(), _ => (true, string.Empty));
 

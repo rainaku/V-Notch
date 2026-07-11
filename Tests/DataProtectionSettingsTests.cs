@@ -75,6 +75,49 @@ public class DataProtectionSettingsTests : IDisposable
         Assert.DoesNotContain(key, string.Concat(Directory.GetFiles(_directory, "settings*.json").Select(File.ReadAllText)));
     }
 
+    [Fact]
+    public void Save_ReplacesSettingsAtomically_AndKeepsPreviousVersion()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        var service = new SettingsService(path, _ => { });
+        service.Save(new NotchSettings { Width = 400 });
+        service.Save(new NotchSettings { Width = 500 });
+
+        var current = JsonSerializer.Deserialize<NotchSettings>(File.ReadAllText(path));
+        var backup = Directory.GetFiles(_directory, "settings.bak-*.json").Single();
+        var previous = JsonSerializer.Deserialize<NotchSettings>(File.ReadAllText(backup));
+        Assert.Equal(500, current!.Width);
+        Assert.Equal(400, previous!.Width);
+        Assert.False(File.Exists(path + ".tmp"));
+    }
+
+    [Fact]
+    public void Load_CorruptSettings_QuarantinesFileAndRestoresDefaults()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        File.WriteAllText(path, "{ corrupt");
+
+        var settings = new SettingsService(path, _ => { }).Load();
+
+        Assert.Equal(SettingsMigrator.CurrentVersion, settings.SettingsVersion);
+        Assert.Single(Directory.GetFiles(_directory, "settings.corrupt-*.json"));
+        Assert.Equal(SettingsMigrator.CurrentVersion, JsonDocument.Parse(File.ReadAllText(path)).RootElement.GetProperty("SettingsVersion").GetInt32());
+    }
+
+    [Fact]
+    public void Save_RetainsAtMostTenBackups()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        var service = new SettingsService(path, _ => { });
+        for (var width = 100; width < 112; width++)
+        {
+            service.Save(new NotchSettings { Width = width });
+            Thread.Sleep(2);
+        }
+
+        Assert.Equal(10, Directory.GetFiles(_directory, "settings.bak-*.json").Length);
+    }
+
     public void Dispose()
     {
         DataProtection.ProtectBytes = _originalProtectBytes;

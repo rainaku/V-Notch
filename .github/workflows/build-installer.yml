@@ -21,6 +21,10 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
 
 permissions:
   contents: write
@@ -62,7 +66,18 @@ jobs:
         run: dotnet restore Tests/VNotch.Tests.csproj
 
       - name: Run tests
-        run: dotnet test Tests/VNotch.Tests.csproj --configuration Release --no-restore --verbosity normal
+        shell: pwsh
+        run: |
+          $runtime = Get-ChildItem 'C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App' -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          Copy-Item "$($runtime.FullName)\*.dll" 'Tests\bin\Release\net10.0-windows10.0.19041.0\win-x64' -Force
+          dotnet test Tests/VNotch.Tests.csproj --configuration Release --no-restore /p:CollectCoverage=true /p:CoverletOutput=artifacts/coverage/ /p:CoverletOutputFormat=cobertura --verbosity normal
+          [xml]$coverage = Get-Content Tests/artifacts/coverage/coverage.cobertura.xml
+          if ([double]$coverage.coverage.'line-rate' -le 0) { throw 'Coverage report is empty.' }
+          $baseline = 'Tests/coverage-baseline.txt'
+          if (Test-Path $baseline) {
+            $minimum = [double](Get-Content $baseline -Raw)
+            if ([double]$coverage.coverage.'line-rate' -lt $minimum) { throw "Coverage dropped below baseline $minimum." }
+          }
 
   build:
     needs: [setup, test]
@@ -120,6 +135,18 @@ jobs:
           "version=$v" >> $env:GITHUB_OUTPUT
           "sha=$short" >> $env:GITHUB_OUTPUT
           Write-Host "Built V-Notch v$v ($short) [${{ matrix.variant }}]"
+
+      - name: Smoke test publish and installer payload
+        shell: pwsh
+        run: |
+          $exe = 'release\V-Notch.exe'
+          $runtimeConfig = 'release\V-Notch.runtimeconfig.json'
+          if (-not (Test-Path $exe)) { throw "Missing published payload: $exe" }
+          if (-not (Test-Path $runtimeConfig)) { throw "Missing runtime config: $runtimeConfig" }
+          [xml]$config = Get-Content $runtimeConfig
+          if ($config.runtimeOptions.tfm -notlike 'net10.0-windows*') { throw 'Unexpected runtime config TFM.' }
+          if (-not (Test-Path 'installers\V-Notch-Setup.exe')) { throw 'Missing installer.' }
+          if (-not (Select-String -Path V-Notch-Setup.nsi -SimpleMatch 'File /r "${APP_BUILD_DIR}\*"' -Quiet)) { throw 'Installer script does not package release payload.' }
 
       - name: Name the setup file
         id: name

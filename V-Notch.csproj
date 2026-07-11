@@ -19,7 +19,7 @@
 
     <TieredCompilation>true</TieredCompilation>
     <TieredPGO>true</TieredPGO>
-    <DebugType>embedded</DebugType>
+    <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <Version>1.8.0</Version>

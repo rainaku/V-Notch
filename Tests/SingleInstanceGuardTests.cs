@@ -90,6 +90,29 @@ public class SingleInstanceGuardTests
     }
 
     [Fact]
+    public async Task TryWaitForPreviousInstance_TimesOutWhileOwnerRemainsActive()
+    {
+        var name = TestMutexName + "_timeout";
+        using var ready = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var ownerTask = Task.Run(() =>
+        {
+            using var owner = new SingleInstanceGuard(name);
+            Assert.True(owner.TryAcquire());
+            ready.Set();
+            release.Wait();
+        });
+        ready.Wait();
+        using var nonOwner = new SingleInstanceGuard(name);
+        Assert.False(nonOwner.TryAcquire());
+
+        Assert.False(nonOwner.TryWaitForPreviousInstance(TimeSpan.FromMilliseconds(20)));
+        Assert.False(nonOwner.IsOwned);
+        release.Set();
+        await ownerTask;
+    }
+
+    [Fact]
     public void Dispose_ReleasesAndCleansUp()
     {
         var guard = new SingleInstanceGuard(TestMutexName + "_dispose");

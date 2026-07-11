@@ -10,15 +10,11 @@ namespace VNotch.Services;
 
 public sealed class WeatherService : IWeatherService
 {
-    private static readonly HttpClient _http = new()
-    {
-        Timeout = TimeSpan.FromSeconds(8)
-    };
+    private readonly HttpClient _http;
 
-    static WeatherService()
-    {
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("V-Notch/1.7.0 (https://github.com/rainaku/V-Notch)");
-    }
+    public WeatherService() : this(CreateHttpClient()) { }
+
+    internal WeatherService(HttpClient httpClient) => _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
 
     public async Task<WeatherInfo?> GetCurrentWeatherAsync(string? manualCity = null, CancellationToken cancellationToken = default)
     {
@@ -114,7 +110,7 @@ public sealed class WeatherService : IWeatherService
         }
     }
 
-    private static async Task<(double lat, double lon, string city)?> ResolveCityCoordinatesAsync(string city, CancellationToken token)
+    private async Task<(double lat, double lon, string city)?> ResolveCityCoordinatesAsync(string city, CancellationToken token)
     {
         try
         {
@@ -155,7 +151,7 @@ public sealed class WeatherService : IWeatherService
         }
     }
 
-    private static async Task<(double, double, string)?> TryIpWhoIsAsync(CancellationToken token)
+    private async Task<(double, double, string)?> TryIpWhoIsAsync(CancellationToken token)
     {
         try
         {
@@ -218,4 +214,11 @@ public sealed class WeatherService : IWeatherService
         96 or 99 => "Thunderstorm",
         _ => "—"
     };
+
+    private static HttpClient CreateHttpClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("V-Notch/1.7.0 (https://github.com/rainaku/V-Notch)");
+        return client;
+    }
 }

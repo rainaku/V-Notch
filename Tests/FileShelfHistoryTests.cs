@@ -31,6 +31,26 @@ public class FileShelfHistoryTests
         Assert.Equal(0, history.RedoCount);
     }
 
+    [Fact]
+    public void UndoRedoClear_TracksDescriptionsAndRaisesEvents()
+    {
+        var history = new FileShelfHistory();
+        var events = 0;
+        history.HistoryChanged += () => events++;
+        history.RecordOperation(new TestOperation(1));
+
+        Assert.Equal("1", history.GetUndoDescription());
+        history.Undo();
+        Assert.Equal("1", history.GetRedoDescription());
+        history.Redo();
+        history.Clear();
+
+        Assert.False(history.CanUndo);
+        Assert.False(history.CanRedo);
+        Assert.Null(history.GetUndoDescription());
+        Assert.Equal(4, events);
+    }
+
     private sealed class TestOperation(int id) : IFileShelfOperation
     {
         public int Id { get; } = id;

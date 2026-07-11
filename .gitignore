@@ -26,6 +26,7 @@ build_output.txt
 build_output_clean.txt
 build_output_clean_final.txt
 *.txt
+!Tests/coverage-baseline.txt
 task.md
 *.iss
 *.md
