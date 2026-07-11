@@ -9,7 +9,7 @@ namespace VNotch;
 
 public partial class App : Application
 {
-    private static Mutex? _mutex;
+    private static SingleInstanceGuard? _guard;
     private const string MutexName = "VNotch_SingleInstance_Mutex";
 
     public static IServiceProvider Services { get; private set; } = null!;
@@ -33,24 +33,15 @@ public partial class App : Application
             return;
         }
 
-        _mutex = new Mutex(true, MutexName, out bool createdNew);
+        _guard = new SingleInstanceGuard(MutexName);
+        bool ownsMutex = _guard.TryAcquire();
 
-        if (!createdNew && e.Args.Contains("--restart"))
+        if (!ownsMutex && e.Args.Contains("--restart"))
         {
-            try
-            {
-                if (_mutex.WaitOne(TimeSpan.FromSeconds(10)))
-                {
-                    createdNew = true;
-                }
-            }
-            catch (AbandonedMutexException)
-            {
-                createdNew = true;
-            }
+            ownsMutex = _guard.TryWaitForPreviousInstance(TimeSpan.FromSeconds(10));
         }
 
-        if (!createdNew)
+        if (!ownsMutex)
         {
             MessageBox.Show("V-Notch is already running!", "V-Notch",
                 MessageBoxButton.OK, MessageBoxImage.Information);
@@ -163,8 +154,7 @@ public partial class App : Application
             disposable.Dispose();
         }
 
-        _mutex?.ReleaseMutex();
-        _mutex?.Dispose();
+        _guard?.Dispose();
         base.OnExit(e);
     }
     private static bool IsRecoverableException(Exception ex)
