@@ -8,7 +8,10 @@ param(
     [switch]$SelfContained,
     # Optional version override (e.g. injected from a git tag by CI).
     # When empty, the version baked into V-Notch.csproj is used.
-    [string]$Version = ''
+    [string]$Version = '',
+    # Optional code-signing certificate. In CI, pass these from protected secrets.
+    [string]$CertificatePath = '',
+    [string]$CertificatePassword = ''
 )
 
 # Build a list of -p:Version arguments only when an override is supplied.
@@ -49,6 +52,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "      Build failed!" -ForegroundColor Red
     exit 1
 }
+
 Write-Host "      Build successful" -ForegroundColor Green
 
 # Step 3: Publish to release folder
@@ -109,6 +113,20 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "      NSIS build failed!" -ForegroundColor Red
     exit 1
 }
+
+# Authenticode-sign the installer before publishing it. A build without a configured
+# certificate is intentionally warned about; the in-app updater will reject unsigned files.
+if ($CertificatePath) {
+    $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
+    if (-not $signtool) { Write-Host "      signtool.exe not found; cannot sign installer." -ForegroundColor Red; exit 1 }
+    & $signtool.Source sign /fd SHA256 /f $CertificatePath /p $CertificatePassword /tr "http://timestamp.digicert.com" /td SHA256 "installers\V-Notch-Setup.exe"
+    if ($LASTEXITCODE -ne 0) { Write-Host "      Authenticode signing failed!" -ForegroundColor Red; exit 1 }
+    Write-Host "      Installer Authenticode signature applied" -ForegroundColor Green
+} else { Write-Host "      WARNING: installer is unsigned. Configure a signing certificate for release builds." -ForegroundColor Yellow }
+
+$checksum = (Get-FileHash -Algorithm SHA256 "installers\V-Notch-Setup.exe").Hash.ToLowerInvariant()
+Set-Content -Path "installers\V-Notch-Setup.exe.sha256" -Value "$checksum  V-Notch-Setup.exe" -NoNewline
+Write-Host "      SHA-256 checksum created" -ForegroundColor Green
 
 Write-Host "      Installer created successfully" -ForegroundColor Green
 Write-Host ""

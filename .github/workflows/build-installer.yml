@@ -132,15 +132,20 @@ jobs:
           }
           if ($out -ne "V-Notch-Setup.exe") {
             Copy-Item "installers\V-Notch-Setup.exe" "installers\$out" -Force
+            $hash = (Get-FileHash -Algorithm SHA256 "installers\$out").Hash.ToLowerInvariant()
+            Set-Content -Path "installers\$out.sha256" -Value "$hash  $out" -NoNewline
           }
           "file=installers/$out" >> $env:GITHUB_OUTPUT
+          "checksum=installers/$out.sha256" >> $env:GITHUB_OUTPUT
           "asset=$out" >> $env:GITHUB_OUTPUT
 
       - name: Upload setup artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.name.outputs.asset }}-${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.sha }}
-          path: ${{ steps.name.outputs.file }}
+          path: |
+            ${{ steps.name.outputs.file }}
+            ${{ steps.name.outputs.checksum }}
           if-no-files-found: error
           retention-days: 30
 
@@ -158,7 +163,9 @@ jobs:
 
             - `V-Notch-Setup.exe` — lightweight, requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
             - `V-Notch-Setup-SelfContained.exe` — runs out of the box, no .NET install required (larger file).
-          files: ${{ steps.name.outputs.file }}
+          files: |
+            ${{ steps.name.outputs.file }}
+            ${{ steps.name.outputs.checksum }}
           make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -175,7 +182,9 @@ jobs:
 
             - `V-Notch-Setup.exe` — lightweight, requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
             - `V-Notch-Setup-SelfContained.exe` — runs out of the box, no .NET install required (larger file).
-          files: ${{ steps.name.outputs.file }}
+          files: |
+            ${{ steps.name.outputs.file }}
+            ${{ steps.name.outputs.checksum }}
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
