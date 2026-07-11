@@ -161,7 +161,7 @@ All persistent data created by V-Notch lives only on your device.
 
 ### 5.1 Settings (`%APPDATA%\V-Notch\settings.json`)
 
-Stores your preferences: notch size and position, visual style and animation options, notification toggles, language, startup behavior, the File Shelf contents (file paths), and feature flags. This file contains no passwords, credentials, or tracking identifiers.
+ Stores your preferences: notch size and position, visual style and animation options, notification toggles, language, startup behavior, the File Shelf contents (file paths), and feature flags. Settings may contain a YouTube API key only if you explicitly provide one. Before it is written to disk, the key is encrypted using Windows DPAPI (Data Protection API). The encrypted value uses the current Windows user account and cannot be decrypted by another user or on another machine. If DPAPI is unavailable, the API key is not saved at all.
 
 ### 5.2 Diagnostic Log (`vnotch-debug.log`)
 

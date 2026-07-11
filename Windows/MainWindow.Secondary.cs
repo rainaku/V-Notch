@@ -1011,7 +1011,23 @@ public partial class MainWindow
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.A && (Keyboard.Modifiers & ModifierKeys.Control) != 0
+        bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        bool isShift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+
+        if (_isSecondaryView && isCtrl && !isShift && e.Key == Key.Z && _fileShelf.CanUndo)
+        {
+            if (_fileShelf.UndoLastOperation())
+                RefreshShelfLayout();
+            e.Handled = true;
+        }
+        else if (_isSecondaryView && isCtrl &&
+            (e.Key == Key.Y || (isShift && e.Key == Key.Z)) && _fileShelf.CanRedo)
+        {
+            if (_fileShelf.RedoLastOperation())
+                RefreshShelfLayout();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.A && isCtrl
             && _isSecondaryView && _fileShelf.FileCount > 0)
         {
             _fileShelf.SelectAll();

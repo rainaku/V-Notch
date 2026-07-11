@@ -161,7 +161,7 @@ Toàn bộ dữ liệu lâu dài do V-Notch tạo ra chỉ nằm trên thiết b
 
 ### 5.1 Cài đặt (`%APPDATA%\V-Notch\settings.json`)
 
-Lưu các tùy chọn của bạn: kích thước và vị trí notch, kiểu hiển thị và tùy chọn animation, công tắc thông báo, ngôn ngữ, hành vi khởi động, nội dung File Shelf (đường dẫn tệp), và các cờ tính năng. Tệp này không chứa mật khẩu, thông tin đăng nhập, hay định danh theo dõi.
+ Lưu các tùy chọn của bạn: kích thước và vị trí notch, kiểu hiển thị và tùy chọn animation, công tắc thông báo, ngôn ngữ, hành vi khởi động, nội dung File Shelf (đường dẫn tệp), và các cờ tính năng. Tệp này có thể chứa YouTube API key nếu bạn tự cung cấp; key được mã hóa bằng Windows DPAPI trước khi ghi xuống đĩa, gắn với tài khoản Windows hiện tại và không thể giải mã bởi người dùng hoặc máy khác. Nếu DPAPI không khả dụng, API key không được lưu.
 
 ### 5.2 Nhật ký chẩn đoán (`vnotch-debug.log`)
 

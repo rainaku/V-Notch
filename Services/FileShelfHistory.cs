@@ -31,16 +31,12 @@ public sealed class FileShelfHistory
         _undoStack.Push(operation);
         _redoStack.Clear();
 
-        // Limit stack size to prevent memory issues
-        while (_undoStack.Count > MaxHistorySize)
+        if (_undoStack.Count > MaxHistorySize)
         {
-            var items = _undoStack.ToList();
-            items.Reverse();
+            var newest = _undoStack.Take(MaxHistorySize).Reverse().ToArray();
             _undoStack.Clear();
-            foreach (var item in items.Take(MaxHistorySize))
-            {
+            foreach (var item in newest)
                 _undoStack.Push(item);
-            }
         }
 
         HistoryChanged?.Invoke();
@@ -49,7 +45,7 @@ public sealed class FileShelfHistory
     /// <summary>
     /// Undo the last operation
     /// </summary>
-    public IFileShelfOperation? Undo()
+    internal IFileShelfOperation? Undo()
     {
         if (!CanUndo)
             return null;
@@ -63,7 +59,7 @@ public sealed class FileShelfHistory
     /// <summary>
     /// Redo the last undone operation
     /// </summary>
-    public IFileShelfOperation? Redo()
+    internal IFileShelfOperation? Redo()
     {
         if (!CanRedo)
             return null;
@@ -72,6 +68,26 @@ public sealed class FileShelfHistory
         _undoStack.Push(operation);
         HistoryChanged?.Invoke();
         return operation;
+    }
+
+    internal bool TryUndo(Controllers.FileShelfController controller)
+    {
+        if (!CanUndo || !_undoStack.Peek().Undo(controller))
+            return false;
+
+        _redoStack.Push(_undoStack.Pop());
+        HistoryChanged?.Invoke();
+        return true;
+    }
+
+    internal bool TryRedo(Controllers.FileShelfController controller)
+    {
+        if (!CanRedo || !_redoStack.Peek().Redo(controller))
+            return false;
+
+        _undoStack.Push(_redoStack.Pop());
+        HistoryChanged?.Invoke();
+        return true;
     }
 
     /// <summary>
@@ -107,8 +123,8 @@ public sealed class FileShelfHistory
 public interface IFileShelfOperation
 {
     string Description { get; }
-    void Undo(Controllers.FileShelfController controller);
-    void Redo(Controllers.FileShelfController controller);
+    bool Undo(Controllers.FileShelfController controller);
+    bool Redo(Controllers.FileShelfController controller);
 }
 
 /// <summary>
@@ -127,17 +143,16 @@ public sealed class AddFilesOperation : IFileShelfOperation
         ? $"Add file: {System.IO.Path.GetFileName(_files[0])}"
         : $"Add {_files.Length} files";
 
-    public void Undo(Controllers.FileShelfController controller)
+    public bool Undo(Controllers.FileShelfController controller)
     {
-        controller.RemoveFiles(_files);
+        if (!controller.CanRemoveFilesDirect(_files, allowPinned: true)) return false;
+        return controller.RemoveFilesDirect(_files, allowPinned: true).Length == _files.Length;
     }
 
-    public void Redo(Controllers.FileShelfController controller)
+    public bool Redo(Controllers.FileShelfController controller)
     {
-        foreach (var file in _files)
-        {
-            controller.AddFileDirect(file);
-        }
+        if (!controller.CanAddFilesDirect(_files)) return false;
+        return _files.All(controller.AddFileDirect);
     }
 }
 
@@ -159,21 +174,23 @@ public sealed class RemoveFilesOperation : IFileShelfOperation
         ? $"Remove file: {System.IO.Path.GetFileName(_files[0])}"
         : $"Remove {_files.Length} files";
 
-    public void Undo(Controllers.FileShelfController controller)
+    public bool Undo(Controllers.FileShelfController controller)
     {
+        if (!controller.CanAddFilesDirect(_files)) return false;
+        bool restored = true;
         foreach (var file in _files)
         {
-            controller.AddFileDirect(file);
+            restored &= controller.AddFileDirect(file);
             if (_pinnedStates.TryGetValue(file, out bool wasPinned) && wasPinned)
-            {
-                controller.PinFile(file);
-            }
+                restored &= controller.PinFileDirect(file);
         }
+        return restored;
     }
 
-    public void Redo(Controllers.FileShelfController controller)
+    public bool Redo(Controllers.FileShelfController controller)
     {
-        controller.RemoveFiles(_files);
+        if (!controller.CanRemoveFilesDirect(_files, allowPinned: true)) return false;
+        return controller.RemoveFilesDirect(_files, allowPinned: true).Length == _files.Length;
     }
 }
 
@@ -195,17 +212,16 @@ public sealed class TogglePinOperation : IFileShelfOperation
         ? $"Unpin: {System.IO.Path.GetFileName(_file)}"
         : $"Pin: {System.IO.Path.GetFileName(_file)}";
 
-    public void Undo(Controllers.FileShelfController controller)
+    public bool Undo(Controllers.FileShelfController controller)
     {
-        if (_wasPinned)
-            controller.PinFile(_file);
-        else
-            controller.UnpinFile(_file);
+        return _wasPinned
+            ? controller.PinFileDirect(_file)
+            : controller.UnpinFileDirect(_file);
     }
 
-    public void Redo(Controllers.FileShelfController controller)
+    public bool Redo(Controllers.FileShelfController controller)
     {
-        controller.TogglePin(_file);
+        return controller.TogglePinDirect(_file);
     }
 }
 
@@ -227,25 +243,29 @@ public sealed class BatchPinOperation : IFileShelfOperation
         ? $"Pin {_fileStates.Count} files"
         : $"Unpin {_fileStates.Count} files";
 
-    public void Undo(Controllers.FileShelfController controller)
+    public bool Undo(Controllers.FileShelfController controller)
     {
+        bool changed = true;
         foreach (var kvp in _fileStates)
         {
             if (kvp.Value) // Was pinned
-                controller.PinFile(kvp.Key);
+                changed &= controller.PinFileDirect(kvp.Key);
             else
-                controller.UnpinFile(kvp.Key);
+                changed &= controller.UnpinFileDirect(kvp.Key);
         }
+        return changed;
     }
 
-    public void Redo(Controllers.FileShelfController controller)
+    public bool Redo(Controllers.FileShelfController controller)
     {
+        bool changed = true;
         foreach (var file in _fileStates.Keys)
         {
             if (_pinning)
-                controller.PinFile(file);
+                changed &= controller.PinFileDirect(file);
             else
-                controller.UnpinFile(file);
+                changed &= controller.UnpinFileDirect(file);
         }
+        return changed;
     }
 }

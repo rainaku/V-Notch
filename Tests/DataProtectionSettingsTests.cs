@@ -1,0 +1,83 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text.Json;
+using VNotch.Models;
+using VNotch.Services;
+using Xunit;
+
+namespace VNotch.Tests;
+
+public class DataProtectionSettingsTests : IDisposable
+{
+    private readonly Func<byte[], byte[]> _originalProtectBytes = DataProtection.ProtectBytes;
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "VNotchTests", Guid.NewGuid().ToString("N"));
+
+    public DataProtectionSettingsTests() => Directory.CreateDirectory(_directory);
+
+    [Fact]
+    public void ProtectAndUnprotect_RoundTripsValue()
+    {
+        const string key = "test-api-key";
+
+        var encrypted = DataProtection.Protect(key);
+
+        Assert.StartsWith("enc:", encrypted);
+        Assert.NotEqual(key, encrypted);
+        Assert.Equal(key, DataProtection.Unprotect(encrypted));
+    }
+
+    [Fact]
+    public void Unprotect_CorruptData_ThrowsCryptographicException()
+    {
+        Assert.Throws<CryptographicException>(() => DataProtection.Unprotect("enc:not-valid-base64"));
+    }
+
+    [Fact]
+    public void Load_PlaintextLegacyKey_MigratesAndRewritesEncryptedValue()
+    {
+        const string key = "legacy-api-key";
+        var path = Path.Combine(_directory, "settings.json");
+        var legacyBackup = Path.Combine(_directory, "settings.bak-legacy.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(new
+        {
+            SettingsVersion = SettingsMigrator.CurrentVersion,
+            YouTubeApiKey = key
+        }));
+        File.Copy(path, legacyBackup);
+
+        var settings = new SettingsService(path, _ => { }).Load();
+        var stored = JsonDocument.Parse(File.ReadAllText(path)).RootElement
+            .GetProperty(nameof(NotchSettings.YouTubeApiKey)).GetString();
+
+        Assert.Equal(key, settings.YouTubeApiKey);
+        Assert.NotNull(stored);
+        Assert.StartsWith("enc:", stored);
+        Assert.DoesNotContain(key, File.ReadAllText(path));
+        Assert.False(File.Exists(legacyBackup));
+    }
+
+    [Fact]
+    public void ProtectFailure_DoesNotCreateOrOverwriteSettingsContainingKey()
+    {
+        const string key = "must-never-be-written";
+        var path = Path.Combine(_directory, "settings.json");
+        var original = "{\"SettingsVersion\":9,\"YouTubeApiKey\":\"enc:existing\"}";
+        File.WriteAllText(path, original);
+        string? warning = null;
+        DataProtection.ProtectBytes = _ => throw new CryptographicException("simulated DPAPI failure");
+
+        new SettingsService(path, message => warning = message).Save(new NotchSettings { YouTubeApiKey = key });
+
+        Assert.Equal(original, File.ReadAllText(path));
+        Assert.Contains("API key", warning);
+        Assert.DoesNotContain(key, string.Concat(Directory.GetFiles(_directory, "settings*.json").Select(File.ReadAllText)));
+    }
+
+    public void Dispose()
+    {
+        DataProtection.ProtectBytes = _originalProtectBytes;
+        if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
+    }
+}

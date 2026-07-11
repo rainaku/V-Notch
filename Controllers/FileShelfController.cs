@@ -24,6 +24,7 @@ public sealed class FileShelfController : IDisposable
     private readonly Queue<string> _addQueue = new();
     private readonly object _lock = new();
     private readonly Dispatcher _dispatcher;
+    private readonly FileShelfHistory _history = new();
     private bool _isProcessingQueue = false;
 
     private List<string>? _filesSnapshot;
@@ -53,6 +54,13 @@ public sealed class FileShelfController : IDisposable
     public int RemainingSlots { get { lock (_lock) return Math.Max(0, MaxFiles - (_filesList.Count + _pendingFiles.Count)); } }
     public bool IsFull { get { lock (_lock) return (_filesList.Count + _pendingFiles.Count) >= MaxFiles; } }
     public bool IsLimitUnlocked => _settings.IsShelfUploadLimitUnlocked;
+    public bool CanUndo => _history.CanUndo;
+    public bool CanRedo => _history.CanRedo;
+    public event Action? HistoryChanged
+    {
+        add => _history.HistoryChanged += value;
+        remove => _history.HistoryChanged -= value;
+    }
 
     public event Action<string>? FileReadyToAdd;
     public event Action? AddQueueDrained;
@@ -193,6 +201,7 @@ public sealed class FileShelfController : IDisposable
         if (shouldAdd)
         {
             WatchDirectory(filePath!);
+            _history.RecordOperation(new AddFilesOperation(new[] { filePath! }));
             CapacityChanged?.Invoke();
             FileReadyToAdd?.Invoke(filePath!);
         }
@@ -201,23 +210,23 @@ public sealed class FileShelfController : IDisposable
             ProcessNextRequested?.Invoke();
         }
     }
-    public void AddFileDirect(string filePath)
+    internal bool AddFileDirect(string filePath)
     {
         lock (_lock)
         {
             if ((_filesList.Count + _pendingFiles.Count) >= MaxFiles
                 || _filesSet.Contains(filePath))
-                return;
+                return false;
         }
 
         if (!File.Exists(filePath) && !Directory.Exists(filePath))
-            return;
+            return false;
 
         lock (_lock)
         {
             if ((_filesList.Count + _pendingFiles.Count) >= MaxFiles
                 || _filesSet.Contains(filePath))
-                return;
+                return false;
 
             _filesList.Add(filePath);
             _filesSet.Add(filePath);
@@ -226,6 +235,7 @@ public sealed class FileShelfController : IDisposable
         WatchDirectory(filePath);
         CapacityChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
+        return true;
     }
 
     public bool IsSelected(string path) { lock (_lock) return _selectedFiles.Contains(path); }
@@ -303,97 +313,140 @@ public sealed class FileShelfController : IDisposable
         }
     }
 
-    public void RemoveFiles(IEnumerable<string> filePaths)
+    public bool RemoveFiles(IEnumerable<string> filePaths)
     {
-        var toRemove = new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
-        lock (_lock) toRemove.ExceptWith(_pinnedFiles);
-        if (toRemove.Count == 0) return;
+        var removed = RemoveFilesDirect(filePaths, allowPinned: false);
+        if (removed.Length == 0) return false;
+
+        _history.RecordOperation(new RemoveFilesOperation(removed,
+            removed.ToDictionary(file => file, IsPinned, StringComparer.OrdinalIgnoreCase)));
+        return true;
+    }
+
+    internal bool CanAddFilesDirect(IEnumerable<string> filePaths)
+    {
+        var requestedFiles = filePaths.ToArray();
+        var files = requestedFiles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (files.Length == 0 || files.Length != requestedFiles.Length ||
+            files.Any(file => !File.Exists(file) && !Directory.Exists(file)))
+            return false;
 
         lock (_lock)
         {
-            _filesList.RemoveAll(f => toRemove.Contains(f));
-            _filesSet.ExceptWith(toRemove);
-            _selectedFiles.ExceptWith(toRemove);
+            return _filesList.Count + _pendingFiles.Count + files.Length <= MaxFiles
+                && files.All(file => !_filesSet.Contains(file));
+        }
+    }
+
+    public bool RemoveFile(string filePath) => RemoveFiles(new[] { filePath });
+
+    internal string[] RemoveFilesDirect(IEnumerable<string> filePaths, bool allowPinned)
+    {
+        var requested = new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
+        string[] removed;
+        lock (_lock)
+        {
+            removed = _filesList
+                .Where(file => requested.Contains(file) && (allowPinned || !_pinnedFiles.Contains(file)))
+                .ToArray();
+            if (removed.Length == 0) return Array.Empty<string>();
+
+            _filesList.RemoveAll(file => requested.Contains(file) && (allowPinned || !_pinnedFiles.Contains(file)));
+            _filesSet.ExceptWith(removed);
+            _selectedFiles.ExceptWith(removed);
+            _pinnedFiles.ExceptWith(removed);
             InvalidateSnapshot();
         }
-        foreach (var file in toRemove)
+        foreach (var file in removed)
         {
             UnwatchDirectory(file);
             FileIconProvider.Invalidate(file);
         }
         CapacityChanged?.Invoke();
+        return removed;
     }
-    public void RemoveFile(string filePath)
+
+    internal bool CanRemoveFilesDirect(IEnumerable<string> filePaths, bool allowPinned)
     {
-        lock (_lock) { if (_pinnedFiles.Contains(filePath)) return; }
+        var requestedFiles = filePaths.ToArray();
+        if (requestedFiles.Length == 0 ||
+            requestedFiles.Distinct(StringComparer.OrdinalIgnoreCase).Count() != requestedFiles.Length)
+            return false;
 
         lock (_lock)
         {
-            _filesList.Remove(filePath);
-            _filesSet.Remove(filePath);
-            _selectedFiles.Remove(filePath);
-            InvalidateSnapshot();
+            return requestedFiles.All(file => _filesSet.Contains(file) &&
+                (allowPinned || !_pinnedFiles.Contains(file)));
         }
-        UnwatchDirectory(filePath);
-        FileIconProvider.Invalidate(filePath);
-        CapacityChanged?.Invoke();
     }
     public List<string> GetSelectedForDeletion() { lock (_lock) return _selectedFiles.Where(f => !_pinnedFiles.Contains(f)).ToList(); }
 
     public string[] GetDragFiles() { lock (_lock) return _selectedFiles.ToArray(); }
-    public void HandleDragMoveOut(string[] draggedFiles)
+    public bool HandleDragMoveOut(string[] draggedFiles)
     {
-        var toRemove = new HashSet<string>(draggedFiles, StringComparer.OrdinalIgnoreCase);
-        lock (_lock) toRemove.ExceptWith(_pinnedFiles);
-        if (toRemove.Count == 0) return;
+        var removed = RemoveFilesDirect(draggedFiles, allowPinned: false);
+        if (removed.Length == 0) return false;
 
-        lock (_lock)
-        {
-            _filesList.RemoveAll(f => toRemove.Contains(f));
-            _filesSet.ExceptWith(toRemove);
-            _selectedFiles.ExceptWith(toRemove);
-            InvalidateSnapshot();
-        }
-        foreach (var f in toRemove)
-            UnwatchDirectory(f);
-        CapacityChanged?.Invoke();
+        _history.RecordOperation(new RemoveFilesOperation(removed,
+            removed.ToDictionary(file => file, IsPinned, StringComparer.OrdinalIgnoreCase)));
         LayoutRefreshRequested?.Invoke();
+        return true;
     }
 
     public bool IsPinned(string path) { lock (_lock) return _pinnedFiles.Contains(path); }
 
-    public void TogglePin(string path)
+    public bool TogglePin(string path)
+    {
+        bool wasPinned = IsPinned(path);
+        if (!TogglePinDirect(path)) return false;
+
+        _history.RecordOperation(new TogglePinOperation(path, wasPinned));
+        return true;
+    }
+
+    internal bool TogglePinDirect(string path)
     {
         lock (_lock)
         {
-            if (_pinnedFiles.Contains(path))
-                _pinnedFiles.Remove(path);
-            else
-                _pinnedFiles.Add(path);
+            if (!_filesSet.Contains(path)) return false;
+            if (_pinnedFiles.Contains(path)) _pinnedFiles.Remove(path);
+            else _pinnedFiles.Add(path);
         }
         SortPinnedFirst();
-        lock (_lock) InvalidateSnapshot();
         PinStateChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
+        return true;
     }
 
-    public void PinFile(string path)
+    internal bool PinFileDirect(string path)
     {
-        lock (_lock) _pinnedFiles.Add(path);
+        lock (_lock)
+        {
+            if (!_filesSet.Contains(path) || _pinnedFiles.Contains(path)) return false;
+            _pinnedFiles.Add(path);
+        }
         SortPinnedFirst();
-        lock (_lock) InvalidateSnapshot();
         PinStateChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
+        return true;
     }
 
-    public void UnpinFile(string path)
+    internal bool UnpinFileDirect(string path)
     {
-        lock (_lock) _pinnedFiles.Remove(path);
+        lock (_lock)
+        {
+            if (!_filesSet.Contains(path) || !_pinnedFiles.Contains(path)) return false;
+            _pinnedFiles.Remove(path);
+        }
         SortPinnedFirst();
-        lock (_lock) InvalidateSnapshot();
         PinStateChanged?.Invoke();
         LayoutRefreshRequested?.Invoke();
+        return true;
     }
+
+    public bool UndoLastOperation() => _history.TryUndo(this);
+
+    public bool RedoLastOperation() => _history.TryRedo(this);
 
     private void SortPinnedFirst()
     {

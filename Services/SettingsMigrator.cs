@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
 
-    public const int CurrentVersion = 8;
+    public const int CurrentVersion = 9;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
@@ -99,6 +99,7 @@ public static class SettingsMigrator
                 }
                 return root;
             },
+            [8] = root => root,
         };
 
     public static (NotchSettings settings, bool migrated) Migrate(string rawJson)
@@ -137,6 +138,22 @@ public static class SettingsMigrator
         }
 
         root[nameof(NotchSettings.SettingsVersion)] = CurrentVersion;
+
+        // Version 9 introduced key protection, but a settings file can already
+        // report that version while still containing a legacy plaintext value.
+        // Therefore inspect every loaded file, not just a particular migration
+        // step. Protect intentionally throws: callers must retain the old file
+        // rather than clear or rewrite a key that could not be protected.
+        const string keyName = nameof(NotchSettings.YouTubeApiKey);
+        if (root.TryGetPropertyValue(keyName, out var keyNode)
+            && keyNode is JsonValue keyValue
+            && keyValue.TryGetValue<string>(out var key)
+            && !string.IsNullOrEmpty(key)
+            && !DataProtection.IsEncrypted(key))
+        {
+            root[keyName] = DataProtection.Protect(key);
+            migrated = true;
+        }
 
         var normalizedJson = root.ToJsonString();
         var settings = JsonSerializer.Deserialize<NotchSettings>(normalizedJson) ?? new NotchSettings();

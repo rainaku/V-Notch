@@ -9,6 +9,7 @@ public class SettingsService : ISettingsService
 {
     private readonly string _settingsPath;
     private readonly string _appFolder;
+    private readonly Action<string> _apiKeySaveWarning;
 
     public SettingsService()
     {
@@ -21,6 +22,17 @@ public class SettingsService : ISettingsService
         }
 
         _settingsPath = Path.Combine(_appFolder, "settings.json");
+        _apiKeySaveWarning = ShowApiKeySaveWarning;
+    }
+
+    // Test seam: production callers always use the APPDATA location and WPF notice.
+    internal SettingsService(string settingsPath, Action<string>? apiKeySaveWarning = null)
+    {
+        _settingsPath = settingsPath ?? throw new ArgumentNullException(nameof(settingsPath));
+        _appFolder = Path.GetDirectoryName(_settingsPath)
+            ?? throw new ArgumentException("The settings path must include a directory.", nameof(settingsPath));
+        Directory.CreateDirectory(_appFolder);
+        _apiKeySaveWarning = apiKeySaveWarning ?? ShowApiKeySaveWarning;
     }
 
     public NotchSettings Load()
@@ -55,7 +67,9 @@ public class SettingsService : ISettingsService
                 RuntimeLog.Log(
                     "SETTINGS-LOAD",
                     $"Migrated/normalized settings to version {SettingsMigrator.CurrentVersion}");
-                Save(settings);
+                Save(settings, keepExistingBackup: !migrated);
+                if (migrated)
+                    RemovePlaintextKeySettingsFiles();
             }
 
             return settings;
@@ -71,6 +85,13 @@ public class SettingsService : ISettingsService
             Save(defaults);
             return defaults;
         }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            // A legacy key could not be protected. Do not touch the existing file.
+            RuntimeLog.Error("SETTINGS-LOAD", "DPAPI encryption failed; legacy settings were left unchanged.");
+            _apiKeySaveWarning("Your YouTube API key was not saved because Windows DPAPI could not encrypt it. Your existing settings file was left unchanged.");
+            return new NotchSettings { SettingsVersion = SettingsMigrator.CurrentVersion };
+        }
         catch (Exception ex)
         {
 
@@ -81,7 +102,13 @@ public class SettingsService : ISettingsService
 
     public void Save(NotchSettings settings)
     {
+        Save(settings, keepExistingBackup: true);
+    }
+
+    private void Save(NotchSettings settings, bool keepExistingBackup)
+    {
         if (settings == null) throw new ArgumentNullException(nameof(settings));
+        var tempPath = _settingsPath + ".tmp";
 
         try
         {
@@ -90,14 +117,14 @@ public class SettingsService : ISettingsService
             var options = new JsonSerializerOptions { WriteIndented = true };
             var json = JsonSerializer.Serialize(settings, options);
 
-            var tempPath = _settingsPath + ".tmp";
             File.WriteAllText(tempPath, json);
 
             if (File.Exists(_settingsPath))
             {
                 // Keep a rolling history of the previous on-disk state so a bad
                 // overwrite (e.g. losing hand-tuned values) can always be recovered.
-                BackupExistingSettings();
+                if (keepExistingBackup)
+                    BackupExistingSettings();
                 File.Replace(tempPath, _settingsPath, destinationBackupFileName: null);
             }
             else
@@ -105,11 +132,59 @@ public class SettingsService : ISettingsService
                 File.Move(tempPath, _settingsPath);
             }
         }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            // DPAPI encryption failed — do NOT overwrite the existing settings file.
+            // The old file remains intact. Notify the user so they know the API key
+            // was not saved.
+            RuntimeLog.Error("SETTINGS-SAVE", "DPAPI encryption failed — settings were not saved.");
+            _apiKeySaveWarning("Unable to encrypt your YouTube API key. Your settings have not been saved.\n\nPlease try again or restart your computer.");
+        }
         catch (Exception ex)
         {
             RuntimeLog.Error("SETTINGS-SAVE", ex.ToString());
             System.Windows.MessageBox.Show($"Unable to save settings: {ex.Message}", "Error",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+        finally
+        {
+            // Serialization happens before writing this file, but remove any stale
+            // temporary output so an interrupted/failed save can never be mistaken
+            // for a settings file containing sensitive data.
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
+    }
+
+    private static void ShowApiKeySaveWarning(string message) =>
+        System.Windows.MessageBox.Show(message, "Settings Not Saved",
+            System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+
+    private void RemovePlaintextKeySettingsFiles()
+    {
+        // A backup made by an older application release may still contain a
+        // plaintext key. Once migration has succeeded, remove only those unsafe
+        // settings artifacts; encrypted backups remain available for recovery.
+        foreach (var path in Directory.GetFiles(_appFolder, "settings*.json"))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(path));
+                if (document.RootElement.TryGetProperty(nameof(NotchSettings.YouTubeApiKey), out var key)
+                    && key.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrEmpty(key.GetString())
+                    && !DataProtection.IsEncrypted(key.GetString()))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (JsonException)
+            {
+                // Corrupt files are handled by Load's existing quarantine path.
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("SETTINGS-LOAD", $"Unable to remove an unsafe legacy settings artifact: {ex.GetType().Name}");
+            }
         }
     }
 
