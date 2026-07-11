@@ -256,7 +256,7 @@ internal sealed class CubicBezierEase : EasingFunctionBase
     public double X2 { get; set; }
     public double Y2 { get; set; }
 
-    public CubicBezierEase() { }
+    public CubicBezierEase() { /* Required by WPF Freezable/XAML construction. */ }
 
     public CubicBezierEase(double x1, double y1, double x2, double y2)
     {

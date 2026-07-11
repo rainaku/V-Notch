@@ -840,6 +840,42 @@ public partial class MainWindow
 
     private void StopTitleGradientShift()
     {
+        StopGradientAnimations("TrackTitleGradient");
+        StopGradientAnimations("TrackTitleNextGradient");
+        StopForegroundAnimation(TrackArtist);
+        StopForegroundAnimation(TrackArtistNext);
+        StopForegroundAnimation(LyricTextA);
+        StopForegroundAnimation(LyricTextB);
+        StopPathAnimations(PrevArrow0);
+        StopPathAnimations(PrevArrow1);
+        StopPathAnimations(PrevArrow2);
+        StopPathAnimations(NextArrow0);
+        StopPathAnimations(NextArrow1);
+        StopPathAnimations(NextArrow2);
+        StopPathAnimations(PauseIconPath);
+        StopPathAnimations(PlayIconPath);
+    }
+
+    private void StopGradientAnimations(string resourceKey)
+    {
+        if (Resources[resourceKey] is not LinearGradientBrush brush) return;
+
+        foreach (var stop in brush.GradientStops)
+            stop.BeginAnimation(GradientStop.ColorProperty, null);
+    }
+
+    private static void StopForegroundAnimation(System.Windows.Controls.TextBlock textBlock)
+    {
+        if (textBlock.Foreground is SolidColorBrush brush && !brush.IsFrozen)
+            brush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+    }
+
+    private static void StopPathAnimations(System.Windows.Shapes.Path path)
+    {
+        if (path.Fill is SolidColorBrush fill && !fill.IsFrozen)
+            fill.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        if (path.Stroke is SolidColorBrush stroke && !stroke.IsFrozen)
+            stroke.BeginAnimation(SolidColorBrush.ColorProperty, null);
     }
 
     private void ResetTitleGradientToWhite()

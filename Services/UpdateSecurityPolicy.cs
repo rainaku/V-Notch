@@ -96,7 +96,7 @@ public sealed class UpdateSecurityPolicy
         public IntPtr hFile = IntPtr.Zero;
         public IntPtr pgKnownSubject = IntPtr.Zero;
         public WinTrustFileInfo(string path) => pcwszFilePath = path;
-        public void Dispose() { }
+        public void Dispose() { /* WinTrustData owns allocated native memory. */ }
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

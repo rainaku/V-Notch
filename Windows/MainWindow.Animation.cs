@@ -239,7 +239,6 @@ public partial class MainWindow
         CurrentCompactThumbnailRadius = 6;
         ResetCompactThumbnailRestingState();
 
-        UpdateZOrderTimerInterval();
         EnsureTopmost();
 
         double currentWidth = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth;
@@ -465,7 +464,6 @@ public partial class MainWindow
             RestoreExpandedContentOpacity();
 
             UpdateProgressTimerState();
-            UpdateBatteryInfo();
             UpdateCalendarInfo();
             ShowMediaBackground();
 
@@ -610,7 +608,6 @@ public partial class MainWindow
             _progressDisplayRatio = 0;
         }
 
-        UpdateZOrderTimerInterval();
         EnsureTopmost();
 
         AnimateExpandedContentFadeOut();

@@ -2899,10 +2899,6 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         }
     }
 
-    private void SettingsScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
-    {
-    }
-
     private void SmoothScroll_Tick(object? sender, EventArgs e)
     {
         double current = SettingsScrollViewer.VerticalOffset;

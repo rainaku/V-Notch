@@ -24,8 +24,6 @@ public partial class MainWindow
         _notchState.TryTransitionTo(NotchState.MusicExpanding);
         UpdateProgressSectionLayout();
 
-        UpdateZOrderTimerInterval();
-
         _musicWidgetSmallWidth = MediaWidgetContainer.ActualWidth;
         ResetCalendarHoverFocusVisualState();
 
@@ -138,7 +136,6 @@ public partial class MainWindow
         _notchState.TryTransitionTo(NotchState.MusicCollapsing);
         UpdateProgressSectionLayout();
 
-        UpdateZOrderTimerInterval();
         ResetCalendarHoverFocusVisualState();
 
         var collapseDuration = new Duration(TimeSpan.FromMilliseconds(400));

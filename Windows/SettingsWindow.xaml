@@ -838,8 +838,7 @@
                                   HorizontalScrollBarVisibility="Disabled"
                                   Padding="20,18,14,14"
                                   CanContentScroll="False"
-                                  PreviewMouseWheel="SettingsScrollViewer_PreviewMouseWheel"
-                                  ScrollChanged="SettingsScrollViewer_ScrollChanged">
+                                   PreviewMouseWheel="SettingsScrollViewer_PreviewMouseWheel">
                         <Grid x:Name="ContentHost">
 
                             <StackPanel x:Name="PanelSearching" Visibility="Collapsed">

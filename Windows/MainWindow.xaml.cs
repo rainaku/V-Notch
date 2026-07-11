@@ -743,11 +743,6 @@ public partial class MainWindow : Window
         _zOrderManager.EnsureTopmost(force: force);
     }
 
-    private void UpdateZOrderTimerInterval()
-    {
-
-    }
-
     private void StartZOrderWatchdog()
     {
         _zOrderManager.Start();
@@ -1011,8 +1006,6 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             _fileShelf.UpdateSettings(_settings);
             _fullscreenController.UpdateSettings(_settings);
             ApplySettings(sizeChanged);
-            UpdateBatteryInfo();
-
             _weatherModule.OnSettingsChanged(_settings);
 
             _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);

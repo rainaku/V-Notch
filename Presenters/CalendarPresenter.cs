@@ -309,6 +309,7 @@ public sealed class CalendarPresenter : IDisposable
 
     public void UpdateCalendarInfo()
     {
+        HandleCalendarUpdated(DateTime.Now);
     }
 
     #endregion

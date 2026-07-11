@@ -129,13 +129,13 @@ public abstract class NotchModuleBase : INotchModule
         }
     }
 
-    protected virtual void OnInitialize() { }
+    protected virtual void OnInitialize() { /* Optional lifecycle hook. */ }
 
-    protected virtual void OnStart() { }
+    protected virtual void OnStart() { /* Optional lifecycle hook. */ }
 
-    protected virtual void OnStop() { }
+    protected virtual void OnStop() { /* Optional lifecycle hook. */ }
 
     protected abstract void OnTick();
 
-    protected virtual void OnDispose() { }
+    protected virtual void OnDispose() { /* Optional lifecycle hook. */ }
 }

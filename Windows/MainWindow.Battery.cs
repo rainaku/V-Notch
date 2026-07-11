@@ -388,7 +388,4 @@ public partial class MainWindow
         BatteryFill.BeginAnimation(OpacityProperty, resetAnimation);
     }
 
-    private void UpdateBatteryInfo()
-    {
-    }
 }

@@ -57,6 +57,8 @@
     <Compile Remove="artifacts\**\*.cs" />
     <Compile Remove="Tests\**\*.cs" />
     <Compile Remove="Uninstall\**\*.cs" />
+    <Page Remove="Windows\SetupWindowTest.xaml" />
+    <Compile Remove="Windows\SetupWindowTest.xaml.cs" />
   </ItemGroup>
 
   <ItemGroup>
