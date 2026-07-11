@@ -183,7 +183,7 @@ V-Notch **không**:
 - gửi báo cáo sự cố tự động hay thống kê sử dụng;
 - ghi âm thanh, video, hay nội dung màn hình;
 - đọc, tải lên, hay sao lưu nội dung tệp của bạn;
-- truy cập dữ liệu vị trí/GPS;
+- truy cập vị trí GPS chính xác của thiết bị;
 - tạo tài khoản, hồ sơ, hay định danh quảng cáo;
 - lưu giữ nội dung clipboard.
 

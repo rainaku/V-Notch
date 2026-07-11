@@ -183,7 +183,7 @@ V-Notch does **not**:
 - send automated crash reports or usage statistics;
 - record audio, video, or screen content;
 - read, upload, or back up the contents of your files;
-- access location/GPS data;
+- access precise device GPS location;
 - create user accounts, profiles, or advertising identifiers;
 - store clipboard contents.
 
