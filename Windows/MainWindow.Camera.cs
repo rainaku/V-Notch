@@ -18,7 +18,6 @@ using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Media.MediaProperties;
 using static VNotch.Services.AnimationPrimitives;
-using static VNotch.Services.Win32Interop;
 
 namespace VNotch;
 
@@ -161,12 +160,8 @@ public partial class MainWindow
             double notchTargetHeight = targetHeight + 30 + 12 + 2;
             double currentNotchHeight = _expandedHeight;
 
-            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
             double newWindowHeightDip = notchTargetHeight + 80;
-            this.Height = newWindowHeightDip;
-            _windowHeight = (int)Math.Round(newWindowHeightDip * dpiScale);
-            if (_hwnd != IntPtr.Zero)
-                SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+            _overlayWindow.ResizeHeight(newWindowHeightDip);
 
             NotchBorder.BeginAnimation(HeightProperty, null);
             NotchBorder.Height = currentNotchHeight;
@@ -274,12 +269,8 @@ public partial class MainWindow
         {
             NotchBorder.BeginAnimation(HeightProperty, null);
             NotchBorder.Height = _expandedHeight;
-            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
             double windowHeightDip = _expandedHeight + 80;
-            this.Height = windowHeightDip;
-            _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
-            if (_hwnd != IntPtr.Zero)
-                SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+            _overlayWindow.ResizeHeight(windowHeightDip);
         };
         NotchBorder.BeginAnimation(HeightProperty, notchHeightCollapseAnim, HandoffBehavior.SnapshotAndReplace);
 
@@ -348,12 +339,8 @@ public partial class MainWindow
         {
             NotchBorder.BeginAnimation(HeightProperty, null);
             NotchBorder.Height = _expandedHeight;
-            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
             double windowHeightDip = _expandedHeight + 80;
-            this.Height = windowHeightDip;
-            _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
-            if (_hwnd != IntPtr.Zero)
-                SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+            _overlayWindow.ResizeHeight(windowHeightDip);
         }
 
         FileShelf.BeginAnimation(OpacityProperty, null);

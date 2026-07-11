@@ -24,6 +24,8 @@ public sealed class NotchShellState
     public double CornerRadiusExpanded { get; set; } = 24;
     public int FixedX { get; set; }
     public int FixedY { get; set; }
+    public int WindowWidth { get; set; }
+    public int WindowHeight { get; set; }
 
     public bool IsEffectivelyNotchVisible =>
         IsNotchVisible && !IsHiddenByFullscreen && !IsHiddenByIdle;

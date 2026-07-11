@@ -1,9 +1,7 @@
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
@@ -24,7 +22,6 @@ using MONITORINFO = VNotch.Services.Win32Interop.MONITORINFO;
 using POINT = VNotch.Services.Win32Interop.POINT;
 using RECT = VNotch.Services.Win32Interop.RECT;
 using WINDOWPLACEMENT = VNotch.Services.Win32Interop.WINDOWPLACEMENT;
-using WINDOWPOS = VNotch.Services.Win32Interop.WINDOWPOS;
 using WinEventDelegate = VNotch.Services.Win32Interop.WinEventDelegate;
 namespace VNotch;
 
@@ -36,7 +33,7 @@ public partial class MainWindow : Window
     private readonly NotchManager _notchManager;
     private readonly MediaDetectionService _mediaService;
     private readonly IUpdateService _updateService;
-    private readonly MainWindowViewModel _viewModel;
+    private readonly ShellViewModel _viewModel;
     private readonly DispatcherTimer _updateTimer;
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly ZOrderManager _zOrderManager;
@@ -66,7 +63,8 @@ public partial class MainWindow : Window
         set => _shellState.Hwnd = value;
     }
 
-    private HwndSource? _hwndSource;
+    private readonly OverlayWindowController _overlayWindow;
+    private readonly ClipboardListenerController _clipboardListener;
     private DispatcherTimer? _fullscreenRecheckTimer;
     private bool _isTrayMenuOpen
     {
@@ -149,8 +147,6 @@ public partial class MainWindow : Window
         get => _shellState.CornerRadiusExpanded;
         set => _shellState.CornerRadiusExpanded = value;
     }
-    private const double NotchWindowHorizontalPadding = 96;
-
     private int _fixedX
     {
         get => _shellState.FixedX;
@@ -161,8 +157,8 @@ public partial class MainWindow : Window
         get => _shellState.FixedY;
         set => _shellState.FixedY = value;
     }
-    private int _windowWidth = 0;
-    private int _windowHeight = 0;
+    private int _windowWidth { get => _shellState.WindowWidth; set => _shellState.WindowWidth = value; }
+    private int _windowHeight { get => _shellState.WindowHeight; set => _shellState.WindowHeight = value; }
 
     private MediaInfo? _currentMediaInfo;
     private bool _isMusicCompactMode = false;
@@ -205,7 +201,7 @@ public partial class MainWindow : Window
     public MainWindow(
         ISettingsService settingsService,
         IMediaDetectionService mediaService,
-        MainWindowViewModel viewModel,
+        ShellViewModel viewModel,
         IUpdateService updateService,
         IModuleLifecycleManager moduleHost,
         BatteryModule batteryModule,
@@ -278,6 +274,25 @@ public partial class MainWindow : Window
             isEffectivelyVisible: () => IsEffectivelyNotchVisible,
             isSuspended: () => _isTrayMenuOpen || _isUpdateTooltipOpen || DateTime.UtcNow < _suspendTopmostUntilUtc,
             onForegroundChanged: OnForegroundWindowChanged);
+        _clipboardListener = new ClipboardListenerController(
+            () => _hwnd,
+            () =>
+            {
+                if (IsEffectivelyNotchVisible)
+                    Dispatcher.BeginInvoke(new Action(PlayClipboardPeek));
+            });
+        _overlayWindow = new OverlayWindowController(
+            this,
+            _shellState,
+            () => IsEffectivelyNotchVisible,
+            () => _zOrderManager.EnsureTopmost(force: true),
+            HandleAppDeactivated,
+            () =>
+            {
+                InvalidateGlassDpiScale();
+                PositionAtTop();
+            },
+            _clipboardListener.NotifyClipboardUpdated);
 
         _progressTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
@@ -367,10 +382,8 @@ public partial class MainWindow : Window
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        _hwnd = new WindowInteropHelper(this).Handle;
-        _hwndSource = HwndSource.FromHwnd(_hwnd);
-        _hwndSource?.AddHook(WndProc);
-        RegisterClipboardListener();
+        _overlayWindow.Initialize();
+        _clipboardListener.Start();
 
         try
         {
@@ -396,7 +409,7 @@ public partial class MainWindow : Window
         ConfigureOverlayWindow();
         PositionAtTop();
         StartZOrderWatchdog();
-        UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
+        UpdateFullscreenAutoHideState(_overlayWindow.GetForegroundWindowHandle(), force: true);
 
         _updateTimer.Start();
         _updateCheckTimer.Start();
@@ -438,62 +451,15 @@ public partial class MainWindow : Window
         }), DispatcherPriority.ContextIdle);
     }
 
-    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    private void HandleAppDeactivated()
     {
-        switch (msg)
+        if (!_isSecondaryView && !_isTimerView) return;
+        if (_isExpanded && !_isAnimating)
         {
-            case WM_WINDOWPOSCHANGING:
-                if (lParam != IntPtr.Zero && _fixedY >= 0)
-                {
-                    var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
-                    pos.y = _fixedY;
-                    pos.x = _fixedX;
-                    pos.hwndInsertAfter = HWND_TOPMOST;
-                    Marshal.StructureToPtr(pos, lParam, false);
-                }
-                break;
-
-            case WM_ACTIVATE:
-                if (IsEffectivelyNotchVisible)
-                {
-                    SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-                }
-                break;
-
-            case WM_ACTIVATEAPP:
-                if (wParam == IntPtr.Zero)
-                {
-                    Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        if (!_isSecondaryView && !_isTimerView) return;
-
-                        if (_isExpanded && !_isAnimating)
-                        {
-                            RuntimeLog.Log("COLLAPSE-TRIGGER",
-                                $"WM_ACTIVATEAPP(deactivate) -> CollapseNotch: isSecondary={_isSecondaryView} isTimer={_isTimerView}");
-                            CollapseNotch();
-                        }
-                    }));
-                }
-                break;
-
-            case WM_DISPLAYCHANGE:
-                InvalidateGlassDpiScale();
-                Dispatcher.BeginInvoke(() => PositionAtTop());
-                break;
-
-            case WM_DPICHANGED:
-                InvalidateGlassDpiScale();
-                Dispatcher.BeginInvoke(() => PositionAtTop());
-                break;
-
-            case WM_CLIPBOARDUPDATE:
-                HandleClipboardUpdate();
-                break;
+            RuntimeLog.Log("COLLAPSE-TRIGGER",
+                $"WM_ACTIVATEAPP(deactivate) -> CollapseNotch: isSecondary={_isSecondaryView} isTimer={_isTimerView}");
+            CollapseNotch();
         }
-
-        return IntPtr.Zero;
     }
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
@@ -534,8 +500,8 @@ public partial class MainWindow : Window
 
         InputMonitorService.MouseActionTriggered -= GlobalMouseHook_MouseLeftButtonDown;
 
-        UnregisterClipboardListener();
-        _hwndSource?.RemoveHook(WndProc);
+        _clipboardListener.Dispose();
+        _overlayWindow.Dispose();
         StopZOrderWatchdog();
         StopTitleGradientShift();
         _progressTimer?.Stop();
@@ -587,30 +553,17 @@ public partial class MainWindow : Window
 
     private void ConfigureOverlayWindow()
     {
-        var exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
-        exStyle |= WS_EX_TOOLWINDOW;
-        exStyle |= WS_EX_TOPMOST;
-        exStyle |= WS_EX_NOACTIVATE;
-        exStyle |= WS_EX_LAYERED;
-        SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
-        _zOrderManager.EnsureTopmost(force: true);
+        _overlayWindow.ConfigureOverlay();
     }
 
     private void EnableKeyboardInput()
     {
-        if (_hwnd == IntPtr.Zero) return;
-        var exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
-        exStyle &= ~WS_EX_NOACTIVATE;
-        SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
-        Activate();
+        _overlayWindow.SetKeyboardInput(true);
     }
 
     private void DisableKeyboardInput()
     {
-        if (_hwnd == IntPtr.Zero) return;
-        var exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
-        exStyle |= WS_EX_NOACTIVATE;
-        SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
+        _overlayWindow.SetKeyboardInput(false);
     }
 
     private bool IsEffectivelyNotchVisible => _shellState.IsEffectivelyNotchVisible;
@@ -926,33 +879,12 @@ public partial class MainWindow : Window
 
     private void PositionAtTop()
     {
-        var screen = System.Windows.Forms.Screen.PrimaryScreen;
-        if (screen == null) return;
-
-        double dpiScale = 1.0;
-        if (_hwnd != IntPtr.Zero)
-        {
-            uint dpi = GetDpiForWindow(_hwnd);
-            if (dpi > 0) dpiScale = dpi / 96.0;
-        }
-
         double notchSurfaceWidth = Math.Max(Math.Max(_expandedWidth, _clockViewWidth), _audioViewWidth);
-        double windowWidthDip = notchSurfaceWidth + NotchWindowHorizontalPadding;
-        double windowHeightDip = _expandedHeight + 80;
-
-        _windowWidth = (int)Math.Round(windowWidthDip * dpiScale);
-        _windowHeight = (int)Math.Round(windowHeightDip * dpiScale);
-
-        _fixedX = screen.Bounds.Left + (screen.Bounds.Width - _windowWidth) / 2;
-        _fixedY = 0;
-
-        this.Width = windowWidthDip;
-        this.Height = windowHeightDip;
-        SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+        _overlayWindow.PositionAtTop(notchSurfaceWidth, _expandedHeight);
 
         if (_hwnd != IntPtr.Zero)
         {
-            UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
+            UpdateFullscreenAutoHideState(_overlayWindow.GetForegroundWindowHandle(), force: true);
         }
     }
 
@@ -962,26 +894,7 @@ public partial class MainWindow : Window
     }
     public (double Left, double Top, double Width, double Height, double CornerRadius) GetNotchScreenRect()
     {
-        double notchW = _collapsedWidth;
-        double notchH = _collapsedHeight;
-
-        double dpiScale = 1.0;
-        if (_hwnd != IntPtr.Zero)
-        {
-            uint dpi = GetDpiForWindow(_hwnd);
-            if (dpi > 0) dpiScale = dpi / 96.0;
-        }
-
-        double winLeft = _fixedX / dpiScale;
-        double winTop = _fixedY / dpiScale;
-        double winWidth = _windowWidth / dpiScale;
-
-        double notchLeft = winLeft + (winWidth - notchW) / 2.0;
-        double notchTop = winTop;
-
-        double cr = _cornerRadiusCollapsed;
-
-        return (notchLeft, notchTop, notchW, notchH, cr);
+        return _overlayWindow.GetNotchScreenRect(_collapsedWidth, _collapsedHeight, _cornerRadiusCollapsed);
     }
 
     private void OpenAppSettings()
@@ -1096,7 +1009,7 @@ public partial class MainWindow : Window
 
         if (_hwnd != IntPtr.Zero)
         {
-            UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
+            UpdateFullscreenAutoHideState(_overlayWindow.GetForegroundWindowHandle(), force: true);
         }
 
         _collapsedWidth = GetCollapsedWidth();
@@ -1280,7 +1193,7 @@ public partial class MainWindow : Window
 
         if (_hwnd != IntPtr.Zero)
         {
-            SetWindowPos(_hwnd, HWND_TOPMOST, _fixedX, _fixedY, _windowWidth, _windowHeight, SWP_NOACTIVATE);
+            _overlayWindow.ReassertBounds();
         }
     }
 
@@ -2038,7 +1951,7 @@ public partial class MainWindow : Window
 
         if (_isNotchVisible)
         {
-            UpdateFullscreenAutoHideState(GetForegroundWindow(), force: true);
+            UpdateFullscreenAutoHideState(_overlayWindow.GetForegroundWindowHandle(), force: true);
             if (IsEffectivelyNotchVisible)
             {
                 TriggerZOrderBurst(TimeSpan.FromMilliseconds(900));

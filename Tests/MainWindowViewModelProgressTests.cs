@@ -2,21 +2,22 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using VNotch.Models;
+using VNotch.Services;
 using VNotch.Tests.Fakes;
 using VNotch.ViewModels;
 using Xunit;
 
 namespace VNotch.Tests;
 
-public class MainWindowViewModelProgressTests
+public class ShellViewModelProgressTests
 {
     private readonly FakeMediaDetectionService _media = new();
     private readonly FakeVolumeService _volume = new(isAvailable: true);
-    private readonly MainWindowViewModel _vm;
+    private readonly ShellViewModel _vm;
 
-    public MainWindowViewModelProgressTests()
+    public ShellViewModelProgressTests()
     {
-        _vm = new MainWindowViewModel(
+        _vm = new ShellViewModel(
             _media,
             new FakeSettingsService(),
             _volume,
@@ -314,5 +315,95 @@ public class MainWindowViewModelProgressTests
         _vm.SetVolumeFromRatio(0.1f);
 
         Assert.Equal("\uE993", _vm.VolumeIconText);
+    }
+
+    [Fact]
+    public void ViewCommands_OwnShellState()
+    {
+        _vm.OpenTimerCommand.Execute(null);
+
+        Assert.Equal(NotchView.Timer, _vm.CurrentView);
+        Assert.True(_vm.IsExpanded);
+
+        _vm.CollapseCommand.Execute(null);
+
+        Assert.Equal(NotchView.Compact, _vm.CurrentView);
+        Assert.False(_vm.IsExpanded);
+    }
+
+    [Fact]
+    public void FeatureState_IsOwnedByChildViewModels()
+    {
+        _vm.SetVolumeFromRatio(0.5f);
+        _media.RaiseMediaChanged(Timeline("Spotify", 100, positionSeconds: 25, playing: false));
+
+        Assert.Equal(0.5f, _vm.AudioMixer.CurrentVolume);
+        Assert.Equal(0.25, _vm.Progress.Position, 2);
+        Assert.Equal("T", _vm.Media.Title);
+    }
+
+    [Fact]
+    public void Timer_AdjustTickAndReset_OwnCountdownState()
+    {
+        var timer = _vm.Timer;
+        Assert.True(timer.Adjust(1));
+        Assert.Equal(TimeSpan.FromMinutes(26), timer.Duration);
+
+        timer.Start();
+        Assert.False(timer.Tick(TimeSpan.FromMinutes(1)));
+        Assert.Equal("25:00", timer.DisplayText);
+        Assert.InRange(timer.Progress, 0.038, 0.039);
+
+        timer.Reset();
+        Assert.False(timer.IsRunning);
+        Assert.Equal(timer.Duration, timer.Remaining);
+    }
+
+    [Fact]
+    public void Timer_CompletionStopsAtZero()
+    {
+        var timer = _vm.Timer;
+        timer.Duration = TimeSpan.FromMinutes(1);
+        timer.Reset();
+        timer.Start();
+
+        Assert.True(timer.Tick(TimeSpan.FromMinutes(2)));
+        Assert.Equal(TimeSpan.Zero, timer.Remaining);
+        Assert.False(timer.IsRunning);
+        Assert.Equal(1, timer.Progress);
+    }
+
+    [Fact]
+    public void Timer_TickNotifiesBoundDisplayProperties()
+    {
+        var timer = _vm.Timer;
+        var changed = new HashSet<string?>();
+        timer.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        timer.Start();
+
+        timer.Tick(TimeSpan.FromSeconds(1));
+
+        Assert.Contains(nameof(TimerViewModel.DisplayText), changed);
+        Assert.Contains(nameof(TimerViewModel.Progress), changed);
+    }
+
+    [Fact]
+    public void AudioMixerSnapshot_OwnsStructureAndSessionState()
+    {
+        var snapshot = new AudioMixerSnapshot
+        {
+            Output = [new AudioDeviceInfo { Id = "out", FriendlyName = "Speakers X", IsDefault = true }],
+            Input = [new AudioDeviceInfo { Id = "in", FriendlyName = "Mic X", IsDefault = true }],
+            Sessions = [new AudioSessionInfo { ProcessId = 42, DisplayName = "Player", Volume = 0, IsMuted = true }]
+        };
+        _vm.AudioMixer.Snapshot = snapshot;
+
+        _vm.AudioMixer.CacheSessionVolume(42, 0.75f);
+
+        Assert.Equal("Speakers X", snapshot.GetDefaultOutputName());
+        Assert.Equal("Mic X", snapshot.GetDefaultInputName());
+        Assert.Equal("42|out|in|1|1", snapshot.StructureKey);
+        Assert.Equal(0.75f, snapshot.Sessions[0].Volume);
+        Assert.False(snapshot.Sessions[0].IsMuted);
     }
 }

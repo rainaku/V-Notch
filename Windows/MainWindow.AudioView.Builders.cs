@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using VNotch.Services;
+using VNotch.ViewModels;
 
 namespace VNotch;
 
@@ -48,8 +49,8 @@ public partial class MainWindow
     private static readonly Geometry InputIconGeometry = MakeFrozenGeometry(
         "M11.665 7.915v1.31a5.257 5.257 0 0 1-1.514 3.694 5.174 5.174 0 0 1-1.641 1.126 5.04 5.04 0 0 1-1.456.384v1.899h2.312a.554.554 0 0 1 0 1.108H3.634a.554.554 0 0 1 0-1.108h2.312v-1.899a5.045 5.045 0 0 1-1.456-.384 5.174 5.174 0 0 1-1.641-1.126 5.257 5.257 0 0 1-1.514-3.695v-1.31a.554.554 0 1 1 1.109 0v1.31a4.131 4.131 0 0 0 1.195 2.917 3.989 3.989 0 0 0 5.722 0 4.133 4.133 0 0 0 1.195-2.917v-1.31a.554.554 0 1 1 1.109 0zM3.77 10.37a2.875 2.875 0 0 1-.233-1.146V4.738A2.905 2.905 0 0 1 3.77 3.58a3 3 0 0 1 1.59-1.59 2.902 2.902 0 0 1 1.158-.233 2.865 2.865 0 0 1 1.152.233 2.977 2.977 0 0 1 1.793 2.748l-.012 4.487a2.958 2.958 0 0 1-.856 2.09 3.025 3.025 0 0 1-.937.634 2.865 2.865 0 0 1-1.152.233 2.905 2.905 0 0 1-1.158-.233A2.957 2.957 0 0 1 3.77 10.37z");
 
-    private bool _audioSystemExpanded = true;
-    private bool _audioAppsExpanded = true;
+    private bool _audioSystemExpanded { get => _viewModel.AudioMixer.IsSystemExpanded; set => _viewModel.AudioMixer.IsSystemExpanded = value; }
+    private bool _audioAppsExpanded { get => _viewModel.AudioMixer.IsApplicationsExpanded; set => _viewModel.AudioMixer.IsApplicationsExpanded = value; }
     private int _audioPopulateToken;
     private int _audioPollInFlight;
     private int _audioPrewarmInFlight;
@@ -62,8 +63,8 @@ public partial class MainWindow
     private readonly Dictionary<uint, (Action<double> SetVol, Border IconHost, TextBlock NameLabel)> _appRows = new();
     private string _audioStructureKey = "";
 
-    private AudioSnapshot? _lastAudioSnapshot;
-    private AudioSnapshot? _pendingAudioSnapshot;
+    private AudioMixerSnapshot? _lastAudioSnapshot { get => _viewModel.AudioMixer.Snapshot; set => _viewModel.AudioMixer.Snapshot = value; }
+    private AudioMixerSnapshot? _pendingAudioSnapshot;
     private Action? _pendingAudioAfterBuild;
 
     private static Brush Frozen(string hex)
@@ -73,18 +74,9 @@ public partial class MainWindow
         return b;
     }
 
-    private sealed class AudioSnapshot
+    private AudioMixerSnapshot ReadAudioSnapshot(bool includeIcons, bool includeDevices = true)
     {
-        public List<AudioDeviceInfo> Output = new();
-        public List<AudioDeviceInfo> Input = new();
-        public List<AudioSessionInfo> Sessions = new();
-        public float Master = 0.5f;
-        public float Capture = 0.5f;
-    }
-
-    private AudioSnapshot ReadAudioSnapshot(bool includeIcons, bool includeDevices = true)
-    {
-        return new AudioSnapshot
+        return new AudioMixerSnapshot
         {
             Output = includeDevices ? SafeCall(() => AudioMixer.GetOutputDevices()) ?? new() : new(),
             Input = includeDevices ? SafeCall(() => AudioMixer.GetInputDevices()) ?? new() : new(),
@@ -122,9 +114,9 @@ public partial class MainWindow
         });
     }
 
-    private void ApplyAudioSnapshot(AudioSnapshot snap, Action? afterBuild = null)
+    private void ApplyAudioSnapshot(AudioMixerSnapshot snap, Action? afterBuild = null)
     {
-        if (_appRows.Count > 0 && StructureKey(snap) == _audioStructureKey)
+        if (_appRows.Count > 0 && snap.StructureKey == _audioStructureKey)
             PatchInPlace(snap);
         else
             BuildAudioUI(snap);
@@ -144,20 +136,8 @@ public partial class MainWindow
         return true;
     }
 
-    private static string StructureKey(AudioSnapshot s)
-    {
-        var apps = string.Join(",", s.Sessions.Where(x => !x.IsSystemSounds).Select(x => x.ProcessId).OrderBy(x => x));
-        string outDef = s.Output.Find(d => d.IsDefault)?.Id ?? "";
-        string inDef = s.Input.Find(d => d.IsDefault)?.Id ?? "";
-        return $"{apps}|{outDef}|{inDef}|{s.Output.Count}|{s.Input.Count}";
-    }
-
     private void CacheSessionVolume(uint pid, float v)
-    {
-        if (_lastAudioSnapshot == null) return;
-        var c = _lastAudioSnapshot.Sessions.Find(x => x.ProcessId == pid);
-        if (c != null) { c.Volume = v; if (v > 0.0001f) c.IsMuted = false; }
-    }
+        => _viewModel.AudioMixer.CacheSessionVolume(pid, v);
 
     private void PollAudioVolumes()
     {
@@ -222,12 +202,12 @@ public partial class MainWindow
         });
     }
 
-    private void PatchInPlace(AudioSnapshot snap)
+    private void PatchInPlace(AudioMixerSnapshot snap)
     {
         _outputSetVol?.Invoke(snap.Master);
         if (_inputSetVol != null) _inputSetVol(snap.Capture);
-        string outputName = PickName(snap.Output, "Speakers");
-        string inputName = PickName(snap.Input, "Microphone");
+        string outputName = snap.GetDefaultOutputName();
+        string inputName = snap.GetDefaultInputName();
         if (_outputDeviceLabel != null && !string.Equals(_outputDeviceLabel.Text, outputName, StringComparison.Ordinal))
             _outputDeviceLabel.Text = outputName;
         if (_inputDeviceLabel != null && !string.Equals(_inputDeviceLabel.Text, inputName, StringComparison.Ordinal))
@@ -318,9 +298,9 @@ public partial class MainWindow
             BuildAudioUI(_lastAudioSnapshot);
     }
 
-    private void EnsureAudioUIBuilt(AudioSnapshot snap)
+    private void EnsureAudioUIBuilt(AudioMixerSnapshot snap)
     {
-        if (_appRows.Count > 0 && StructureKey(snap) == _audioStructureKey)
+        if (_appRows.Count > 0 && snap.StructureKey == _audioStructureKey)
         {
             PatchInPlace(snap);
             AudioScrollViewer?.ScrollToTop();
@@ -331,7 +311,7 @@ public partial class MainWindow
         }
     }
 
-    private void BuildAudioUI(AudioSnapshot snap)
+    private void BuildAudioUI(AudioMixerSnapshot snap)
     {
         try
         {
@@ -341,7 +321,7 @@ public partial class MainWindow
             _inputSetVol = null;
             _outputDeviceLabel = null;
             _inputDeviceLabel = null;
-            _audioStructureKey = StructureKey(snap);
+            _audioStructureKey = snap.StructureKey;
             AudioRoot.Children.Clear();
 
             if (AudioScrollViewer != null)
@@ -351,8 +331,8 @@ public partial class MainWindow
                 AudioScrollViewer.VerticalAlignment = VerticalAlignment.Top;
             }
 
-            string outName = PickName(snap.Output, "Speakers");
-            string inName = PickName(snap.Input, "Microphone");
+            string outName = snap.GetDefaultOutputName();
+            string inName = snap.GetDefaultInputName();
 
             var systemRows = new StackPanel { ClipToBounds = true, Visibility = _audioSystemExpanded ? Visibility.Visible : Visibility.Collapsed };
 
@@ -515,12 +495,6 @@ public partial class MainWindow
 
         _audioViewHeight = newFit;
         AnimateAudioNotchHeight(newFit, dur, ease);
-    }
-
-    private static string PickName(List<AudioDeviceInfo> devices, string fallback)
-    {
-        var d = devices.Find(x => x.IsDefault);
-        return d?.FriendlyName ?? (devices.Count > 0 ? devices[0].FriendlyName : fallback);
     }
 
     private T? SafeCall<T>(Func<T> fn)

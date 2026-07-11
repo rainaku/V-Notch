@@ -30,6 +30,10 @@ public partial class MainWindow
                 _notchState.TryTransitionTo(NotchState.SecondaryView);
             else if (!value && _notchState.IsSecondaryView)
                 _notchState.TryTransitionTo(NotchState.Expanded);
+
+            if (value) _viewModel.SetView(VNotch.Models.NotchView.Secondary);
+            else if (_viewModel.CurrentView == VNotch.Models.NotchView.Secondary)
+                _viewModel.SetView(VNotch.Models.NotchView.Media);
         }
     }
     private DateTime _lastViewSwitchUtc = DateTime.MinValue;

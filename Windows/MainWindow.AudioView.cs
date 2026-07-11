@@ -17,7 +17,13 @@ public partial class MainWindow
     private bool _isAudioView
     {
         get => _notchState.IsAudioView;
-        set => _notchState.IsAudioView = value;
+        set
+        {
+            _notchState.IsAudioView = value;
+            if (value) _viewModel.SetView(VNotch.Models.NotchView.AudioMixer);
+            else if (_viewModel.CurrentView == VNotch.Models.NotchView.AudioMixer)
+                _viewModel.SetView(VNotch.Models.NotchView.Media);
+        }
     }
     private const double _audioViewWidth = 720;
 

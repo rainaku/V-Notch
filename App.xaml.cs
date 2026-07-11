@@ -132,7 +132,7 @@ public partial class App : Application
         services.AddSingleton<IUpdateService, UpdateService>();
         services.AddSingleton<IWeatherService, WeatherService>();
         // This is the application state owner used by both the running window and unit tests.
-        services.AddSingleton<MainWindowViewModel>();
+        services.AddSingleton<ShellViewModel>();
 
         services.AddSingleton<BatteryModule>();
         services.AddSingleton<CalendarModule>();

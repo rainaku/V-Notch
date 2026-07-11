@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -230,9 +229,6 @@ public partial class MainWindow
         return cursorPt.X >= rc.Left && cursorPt.X <= rc.Right &&
                cursorPt.Y >= rc.Top && cursorPt.Y <= rc.Bottom;
     }
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetParent(IntPtr hWnd);
 
     private string _lastSessionId = "";
     private string _lastProgressSignature = "";

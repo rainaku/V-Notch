@@ -5,7 +5,6 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
-using static VNotch.Services.Win32Interop;
 
 namespace VNotch;
 
@@ -13,41 +12,10 @@ public partial class MainWindow
 {
     #region Clipboard Peek
 
-    private bool _clipboardListenerRegistered = false;
-    private DateTime _lastClipboardFlashUtc = DateTime.MinValue;
-    private static readonly TimeSpan ClipboardFlashCooldown = TimeSpan.FromMilliseconds(400);
     private bool _isClipboardPeekActive = false;
     private int _clipboardPeekToken = 0;
     private DispatcherTimer? _clipboardRevertTimer;
 
-    private void RegisterClipboardListener()
-    {
-        if (_clipboardListenerRegistered || _hwnd == IntPtr.Zero) return;
-
-        if (AddClipboardFormatListener(_hwnd))
-        {
-            _clipboardListenerRegistered = true;
-        }
-    }
-
-    private void UnregisterClipboardListener()
-    {
-        if (!_clipboardListenerRegistered || _hwnd == IntPtr.Zero) return;
-
-        RemoveClipboardFormatListener(_hwnd);
-        _clipboardListenerRegistered = false;
-    }
-
-    private void HandleClipboardUpdate()
-    {
-        var now = DateTime.UtcNow;
-        if ((now - _lastClipboardFlashUtc) < ClipboardFlashCooldown) return;
-        _lastClipboardFlashUtc = now;
-
-        if (!IsEffectivelyNotchVisible) return;
-
-        Dispatcher.BeginInvoke(new Action(PlayClipboardPeek));
-    }
     private void PlayClipboardPeek()
     {
         if (!_isExpanded && !_isAnimating)

@@ -2,7 +2,6 @@ using System;
 using System.Windows;
 using System.Windows.Media;
 using VNotch.Controllers;
-using static VNotch.Services.Win32Interop;
 
 namespace VNotch;
 
@@ -346,9 +345,7 @@ public partial class MainWindow
     private double GetGlassDpiScale()
     {
         if (_glassDpiScale > 0) return _glassDpiScale;
-        if (_hwnd == IntPtr.Zero) return 1.0;
-        uint dpi = GetDpiForWindow(_hwnd);
-        _glassDpiScale = dpi > 0 ? dpi / 96.0 : 1.0;
+        _glassDpiScale = _overlayWindow.DpiScale;
         return _glassDpiScale;
     }
 
