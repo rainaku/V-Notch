@@ -66,7 +66,11 @@ public partial class MainWindow
     private void CalendarWidget_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         => _calendarPresenter?.HandleMouseWheel(e);
 
-    private void UpdateCalendarInfo() => _calendarPresenter?.UpdateCalendarInfo();
+    private void UpdateCalendarInfo()
+    {
+        _viewModel.UpdateCalendarInfo();
+        _calendarPresenter?.UpdateCalendarInfo();
+    }
 
     public void ResetCalendarScroll() => _calendarPresenter?.ResetCalendarScroll();
 

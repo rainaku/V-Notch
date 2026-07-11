@@ -545,6 +545,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Accepts a session-level volume observation supplied by the window's visual
+    /// audio surface.  Keeping this state here lets the same binding-facing model
+    /// represent both the generic volume service and the active media session.
+    /// </summary>
+    public void UpdateVolumeState(float volume, bool isMuted)
+    {
+        CurrentVolume = Math.Clamp(volume, 0f, 1f);
+        IsVolumeMuted = isMuted;
+        UpdateVolumeIcon(CurrentVolume, IsVolumeMuted);
+    }
+
     private void UpdateVolumeIcon(float volume, bool isMuted)
     {
         if (isMuted || volume <= 0.01f)
@@ -583,16 +595,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var battery = _batteryService.GetBatteryInfo();
-            BatteryPercentText = battery.GetPercentageText();
-            BatteryFillWidth = Math.Max(2, battery.Percentage / 100.0 * 26);
-            IsBatteryCharging = battery.IsCharging;
-            IsBatteryLow = battery.Percentage < 20;
+            UpdateBatteryInfo(_batteryService.GetBatteryInfo());
         }
         catch
         {
             BatteryPercentText = "N/A";
         }
+    }
+
+    public void UpdateBatteryInfo(BatteryInfo battery)
+    {
+        BatteryPercentText = battery.GetPercentageText();
+        BatteryFillWidth = Math.Max(2, battery.Percentage / 100.0 * 26);
+        IsBatteryCharging = battery.IsCharging;
+        IsBatteryLow = battery.Percentage < 20;
     }
 
     public void UpdateCalendarInfo()
@@ -642,8 +658,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _mediaService.MediaChanged -= OnMediaChanged;
-        _mediaService.Dispose();
-        _volumeService.Dispose();
     }
 
     #endregion

@@ -43,8 +43,6 @@ public partial class MainWindow
     {
         AnimationConfig.SetReduceMotion(battery.IsBatterySaver);
 
-        BatteryPercent.Text = battery.GetPercentageText();
-
         double targetWidth = Math.Max(1.08, battery.Percentage / 100.0 * 23.0);
         var widthAnimation = new DoubleAnimation
         {

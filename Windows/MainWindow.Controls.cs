@@ -24,16 +24,12 @@ public partial class MainWindow
         e.Handled = true;
         try
         {
-            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-            _lastMediaActionTime = DateTime.Now;
-
-            _isPlaying = !_isPlaying;
+            _isPlaying = !_viewModel.IsPlaying;
             UpdatePlayPauseIcon();
             PlayButtonPressAnimation(PlayPauseButton);
 
             _progressEngine.NotifyUserPlayPause(_isPlaying);
-
-            await _mediaService.PlayPauseAsync();
+            await _viewModel.PlayPauseCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
         {
@@ -46,21 +42,12 @@ public partial class MainWindow
         e.Handled = true;
         try
         {
-            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-            _lastMediaActionTime = DateTime.Now;
-
             PlayButtonPressAnimation(NextButton);
             PlayNextSkipAnimation();
 
-            if (_currentMediaInfo?.IsVideoSource == true)
-            {
-                await SeekRelative(15);
-            }
-            else
-            {
+            if (_currentMediaInfo?.IsVideoSource != true)
                 OptimisticPrepareForNextTrack();
-                await _mediaService.NextTrackAsync();
-            }
+            await _viewModel.NextTrackCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
         {
@@ -73,21 +60,12 @@ public partial class MainWindow
         e.Handled = true;
         try
         {
-            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-            _lastMediaActionTime = DateTime.Now;
-
             PlayButtonPressAnimation(PrevButton);
             PlayPrevSkipAnimation();
 
-            if (_currentMediaInfo?.IsVideoSource == true)
-            {
-                await SeekRelative(-15);
-            }
-            else
-            {
+            if (_currentMediaInfo?.IsVideoSource != true)
                 OptimisticPrepareForPreviousTrack();
-                await _mediaService.PreviousTrackAsync();
-            }
+            await _viewModel.PreviousTrackCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
         {
@@ -116,16 +94,13 @@ public partial class MainWindow
         e.Handled = true;
         try
         {
-            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-            _lastMediaActionTime = DateTime.Now;
-
-            _isPlaying = !_isPlaying;
+            _isPlaying = !_viewModel.IsPlaying;
             UpdatePlayPauseIcon();
             PlayButtonPressAnimation(InlinePlayPauseButton);
 
             _progressEngine.NotifyUserPlayPause(_isPlaying);
 
-            await _mediaService.PlayPauseAsync();
+            await _viewModel.PlayPauseCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
         {
@@ -138,21 +113,12 @@ public partial class MainWindow
         e.Handled = true;
         try
         {
-            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-            _lastMediaActionTime = DateTime.Now;
-
             PlayButtonPressAnimation(InlineNextButton);
             PlayNextSkipAnimation(InlineNextArrow0, InlineNextArrow1, InlineNextArrow2);
 
-            if (_currentMediaInfo?.IsVideoSource == true)
-            {
-                await SeekRelative(15);
-            }
-            else
-            {
+            if (_currentMediaInfo?.IsVideoSource != true)
                 OptimisticPrepareForNextTrack();
-                await _mediaService.NextTrackAsync();
-            }
+            await _viewModel.NextTrackCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
         {
@@ -165,21 +131,12 @@ public partial class MainWindow
         e.Handled = true;
         try
         {
-            if ((DateTime.Now - _lastMediaActionTime).TotalMilliseconds < 500) return;
-            _lastMediaActionTime = DateTime.Now;
-
             PlayButtonPressAnimation(InlinePrevButton);
             PlayPrevSkipAnimation(InlinePrevArrow0, InlinePrevArrow1, InlinePrevArrow2);
 
-            if (_currentMediaInfo?.IsVideoSource == true)
-            {
-                await SeekRelative(-15);
-            }
-            else
-            {
+            if (_currentMediaInfo?.IsVideoSource != true)
                 OptimisticPrepareForPreviousTrack();
-                await _mediaService.PreviousTrackAsync();
-            }
+            await _viewModel.PreviousTrackCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
         {
@@ -748,22 +705,7 @@ public partial class MainWindow
 
     private void UpdateVolumeIcon(float volume, bool isMuted)
     {
-        if (isMuted || volume <= 0.01f)
-        {
-            VolumeIcon.Text = "\uE74F";
-        }
-        else if (volume < 0.33f)
-        {
-            VolumeIcon.Text = "\uE993";
-        }
-        else if (volume < 0.66f)
-        {
-            VolumeIcon.Text = "\uE994";
-        }
-        else
-        {
-            VolumeIcon.Text = "\uE995";
-        }
+        _viewModel.UpdateVolumeState(volume, isMuted);
     }
 
     #endregion

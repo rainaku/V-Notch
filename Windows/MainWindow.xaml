@@ -1268,7 +1268,7 @@
                                         </Canvas>
                                     </Viewbox>
                                     <TextBlock x:Name="BatteryPercent"
-                                               Text="100%"
+                                               Text="{Binding BatteryPercentText}"
                                                Style="{StaticResource SubtitleText}"
                                                FontSize="12"
                                                Foreground="#CCFFFFFF"
@@ -1600,7 +1600,7 @@
                                                                    Margin="0,1,0,0" />
 
                                                         <TextBlock x:Name="TrackTitle"
-                                                                   Text="No media playing"
+                                                                   Text="{Binding TrackTitle}"
                                                                    Style="{StaticResource TitleText}"
                                                                    FontSize="14"
                                                                    FontWeight="Bold"
@@ -1650,7 +1650,7 @@
                                                                    Margin="0,1,0,0" />
 
                                                         <TextBlock x:Name="TrackArtist"
-                                                                    Text="Artist name"
+                                                                     Text="{Binding TrackArtist}"
                                                                      Style="{StaticResource SubtitleText}"
                                                                     Foreground="#BFFFFFFF"
                                                                     FontWeight="Bold" />
@@ -1910,7 +1910,7 @@
 
                                         <Grid x:Name="VolumeControlArea" Margin="0,0,0,8" HorizontalAlignment="Right">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock x:Name="VolumeIcon" Text="&#xE767;" FontFamily="Segoe MDL2 Assets" Foreground="#888888" FontSize="14" Margin="0,0,4,0" VerticalAlignment="Center" Cursor="Hand" MouseLeftButtonDown="VolumeIcon_MouseDown" MouseEnter="VolumeIcon_MouseEnter" MouseLeave="VolumeIcon_MouseLeave" RenderTransformOrigin="0.5,0.5">
+                                                <TextBlock x:Name="VolumeIcon" Text="{Binding VolumeIconText}" FontFamily="Segoe MDL2 Assets" Foreground="#888888" FontSize="14" Margin="0,0,4,0" VerticalAlignment="Center" Cursor="Hand" MouseLeftButtonDown="VolumeIcon_MouseDown" MouseEnter="VolumeIcon_MouseEnter" MouseLeave="VolumeIcon_MouseLeave" RenderTransformOrigin="0.5,0.5">
                                                     <TextBlock.RenderTransform>
                                                         <ScaleTransform x:Name="VolumeIconScale" ScaleX="1" ScaleY="1"/>
                                                     </TextBlock.RenderTransform>

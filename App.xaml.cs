@@ -3,6 +3,7 @@ using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using VNotch.Services;
 using VNotch.Modules;
+using VNotch.ViewModels;
 using System.Linq;
 
 namespace VNotch;
@@ -130,6 +131,8 @@ public partial class App : Application
             new DispatcherService(Current.Dispatcher));
         services.AddSingleton<IUpdateService, UpdateService>();
         services.AddSingleton<IWeatherService, WeatherService>();
+        // This is the application state owner used by both the running window and unit tests.
+        services.AddSingleton<MainWindowViewModel>();
 
         services.AddSingleton<BatteryModule>();
         services.AddSingleton<CalendarModule>();

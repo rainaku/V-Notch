@@ -16,6 +16,7 @@ using VNotch.Services;
 using VNotch.Models;
 using VNotch.Modules;
 using VNotch.Contracts;
+using VNotch.ViewModels;
 using static VNotch.Services.Win32Interop;
 using static VNotch.Services.AnimationPrimitives;
 using POINT = VNotch.Services.Win32Interop.POINT;
@@ -35,6 +36,7 @@ public partial class MainWindow : Window
     private readonly NotchManager _notchManager;
     private readonly MediaDetectionService _mediaService;
     private readonly IUpdateService _updateService;
+    private readonly MainWindowViewModel _viewModel;
     private readonly DispatcherTimer _updateTimer;
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly ZOrderManager _zOrderManager;
@@ -203,6 +205,7 @@ public partial class MainWindow : Window
     public MainWindow(
         ISettingsService settingsService,
         IMediaDetectionService mediaService,
+        MainWindowViewModel viewModel,
         IUpdateService updateService,
         IModuleLifecycleManager moduleHost,
         BatteryModule batteryModule,
@@ -213,6 +216,10 @@ public partial class MainWindow : Window
         SystemMonitorModule systemMonitorModule)
     {
         InitializeComponent();
+        _viewModel = viewModel;
+        DataContext = _viewModel;
+        _viewModel.IsExpandedCheck = () => _isExpanded || _isMusicExpanded;
+        _viewModel.MediaInfoUpdated += ViewModel_MediaInfoUpdated;
         AnimationPrimitives.ApplyFpsToTree(this);
         _settingsService = (SettingsService)settingsService;
         _settings = _settingsService.Load();
@@ -347,8 +354,6 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
         Deactivated += MainWindow_Deactivated;
 
-        _mediaService.MediaChanged += OnMediaChanged;
-
         InitializeFileShelfController();
         _dragDropController = new DragDropController(_fileShelf);
         InitializeDragDropController();
@@ -421,7 +426,7 @@ public partial class MainWindow : Window
 
             if (!_isGreetingActive)
             {
-                _mediaService.Start();
+                _viewModel.Initialize();
                 _moduleHost.StartAll();
             }
 
@@ -518,7 +523,8 @@ public partial class MainWindow : Window
 
         _notchManager.HoverService.HoverEnter -= HoverService_HoverEnter;
         _notchManager.HoverService.HoverLeave -= HoverService_HoverLeave;
-        _mediaService.MediaChanged -= OnMediaChanged;
+        _viewModel.MediaInfoUpdated -= ViewModel_MediaInfoUpdated;
+        _viewModel.Dispose();
         _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
         AnimationConfig.ReduceMotionChanged -= OnReduceMotionChanged;
         DisposeCalendarPresenter();
@@ -550,6 +556,10 @@ public partial class MainWindow : Window
         DisposeGestureController();
         DisposeAllShelfWatchers();
     }
+
+    // The ViewModel is the single production subscriber to media state.  This window
+    // only turns that state into animations and other visual effects.
+    private void ViewModel_MediaInfoUpdated(object? sender, MediaInfo info) => OnMediaChanged(sender, info);
 
     protected override void OnClosed(EventArgs e)
     {
@@ -1843,7 +1853,10 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
     }
 
     private void BatteryModule_BatteryUpdated(object? sender, BatteryInfo battery)
-        => HandleBatteryUpdate(battery);
+    {
+        _viewModel.UpdateBatteryInfo(battery);
+        HandleBatteryUpdate(battery);
+    }
 
     #endregion
 
