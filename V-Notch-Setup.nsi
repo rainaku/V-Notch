@@ -1,7 +1,7 @@
 ; V-Notch-Setup.nsi
 ; Bootstrapper for the WPF-based V-Notch setup experience
 ; AV-friendly: includes version info, visible UI, user-level install
-; Framework-dependent: checks/installs .NET 8 Desktop Runtime
+; Framework-dependent: checks/installs .NET 10 Desktop Runtime
 
 !define APP_NAME "V-Notch"
 !define APP_PUBLISHER "rainaku"
@@ -10,9 +10,9 @@
 !define APP_BUILD_DIR "release"
 !define APP_URL "https://github.com/rainaku/V-Notch"
 
-; .NET 8 Desktop Runtime requirement
-!define DOTNET_VERSION "8.0"
-!define DOTNET_INSTALLER_URL "https://download.visualstudio.microsoft.com/download/pr/dotnet-runtime-8.0-win-x64.exe"
+; .NET 10 Desktop Runtime requirement
+!define DOTNET_VERSION "10.0"
+!define DOTNET_INSTALLER_URL "https://download.visualstudio.microsoft.com/download/pr/dotnet-runtime-10.0-win-x64.exe"
 !define DOTNET_INSTALLER_ARGS "/install /quiet /norestart"
 
 ; Auto-extract version from the built exe
@@ -56,7 +56,7 @@ Section "Install"
     SetOutPath "$PLUGINSDIR\payload"
     File /r "${APP_BUILD_DIR}\*"
 
-    ; Check and install .NET 8 Desktop Runtime if needed
+    ; Check and install .NET 10 Desktop Runtime if needed
     !ifndef SELF_CONTAINED
         Call CheckAndInstallDotNet
     !endif
@@ -83,11 +83,11 @@ Function .onInit
     done_check:
 FunctionEnd
 
-; ── .NET 8 Desktop Runtime Detection & Installation ────────
+; ── .NET 10 Desktop Runtime Detection & Installation ────────
 Function CheckAndInstallDotNet
     ; 1) Ask the .NET host first. Avoid /C:"... ..." quoting because NSIS/cmd can
     ; strip nested quotes; two findstr stages are more reliable here.
-    nsExec::ExecToStack 'cmd.exe /c "dotnet --list-runtimes 2>nul | findstr /I Microsoft.WindowsDesktop.App | findstr /R 8\."'
+    nsExec::ExecToStack 'cmd.exe /c "dotnet --list-runtimes 2>nul | findstr /I Microsoft.WindowsDesktop.App | findstr /R 10\."'
     Pop $0 ; return code
     Pop $1 ; first matching output line
     StrCmp $0 "0" dotnet_found
@@ -95,12 +95,12 @@ Function CheckAndInstallDotNet
     ; 2) Check actual Desktop Runtime folders. This catches repaired installs even if
     ; registry metadata is incomplete.
     ${If} ${RunningX64}
-        IfFileExists "$PROGRAMFILES64\dotnet\shared\Microsoft.WindowsDesktop.App\8.*\*" dotnet_found
+        IfFileExists "$PROGRAMFILES64\dotnet\shared\Microsoft.WindowsDesktop.App\10.*\*" dotnet_found
     ${EndIf}
-    IfFileExists "$PROGRAMFILES\dotnet\shared\Microsoft.WindowsDesktop.App\8.*\*" dotnet_found
+    IfFileExists "$PROGRAMFILES\dotnet\shared\Microsoft.WindowsDesktop.App\10.*\*" dotnet_found
 
     ; 3) Enumerate x64 registry values. Installed values are exact patch versions
-    ; such as 8.0.27, so do not hardcode 8.0.0.
+    ; such as 10.0.1, so do not hardcode 10.0.0.
     ${If} ${RunningX64}
         SetRegView 64
     ${EndIf}
@@ -109,8 +109,8 @@ Function CheckAndInstallDotNet
     reg_loop_64:
     EnumRegValue $R1 HKLM "SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App" $R0
     StrCmp $R1 "" reg_check_default
-    StrCpy $R2 $R1 2
-    StrCmp $R2 "8." dotnet_found
+    StrCpy $R2 $R1 3
+    StrCmp $R2 "10." dotnet_found
     IntOp $R0 $R0 + 1
     Goto reg_loop_64
 
@@ -121,8 +121,8 @@ Function CheckAndInstallDotNet
     reg_loop_default:
     EnumRegValue $R1 HKLM "SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App" $R0
     StrCmp $R1 "" dotnet_install
-    StrCpy $R2 $R1 2
-    StrCmp $R2 "8." dotnet_found
+    StrCpy $R2 $R1 3
+    StrCmp $R2 "10." dotnet_found
     IntOp $R0 $R0 + 1
     Goto reg_loop_default
 
@@ -132,34 +132,34 @@ Function CheckAndInstallDotNet
     ${EndIf}
 
     MessageBox MB_YESNO|MB_ICONQUESTION \
-        "${APP_NAME} requires .NET 8 Desktop Runtime.$\n$\nWould you like to download and install it now?" \
+        "${APP_NAME} requires .NET 10 Desktop Runtime.$\n$\nWould you like to download and install it now?" \
         IDYES do_install
 
     MessageBox MB_OK|MB_ICONEXCLAMATION \
-        "${APP_NAME} cannot run without .NET 8 Desktop Runtime.$\nPlease install it manually from:$\nhttps://dotnet.microsoft.com/download/dotnet/8.0"
+        "${APP_NAME} cannot run without .NET 10 Desktop Runtime.$\nPlease install it manually from:$\nhttps://dotnet.microsoft.com/download/dotnet/10.0"
     Abort
 
     do_install:
     InitPluginsDir
-    StrCpy $R3 "$PLUGINSDIR\windowsdesktop-runtime-8-win-x64.exe"
+    StrCpy $R3 "$PLUGINSDIR\windowsdesktop-runtime-10-win-x64.exe"
 
-    DetailPrint "Downloading .NET 8 Desktop Runtime..."
-    nsExec::ExecToStack 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri ''https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe'' -OutFile ''$R3''; exit 0 } catch { exit 1 }"'
+    DetailPrint "Downloading .NET 10 Desktop Runtime..."
+    nsExec::ExecToStack 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri ''https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe'' -OutFile ''$R3''; exit 0 } catch { exit 1 }"'
     Pop $0
     StrCmp $0 "0" download_ok
 
     ; Fallback to curl.exe on Windows 10/11 when PowerShell download is blocked.
-    nsExec::ExecToStack 'curl.exe -L --fail -o $R3 https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe'
+    nsExec::ExecToStack 'curl.exe -L --fail -o $R3 https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe'
     Pop $0
     StrCmp $0 "0" download_ok
 
     MessageBox MB_OK|MB_ICONEXCLAMATION \
-        "Failed to download .NET 8 Desktop Runtime.$\nPlease install it manually from:$\nhttps://dotnet.microsoft.com/download/dotnet/8.0"
-    ExecShell "open" "https://dotnet.microsoft.com/download/dotnet/8.0"
+        "Failed to download .NET 10 Desktop Runtime.$\nPlease install it manually from:$\nhttps://dotnet.microsoft.com/download/dotnet/10.0"
+    ExecShell "open" "https://dotnet.microsoft.com/download/dotnet/10.0"
     Abort
 
     download_ok:
-    DetailPrint "Installing .NET 8 Desktop Runtime..."
+    DetailPrint "Installing .NET 10 Desktop Runtime..."
     ExecWait '"$R3" /install /quiet /norestart' $0
     Delete "$R3"
 
@@ -169,8 +169,8 @@ Function CheckAndInstallDotNet
     ${EndIf}
 
     MessageBox MB_OK|MB_ICONEXCLAMATION \
-        ".NET 8 Desktop Runtime installation failed (code: $0).$\nPlease install it manually from:$\nhttps://dotnet.microsoft.com/download/dotnet/8.0"
-    ExecShell "open" "https://dotnet.microsoft.com/download/dotnet/8.0"
+        ".NET 10 Desktop Runtime installation failed (code: $0).$\nPlease install it manually from:$\nhttps://dotnet.microsoft.com/download/dotnet/10.0"
+    ExecShell "open" "https://dotnet.microsoft.com/download/dotnet/10.0"
     Abort
 
     dotnet_found:

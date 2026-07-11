@@ -53,10 +53,10 @@ jobs:
       - name: Checkout source (latest code)
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8 SDK
+      - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Restore test project
         run: dotnet restore Tests/VNotch.Tests.csproj
@@ -75,10 +75,10 @@ jobs:
       - name: Checkout source (latest code)
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8 SDK
+      - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Install NSIS
         run: choco install nsis --no-progress -y
@@ -161,7 +161,7 @@ jobs:
 
             > This is an automated build from the `main` branch, not a stable release.
 
-            - `V-Notch-Setup.exe` — lightweight, requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+            - `V-Notch-Setup.exe` — lightweight, requires [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
             - `V-Notch-Setup-SelfContained.exe` — runs out of the box, no .NET install required (larger file).
           files: |
             ${{ steps.name.outputs.file }}
@@ -180,7 +180,7 @@ jobs:
           body: |
             Stable release `${{ steps.ver.outputs.version }}` (`${{ steps.ver.outputs.sha }}`).
 
-            - `V-Notch-Setup.exe` — lightweight, requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+            - `V-Notch-Setup.exe` — lightweight, requires [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
             - `V-Notch-Setup-SelfContained.exe` — runs out of the box, no .NET install required (larger file).
           files: |
             ${{ steps.name.outputs.file }}

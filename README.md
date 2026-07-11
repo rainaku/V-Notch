@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/github/v/release/rainaku/V-Notch?style=for-the-badge&color=8B5CF6&logo=github" alt="Latest Release">
   </a>
   <img src="https://img.shields.io/badge/platform-Windows_10%2F11-lightgrey?style=for-the-badge&logo=windows" alt="Platform">
-  <img src="https://img.shields.io/badge/.NET-8.0-purple?style=for-the-badge&logo=dotnet" alt="Framework">
+  <img src="https://img.shields.io/badge/.NET-10.0-purple?style=for-the-badge&logo=dotnet" alt="Framework">
   <a href="LICENSE">
     <img src="https://img.shields.io/github/license/rainaku/V-Notch?style=for-the-badge" alt="License">
   </a>
@@ -146,7 +146,7 @@
 
 ### Requirements
 - Windows 10/11 (64-bit)
-- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ### Install
 1. Download `V-Notch-Setup.exe` from [Releases](https://github.com/rainaku/V-Notch/releases)
@@ -160,7 +160,7 @@ Muốn dùng code mới nhất mà chưa có bản release? Bạn có thể tự
 1. Vào tab **Actions** của repo (fork về tài khoản của bạn nếu cần).
 2. Chọn workflow **Build Installer (Nightly / On-Demand)** → bấm **Run workflow**.
    Chọn **Loại build**:
-   - `framework-dependent` — nhẹ, cần cài [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+   - `framework-dependent` — nhẹ, cần cài [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
    - `self-contained` — chạy ngay không cần cài .NET (file lớn hơn).
    - `both` — build cả hai.
 3. Khi chạy xong, tải file `.exe` ở phần **Artifacts** của lần chạy đó,
@@ -207,7 +207,7 @@ Muốn dùng code mới nhất mà chưa có bản release? Bạn có thể tự
 | Component | Requirement |
 |-----------|-------------|
 | OS | Windows 10/11 (64-bit) |
-| Runtime | .NET 8 Desktop Runtime |
+| Runtime | .NET 10 Desktop Runtime |
 | RAM | >4GB for stability |
 | CPU | Minimal usage |
 | Display | Any resolution (adaptive positioning) |
