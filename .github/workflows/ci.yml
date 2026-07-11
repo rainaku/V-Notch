@@ -1,0 +1,52 @@
+name: CI
+
+'on':
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      # actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # actions/setup-dotnet@v4.3.1
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore V-Notch.sln
+
+      - name: Verify format
+        run: dotnet format V-Notch.sln --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build V-Notch.sln --configuration Release --no-restore -warnaserror
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $runtime = Get-ChildItem 'C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App' -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          Copy-Item "$($runtime.FullName)\*.dll" 'Tests\bin\Release\net10.0-windows10.0.19041.0\win-x64' -Force
+          dotnet test Tests/VNotch.Tests.csproj --configuration Release --no-build --no-restore /p:CollectCoverage=true /p:CoverletOutput=artifacts/coverage/ /p:CoverletOutputFormat=cobertura --verbosity normal
+          [xml]$coverage = Get-Content Tests/artifacts/coverage/coverage.cobertura.xml
+          if ([double]$coverage.coverage.'line-rate' -le 0) { throw 'Coverage report is empty.' }
+          $baseline = 'Tests/coverage-baseline.txt'
+          if (Test-Path $baseline) {
+            $minimum = [double](Get-Content $baseline -Raw)
+            if ([double]$coverage.coverage.'line-rate' -lt $minimum) { throw "Coverage dropped below baseline $minimum." }
+          }
+
+      - name: Audit packages
+        run: dotnet list V-Notch.sln package --vulnerable --include-transitive

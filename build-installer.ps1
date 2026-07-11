@@ -75,7 +75,7 @@ Write-Host "      Published successfully (v$exeVersion)" -ForegroundColor Green
 # Step 3b: Publish the standalone uninstaller into the same release folder so it
 # ships next to V-Notch.exe and ends up in the install directory.
 Write-Host "[3b/4] Publishing uninstaller..." -ForegroundColor Yellow
-dotnet publish .\Uninstall\Uninstall.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false @versionArgs -o $publishDir
+dotnet publish .\Uninstall\Uninstall.csproj -c Release -r win-x64 --self-contained $SelfContained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false @versionArgs -o $publishDir
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Uninstaller publish failed!" -ForegroundColor Red
     exit 1
