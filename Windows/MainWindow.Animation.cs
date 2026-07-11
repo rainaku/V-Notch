@@ -2,9 +2,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using System.Windows.Media.Effects;
 using VNotch.Controls;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
@@ -415,12 +415,12 @@ public partial class MainWindow
 
                 if (_cachedThumbWidthExpand == null || _cachedThumbWidthExpand.Duration != thumbDur)
                 {
-        _cachedThumbWidthExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
-        _cachedThumbHeightExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
+                    _cachedThumbWidthExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
+                    _cachedThumbHeightExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
                     Timeline.SetDesiredFrameRate(_cachedThumbWidthExpand, thumbFps);
                     Timeline.SetDesiredFrameRate(_cachedThumbHeightExpand, thumbFps);
 
-        _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 102, 102), thumbDur)
+                    _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 102, 102), thumbDur)
                     {
                         EasingFunction = thumbEase,
                         BeginTime = thumbDelay
@@ -847,9 +847,9 @@ public partial class MainWindow
                 AnimationThumbnailBorder.CornerRadius = new CornerRadius(14);
                 AnimationThumbnailClip.RadiusX = 14;
                 AnimationThumbnailClip.RadiusY = 14;
-        AnimationThumbnailBorder.Width = 102;
-        AnimationThumbnailBorder.Height = 102;
-        AnimationThumbnailClip.Rect = new Rect(0, 0, 102, 102);
+                AnimationThumbnailBorder.Width = 102;
+                AnimationThumbnailBorder.Height = 102;
+                AnimationThumbnailClip.Rect = new Rect(0, 0, 102, 102);
                 AnimationThumbnailTranslate.X = startX;
                 AnimationThumbnailTranslate.Y = startY;
 
@@ -860,12 +860,12 @@ public partial class MainWindow
 
                 if (_cachedThumbWidthCollapse == null || _cachedThumbWidthCollapse.Duration != thumbDur)
                 {
-        _cachedThumbWidthCollapse = MakeAnim(102, 22, thumbDur, thumbEase, thumbDelay);
-        _cachedThumbHeightCollapse = MakeAnim(102, 22, thumbDur, thumbEase, thumbDelay);
+                    _cachedThumbWidthCollapse = MakeAnim(102, 22, thumbDur, thumbEase, thumbDelay);
+                    _cachedThumbHeightCollapse = MakeAnim(102, 22, thumbDur, thumbEase, thumbDelay);
                     Timeline.SetDesiredFrameRate(_cachedThumbWidthCollapse, thumbFps);
                     Timeline.SetDesiredFrameRate(_cachedThumbHeightCollapse, thumbFps);
 
-        _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 102, 102), new Rect(0, 0, 22, 22), thumbDur)
+                    _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 102, 102), new Rect(0, 0, 22, 22), thumbDur)
                     {
                         EasingFunction = thumbEase,
                         BeginTime = thumbDelay

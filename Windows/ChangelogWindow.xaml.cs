@@ -41,7 +41,7 @@ public partial class ChangelogWindow : Window
 
             // Try to get latest release info
             var latestRelease = await _updateService.CheckForUpdatesAsync();
-            
+
             if (latestRelease != null)
             {
                 _changelogEntries.Add(new ChangelogEntry
@@ -285,7 +285,7 @@ public partial class ChangelogWindow : Window
         }
 
         var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-        
+
         foreach (var line in lines)
         {
             var trimmedLine = line.Trim();

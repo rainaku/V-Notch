@@ -45,7 +45,7 @@ public partial class ConfirmationDialog : Window
         string? detailText = null)
     {
         var dialog = new ConfirmationDialog();
-        
+
         if (owner != null)
         {
             dialog.Owner = owner;
@@ -53,7 +53,7 @@ public partial class ConfirmationDialog : Window
 
         // Set title
         dialog.TitleText.Text = string.IsNullOrEmpty(title) ? Loc.Get("dialog.confirm.title") : title;
-        
+
         // Set message
         dialog.MessageText.Text = message;
 

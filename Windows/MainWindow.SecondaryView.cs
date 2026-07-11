@@ -8,6 +8,7 @@ using System.Windows.Media.Effects;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
+
 public partial class MainWindow
 {
     private void NotchWrapper_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -166,8 +167,8 @@ public partial class MainWindow
 
         NotchBorder.IsHitTestVisible = false;
 
-        var durOut  = new Duration(TimeSpan.FromMilliseconds(170));
-        var durIn   = new Duration(TimeSpan.FromMilliseconds(440));
+        var durOut = new Duration(TimeSpan.FromMilliseconds(170));
+        var durIn = new Duration(TimeSpan.FromMilliseconds(440));
         var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
@@ -179,11 +180,11 @@ public partial class MainWindow
         ExpandedContent.RenderTransform = primaryGroup;
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeOut    = MakeAnim(1, 0,    durOut, _easeAppleIn);
-        var slideUp    = MakeAnim(ExpandedContentRestY, ExpandedContentRestY - 10, durOut, _easeAppleIn);
+        var fadeOut = MakeAnim(1, 0, durOut, _easeAppleIn);
+        var slideUp = MakeAnim(ExpandedContentRestY, ExpandedContentRestY - 10, durOut, _easeAppleIn);
         var scaleDownX = MakeAnim(1, 0.96, durOut, _easeAppleIn);
         var scaleDownY = MakeAnim(1, 0.96, durOut, _easeAppleIn);
-        Timeline.SetDesiredFrameRate(slideUp,    fps);
+        Timeline.SetDesiredFrameRate(slideUp, fps);
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
@@ -209,8 +210,8 @@ public partial class MainWindow
         SecondaryContent.Opacity = 0;
         EnableKeyboardInput();
 
-        var secondaryGroup     = new TransformGroup();
-        var secondaryScale     = new ScaleTransform(0.96, 0.96);
+        var secondaryGroup = new TransformGroup();
+        var secondaryScale = new ScaleTransform(0.96, 0.96);
         var secondaryTranslate = new TranslateTransform(0, 16);
         secondaryGroup.Children.Add(secondaryScale);
         secondaryGroup.Children.Add(secondaryTranslate);
@@ -219,12 +220,12 @@ public partial class MainWindow
 
         SecondaryContent.CacheMode = new BitmapCache { RenderAtScale = 1.0 };
 
-        var fadeIn       = MakeAnim(0, 1,    durIn, _easeAppleOut,   inDelay);
-        var springSlide  = MakeAnim(16, 0,   durIn, _easeAppleOut,   inDelay);
+        var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
+        var springSlide = MakeAnim(16, 0, durIn, _easeAppleOut, inDelay);
         var springScaleX = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
         var springScaleY = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
-        Timeline.SetDesiredFrameRate(fadeIn,       fps);
-        Timeline.SetDesiredFrameRate(springSlide,  fps);
+        Timeline.SetDesiredFrameRate(fadeIn, fps);
+        Timeline.SetDesiredFrameRate(springSlide, fps);
         Timeline.SetDesiredFrameRate(springScaleX, fps);
         Timeline.SetDesiredFrameRate(springScaleY, fps);
 
@@ -282,24 +283,24 @@ public partial class MainWindow
 
         NotchBorder.IsHitTestVisible = false;
 
-        var durOut  = new Duration(TimeSpan.FromMilliseconds(170));
-        var durIn   = new Duration(TimeSpan.FromMilliseconds(440));
+        var durOut = new Duration(TimeSpan.FromMilliseconds(170));
+        var durIn = new Duration(TimeSpan.FromMilliseconds(440));
         var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        var secondaryGroup     = new TransformGroup();
-        var secondaryScale     = new ScaleTransform(1, 1);
+        var secondaryGroup = new TransformGroup();
+        var secondaryScale = new ScaleTransform(1, 1);
         var secondaryTranslate = new TranslateTransform(0, 0);
         secondaryGroup.Children.Add(secondaryScale);
         secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        var fadeOut    = MakeAnim(1, 0,    durOut, _easeAppleIn);
-        var slideDown  = MakeAnim(0, 10,   durOut, _easeAppleIn);
+        var fadeOut = MakeAnim(1, 0, durOut, _easeAppleIn);
+        var slideDown = MakeAnim(0, 10, durOut, _easeAppleIn);
         var scaleDownX = MakeAnim(1, 0.96, durOut, _easeAppleIn);
         var scaleDownY = MakeAnim(1, 0.96, durOut, _easeAppleIn);
-        Timeline.SetDesiredFrameRate(slideDown,  fps);
+        Timeline.SetDesiredFrameRate(slideDown, fps);
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
@@ -326,8 +327,8 @@ public partial class MainWindow
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
 
-        var primaryGroup     = new TransformGroup();
-        var primaryScale     = new ScaleTransform(0.96, 0.96);
+        var primaryGroup = new TransformGroup();
+        var primaryScale = new ScaleTransform(0.96, 0.96);
         var primaryTranslate = new TranslateTransform(0, ExpandedContentRestY - 16);
         primaryGroup.Children.Add(primaryScale);
         primaryGroup.Children.Add(primaryTranslate);
@@ -338,12 +339,12 @@ public partial class MainWindow
 
         ExpandedContent.CacheMode = new BitmapCache { RenderAtScale = 1.0 };
 
-        var fadeIn       = MakeAnim(0, 1,     durIn, _easeAppleOut,    inDelay);
-        var springSlide  = MakeAnim(ExpandedContentRestY - 16, ExpandedContentRestY, durIn, _easeAppleOut, inDelay);
-        var springScaleX = MakeAnim(0.96, 1,  durIn, _easeAppleOut, inDelay);
-        var springScaleY = MakeAnim(0.96, 1,  durIn, _easeAppleOut, inDelay);
-        Timeline.SetDesiredFrameRate(fadeIn,       fps);
-        Timeline.SetDesiredFrameRate(springSlide,  fps);
+        var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
+        var springSlide = MakeAnim(ExpandedContentRestY - 16, ExpandedContentRestY, durIn, _easeAppleOut, inDelay);
+        var springScaleX = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
+        var springScaleY = MakeAnim(0.96, 1, durIn, _easeAppleOut, inDelay);
+        Timeline.SetDesiredFrameRate(fadeIn, fps);
+        Timeline.SetDesiredFrameRate(springSlide, fps);
         Timeline.SetDesiredFrameRate(springScaleX, fps);
         Timeline.SetDesiredFrameRate(springScaleY, fps);
 

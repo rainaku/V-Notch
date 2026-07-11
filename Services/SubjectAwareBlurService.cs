@@ -99,7 +99,7 @@ public static class SubjectAwareBlurService
                         byte gs = subjectLayer[p + 1];
                         byte rs = subjectLayer[p + 2];
 
-                        result[p]     = (byte)(bb + (bs - bb) * t);
+                        result[p] = (byte)(bb + (bs - bb) * t);
                         result[p + 1] = (byte)(gb + (gs - gb) * t);
                         result[p + 2] = (byte)(rb + (rs - rb) * t);
                         result[p + 3] = 255;
@@ -122,7 +122,7 @@ public static class SubjectAwareBlurService
     {
         for (int i = 0; i < pixels.Length; i += 4)
         {
-            pixels[i]     = (byte)(pixels[i] * factor);
+            pixels[i] = (byte)(pixels[i] * factor);
             pixels[i + 1] = (byte)(pixels[i + 1] * factor);
             pixels[i + 2] = (byte)(pixels[i + 2] * factor);
         }
@@ -132,7 +132,7 @@ public static class SubjectAwareBlurService
     {
         for (int i = 0; i < pixels.Length; i += 4)
         {
-            pixels[i]     = (byte)Math.Min(255, pixels[i] * factor);
+            pixels[i] = (byte)Math.Min(255, pixels[i] * factor);
             pixels[i + 1] = (byte)Math.Min(255, pixels[i + 1] * factor);
             pixels[i + 2] = (byte)Math.Min(255, pixels[i + 2] * factor);
         }
@@ -160,7 +160,7 @@ public static class SubjectAwareBlurService
             for (int x = 0; x < w; x++)
             {
                 int t = pBase + x * 4;
-                target[t]     = (byte)(sumB / window);
+                target[t] = (byte)(sumB / window);
                 target[t + 1] = (byte)(sumG / window);
                 target[t + 2] = (byte)(sumR / window);
                 target[t + 3] = (byte)(sumA / window);
@@ -203,7 +203,7 @@ public static class SubjectAwareBlurService
             for (int y = 0; y < h; y++)
             {
                 int t = y * rowStride + col;
-                target[t]     = (byte)(sumB / window);
+                target[t] = (byte)(sumB / window);
                 target[t + 1] = (byte)(sumG / window);
                 target[t + 2] = (byte)(sumR / window);
                 target[t + 3] = (byte)(sumA / window);

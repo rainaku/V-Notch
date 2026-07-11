@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using VNotch.Contracts;
 
 namespace VNotch.Modules;

@@ -8,8 +8,8 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using VNotch.Models;
 using VNotch.Services;
-using static VNotch.Services.Win32Interop;
 using static VNotch.Services.AnimationPrimitives;
+using static VNotch.Services.Win32Interop;
 
 namespace VNotch;
 

@@ -2,6 +2,7 @@ using System;
 using VNotch.Services;
 
 namespace VNotch.Controllers;
+
 public sealed class MusicWidgetController
 {
     private readonly NotchStateManager _stateManager;

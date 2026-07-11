@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 namespace VNotch.Services;
+
 internal static class AnimationPrimitives
 {
     #region Cached Easing Functions (Frozen - Thread Safe)

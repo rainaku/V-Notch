@@ -5,8 +5,8 @@ using System.Windows;
 using System.Windows.Media;
 using NAudio.CoreAudioApi;
 using NAudio.Dmo;
-using NAudio.Wave;
 using NAudio.Dsp;
+using NAudio.Wave;
 
 namespace VNotch.Controls
 {

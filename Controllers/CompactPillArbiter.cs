@@ -4,12 +4,12 @@ namespace VNotch.Controllers;
 
 public enum CompactPillSlot
 {
-    None       = 0,
-    Clipboard  = 1,
-    Volume     = 2,
-    Bluetooth  = 3,
-    Charging   = 4,
-    Greeting   = 5
+    None = 0,
+    Clipboard = 1,
+    Volume = 2,
+    Bluetooth = 3,
+    Charging = 4,
+    Greeting = 5
 }
 
 public sealed class CompactPillArbiter

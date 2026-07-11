@@ -9,6 +9,7 @@ using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
+
 public partial class MainWindow
 {
     #region Expanded Music Player Animations

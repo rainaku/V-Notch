@@ -35,7 +35,7 @@ public class MediaInfo
     public bool IsIndeterminate { get; set; }
     public bool IsSeekEnabled { get; set; }
     public bool IsThrottled { get; set; }
-public bool IsThumbnailOnlyUpdate { get; set; }
+    public bool IsThumbnailOnlyUpdate { get; set; }
 
     public double Progress => Duration.TotalSeconds > 0 ? Position.TotalSeconds / Duration.TotalSeconds : 0;
     public bool HasTimeline => Duration.TotalSeconds > 0 && !IsIndeterminate;

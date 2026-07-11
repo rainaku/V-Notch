@@ -9,6 +9,7 @@ using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
+
 public partial class MainWindow
 {
     private Storyboard? _chargingPulseStoryboard;

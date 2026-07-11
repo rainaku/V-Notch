@@ -10,17 +10,18 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
+using VNotch.Controllers;
+using VNotch.Services;
 using Windows.Graphics.Imaging;
 using Windows.Media;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Media.MediaProperties;
-using VNotch.Services;
-using VNotch.Controllers;
 using static VNotch.Services.AnimationPrimitives;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch;
+
 public partial class MainWindow
 {
     #region Camera Logic
@@ -520,80 +521,80 @@ public partial class MainWindow
             _cameraWriteableBitmap = null;
             _cameraFrameDispatchPending = false;
 
-        CameraOverlay.BeginAnimation(OpacityProperty, null);
-        CameraOverlay.Visibility = Visibility.Visible;
-        CameraOverlay.Opacity = 0.0;
-        CameraErrorOverlay.Visibility = Visibility.Collapsed;
+            CameraOverlay.BeginAnimation(OpacityProperty, null);
+            CameraOverlay.Visibility = Visibility.Visible;
+            CameraOverlay.Opacity = 0.0;
+            CameraErrorOverlay.Visibility = Visibility.Collapsed;
 
-        CameraPreviewImage.BeginAnimation(OpacityProperty, null);
-        CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-        double previewFrom = CameraPreviewImage.Opacity > 0 ? CameraPreviewImage.Opacity : 0.8;
-        var previewFadeOut = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
-        };
-        previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(previewFrom, KeyTime.FromPercent(0.0)));
-        previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(previewFrom, KeyTime.FromPercent(0.72), _easeSineInOut));
-        previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(previewFadeOut, VNotch.Services.AnimationConfig.TargetFps);
-
-        var overlayFadeIn = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
-        };
-        overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(0.0)));
-        overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(0.66), _easeSineInOut));
-        overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(overlayFadeIn, VNotch.Services.AnimationConfig.TargetFps);
-
-        var previewScaleOutX = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
-        };
-        previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleX, KeyTime.FromPercent(0.0)));
-        previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleX, KeyTime.FromPercent(0.72), _easeSineInOut));
-        previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(1.04, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(previewScaleOutX, VNotch.Services.AnimationConfig.TargetFps);
-
-        var previewScaleOutY = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
-        };
-        previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleY, KeyTime.FromPercent(0.0)));
-        previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleY, KeyTime.FromPercent(0.72), _easeSineInOut));
-        previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(1.04, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(previewScaleOutY, VNotch.Services.AnimationConfig.TargetFps);
-
-        var previewBlurOut = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
-        };
-        previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewBlur.Radius, KeyTime.FromPercent(0.0)));
-        previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewBlur.Radius, KeyTime.FromPercent(0.70), _easeSineInOut));
-        previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(_settings.EnableBlurEffects ? 16.0 : 0.0, KeyTime.FromPercent(1.0), _easeExpOut6));
-        Timeline.SetDesiredFrameRate(previewBlurOut, VNotch.Services.AnimationConfig.TargetFps);
-
-        previewFadeOut.Completed += (s, e) =>
-        {
-            if (fadeToken != _camera.FadeToken || _isCameraActive) return;
             CameraPreviewImage.BeginAnimation(OpacityProperty, null);
-            CameraPreviewImage.Opacity = 0;
             CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            CameraPreviewScale.ScaleX = 1.06;
-            CameraPreviewScale.ScaleY = 1.06;
             CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-            CameraPreviewBlur.Radius = _settings.EnableBlurEffects ? 16.0 : 0.0;
-            CameraPreviewImage.Source = null;
-            _cameraWriteableBitmap = null;
-        };
-        CameraPreviewImage.BeginAnimation(OpacityProperty, previewFadeOut, HandoffBehavior.SnapshotAndReplace);
-        CameraOverlay.BeginAnimation(OpacityProperty, overlayFadeIn, HandoffBehavior.SnapshotAndReplace);
-        CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, previewScaleOutX, HandoffBehavior.SnapshotAndReplace);
-        CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, previewScaleOutY, HandoffBehavior.SnapshotAndReplace);
-        CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, previewBlurOut, HandoffBehavior.SnapshotAndReplace);
+            double previewFrom = CameraPreviewImage.Opacity > 0 ? CameraPreviewImage.Opacity : 0.8;
+            var previewFadeOut = new DoubleAnimationUsingKeyFrames
+            {
+                Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
+            };
+            previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(previewFrom, KeyTime.FromPercent(0.0)));
+            previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(previewFrom, KeyTime.FromPercent(0.72), _easeSineInOut));
+            previewFadeOut.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0), _easeExpOut6));
+            Timeline.SetDesiredFrameRate(previewFadeOut, VNotch.Services.AnimationConfig.TargetFps);
+
+            var overlayFadeIn = new DoubleAnimationUsingKeyFrames
+            {
+                Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
+            };
+            overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(0.0)));
+            overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(0.0, KeyTime.FromPercent(0.66), _easeSineInOut));
+            overlayFadeIn.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1.0), _easeExpOut6));
+            Timeline.SetDesiredFrameRate(overlayFadeIn, VNotch.Services.AnimationConfig.TargetFps);
+
+            var previewScaleOutX = new DoubleAnimationUsingKeyFrames
+            {
+                Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
+            };
+            previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleX, KeyTime.FromPercent(0.0)));
+            previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleX, KeyTime.FromPercent(0.72), _easeSineInOut));
+            previewScaleOutX.KeyFrames.Add(new EasingDoubleKeyFrame(1.04, KeyTime.FromPercent(1.0), _easeExpOut6));
+            Timeline.SetDesiredFrameRate(previewScaleOutX, VNotch.Services.AnimationConfig.TargetFps);
+
+            var previewScaleOutY = new DoubleAnimationUsingKeyFrames
+            {
+                Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
+            };
+            previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleY, KeyTime.FromPercent(0.0)));
+            previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewScale.ScaleY, KeyTime.FromPercent(0.72), _easeSineInOut));
+            previewScaleOutY.KeyFrames.Add(new EasingDoubleKeyFrame(1.04, KeyTime.FromPercent(1.0), _easeExpOut6));
+            Timeline.SetDesiredFrameRate(previewScaleOutY, VNotch.Services.AnimationConfig.TargetFps);
+
+            var previewBlurOut = new DoubleAnimationUsingKeyFrames
+            {
+                Duration = new Duration(TimeSpan.FromMilliseconds(CameraSectionCollapseDurationMs))
+            };
+            previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewBlur.Radius, KeyTime.FromPercent(0.0)));
+            previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(CameraPreviewBlur.Radius, KeyTime.FromPercent(0.70), _easeSineInOut));
+            previewBlurOut.KeyFrames.Add(new EasingDoubleKeyFrame(_settings.EnableBlurEffects ? 16.0 : 0.0, KeyTime.FromPercent(1.0), _easeExpOut6));
+            Timeline.SetDesiredFrameRate(previewBlurOut, VNotch.Services.AnimationConfig.TargetFps);
+
+            previewFadeOut.Completed += (s, e) =>
+            {
+                if (fadeToken != _camera.FadeToken || _isCameraActive) return;
+                CameraPreviewImage.BeginAnimation(OpacityProperty, null);
+                CameraPreviewImage.Opacity = 0;
+                CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                CameraPreviewScale.ScaleX = 1.06;
+                CameraPreviewScale.ScaleY = 1.06;
+                CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+                CameraPreviewBlur.Radius = _settings.EnableBlurEffects ? 16.0 : 0.0;
+                CameraPreviewImage.Source = null;
+                _cameraWriteableBitmap = null;
+            };
+            CameraPreviewImage.BeginAnimation(OpacityProperty, previewFadeOut, HandoffBehavior.SnapshotAndReplace);
+            CameraOverlay.BeginAnimation(OpacityProperty, overlayFadeIn, HandoffBehavior.SnapshotAndReplace);
+            CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleXProperty, previewScaleOutX, HandoffBehavior.SnapshotAndReplace);
+            CameraPreviewScale.BeginAnimation(ScaleTransform.ScaleYProperty, previewScaleOutY, HandoffBehavior.SnapshotAndReplace);
+            CameraPreviewBlur.BeginAnimation(BlurEffect.RadiusProperty, previewBlurOut, HandoffBehavior.SnapshotAndReplace);
 
             await Task.Run(async () =>
             {

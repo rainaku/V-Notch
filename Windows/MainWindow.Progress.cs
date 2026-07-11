@@ -1,16 +1,16 @@
 using System;
-using System.Windows;
-using System.Windows.Input;
-using System.Windows.Threading;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using VNotch.Models;
 using VNotch.Services;
+using static VNotch.Services.AnimationPrimitives;
 using static VNotch.Services.Win32Interop;
 using POINT = VNotch.Services.Win32Interop.POINT;
-using static VNotch.Services.AnimationPrimitives;
 namespace VNotch;
 
 public partial class MainWindow

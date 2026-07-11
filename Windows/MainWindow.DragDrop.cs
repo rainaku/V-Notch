@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using VNotch.Controllers;
 
 namespace VNotch;
+
 public partial class MainWindow
 {
     #region Drag-to-Open

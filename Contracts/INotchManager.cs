@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using VNotch.Models;
 using VNotch.Services;
 

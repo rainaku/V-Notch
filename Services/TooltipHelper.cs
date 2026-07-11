@@ -59,7 +59,7 @@ public static class TooltipHelper
         for (int i = 0; i < childCount; i++)
         {
             var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
-            
+
             if (child is FrameworkElement element && element.ToolTip is ToolTip tooltip)
             {
                 // If the tooltip has a Tag storing the localization key, refresh it
@@ -76,25 +76,25 @@ public static class TooltipHelper
     private static Style CreateTooltipStyle()
     {
         var style = new Style(typeof(ToolTip));
-        
-        style.Setters.Add(new Setter(ToolTip.BackgroundProperty, 
+
+        style.Setters.Add(new Setter(ToolTip.BackgroundProperty,
             new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(240, 30, 30, 30))));
-        
-        style.Setters.Add(new Setter(ToolTip.ForegroundProperty, 
+
+        style.Setters.Add(new Setter(ToolTip.ForegroundProperty,
             System.Windows.Media.Brushes.White));
-        
-        style.Setters.Add(new Setter(ToolTip.BorderBrushProperty, 
+
+        style.Setters.Add(new Setter(ToolTip.BorderBrushProperty,
             new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(100, 255, 255, 255))));
-        
+
         style.Setters.Add(new Setter(ToolTip.BorderThicknessProperty, new Thickness(1)));
-        
+
         style.Setters.Add(new Setter(ToolTip.PaddingProperty, new Thickness(8, 4, 8, 4)));
-        
+
         style.Setters.Add(new Setter(ToolTip.FontSizeProperty, 12.0));
-        
-        style.Setters.Add(new Setter(Control.FontFamilyProperty, 
+
+        style.Setters.Add(new Setter(Control.FontFamilyProperty,
             new System.Windows.Media.FontFamily("Segoe UI")));
-        
+
         style.Setters.Add(new Setter(ToolTip.HasDropShadowProperty, true));
 
         style.Setters.Add(new Setter(ToolTip.MaxWidthProperty, 300.0));

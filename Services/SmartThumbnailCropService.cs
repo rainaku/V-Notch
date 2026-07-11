@@ -423,10 +423,10 @@ public sealed class SmartThumbnailCropService : IDisposable
             float threshold = isPerson ? PersonConfidenceThreshold : ConfidenceThreshold;
             if (maxScore < threshold) continue;
 
-            float cx = useSpan ? buffer[i]                      : output[0, 0, i];
-            float cy = useSpan ? buffer[numPredictions + i]     : output[0, 1, i];
-            float w  = useSpan ? buffer[2 * numPredictions + i] : output[0, 2, i];
-            float h  = useSpan ? buffer[3 * numPredictions + i] : output[0, 3, i];
+            float cx = useSpan ? buffer[i] : output[0, 0, i];
+            float cy = useSpan ? buffer[numPredictions + i] : output[0, 1, i];
+            float w = useSpan ? buffer[2 * numPredictions + i] : output[0, 2, i];
+            float h = useSpan ? buffer[3 * numPredictions + i] : output[0, 3, i];
 
             float x1 = (cx - w / 2f - padX) / scale;
             float y1 = (cy - h / 2f - padY) / scale;
@@ -454,7 +454,10 @@ public sealed class SmartThumbnailCropService : IDisposable
 
             detections.Add(new Detection
             {
-                X1 = x1, Y1 = y1, X2 = x2, Y2 = y2,
+                X1 = x1,
+                Y1 = y1,
+                X2 = x2,
+                Y2 = y2,
                 Confidence = maxScore,
                 ClassId = maxClassId
             });
@@ -541,71 +544,71 @@ public sealed class SmartThumbnailCropService : IDisposable
             try
             {
 
-            BitmapSource scaledSource = scaled;
-            if (scaled.Format != PixelFormats.Bgra32)
-            {
-                var converted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
-                converted.Freeze();
-                scaledSource = converted;
-            }
-            scaledSource.CopyPixels(pixels, stride, 0);
-
-            int aCellW = w / gridSize;
-            int aCellH = h / gridSize;
-
-            for (int gy = 0; gy < gridSize; gy++)
-            {
-                for (int gx = 0; gx < gridSize; gx++)
+                BitmapSource scaledSource = scaled;
+                if (scaled.Format != PixelFormats.Bgra32)
                 {
-                    int startX = gx * aCellW;
-                    int startY = gy * aCellH;
-                    int endX = Math.Min(startX + aCellW, w - 1);
-                    int endY = Math.Min(startY + aCellH, h - 1);
+                    var converted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
+                    converted.Freeze();
+                    scaledSource = converted;
+                }
+                scaledSource.CopyPixels(pixels, stride, 0);
 
-                    double edgeCount = 0;
-                    int pixelCount = 0;
+                int aCellW = w / gridSize;
+                int aCellH = h / gridSize;
 
-                    for (int y = startY; y < endY; y++)
+                for (int gy = 0; gy < gridSize; gy++)
+                {
+                    for (int gx = 0; gx < gridSize; gx++)
                     {
-                        for (int x = startX; x < endX; x++)
+                        int startX = gx * aCellW;
+                        int startY = gy * aCellH;
+                        int endX = Math.Min(startX + aCellW, w - 1);
+                        int endY = Math.Min(startY + aCellH, h - 1);
+
+                        double edgeCount = 0;
+                        int pixelCount = 0;
+
+                        for (int y = startY; y < endY; y++)
                         {
-                            int i = y * stride + x * 4;
-                            int iRight = i + 4;
-                            int iBelow = (y + 1) * stride + x * 4;
+                            for (int x = startX; x < endX; x++)
+                            {
+                                int i = y * stride + x * 4;
+                                int iRight = i + 4;
+                                int iBelow = (y + 1) * stride + x * 4;
 
-                            if (x + 1 >= w || y + 1 >= h) continue;
+                                if (x + 1 >= w || y + 1 >= h) continue;
 
-                            double lum = 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
-                            double lumR = 0.299 * pixels[iRight + 2] + 0.587 * pixels[iRight + 1] + 0.114 * pixels[iRight];
-                            double lumB = 0.299 * pixels[iBelow + 2] + 0.587 * pixels[iBelow + 1] + 0.114 * pixels[iBelow];
+                                double lum = 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
+                                double lumR = 0.299 * pixels[iRight + 2] + 0.587 * pixels[iRight + 1] + 0.114 * pixels[iRight];
+                                double lumB = 0.299 * pixels[iBelow + 2] + 0.587 * pixels[iBelow + 1] + 0.114 * pixels[iBelow];
 
-                            double grad = Math.Abs(lum - lumR) + Math.Abs(lum - lumB);
-                            if (grad > 40) edgeCount++;
-                            pixelCount++;
+                                double grad = Math.Abs(lum - lumR) + Math.Abs(lum - lumB);
+                                if (grad > 40) edgeCount++;
+                                pixelCount++;
+                            }
+                        }
+
+                        if (pixelCount == 0) continue;
+
+                        double edgeRatio = edgeCount / pixelCount;
+
+                        if (edgeRatio > 0.30)
+                        {
+                            float regionHeight = cellH;
+                            float fontFactor = MathF.Sqrt(regionHeight);
+
+                            regions.Add(new TextRegion
+                            {
+                                X1 = gx * cellW,
+                                Y1 = gy * cellH,
+                                X2 = (gx + 1) * cellW,
+                                Y2 = (gy + 1) * cellH,
+                                EdgeDensity = (float)edgeRatio,
+                                FontFactor = fontFactor
+                            });
                         }
                     }
-
-                    if (pixelCount == 0) continue;
-
-                    double edgeRatio = edgeCount / pixelCount;
-
-                    if (edgeRatio > 0.30)
-                    {
-                        float regionHeight = cellH;
-                        float fontFactor = MathF.Sqrt(regionHeight);
-
-                        regions.Add(new TextRegion
-                        {
-                            X1 = gx * cellW,
-                            Y1 = gy * cellH,
-                            X2 = (gx + 1) * cellW,
-                            Y2 = (gy + 1) * cellH,
-                            EdgeDensity = (float)edgeRatio,
-                            FontFactor = fontFactor
-                        });
-                    }
                 }
-            }
 
             }
             finally
@@ -841,110 +844,110 @@ public sealed class SmartThumbnailCropService : IDisposable
             try
             {
 
-            BitmapSource scaledSource = scaled;
-            if (scaled.Format != PixelFormats.Bgra32)
-            {
-                var converted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
-                converted.Freeze();
-                scaledSource = converted;
-            }
-            scaledSource.CopyPixels(pixels, stride, 0);
-
-            const int gridSize = 8;
-            int cellW = w / gridSize;
-            int cellH = h / gridSize;
-            float[,] saliencyMap = new float[gridSize, gridSize];
-
-            for (int gy = 0; gy < gridSize; gy++)
-            {
-                for (int gx = 0; gx < gridSize; gx++)
+                BitmapSource scaledSource = scaled;
+                if (scaled.Format != PixelFormats.Bgra32)
                 {
-                    int startX = gx * cellW;
-                    int startY = gy * cellH;
-                    int endX = Math.Min(startX + cellW, w - 1);
-                    int endY = Math.Min(startY + cellH, h - 1);
-
-                    double totalContrast = 0;
-                    double totalBrightness = 0;
-                    int pixelCount = 0;
-
-                    for (int y = startY; y < endY; y++)
-                    {
-                        for (int x = startX; x < endX; x++)
-                        {
-                            int i = y * stride + x * 4;
-                            if (x + 1 >= w || y + 1 >= h) continue;
-
-                            int iRight = i + 4;
-                            int iBelow = (y + 1) * stride + x * 4;
-
-                            double lum = 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
-                            double lumR = 0.299 * pixels[iRight + 2] + 0.587 * pixels[iRight + 1] + 0.114 * pixels[iRight];
-                            double lumB = 0.299 * pixels[iBelow + 2] + 0.587 * pixels[iBelow + 1] + 0.114 * pixels[iBelow];
-
-                            totalContrast += Math.Abs(lum - lumR) + Math.Abs(lum - lumB);
-                            totalBrightness += lum;
-                            pixelCount++;
-                        }
-                    }
-
-                    if (pixelCount == 0) continue;
-
-                    double avgContrast = totalContrast / pixelCount;
-                    double avgBrightness = totalBrightness / pixelCount;
-
-                    double totalSat = 0;
-                    for (int y = startY; y < endY; y++)
-                    {
-                        for (int x = startX; x < endX; x++)
-                        {
-                            int idx = y * stride + x * 4;
-                            double r = pixels[idx + 2] / 255.0;
-                            double g = pixels[idx + 1] / 255.0;
-                            double b = pixels[idx] / 255.0;
-                            double maxC = Math.Max(r, Math.Max(g, b));
-                            double minC = Math.Min(r, Math.Min(g, b));
-                            totalSat += maxC > 0 ? (maxC - minC) / maxC : 0;
-                        }
-                    }
-                    double avgSat = totalSat / Math.Max(1, pixelCount);
-
-                    double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
-
-                    double contrastFactor = avgContrast < 40 ? avgContrast / 40.0 : 1.0 - (avgContrast - 40) / 120.0;
-                    contrastFactor = Math.Clamp(contrastFactor, 0.1, 1.0);
-
-                    float cx = (gx + 0.5f) / gridSize;
-                    float cy = (gy + 0.5f) / gridSize;
-                    float centerDist = MathF.Sqrt((cx - 0.5f) * (cx - 0.5f) + (cy - 0.5f) * (cy - 0.5f));
-                    float centerBias = MathF.Max(0.1f, 1.0f - centerDist * 1.6f);
-
-                    saliencyMap[gy, gx] = (float)((avgSat * 60.0 + contrastFactor * 20.0) * brightnessPenalty * centerBias);
+                    var converted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
+                    converted.Freeze();
+                    scaledSource = converted;
                 }
-            }
+                scaledSource.CopyPixels(pixels, stride, 0);
 
-            float bestScore = -1;
-            int bestGx = gridSize / 2, bestGy = gridSize / 2;
+                const int gridSize = 8;
+                int cellW = w / gridSize;
+                int cellH = h / gridSize;
+                float[,] saliencyMap = new float[gridSize, gridSize];
 
-            for (int gy = 0; gy < gridSize - 1; gy++)
-            {
-                for (int gx = 0; gx < gridSize - 1; gx++)
+                for (int gy = 0; gy < gridSize; gy++)
                 {
-                    float blockScore = saliencyMap[gy, gx] + saliencyMap[gy, gx + 1]
-                                     + saliencyMap[gy + 1, gx] + saliencyMap[gy + 1, gx + 1];
-                    if (blockScore > bestScore)
+                    for (int gx = 0; gx < gridSize; gx++)
                     {
-                        bestScore = blockScore;
-                        bestGx = gx;
-                        bestGy = gy;
+                        int startX = gx * cellW;
+                        int startY = gy * cellH;
+                        int endX = Math.Min(startX + cellW, w - 1);
+                        int endY = Math.Min(startY + cellH, h - 1);
+
+                        double totalContrast = 0;
+                        double totalBrightness = 0;
+                        int pixelCount = 0;
+
+                        for (int y = startY; y < endY; y++)
+                        {
+                            for (int x = startX; x < endX; x++)
+                            {
+                                int i = y * stride + x * 4;
+                                if (x + 1 >= w || y + 1 >= h) continue;
+
+                                int iRight = i + 4;
+                                int iBelow = (y + 1) * stride + x * 4;
+
+                                double lum = 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
+                                double lumR = 0.299 * pixels[iRight + 2] + 0.587 * pixels[iRight + 1] + 0.114 * pixels[iRight];
+                                double lumB = 0.299 * pixels[iBelow + 2] + 0.587 * pixels[iBelow + 1] + 0.114 * pixels[iBelow];
+
+                                totalContrast += Math.Abs(lum - lumR) + Math.Abs(lum - lumB);
+                                totalBrightness += lum;
+                                pixelCount++;
+                            }
+                        }
+
+                        if (pixelCount == 0) continue;
+
+                        double avgContrast = totalContrast / pixelCount;
+                        double avgBrightness = totalBrightness / pixelCount;
+
+                        double totalSat = 0;
+                        for (int y = startY; y < endY; y++)
+                        {
+                            for (int x = startX; x < endX; x++)
+                            {
+                                int idx = y * stride + x * 4;
+                                double r = pixels[idx + 2] / 255.0;
+                                double g = pixels[idx + 1] / 255.0;
+                                double b = pixels[idx] / 255.0;
+                                double maxC = Math.Max(r, Math.Max(g, b));
+                                double minC = Math.Min(r, Math.Min(g, b));
+                                totalSat += maxC > 0 ? (maxC - minC) / maxC : 0;
+                            }
+                        }
+                        double avgSat = totalSat / Math.Max(1, pixelCount);
+
+                        double brightnessPenalty = (avgBrightness < 20 || avgBrightness > 240) ? 0.3 : 1.0;
+
+                        double contrastFactor = avgContrast < 40 ? avgContrast / 40.0 : 1.0 - (avgContrast - 40) / 120.0;
+                        contrastFactor = Math.Clamp(contrastFactor, 0.1, 1.0);
+
+                        float cx = (gx + 0.5f) / gridSize;
+                        float cy = (gy + 0.5f) / gridSize;
+                        float centerDist = MathF.Sqrt((cx - 0.5f) * (cx - 0.5f) + (cy - 0.5f) * (cy - 0.5f));
+                        float centerBias = MathF.Max(0.1f, 1.0f - centerDist * 1.6f);
+
+                        saliencyMap[gy, gx] = (float)((avgSat * 60.0 + contrastFactor * 20.0) * brightnessPenalty * centerBias);
                     }
                 }
-            }
 
-            float saliencyCenterX = (bestGx + 1.0f) / gridSize * imgWidth;
-            float saliencyCenterY = (bestGy + 1.0f) / gridSize * imgHeight;
+                float bestScore = -1;
+                int bestGx = gridSize / 2, bestGy = gridSize / 2;
 
-            return BuildCropRect(saliencyCenterX, saliencyCenterY, imgWidth, imgHeight, cropSize);
+                for (int gy = 0; gy < gridSize - 1; gy++)
+                {
+                    for (int gx = 0; gx < gridSize - 1; gx++)
+                    {
+                        float blockScore = saliencyMap[gy, gx] + saliencyMap[gy, gx + 1]
+                                         + saliencyMap[gy + 1, gx] + saliencyMap[gy + 1, gx + 1];
+                        if (blockScore > bestScore)
+                        {
+                            bestScore = blockScore;
+                            bestGx = gx;
+                            bestGy = gy;
+                        }
+                    }
+                }
+
+                float saliencyCenterX = (bestGx + 1.0f) / gridSize * imgWidth;
+                float saliencyCenterY = (bestGy + 1.0f) / gridSize * imgHeight;
+
+                return BuildCropRect(saliencyCenterX, saliencyCenterY, imgWidth, imgHeight, cropSize);
 
             }
             finally

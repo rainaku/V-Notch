@@ -308,94 +308,94 @@ public sealed class MediaArtworkService : IMediaArtworkService, IDisposable
         try
         {
 
-        BitmapSource src = small;
-        if (small.Format != System.Windows.Media.PixelFormats.Bgra32)
-        {
-            var conv = new FormatConvertedBitmap(small, System.Windows.Media.PixelFormats.Bgra32, null, 0);
-            conv.Freeze();
-            src = conv;
-        }
-        src.CopyPixels(pixels, stride, 0);
-
-        const int blackThreshold = 25;
-
-        int topBar = 0;
-        for (int y = 0; y < sh / 3; y++)
-        {
-            int darkPixels = 0, total = 0;
-            for (int x = sw / 4; x < sw * 3 / 4; x++)
+            BitmapSource src = small;
+            if (small.Format != System.Windows.Media.PixelFormats.Bgra32)
             {
-                int i = y * stride + x * 4;
-                if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
-                    darkPixels++;
-                total++;
+                var conv = new FormatConvertedBitmap(small, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+                conv.Freeze();
+                src = conv;
             }
-            if (total > 0 && (double)darkPixels / total > 0.85)
-                topBar = y + 1;
-            else
-                break;
-        }
+            src.CopyPixels(pixels, stride, 0);
 
-        int bottomBar = 0;
-        for (int y = sh - 1; y >= sh * 2 / 3; y--)
-        {
-            int darkPixels = 0, total = 0;
-            for (int x = sw / 4; x < sw * 3 / 4; x++)
+            const int blackThreshold = 25;
+
+            int topBar = 0;
+            for (int y = 0; y < sh / 3; y++)
             {
-                int i = y * stride + x * 4;
-                if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
-                    darkPixels++;
-                total++;
+                int darkPixels = 0, total = 0;
+                for (int x = sw / 4; x < sw * 3 / 4; x++)
+                {
+                    int i = y * stride + x * 4;
+                    if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
+                        darkPixels++;
+                    total++;
+                }
+                if (total > 0 && (double)darkPixels / total > 0.85)
+                    topBar = y + 1;
+                else
+                    break;
             }
-            if (total > 0 && (double)darkPixels / total > 0.85)
-                bottomBar++;
-            else
-                break;
-        }
 
-        int leftBar = 0;
-        for (int x = 0; x < sw / 3; x++)
-        {
-            int darkPixels = 0, total = 0;
-            for (int y = sh / 4; y < sh * 3 / 4; y++)
+            int bottomBar = 0;
+            for (int y = sh - 1; y >= sh * 2 / 3; y--)
             {
-                int i = y * stride + x * 4;
-                if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
-                    darkPixels++;
-                total++;
+                int darkPixels = 0, total = 0;
+                for (int x = sw / 4; x < sw * 3 / 4; x++)
+                {
+                    int i = y * stride + x * 4;
+                    if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
+                        darkPixels++;
+                    total++;
+                }
+                if (total > 0 && (double)darkPixels / total > 0.85)
+                    bottomBar++;
+                else
+                    break;
             }
-            if (total > 0 && (double)darkPixels / total > 0.85)
-                leftBar = x + 1;
-            else
-                break;
-        }
 
-        int rightBar = 0;
-        for (int x = sw - 1; x >= sw * 2 / 3; x--)
-        {
-            int darkPixels = 0, total = 0;
-            for (int y = sh / 4; y < sh * 3 / 4; y++)
+            int leftBar = 0;
+            for (int x = 0; x < sw / 3; x++)
             {
-                int i = y * stride + x * 4;
-                if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
-                    darkPixels++;
-                total++;
+                int darkPixels = 0, total = 0;
+                for (int y = sh / 4; y < sh * 3 / 4; y++)
+                {
+                    int i = y * stride + x * 4;
+                    if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
+                        darkPixels++;
+                    total++;
+                }
+                if (total > 0 && (double)darkPixels / total > 0.85)
+                    leftBar = x + 1;
+                else
+                    break;
             }
-            if (total > 0 && (double)darkPixels / total > 0.85)
-                rightBar++;
-            else
-                break;
-        }
 
-        int contentX = (int)(leftBar / scaleX);
-        int contentY = (int)(topBar / scaleY);
-        int contentW = width - contentX - (int)(rightBar / scaleX);
-        int contentH = height - contentY - (int)(bottomBar / scaleY);
+            int rightBar = 0;
+            for (int x = sw - 1; x >= sw * 2 / 3; x--)
+            {
+                int darkPixels = 0, total = 0;
+                for (int y = sh / 4; y < sh * 3 / 4; y++)
+                {
+                    int i = y * stride + x * 4;
+                    if (pixels[i] < blackThreshold && pixels[i + 1] < blackThreshold && pixels[i + 2] < blackThreshold)
+                        darkPixels++;
+                    total++;
+                }
+                if (total > 0 && (double)darkPixels / total > 0.85)
+                    rightBar++;
+                else
+                    break;
+            }
 
-        if (contentW < width / 2 || contentH < height / 2)
-            return new Int32Rect(0, 0, width, height);
+            int contentX = (int)(leftBar / scaleX);
+            int contentY = (int)(topBar / scaleY);
+            int contentW = width - contentX - (int)(rightBar / scaleX);
+            int contentH = height - contentY - (int)(bottomBar / scaleY);
 
-        return new Int32Rect(contentX, contentY, contentW, contentH);
+            if (contentW < width / 2 || contentH < height / 2)
+                return new Int32Rect(0, 0, width, height);
+
+            return new Int32Rect(contentX, contentY, contentW, contentH);
 
         }
         finally

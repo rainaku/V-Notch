@@ -1,10 +1,10 @@
-using System.Windows;
-using System.Threading;
-using Microsoft.Extensions.DependencyInjection;
-using VNotch.Services;
-using VNotch.Modules;
-using VNotch.ViewModels;
 using System.Linq;
+using System.Threading;
+using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
+using VNotch.Modules;
+using VNotch.Services;
+using VNotch.ViewModels;
 
 namespace VNotch;
 

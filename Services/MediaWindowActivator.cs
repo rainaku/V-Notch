@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -8,9 +8,10 @@ using VNotch.Models;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Services;
+
 internal static class MediaWindowActivator
 {
-public static bool TryActivateForMedia(MediaInfo info)
+    public static bool TryActivateForMedia(MediaInfo info)
     {
         var candidates = GetProcessCandidates(info).ToList();
         var processNames = new HashSet<string>(candidates, StringComparer.OrdinalIgnoreCase);
@@ -50,7 +51,7 @@ public static bool TryActivateForMedia(MediaInfo info)
 
         return TryActivateBestMatchingWindow(info, processNames, out _);
     }
-public static IEnumerable<string> GetProcessCandidates(MediaInfo info)
+    public static IEnumerable<string> GetProcessCandidates(MediaInfo info)
     {
         var candidates = new List<string>();
 
@@ -104,7 +105,7 @@ public static IEnumerable<string> GetProcessCandidates(MediaInfo info)
 
         return candidates;
     }
-public static bool TryActivateBestMatchingWindow(MediaInfo info, ISet<string> processNames, out bool usedBrowser)
+    public static bool TryActivateBestMatchingWindow(MediaInfo info, ISet<string> processNames, out bool usedBrowser)
     {
         usedBrowser = false;
         IntPtr bestHwnd = IntPtr.Zero;
@@ -142,7 +143,7 @@ public static bool TryActivateBestMatchingWindow(MediaInfo info, ISet<string> pr
         usedBrowser = IsBrowserProcess(bestProcessName);
         return bestHwnd != IntPtr.Zero && TryActivateWindow(bestHwnd);
     }
-public static bool TryActivateWindow(IntPtr hwnd)
+    public static bool TryActivateWindow(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero) return false;
 

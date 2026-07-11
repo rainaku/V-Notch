@@ -7,6 +7,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 
 namespace VNotch.Controls;
+
 public class ElasticSlider : Slider
 {
     #region Dependency Properties

@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 
 namespace VNotch.Services;
+
 internal static class Win32Interop
 {
     #region user32.dll

@@ -6,8 +6,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media.Animation;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using NAudio.CoreAudioApi;
 using VNotch.Controls;
@@ -29,7 +29,7 @@ public partial class SettingsWindow : Window
     private DispatcherTimer? _livePreviewDebounce;
 
     public event EventHandler<NotchSettings>? SettingsChanged;
-public event EventHandler? AnimatedClosing;
+    public event EventHandler? AnimatedClosing;
 
     public SettingsWindow(NotchSettings settings, SettingsService settingsService, BluetoothModule? bluetoothModule = null)
     {
@@ -1525,7 +1525,7 @@ public event EventHandler? AnimatedClosing;
         element.BeginAnimation(OpacityProperty, fadeOut);
     }
 
-private void PushLivePreview()
+    private void PushLivePreview()
     {
         if (_isLoadingSettings) return;
         if (!IsLoaded) return;
@@ -1797,7 +1797,7 @@ private void PushLivePreview()
         RevertLivePreviewIfNeeded();
         CloseWithAnimation();
     }
-private void RevertLivePreviewIfNeeded()
+    private void RevertLivePreviewIfNeeded()
     {
         SettingsChanged?.Invoke(this, _originalSettings.Clone());
     }
@@ -1930,7 +1930,7 @@ private void RevertLivePreviewIfNeeded()
         ApplySettingsFromUi(persist: true);
         CloseWithAnimation();
     }
-private void CloseWithAnimation()
+    private void CloseWithAnimation()
     {
         if (_isClosing) return;
         _isClosing = true;
@@ -2100,9 +2100,9 @@ private void CloseWithAnimation()
 
     private bool _isClosing = false;
     private double _shellCornerRadius = 24;
-public static readonly DependencyProperty ShellCornerRadiusProperty =
-        DependencyProperty.Register("ShellCornerRadius", typeof(double), typeof(SettingsWindow),
-            new PropertyMetadata(24.0, OnShellCornerRadiusChanged));
+    public static readonly DependencyProperty ShellCornerRadiusProperty =
+            DependencyProperty.Register("ShellCornerRadius", typeof(double), typeof(SettingsWindow),
+                new PropertyMetadata(24.0, OnShellCornerRadiusChanged));
 
     public double ShellCornerRadius
     {

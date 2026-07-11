@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 
 namespace VNotch.Services;
+
 public class MediaSourceCache
 {
     private const int DefaultCapacity = 500;

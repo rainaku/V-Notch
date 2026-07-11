@@ -1,4 +1,4 @@
-﻿namespace VNotch.Services;
+namespace VNotch.Services;
 
 public interface IMediaMetadataLookupService
 {

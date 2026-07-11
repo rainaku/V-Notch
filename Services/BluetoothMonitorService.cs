@@ -4,6 +4,7 @@ using System.Linq;
 using Windows.Devices.Enumeration;
 
 namespace VNotch.Services;
+
 public sealed class BluetoothMonitorService : IDisposable
 {
     private DeviceWatcher? _watcher;

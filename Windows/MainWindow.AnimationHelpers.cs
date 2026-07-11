@@ -10,6 +10,7 @@ using VNotch.Controls;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch;
+
 public partial class MainWindow
 {
     #region Hover Animations
@@ -1019,7 +1020,7 @@ public partial class MainWindow
     #endregion
 
     #region Settings Absorb Animation
-public void PlaySettingsEjectAnimation()
+    public void PlaySettingsEjectAnimation()
     {
         if (_isExpanded || _isAnimating) return;
 
@@ -1073,7 +1074,7 @@ public void PlaySettingsEjectAnimation()
         NotchScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
         NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
     }
-public void PlaySettingsAbsorbAnimation()
+    public void PlaySettingsAbsorbAnimation()
     {
         if (_isExpanded || _isAnimating) return;
 

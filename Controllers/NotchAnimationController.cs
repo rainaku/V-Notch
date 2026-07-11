@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Media.Animation;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch.Controllers;
+
 public sealed class NotchAnimationController
 {
     private readonly NotchStateManager _stateManager;

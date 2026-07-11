@@ -2,6 +2,7 @@ using System.Windows.Media.Imaging;
 using VNotch.Models;
 
 namespace VNotch.Services;
+
 public class MediaTimelineSimulator
 {
     private DateTime _simBaseWallTimeUtc = DateTime.MinValue;
@@ -30,7 +31,7 @@ public class MediaTimelineSimulator
         get => _recoveredThumbnail;
         set => _recoveredThumbnail = value;
     }
-public void UpdateObservedPosition(TimeSpan position)
+    public void UpdateObservedPosition(TimeSpan position)
     {
         if (position != _lastObservedPosition)
         {
@@ -38,15 +39,15 @@ public void UpdateObservedPosition(TimeSpan position)
             _lastPositionChangeTime = DateTime.Now;
         }
     }
-public bool IsPositionStuck(TimeSpan threshold)
+    public bool IsPositionStuck(TimeSpan threshold)
     {
         return (DateTime.Now - _lastPositionChangeTime).TotalSeconds > threshold.TotalSeconds;
     }
-public bool IsAtEndStuck(double progress, DateTime lastMetadataChangeTime, TimeSpan threshold)
+    public bool IsAtEndStuck(double progress, DateTime lastMetadataChangeTime, TimeSpan threshold)
     {
         return progress > 0.98 && (DateTime.Now - lastMetadataChangeTime) > threshold;
     }
-public void ApplySimulatedTimeline(MediaInfo info, bool atEndStuck)
+    public void ApplySimulatedTimeline(MediaInfo info, bool atEndStuck)
     {
         var nowUtc = DateTime.UtcNow;
 
@@ -84,29 +85,29 @@ public void ApplySimulatedTimeline(MediaInfo info, bool atEndStuck)
 
         info.LastUpdated = DateTimeOffset.Now;
     }
-public void EnterThrottledMode()
+    public void EnterThrottledMode()
     {
         _isThrottled = true;
     }
-public void Reset()
+    public void Reset()
     {
         _isThrottled = false;
         _recoveredDuration = TimeSpan.Zero;
         _recoveredThumbnail = null;
         ResetSimulation();
     }
-public void ResetSimulation()
+    public void ResetSimulation()
     {
         _simBaseWallTimeUtc = DateTime.MinValue;
         _simBasePosition = TimeSpan.Zero;
         _simSignature = "";
     }
-public void ResetRecoveredData()
+    public void ResetRecoveredData()
     {
         _recoveredDuration = TimeSpan.Zero;
         _recoveredThumbnail = null;
     }
-public bool TryExitThrottleIfPositionResumed(TimeSpan resumeThreshold)
+    public bool TryExitThrottleIfPositionResumed(TimeSpan resumeThreshold)
     {
         if (!_isThrottled) return false;
 
@@ -118,7 +119,7 @@ public bool TryExitThrottleIfPositionResumed(TimeSpan resumeThreshold)
 
         return false;
     }
-public bool TryExitThrottleIfStalled(TimeSpan stallThreshold)
+    public bool TryExitThrottleIfStalled(TimeSpan stallThreshold)
     {
         if (!_isThrottled) return false;
 

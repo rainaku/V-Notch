@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using VNotch.Models;
 
 namespace VNotch.Services;
+
 internal static class MediaProgressHelpers
 {
-public static void NormalizeStartupSnapshotTimestamp(MediaInfo info)
+    public static void NormalizeStartupSnapshotTimestamp(MediaInfo info)
     {
         if (!info.IsPlaying || info.Position <= TimeSpan.Zero)
         {
@@ -18,7 +19,7 @@ public static void NormalizeStartupSnapshotTimestamp(MediaInfo info)
             info.LastUpdated = nowUtc;
         }
     }
-public static bool IsLikelyBrowserProgressSource(MediaInfo info)
+    public static bool IsLikelyBrowserProgressSource(MediaInfo info)
     {
         if (info.Platform == MediaPlatform.YouTube)
         {
@@ -59,7 +60,7 @@ public static bool IsLikelyBrowserProgressSource(MediaInfo info)
 
         return false;
     }
-public static string FormatTime(TimeSpan time)
+    public static string FormatTime(TimeSpan time)
     {
         if (time.TotalHours >= 1)
         {

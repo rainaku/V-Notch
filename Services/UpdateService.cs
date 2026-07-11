@@ -60,11 +60,15 @@ public class UpdateService : IUpdateService
             using var jsonDoc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             var root = jsonDoc.RootElement;
             var (installer, checksum) = SelectReleaseAssets(root);
-            var info = new UpdateInfo {
+            var info = new UpdateInfo
+            {
                 Version = root.GetProperty("tag_name").GetString()?.TrimStart('v') ?? string.Empty,
-                DownloadUrl = installer?.Url ?? string.Empty, ChecksumUrl = checksum?.Url ?? string.Empty,
-                InstallerName = installer?.Name ?? string.Empty, ReleaseNotes = root.GetProperty("body").GetString() ?? string.Empty,
-                PublishedAt = root.GetProperty("published_at").GetDateTime() };
+                DownloadUrl = installer?.Url ?? string.Empty,
+                ChecksumUrl = checksum?.Url ?? string.Empty,
+                InstallerName = installer?.Name ?? string.Empty,
+                ReleaseNotes = root.GetProperty("body").GetString() ?? string.Empty,
+                PublishedAt = root.GetProperty("published_at").GetDateTime()
+            };
             info.IsNewerVersion = installer != null && checksum != null && CompareVersions(info.Version, CurrentVersion) > 0;
             if (installer == null || checksum == null) RuntimeLog.Warn("UPDATER", "Latest release has no approved installer and matching SHA-256 asset; update is unavailable.");
             _cachedLatestRelease = info;
@@ -118,7 +122,8 @@ public class UpdateService : IUpdateService
         await using var input = await response.Content.ReadAsStreamAsync(token);
         await using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         var buffer = new byte[81920]; long received = 0;
-        while (true) {
+        while (true)
+        {
             var count = await input.ReadAsync(buffer.AsMemory(), token); if (count == 0) break;
             received += count; if (received > UpdateSecurityPolicy.MaximumInstallerBytes) throw new InvalidDataException("Installer exceeds 500 MB limit.");
             await output.WriteAsync(buffer.AsMemory(0, count), token);
@@ -140,7 +145,8 @@ public class UpdateService : IUpdateService
     internal async Task<HttpResponseMessage> SendHttpsAsync(HttpRequestMessage request, CancellationToken token)
     {
         if (!IsHttps(request.RequestUri)) throw new InvalidOperationException("Only HTTPS update URLs are accepted.");
-        for (var redirects = 0; ; redirects++) {
+        for (var redirects = 0; ; redirects++)
+        {
             var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
             if (!IsRedirect(response.StatusCode)) { if (!IsHttps(response.RequestMessage?.RequestUri ?? request.RequestUri)) { response.Dispose(); throw new InvalidOperationException("Final update URL is not HTTPS."); } return response; }
             if (redirects >= 5 || response.Headers.Location == null) { response.Dispose(); throw new InvalidOperationException("Invalid or excessive update redirect."); }

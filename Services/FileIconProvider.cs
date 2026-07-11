@@ -12,6 +12,7 @@ using Windows.Storage;
 using Windows.Storage.FileProperties;
 
 namespace VNotch.Services;
+
 internal static class FileIconProvider
 {
     private sealed class CacheEntry
@@ -60,7 +61,7 @@ internal static class FileIconProvider
     private static readonly Guid _shellItemImageFactoryIid = new Guid("bcc18b79-ba16-442f-80c4-8746c1f01a3b");
 
     #endregion
-public static ImageSource? GetFileIcon(string filePath)
+    public static ImageSource? GetFileIcon(string filePath)
     {
         if (_iconCache.TryGetValue(filePath, out var cached))
         {

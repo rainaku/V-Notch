@@ -291,18 +291,18 @@ public partial class MainWindow
         var generation = ++_thumbnailSwitchGeneration;
         _isThumbnailSwitchActive = true;
 
-        var outDur     = TimeSpan.FromMilliseconds(420);
-        var inDur      = TimeSpan.FromMilliseconds(440);
-        var overlap    = TimeSpan.FromMilliseconds(180);
-        var totalDur   = overlap + inDur;
+        var outDur = TimeSpan.FromMilliseconds(420);
+        var inDur = TimeSpan.FromMilliseconds(440);
+        var overlap = TimeSpan.FromMilliseconds(180);
+        var totalDur = overlap + inDur;
 
         double expandedPeakBlur = _settings.EnableBlurEffects ? 18.0 : 0.0;
-        double compactPeakBlur  = _settings.EnableBlurEffects ? 6.0 : 0.0;
+        double compactPeakBlur = _settings.EnableBlurEffects ? 6.0 : 0.0;
 
-        var quintOut  = new QuinticEase  { EasingMode = EasingMode.EaseOut };
-        var cubicOut  = new CubicEase    { EasingMode = EasingMode.EaseOut };
-        var cubicIn   = new CubicEase    { EasingMode = EasingMode.EaseIn  };
-        var sineInOut = new SineEase     { EasingMode = EasingMode.EaseInOut };
+        var quintOut = new QuinticEase { EasingMode = EasingMode.EaseOut };
+        var cubicOut = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var cubicIn = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var sineInOut = new SineEase { EasingMode = EasingMode.EaseInOut };
 
         ThumbnailImageNext.Source = newThumb;
         CompactThumbnailNext.Source = newThumb;
@@ -333,9 +333,9 @@ public partial class MainWindow
         CompactThumbnail.Opacity = compactWasHidden ? 0.0 : 1.0;
 
         var outBlurExpanded = new DoubleAnimation(0.0, expandedPeakBlur, outDur) { EasingFunction = cubicOut };
-        var outBlurCompact  = new DoubleAnimation(0.0, compactPeakBlur,  outDur) { EasingFunction = cubicOut };
-        var outFade         = new DoubleAnimation(1.0, 0.0, outDur)              { EasingFunction = cubicIn };
-        var outScale        = new DoubleAnimation(1.0, 0.96, totalDur)           { EasingFunction = sineInOut };
+        var outBlurCompact = new DoubleAnimation(0.0, compactPeakBlur, outDur) { EasingFunction = cubicOut };
+        var outFade = new DoubleAnimation(1.0, 0.0, outDur) { EasingFunction = cubicIn };
+        var outScale = new DoubleAnimation(1.0, 0.96, totalDur) { EasingFunction = sineInOut };
         Timeline.SetDesiredFrameRate(outBlurExpanded, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(outBlurCompact, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(outFade, VNotch.Services.AnimationConfig.TargetFps);
@@ -351,7 +351,7 @@ public partial class MainWindow
         }
 
         var inBlurExpanded = MakeInBlur(expandedPeakBlur);
-        var inBlurCompact  = MakeInBlur(compactPeakBlur);
+        var inBlurCompact = MakeInBlur(compactPeakBlur);
 
         var inFade = new DoubleAnimationUsingKeyFrames();
         inFade.KeyFrames.Add(new DiscreteDoubleKeyFrame(0.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));

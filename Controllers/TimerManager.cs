@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Windows.Threading;
 
 namespace VNotch.Controllers;
+
 public sealed class TimerManager : IDisposable
 {
     private readonly Dictionary<string, ManagedTimer> _timers = new();

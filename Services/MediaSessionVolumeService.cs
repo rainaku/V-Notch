@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using NAudio.CoreAudioApi;
 
 namespace VNotch.Services;
+
 public sealed class MediaSessionVolumeService
 {
     private string _lastMatchedSessionId = "";

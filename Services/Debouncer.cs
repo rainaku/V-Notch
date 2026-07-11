@@ -1,6 +1,7 @@
 using System.Windows.Threading;
 
 namespace VNotch.Services;
+
 public sealed class Debouncer : IDisposable
 {
     private readonly DispatcherTimer _timer;
@@ -18,18 +19,18 @@ public sealed class Debouncer : IDisposable
             _pendingAction = null;
         };
     }
-public void Debounce(Action action)
+    public void Debounce(Action action)
     {
         _pendingAction = action;
         _timer.Stop();
         _timer.Start();
     }
-public void Cancel()
+    public void Cancel()
     {
         _timer.Stop();
         _pendingAction = null;
     }
-public void Flush()
+    public void Flush()
     {
         if (_pendingAction != null)
         {
@@ -72,7 +73,7 @@ public sealed class Throttler : IDisposable
             }
         };
     }
-public void Throttle(Action action)
+    public void Throttle(Action action)
     {
         var now = DateTime.UtcNow;
         if ((now - _lastExecutionUtc) >= _interval)
@@ -89,7 +90,7 @@ public void Throttle(Action action)
                 _timer.Start();
         }
     }
-public void Cancel()
+    public void Cancel()
     {
         _timer.Stop();
         _pendingAction = null;

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 namespace VNotch.Services;
+
 public static class PlatformDetector
 {
 
@@ -37,7 +38,7 @@ public static class PlatformDetector
         " - Browser", " – Current browser"
     };
 
-public static MediaPlatform DetectFromAppId(string? sourceAppId)
+    public static MediaPlatform DetectFromAppId(string? sourceAppId)
     {
         if (string.IsNullOrEmpty(sourceAppId))
             return MediaPlatform.Unknown;
@@ -50,7 +51,7 @@ public static MediaPlatform DetectFromAppId(string? sourceAppId)
 
         return MediaPlatform.Unknown;
     }
-public static bool IsBrowserApp(string? sourceAppId)
+    public static bool IsBrowserApp(string? sourceAppId)
     {
         if (string.IsNullOrEmpty(sourceAppId))
             return false;
@@ -63,7 +64,7 @@ public static bool IsBrowserApp(string? sourceAppId)
 
         return false;
     }
-public static MediaPlatform DetectFromWindowTitles(IEnumerable<string> windowTitles)
+    public static MediaPlatform DetectFromWindowTitles(IEnumerable<string> windowTitles)
     {
         MediaPlatform fallback = MediaPlatform.Unknown;
 
@@ -90,12 +91,12 @@ public static MediaPlatform DetectFromWindowTitles(IEnumerable<string> windowTit
 
         return fallback;
     }
-public static string DetectPlatformHint(IEnumerable<string> windowTitles)
+    public static string DetectPlatformHint(IEnumerable<string> windowTitles)
     {
         var platform = DetectFromWindowTitles(windowTitles);
         return platform.ToDisplayString();
     }
-public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, string track, MediaPlatform platform)
+    public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, string track, MediaPlatform platform)
     {
         if (string.IsNullOrWhiteSpace(track))
             return false;
@@ -120,7 +121,7 @@ public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, stri
 
         return false;
     }
-public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, string track, string platformName)
+    public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, string track, string platformName)
     {
         if (string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(platformName))
             return false;
@@ -141,11 +142,11 @@ public static bool HasReliableWindowMatch(IEnumerable<string> windowTitles, stri
 
         return false;
     }
-public static string ExtractTitleFromWindow(string windowTitle, MediaPlatform platform)
+    public static string ExtractTitleFromWindow(string windowTitle, MediaPlatform platform)
     {
         return ExtractTitleFromWindow(windowTitle, platform.ToDisplayString());
     }
-public static string ExtractTitleFromWindow(string windowTitle, string platformFallback)
+    public static string ExtractTitleFromWindow(string windowTitle, string platformFallback)
     {
         var title = windowTitle;
 
@@ -168,7 +169,7 @@ public static string ExtractTitleFromWindow(string windowTitle, string platformF
 
         return string.IsNullOrEmpty(title) ? platformFallback : title;
     }
-public static (string Artist, string Track) ParseSpotifyTitle(string title)
+    public static (string Artist, string Track) ParseSpotifyTitle(string title)
     {
         int firstSep = title.IndexOf(" - ", StringComparison.Ordinal);
         if (firstSep > 0)
@@ -183,7 +184,7 @@ public static (string Artist, string Track) ParseSpotifyTitle(string title)
 
         return ("Spotify", title.Trim());
     }
-public static string NormalizeForLooseMatch(string value)
+    public static string NormalizeForLooseMatch(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
@@ -231,7 +232,7 @@ public enum MediaPlatform
 }
 public static class MediaPlatformExtensions
 {
-public static string ToDisplayString(this MediaPlatform platform) => platform switch
+    public static string ToDisplayString(this MediaPlatform platform) => platform switch
     {
         MediaPlatform.Spotify => "Spotify",
         MediaPlatform.YouTube => "YouTube",
@@ -244,7 +245,7 @@ public static string ToDisplayString(this MediaPlatform platform) => platform sw
         MediaPlatform.Twitter => "Twitter",
         _ => ""
     };
-public static MediaPlatform ParsePlatform(string? value)
+    public static MediaPlatform ParsePlatform(string? value)
     {
         if (string.IsNullOrEmpty(value)) return MediaPlatform.Unknown;
 

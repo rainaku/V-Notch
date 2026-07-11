@@ -2,6 +2,7 @@ using System.Windows.Threading;
 using static VNotch.Services.Win32Interop;
 
 namespace VNotch.Services;
+
 public class ZOrderManager : IDisposable
 {
     private readonly Func<IntPtr> _getHwnd;
@@ -43,7 +44,7 @@ public class ZOrderManager : IDisposable
         };
         _fastTimer.Tick += FastTimer_Tick;
     }
-public void TriggerBurst(TimeSpan duration, bool aggressive = false)
+    public void TriggerBurst(TimeSpan duration, bool aggressive = false)
     {
         var now = DateTime.UtcNow;
         var until = now + duration;
@@ -65,7 +66,7 @@ public void TriggerBurst(TimeSpan duration, bool aggressive = false)
                 _fastTimer.Start();
         }
     }
-public void EnsureTopmost(bool force = false)
+    public void EnsureTopmost(bool force = false)
     {
         if (_isSuspended()) return;
 

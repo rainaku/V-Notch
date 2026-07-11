@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace VNotch.Services;
+
 internal static class DynamicIslandColorExtractor
 {
     public readonly record struct Palette(Color Main, Color Sub);
@@ -479,7 +480,9 @@ internal static class DynamicIslandColorExtractor
             if (clusterWeights[c] <= 0) continue;
             result.Add(new HsvCluster
             {
-                H = centroids[c].H, S = centroids[c].S, V = centroids[c].V,
+                H = centroids[c].H,
+                S = centroids[c].S,
+                V = centroids[c].V,
                 Coverage = clusterWeights[c],
                 InCropZone = inCrop[c]
             });

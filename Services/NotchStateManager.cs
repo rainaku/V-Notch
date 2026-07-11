@@ -2,6 +2,7 @@ using System;
 using VNotch.Models;
 
 namespace VNotch.Services;
+
 public class NotchStateManager
 {
     private NotchState _currentState = NotchState.Collapsed;
@@ -53,7 +54,7 @@ public class NotchStateManager
             _ => false
         };
     }
-public bool TryTransitionTo(NotchState target)
+    public bool TryTransitionTo(NotchState target)
     {
         lock (_stateLock)
         {
@@ -71,7 +72,7 @@ public bool TryTransitionTo(NotchState target)
         StateChanged?.Invoke(this, new NotchStateChangedEventArgs(_previousState, target));
         return true;
     }
-public void ForceState(NotchState target)
+    public void ForceState(NotchState target)
     {
         lock (_stateLock)
         {
@@ -100,7 +101,7 @@ public void ForceState(NotchState target)
         RuntimeLog.Warn("STATE", $"Recovering from stuck state: {current} → {recoveryTarget} (stuck for {TimeSinceLastTransition.TotalMilliseconds:0}ms)");
         ForceState(recoveryTarget);
     }
-public NotchState GetCollapseTarget()
+    public NotchState GetCollapseTarget()
     {
         return CurrentState switch
         {
@@ -128,16 +129,16 @@ public NotchState GetCollapseTarget()
 
 public enum NotchState
 {
-Collapsed,
-Expanding,
-Expanded,
-Collapsing,
-SecondaryView,
-CameraExpanded,
-MusicExpanding,
-MusicExpanded,
-MusicCollapsing,
-Hidden
+    Collapsed,
+    Expanding,
+    Expanded,
+    Collapsing,
+    SecondaryView,
+    CameraExpanded,
+    MusicExpanding,
+    MusicExpanded,
+    MusicCollapsing,
+    Hidden
 }
 
 public enum NotchExpandMode

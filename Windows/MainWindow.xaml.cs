@@ -1,31 +1,31 @@
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using System.Runtime.InteropServices;
-using System.Text;
 using Microsoft.Win32;
+using VNotch.Contracts;
 using VNotch.Controllers;
-using VNotch.Services;
 using VNotch.Models;
 using VNotch.Modules;
-using VNotch.Contracts;
+using VNotch.Services;
 using VNotch.ViewModels;
-using static VNotch.Services.Win32Interop;
 using static VNotch.Services.AnimationPrimitives;
+using static VNotch.Services.Win32Interop;
+using EnumWindowsProc = VNotch.Services.Win32Interop.EnumWindowsProc;
+using MONITORINFO = VNotch.Services.Win32Interop.MONITORINFO;
 using POINT = VNotch.Services.Win32Interop.POINT;
 using RECT = VNotch.Services.Win32Interop.RECT;
-using WINDOWPOS = VNotch.Services.Win32Interop.WINDOWPOS;
-using MONITORINFO = VNotch.Services.Win32Interop.MONITORINFO;
 using WINDOWPLACEMENT = VNotch.Services.Win32Interop.WINDOWPLACEMENT;
+using WINDOWPOS = VNotch.Services.Win32Interop.WINDOWPOS;
 using WinEventDelegate = VNotch.Services.Win32Interop.WinEventDelegate;
-using EnumWindowsProc = VNotch.Services.Win32Interop.EnumWindowsProc;
 namespace VNotch;
 
 public partial class MainWindow : Window
@@ -960,7 +960,7 @@ public partial class MainWindow : Window
     {
         PositionAtTop();
     }
-public (double Left, double Top, double Width, double Height, double CornerRadius) GetNotchScreenRect()
+    public (double Left, double Top, double Width, double Height, double CornerRadius) GetNotchScreenRect()
     {
         double notchW = _collapsedWidth;
         double notchH = _collapsedHeight;
@@ -1047,7 +1047,7 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             NotchShadowScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
 
-            NotchScale.ScaleX = 1.0;            NotchScale.ScaleY = 1.0;
+            NotchScale.ScaleX = 1.0; NotchScale.ScaleY = 1.0;
             NotchShadowScale.ScaleX = 1.0;
             NotchShadowScale.ScaleY = 1.0;
 
@@ -1143,58 +1143,58 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             }
             else
             {
-            var dur = _dur200;
-            var easing = _easeExpOut6;
+                var dur = _dur200;
+                var easing = _easeExpOut6;
 
-            var widthAnim = new DoubleAnimation(NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth, _collapsedWidth, dur)
-            {
-                EasingFunction = easing,
-                FillBehavior = FillBehavior.Stop
-            };
-            Timeline.SetDesiredFrameRate(widthAnim, fps);
-            widthAnim.Completed += (s, e) =>
-            {
-                NotchBorder.BeginAnimation(WidthProperty, null);
-                NotchBorder.Width = _collapsedWidth;
-            };
-
-            var heightAnim = new DoubleAnimation(NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight, _collapsedHeight, dur)
-            {
-                EasingFunction = easing,
-                FillBehavior = FillBehavior.Stop
-            };
-            Timeline.SetDesiredFrameRate(heightAnim, fps);
-            heightAnim.Completed += (s, e) =>
-            {
-                NotchBorder.BeginAnimation(HeightProperty, null);
-                NotchBorder.Height = _collapsedHeight;
-            };
-
-            NotchBorder.BeginAnimation(WidthProperty, widthAnim);
-            NotchBorder.BeginAnimation(HeightProperty, heightAnim);
-
-            double currentRadius = NotchBorder.CornerRadius.BottomLeft;
-            double targetRadius = _cornerRadiusCollapsed;
-            if (Math.Abs(targetRadius - currentRadius) > 0.5)
-            {
-                CurrentCornerRadius = currentRadius;
-                var radiusAnim = new DoubleAnimation(currentRadius, targetRadius, dur)
+                var widthAnim = new DoubleAnimation(NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _collapsedWidth, _collapsedWidth, dur)
                 {
-                    EasingFunction = easing
+                    EasingFunction = easing,
+                    FillBehavior = FillBehavior.Stop
                 };
-                Timeline.SetDesiredFrameRate(radiusAnim, fps);
-                this.BeginAnimation(CurrentCornerRadiusProperty, radiusAnim);
-            }
-            else
-            {
-                var cr = MakeNotchCornerRadius(_cornerRadiusCollapsed);
-                NotchBorder.CornerRadius = cr;
-                InnerClipBorder.CornerRadius = cr;
-                NotchBackground.CornerRadius = cr;
-                NotchBorderShadow.CornerRadius = cr;
-                MediaBackground.CornerRadius = cr;
-                MediaBackground2.CornerRadius = cr;
-            }
+                Timeline.SetDesiredFrameRate(widthAnim, fps);
+                widthAnim.Completed += (s, e) =>
+                {
+                    NotchBorder.BeginAnimation(WidthProperty, null);
+                    NotchBorder.Width = _collapsedWidth;
+                };
+
+                var heightAnim = new DoubleAnimation(NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _collapsedHeight, _collapsedHeight, dur)
+                {
+                    EasingFunction = easing,
+                    FillBehavior = FillBehavior.Stop
+                };
+                Timeline.SetDesiredFrameRate(heightAnim, fps);
+                heightAnim.Completed += (s, e) =>
+                {
+                    NotchBorder.BeginAnimation(HeightProperty, null);
+                    NotchBorder.Height = _collapsedHeight;
+                };
+
+                NotchBorder.BeginAnimation(WidthProperty, widthAnim);
+                NotchBorder.BeginAnimation(HeightProperty, heightAnim);
+
+                double currentRadius = NotchBorder.CornerRadius.BottomLeft;
+                double targetRadius = _cornerRadiusCollapsed;
+                if (Math.Abs(targetRadius - currentRadius) > 0.5)
+                {
+                    CurrentCornerRadius = currentRadius;
+                    var radiusAnim = new DoubleAnimation(currentRadius, targetRadius, dur)
+                    {
+                        EasingFunction = easing
+                    };
+                    Timeline.SetDesiredFrameRate(radiusAnim, fps);
+                    this.BeginAnimation(CurrentCornerRadiusProperty, radiusAnim);
+                }
+                else
+                {
+                    var cr = MakeNotchCornerRadius(_cornerRadiusCollapsed);
+                    NotchBorder.CornerRadius = cr;
+                    InnerClipBorder.CornerRadius = cr;
+                    NotchBackground.CornerRadius = cr;
+                    NotchBorderShadow.CornerRadius = cr;
+                    MediaBackground.CornerRadius = cr;
+                    MediaBackground2.CornerRadius = cr;
+                }
             }
 
             UpdateNotchClip();
@@ -1836,7 +1836,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
         if (_isMusicExpanded) SyncVolumeFromActiveSession();
         EnsureTopmost();
 
-        if (++_trimTickCounter >= 4)        {
+        if (++_trimTickCounter >= 4)
+        {
             _trimTickCounter = 0;
             if (!_isExpanded && !_isMusicExpanded && !_isAnimating)
             {

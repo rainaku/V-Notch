@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Windows.Media.Control;
 
 namespace VNotch.Services;
+
 public sealed class MediaTransportControlService
 {
     private readonly Func<GlobalSystemMediaTransportControlsSession?> _getActiveSession;

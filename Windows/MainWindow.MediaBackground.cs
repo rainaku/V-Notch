@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -6,7 +7,6 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using System.Threading;
 using VNotch.Models;
 using VNotch.Services;
 using static VNotch.Services.AnimationPrimitives;
@@ -284,10 +284,10 @@ public partial class MainWindow
         if (v >= 0.55) return c;
 
         double targetV;
-        if (v < 0.20)        targetV = 0.55;
-        else if (v < 0.35)   targetV = 0.55;
-        else if (v < 0.50)   targetV = 0.55;
-        else                 targetV = v;
+        if (v < 0.20) targetV = 0.55;
+        else if (v < 0.35) targetV = 0.55;
+        else if (v < 0.50) targetV = 0.55;
+        else targetV = v;
 
         if (targetV <= v) return c;
 

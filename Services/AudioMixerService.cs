@@ -64,91 +64,91 @@ public sealed class AudioMixerService : IDisposable
         var results = new List<AudioSessionInfo>();
         lock (_enumLock)
         {
-        try
-        {
-            var enumerator = GetEnumeratorLocked();
-            using var renderDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-
-            var sessions = renderDevice.AudioSessionManager.Sessions;
-            if (sessions == null) return results;
-
-            var seenProcessIds = new HashSet<uint>();
-
-            for (int i = 0; i < sessions.Count; i++)
+            try
             {
-                var session = sessions[i];
-                if (session == null) continue;
+                var enumerator = GetEnumeratorLocked();
+                using var renderDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
 
-                try
+                var sessions = renderDevice.AudioSessionManager.Sessions;
+                if (sessions == null) return results;
+
+                var seenProcessIds = new HashSet<uint>();
+
+                for (int i = 0; i < sessions.Count; i++)
                 {
-                    if (session.State == AudioSessionState.AudioSessionStateExpired)
-                        continue;
+                    var session = sessions[i];
+                    if (session == null) continue;
 
-                    bool isSystem = session.IsSystemSoundsSession;
-                    uint pid = session.GetProcessID;
-
-                    uint dedupeKey = isSystem ? 0u : pid;
-                    if (!seenProcessIds.Add(dedupeKey))
-                        continue;
-
-                    float volume;
-                    bool muted;
-                    using (var simpleVolume = session.SimpleAudioVolume)
+                    try
                     {
-                        volume = Math.Clamp(simpleVolume.Volume, 0f, 1f);
-                        muted = simpleVolume.Mute;
-                    }
+                        if (session.State == AudioSessionState.AudioSessionStateExpired)
+                            continue;
 
-                    string name;
-                    ImageSource? icon = null;
+                        bool isSystem = session.IsSystemSoundsSession;
+                        uint pid = session.GetProcessID;
 
-                    if (isSystem)
-                    {
-                        name = "System Sounds";
-                    }
-                    else if (includeIcons)
-                    {
-                        if (_iconCache.TryGetValue(pid, out var cached))
+                        uint dedupeKey = isSystem ? 0u : pid;
+                        if (!seenProcessIds.Add(dedupeKey))
+                            continue;
+
+                        float volume;
+                        bool muted;
+                        using (var simpleVolume = session.SimpleAudioVolume)
                         {
-                            name = cached.Name;
-                            icon = cached.Icon;
+                            volume = Math.Clamp(simpleVolume.Volume, 0f, 1f);
+                            muted = simpleVolume.Mute;
+                        }
+
+                        string name;
+                        ImageSource? icon = null;
+
+                        if (isSystem)
+                        {
+                            name = "System Sounds";
+                        }
+                        else if (includeIcons)
+                        {
+                            if (_iconCache.TryGetValue(pid, out var cached))
+                            {
+                                name = cached.Name;
+                                icon = cached.Icon;
+                            }
+                            else
+                            {
+                                ResolveProcess(pid, session, out name, out icon);
+                                if (!string.IsNullOrWhiteSpace(name))
+                                    _iconCache[pid] = (name, icon);
+                            }
                         }
                         else
                         {
-                            ResolveProcess(pid, session, out name, out icon);
-                            if (!string.IsNullOrWhiteSpace(name))
-                                _iconCache[pid] = (name, icon);
+                            name = ResolveProcessNameFast(pid, session);
                         }
-                    }
-                    else
-                    {
-                        name = ResolveProcessNameFast(pid, session);
-                    }
 
-                    if (string.IsNullOrWhiteSpace(name))
-                        continue;
+                        if (string.IsNullOrWhiteSpace(name))
+                            continue;
 
-                    results.Add(new AudioSessionInfo
+                        results.Add(new AudioSessionInfo
+                        {
+                            ProcessId = dedupeKey,
+                            DisplayName = name,
+                            Volume = volume,
+                            IsMuted = muted,
+                            IsSystemSounds = isSystem,
+                            Icon = icon
+                        });
+                    }
+                    catch (Exception ex)
                     {
-                        ProcessId = dedupeKey,
-                        DisplayName = name,
-                        Volume = volume,
-                        IsMuted = muted,
-                        IsSystemSounds = isSystem,
-                        Icon = icon
-                    });
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Log("AUDIOMIXER-SESSION", ex.Message);
+                        RuntimeLog.Log("AUDIOMIXER-SESSION", ex.Message);
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("AUDIOMIXER", $"GetSessions error: {ex.Message}");
-            DisposeEnumerator();
-        }
+            catch (Exception ex)
+            {
+                RuntimeLog.Log("AUDIOMIXER", $"GetSessions error: {ex.Message}");
+                DisposeEnumerator();
+            }
         }
 
         return results
@@ -302,42 +302,42 @@ public sealed class AudioMixerService : IDisposable
         var devices = new List<AudioDeviceInfo>();
         lock (_enumLock)
         {
-        try
-        {
-            var enumerator = GetEnumeratorLocked();
-            string defaultId = "";
             try
             {
-                using var def = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                defaultId = def.ID;
+                var enumerator = GetEnumeratorLocked();
+                string defaultId = "";
+                try
+                {
+                    using var def = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    defaultId = def.ID;
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("AUDIOMIXER", $"No default render endpoint: {ex.Message}");
+                }
+
+                foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+                {
+                    try
+                    {
+                        devices.Add(new AudioDeviceInfo
+                        {
+                            Id = device.ID,
+                            FriendlyName = device.FriendlyName,
+                            IsDefault = string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase)
+                        });
+                    }
+                    finally
+                    {
+                        device.Dispose();
+                    }
+                }
             }
             catch (Exception ex)
             {
-                RuntimeLog.Warn("AUDIOMIXER", $"No default render endpoint: {ex.Message}");
+                RuntimeLog.Log("AUDIOMIXER-DEVICES", ex.Message);
+                DisposeEnumerator();
             }
-
-            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
-            {
-                try
-                {
-                    devices.Add(new AudioDeviceInfo
-                    {
-                        Id = device.ID,
-                        FriendlyName = device.FriendlyName,
-                        IsDefault = string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase)
-                    });
-                }
-                finally
-                {
-                    device.Dispose();
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("AUDIOMIXER-DEVICES", ex.Message);
-            DisposeEnumerator();
-        }
         }
         return devices;
     }
@@ -407,42 +407,42 @@ public sealed class AudioMixerService : IDisposable
         var devices = new List<AudioDeviceInfo>();
         lock (_enumLock)
         {
-        try
-        {
-            var enumerator = GetEnumeratorLocked();
-            string defaultId = "";
             try
             {
-                using var def = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
-                defaultId = def.ID;
+                var enumerator = GetEnumeratorLocked();
+                string defaultId = "";
+                try
+                {
+                    using var def = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+                    defaultId = def.ID;
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("AUDIOMIXER", $"No default capture endpoint: {ex.Message}");
+                }
+
+                foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
+                {
+                    try
+                    {
+                        devices.Add(new AudioDeviceInfo
+                        {
+                            Id = device.ID,
+                            FriendlyName = device.FriendlyName,
+                            IsDefault = string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase)
+                        });
+                    }
+                    finally
+                    {
+                        device.Dispose();
+                    }
+                }
             }
             catch (Exception ex)
             {
-                RuntimeLog.Warn("AUDIOMIXER", $"No default capture endpoint: {ex.Message}");
+                RuntimeLog.Log("AUDIOMIXER-INDEVICES", ex.Message);
+                DisposeEnumerator();
             }
-
-            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
-            {
-                try
-                {
-                    devices.Add(new AudioDeviceInfo
-                    {
-                        Id = device.ID,
-                        FriendlyName = device.FriendlyName,
-                        IsDefault = string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase)
-                    });
-                }
-                finally
-                {
-                    device.Dispose();
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("AUDIOMIXER-INDEVICES", ex.Message);
-            DisposeEnumerator();
-        }
         }
         return devices;
     }

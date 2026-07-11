@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows.Threading;
 using VNotch.Contracts;
 using VNotch.Services;

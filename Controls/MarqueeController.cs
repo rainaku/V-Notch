@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -6,6 +6,7 @@ using System.Windows.Media.Animation;
 using static VNotch.Services.AnimationPrimitives;
 
 namespace VNotch.Controls;
+
 internal sealed class MarqueeController
 {
     #region Dependencies
@@ -47,12 +48,12 @@ internal sealed class MarqueeController
     }
 
     #region Public API
-public void RefreshMediaMarquee()
+    public void RefreshMediaMarquee()
     {
         RestartMarqueeFor(_title, _isTitleActiveA, isTitle: true);
         RestartMarqueeFor(_artist, _isArtistActiveA, isTitle: false);
     }
-public void UpdateTitleText(string newText)
+    public void UpdateTitleText(string newText)
     {
         if (newText == _lastTitleText) return;
         if ((DateTime.Now - _lastTitleMorphTime).TotalMilliseconds < 400) return;
@@ -63,7 +64,7 @@ public void UpdateTitleText(string newText)
         MorphAndRestart(_title, ref _isTitleActiveA, newText,
             setDistance: d => _titleScrollDistance = d);
     }
-public void UpdateArtistText(string newText)
+    public void UpdateArtistText(string newText)
     {
         if (newText == _lastArtistText) return;
         if ((DateTime.Now - _lastArtistMorphTime).TotalMilliseconds < 400) return;
@@ -74,7 +75,7 @@ public void UpdateArtistText(string newText)
         MorphAndRestart(_artist, ref _isArtistActiveA, newText,
             setDistance: d => _artistScrollDistance = d);
     }
-public static void StartMarqueeAnimation(TranslateTransform transform, double distance, double durationPerPixel = 40)
+    public static void StartMarqueeAnimation(TranslateTransform transform, double distance, double durationPerPixel = 40)
     {
         transform.BeginAnimation(TranslateTransform.XProperty, null);
         transform.X = 0;
@@ -204,7 +205,7 @@ public static void StartMarqueeAnimation(TranslateTransform transform, double di
     }
 
     #endregion
-private sealed record MarqueeTargets(
-        TextBlock TextA, TranslateTransform MarqueeA, TranslateTransform MorphA,
-        TextBlock TextB, TranslateTransform MarqueeB, TranslateTransform MorphB);
+    private sealed record MarqueeTargets(
+            TextBlock TextA, TranslateTransform MarqueeA, TranslateTransform MorphA,
+            TextBlock TextB, TranslateTransform MarqueeB, TranslateTransform MorphB);
 }

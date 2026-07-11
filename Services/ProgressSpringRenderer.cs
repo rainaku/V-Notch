@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 namespace VNotch.Services;
+
 internal sealed class ProgressSpringRenderer
 {
     #region Tuning
@@ -90,20 +91,20 @@ internal sealed class ProgressSpringRenderer
     #endregion
 
     #region Public API
-public void Start()
+    public void Start()
     {
         _active = true;
         _startTimeUtc = DateTime.UtcNow;
         Hook();
     }
-public void Stop()
+    public void Stop()
     {
         _active = false;
         _settleFrames = 0;
         _velocity = 0;
         Unhook();
     }
-public void Hook()
+    public void Hook()
     {
         if (_hooked) return;
         _hooked = true;
@@ -122,7 +123,7 @@ public void Hook()
         _fpsBoostTarget.BeginAnimation(TranslateTransform.XProperty, _fpsBoostAnim);
         CompositionTarget.Rendering += OnRendering;
     }
-public void Unhook()
+    public void Unhook()
     {
         if (!_hooked) return;
         _hooked = false;

@@ -2,6 +2,7 @@ using System;
 using VNotch.Services;
 
 namespace VNotch.Modules;
+
 public class BluetoothModule : NotchModuleBase
 {
     public override string ModuleName => "Bluetooth";
