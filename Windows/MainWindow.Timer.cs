@@ -102,6 +102,7 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
+        ExpandedContent.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
         var primaryTranslate = new TranslateTransform(0, ExpandedContentRestY);
@@ -118,24 +119,33 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
-        var expandedBlur = ExpandedContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
-        ExpandedContent.Effect = expandedBlur;
-        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 6 : 0, durOut, _easeAppleIn);
+        bool useContentBlur = _settings.EnableBlurEffects && !IsLiquidGlassEnabled;
+        BlurEffect? expandedBlur = null;
+        DoubleAnimation? blurOutAnim = null;
+        if (useContentBlur)
+        {
+            expandedBlur = ExpandedContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+            ExpandedContent.Effect = expandedBlur;
+            blurOutAnim = MakeAnim(0, 6, durOut, _easeAppleIn);
+        }
 
         fadeOut.Completed += (s, ev) =>
         {
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
             ExpandedContent.Effect = null;
-            expandedBlur.Radius = 0;
+            ExpandedContent.CacheMode = null;
+            if (expandedBlur != null) expandedBlur.Radius = 0;
         };
 
         ExpandedContent.BeginAnimation(OpacityProperty, fadeOut);
         primaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideUp);
         primaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDownX);
         primaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
-        expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
+        if (expandedBlur != null && blurOutAnim != null)
+            expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
+        TimerContent.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
         TimerContent.Visibility = Visibility.Visible;
         TimerContent.Opacity = 0;
 
@@ -164,6 +174,7 @@ public partial class MainWindow
             TimerContent.Opacity = 1;
             TimerContent.BeginAnimation(OpacityProperty, null);
             TimerContent.RenderTransform = null;
+            TimerContent.CacheMode = null;
             RestoreTimerContentOpacity();
         };
 
@@ -212,6 +223,7 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
+        SecondaryContent.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
         var secondaryGroup = new TransformGroup();
         var secondaryScale = new ScaleTransform(1, 1);
         var secondaryTranslate = new TranslateTransform(0, 0);
@@ -228,24 +240,33 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(scaleDownX, fps);
         Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
-        var secondaryBlur = SecondaryContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
-        SecondaryContent.Effect = secondaryBlur;
-        var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 6 : 0, durOut, _easeAppleIn);
+        bool useContentBlur = _settings.EnableBlurEffects && !IsLiquidGlassEnabled;
+        BlurEffect? secondaryBlur = null;
+        DoubleAnimation? blurOutAnim = null;
+        if (useContentBlur)
+        {
+            secondaryBlur = SecondaryContent.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+            SecondaryContent.Effect = secondaryBlur;
+            blurOutAnim = MakeAnim(0, 6, durOut, _easeAppleIn);
+        }
 
         fadeOut.Completed += (s, ev) =>
         {
             SecondaryContent.Visibility = Visibility.Collapsed;
             SecondaryContent.RenderTransform = null;
             SecondaryContent.Effect = null;
-            secondaryBlur.Radius = 0;
+            SecondaryContent.CacheMode = null;
+            if (secondaryBlur != null) secondaryBlur.Radius = 0;
         };
 
         SecondaryContent.BeginAnimation(OpacityProperty, fadeOut);
         secondaryTranslate.BeginAnimation(TranslateTransform.YProperty, slideUp);
         secondaryScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDownX);
         secondaryScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
-        secondaryBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
+        if (secondaryBlur != null && blurOutAnim != null)
+            secondaryBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
+        TimerContent.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
         TimerContent.Visibility = Visibility.Visible;
         TimerContent.Opacity = 0;
 
@@ -274,6 +295,7 @@ public partial class MainWindow
             TimerContent.Opacity = 1;
             TimerContent.BeginAnimation(OpacityProperty, null);
             TimerContent.RenderTransform = null;
+            TimerContent.CacheMode = null;
             RestoreTimerContentOpacity();
         };
 

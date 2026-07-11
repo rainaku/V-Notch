@@ -20,18 +20,35 @@ public sealed class WeatherService : IWeatherService
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("V-Notch/1.7.0 (https://github.com/rainaku/V-Notch)");
     }
 
-    public async Task<WeatherInfo?> GetCurrentWeatherAsync(CancellationToken cancellationToken = default)
+    public async Task<WeatherInfo?> GetCurrentWeatherAsync(string? manualCity = null, CancellationToken cancellationToken = default)
     {
         try
         {
-            var location = await ResolveLocationAsync(cancellationToken).ConfigureAwait(false);
-            if (location is null)
-            {
-                RuntimeLog.Log("WEATHER", "Could not resolve location.");
-                return null;
-            }
+            double lat, lon;
+            string city;
 
-            var (lat, lon, city) = location.Value;
+            if (!string.IsNullOrWhiteSpace(manualCity))
+            {
+                // Use manual city — no IP lookup at all
+                var coords = await ResolveCityCoordinatesAsync(manualCity, cancellationToken).ConfigureAwait(false);
+                if (coords is null)
+                {
+                    RuntimeLog.Log("WEATHER", $"Could not resolve manual city: {manualCity}");
+                    return null;
+                }
+                (lat, lon, city) = coords.Value;
+            }
+            else
+            {
+                // Resolve location via IP (HTTPS only)
+                var location = await TryIpWhoIsAsync(cancellationToken).ConfigureAwait(false);
+                if (location is null)
+                {
+                    RuntimeLog.Log("WEATHER", "Could not resolve location. Weather unavailable.");
+                    return null;
+                }
+                (lat, lon, city) = location.Value;
+            }
 
             string url =
                 "https://api.open-meteo.com/v1/forecast" +
@@ -97,12 +114,45 @@ public sealed class WeatherService : IWeatherService
         }
     }
 
-    private static async Task<(double lat, double lon, string city)?> ResolveLocationAsync(CancellationToken token)
+    private static async Task<(double lat, double lon, string city)?> ResolveCityCoordinatesAsync(string city, CancellationToken token)
     {
-        var result = await TryIpWhoIsAsync(token).ConfigureAwait(false);
-        if (result is not null) return result;
+        try
+        {
+            string url = "https://geocoding-api.open-meteo.com/v1/search" +
+                         $"?name={Uri.EscapeDataString(city)}" +
+                         "&count=1&language=en&format=json";
 
-        return await TryIpApiComAsync(token).ConfigureAwait(false);
+            using var response = await _http.GetAsync(url, token).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                RuntimeLog.Log("WEATHER", $"Geocoding HTTP {(int)response.StatusCode}");
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("results", out var results) || results.GetArrayLength() == 0)
+            {
+                RuntimeLog.Log("WEATHER", $"Geocoding: no results for '{city}'");
+                return null;
+            }
+
+            var first = results[0];
+            double lat = first.GetProperty("latitude").GetDouble();
+            double lon = first.GetProperty("longitude").GetDouble();
+            string resolvedCity = first.TryGetProperty("name", out var nameProp)
+                ? nameProp.GetString() ?? city
+                : city;
+
+            return (lat, lon, resolvedCity);
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("WEATHER", $"Geocoding failed: {ex.Message}");
+            return null;
+        }
     }
 
     private static async Task<(double, double, string)?> TryIpWhoIsAsync(CancellationToken token)
@@ -145,40 +195,6 @@ public sealed class WeatherService : IWeatherService
         catch (Exception ex)
         {
             RuntimeLog.Log("WEATHER", $"ipwho.is failed: {ex.Message}");
-            return null;
-        }
-    }
-
-    private static async Task<(double, double, string)?> TryIpApiComAsync(CancellationToken token)
-    {
-        try
-        {
-            using var response = await _http
-                .GetAsync("http://ip-api.com/json/?fields=status,city,lat,lon", token)
-                .ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) return null;
-
-            var json = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            if (!root.TryGetProperty("status", out var status) || status.GetString() != "success")
-                return null;
-            if (!root.TryGetProperty("lat", out var latProp) ||
-                !root.TryGetProperty("lon", out var lonProp))
-                return null;
-
-            double lat = latProp.GetDouble();
-            double lon = lonProp.GetDouble();
-            string city = root.TryGetProperty("city", out var cityProp)
-                ? cityProp.GetString() ?? string.Empty
-                : string.Empty;
-
-            return (lat, lon, city);
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Log("WEATHER", $"ip-api.com failed: {ex.Message}");
             return null;
         }
     }

@@ -187,6 +187,10 @@ public event EventHandler? AnimatedClosing;
         YouTubeApiKeyRow.Visibility = _settings.EnableYouTubeApi ? Visibility.Visible : Visibility.Collapsed;
         UpdateYouTubeApiKeyStatus();
 
+        EnableWeatherCheck.IsChecked = _settings.EnableWeather;
+        ManualCityTextBox.Text = _settings.ManualCity;
+        UpdateWeatherDependentControls(_settings.EnableWeather);
+
         _isLoadingSettings = false;
         ApplyLocalization();
     }
@@ -1132,6 +1136,29 @@ public event EventHandler? AnimatedClosing;
     }
 
     #endregion
+
+    private void EnableWeatherCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        bool enabled = EnableWeatherCheck.IsChecked ?? false;
+        UpdateWeatherDependentControls(enabled);
+        PushLivePreview();
+    }
+
+    private void UpdateWeatherDependentControls(bool enabled)
+    {
+        double targetOpacity = enabled ? 1.0 : 0.45;
+        ManualCityLabel.Opacity = targetOpacity;
+        ManualCityHint.Opacity = targetOpacity;
+        ManualCityTextBox.Opacity = targetOpacity;
+        ManualCityTextBox.IsEnabled = enabled;
+    }
+
+    private void ManualCityTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        PushLivePreview();
+    }
 
     private void YouTubeApiCheck_Changed(object sender, RoutedEventArgs e)
     {
@@ -2139,6 +2166,9 @@ public static readonly DependencyProperty ShellCornerRadiusProperty =
         _settings.IsShelfUploadLimitUnlocked = ShelfUnlockCheck.IsChecked ?? false;
         _settings.CopyShelfFilesToClipboard = CopyShelfClipboardCheck.IsChecked ?? false;
         _settings.ShowBatteryIndicator = ShowBatteryCheck.IsChecked ?? true;
+
+        _settings.EnableWeather = EnableWeatherCheck.IsChecked ?? false;
+        _settings.ManualCity = ManualCityTextBox.Text?.Trim() ?? string.Empty;
 
         _settings.EnableYouTubeApi = YouTubeApiCheck.IsChecked ?? false;
         _settings.YouTubeApiKey = YouTubeApiKeyPasswordBox.Password?.Trim() ?? "";

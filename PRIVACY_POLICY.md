@@ -13,7 +13,7 @@ V-Notch is a free, open-source desktop application for Windows that recreates a 
 
 This Privacy Policy explains, in detail, exactly what data the application accesses, why it accesses it, where that data goes, and how long it is kept. It reflects the actual behavior of the application source code, which is publicly available for inspection at [github.com/rainaku/V-Notch](https://github.com/rainaku/V-Notch).
 
-**Core principle:** V-Notch is local-first. It contains no analytics, no telemetry, no advertising, and no user accounts. It does not operate any server of its own. The only outbound network requests it makes are to public third-party services for two purposes: checking for application updates, and fetching album artwork / lyrics for the media you are already playing. All of these are described in Section 4.
+**Core principle:** V-Notch is local-first. It contains no analytics, no telemetry, no advertising, and no user accounts. It does not operate any server of its own. The only outbound network requests it makes are to public third-party services for a few purposes: checking for application updates, fetching album artwork / lyrics for the media you are already playing, and — if you explicitly opt in — showing the weather. All of these are described in Section 4.
 
 This policy uses the following terms:
 - **"Local"** — data that stays on your computer and is never sent anywhere.
@@ -29,6 +29,7 @@ This policy uses the following terms:
 | Now-playing media | Track title, artist, artwork, position, play state (Windows SMTC) | No (except artwork/lyrics lookup — see §4) | No (transient) |
 | Album artwork lookup | Track title + artist sent as a search query | Yes — YouTube/Google, SoundCloud, Piped/Invidious | No (image cached in memory) |
 | Synced lyrics | Track title + artist + duration sent as a query | Yes — lrclib.net | No (transient) |
+| Weather (opt-in) | Approximate IP-based location (ipwho.is) or manual city name (geocoding) | Yes — ipwho.is, Open-Meteo | No (transient) |
 | Update check | Standard HTTP headers only | Yes — GitHub API | Version info cached in memory |
 | Camera preview | Live camera frames | No | No (never recorded) |
 | File Shelf | File paths + basic file metadata | No | Paths persisted locally (see §5) |
@@ -131,9 +132,26 @@ When SMTC does not provide embedded artwork (common for browser-based playback),
 - **Data sent:** Track title, artist name, and track duration as query parameters, plus a `User-Agent` identifying V-Notch. No personal data is sent.
 - **Data received:** Synced lyric lines, used transiently for display.
 
-### 4.4 Third Parties
+### 4.4 Weather (Opt-In)
 
-The services above (GitHub, Google/YouTube, the Piped/Invidious instances, SoundCloud, and LRCLIB) are independent third parties with their own privacy policies. When V-Notch contacts them, your IP address is necessarily visible to that service, as with any normal web request. V-Notch does not control and is not responsible for how those services handle requests. If you prefer to avoid these lookups, you can disable artwork/lyrics features and update checks, or block the app's network access.
+When you enable the weather widget, V-Notch makes the following network requests **only** after you have explicitly turned the feature on. The weather widget is **off by default**; no weather-related requests are made on a fresh install until you enable it.
+
+- **IP-based location (default):** `https://ipwho.is/` — Your approximate location (latitude, longitude, city) is resolved from your IP address. This is **not** your precise GPS location; it is a coarse geographic approximation based on your IP's registered region. Only the HTTPS endpoint is used.
+- **Manual city (optional):** If you enter a city name manually, `https://geocoding-api.open-meteo.com/v1/search` is used to resolve it to coordinates. When a manual city is provided, no IP lookup is performed.
+- **Weather forecast:** `https://api.open-meteo.com/v1/forecast` — The latitude/longitude (from either IP lookup or manual city entry) is sent to Open-Meteo to retrieve the current temperature, weather code, daily high/low, and timezone.
+- **Frequency:** Every 15 minutes while the weather widget is active. Requests are cancelled when you turn the feature off.
+
+If ipwho.is is unreachable, the weather widget shows "unavailable" and falls back to nothing — no HTTP-only endpoint is used.
+
+All three endpoints are third-party services with their own privacy policies:
+- [ipwho.is/privacy](https://ipwho.is/privacy)
+- [open-meteo.com/privacy](https://open-meteo.com/privacy)
+
+**Data sent:** Your IP address (to ipwho.is), or a city name (to Open-Meteo geocoding), and latitude/longitude coordinates (to Open-Meteo forecast). No other personal data is included.
+
+### 4.5 Third Parties
+
+The services above (GitHub, Google/YouTube, the Piped/Invidious instances, SoundCloud, LRCLIB, ipwho.is, and Open-Meteo) are independent third parties with their own privacy policies. When V-Notch contacts them, your IP address is necessarily visible to that service, as with any normal web request. V-Notch does not control and is not responsible for how those services handle requests. If you prefer to avoid these lookups, you can disable artwork/lyrics features, weather, and update checks, or block the app's network access.
 
 ---
 
@@ -177,7 +195,7 @@ V-Notch does **not**:
 |---|---|---|
 | Media Session (SMTC) | Show now-playing media | Yes (core feature) |
 | Audio Endpoint (Core Audio) | Read/control system volume | Yes (core feature) |
-| Internet | Update checks, artwork & lyrics lookup | Optional |
+| Internet | Update checks, artwork & lyrics lookup, weather | Optional |
 | Camera | Camera preview in the notch | Opt-in |
 | File System | File Shelf drag-and-drop | Opt-in |
 | UI Automation | Detect active media URL in browsers | Used for media detection |

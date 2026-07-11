@@ -32,6 +32,19 @@ public partial class MainWindow
 
     private void WeatherModule_WeatherUpdated(object? sender, WeatherUpdateEventArgs e)
     {
+        if (e.Weather == null)
+        {
+            // Weather was disabled — clear cached data from UI
+            Dispatcher.Invoke(() =>
+            {
+                WeatherLocationText.Text = "—";
+                WeatherTempText.Text = "—°";
+                WeatherConditionText.Text = "";
+                WeatherHiLoText.Text = "";
+            });
+            return;
+        }
+
         UpdateWeatherUI(e.Weather);
     }
 

@@ -1003,6 +1003,8 @@ public (double Left, double Top, double Width, double Height, double CornerRadiu
             ApplySettings(sizeChanged);
             UpdateBatteryInfo();
 
+            _weatherModule.OnSettingsChanged(_settings);
+
             _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
 
             bool priorityChanged = !string.Equals(oldSubtitlePriority, _settings.SubtitlePriority, StringComparison.Ordinal);

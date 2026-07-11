@@ -6,5 +6,5 @@ namespace VNotch.Services;
 
 public interface IWeatherService
 {
-    Task<WeatherInfo?> GetCurrentWeatherAsync(CancellationToken cancellationToken = default);
+    Task<WeatherInfo?> GetCurrentWeatherAsync(string? manualCity = null, CancellationToken cancellationToken = default);
 }

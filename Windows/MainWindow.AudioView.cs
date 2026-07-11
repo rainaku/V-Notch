@@ -38,7 +38,7 @@ public partial class MainWindow
         {
             _audioPollTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
             {
-                Interval = TimeSpan.FromMilliseconds(200)
+                Interval = TimeSpan.FromMilliseconds(350)
             };
             _audioPollTimer.Tick += (_, _) => PollAudioVolumes();
         }
@@ -164,12 +164,12 @@ public partial class MainWindow
             {
                 if (openWindowHeight > _audioViewHeight)
                     ResizeHostWindowHeight(_audioViewHeight);
-                SettleAudioNotchToFit();
+                if (!ApplyPendingAudioSnapshot())
+                    SettleAudioNotchToFit();
+                StartAudioPoll();
             });
 
         RefreshAudioData(SettleAudioNotchToFit);
-        SyncAudioVolumesImmediate();
-        StartAudioPoll();
     }
 
     private void SwitchFromAudioToPrimaryView()
@@ -303,7 +303,7 @@ public partial class MainWindow
         if (outIsAudio)
         {
 
-            outgoing.CacheMode = new BitmapCache();
+            outgoing.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
             var closeGroup = new TransformGroup();
             var closeScale = new ScaleTransform(1, 1);
             var closeTranslate = new TranslateTransform(0, 0);
@@ -336,6 +336,7 @@ public partial class MainWindow
         else
         {
             double outRestY = ReferenceEquals(outgoing, ExpandedContent) ? ExpandedContentRestY : 0;
+            outgoing.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
 
             var outGroup = new TransformGroup();
             var outScale = new ScaleTransform(1, 1);
@@ -353,23 +354,31 @@ public partial class MainWindow
             Timeline.SetDesiredFrameRate(scaleDownX, fps);
             Timeline.SetDesiredFrameRate(scaleDownY, fps);
 
-            var outBlur = outgoing.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
-            outgoing.Effect = outBlur;
-            var blurOutAnim = MakeAnim(0, _settings.EnableBlurEffects ? 6 : 0, durOut, _easeAppleIn);
+            bool useContentBlur = _settings.EnableBlurEffects && !IsLiquidGlassEnabled;
+            BlurEffect? outBlur = null;
+            DoubleAnimation? blurOutAnim = null;
+            if (useContentBlur)
+            {
+                outBlur = outgoing.Effect as BlurEffect ?? new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+                outgoing.Effect = outBlur;
+                blurOutAnim = MakeAnim(0, 6, durOut, _easeAppleIn);
+            }
 
             fadeOut.Completed += (s, e) =>
             {
                 outgoing.Visibility = Visibility.Collapsed;
                 outgoing.RenderTransform = null;
                 outgoing.Effect = null;
-                outBlur.Radius = 0;
+                outgoing.CacheMode = null;
+                if (outBlur != null) outBlur.Radius = 0;
             };
 
             outgoing.BeginAnimation(OpacityProperty, fadeOut);
             outTranslate.BeginAnimation(TranslateTransform.YProperty, slideUp);
             outScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDownX);
             outScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDownY);
-            outBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
+            if (outBlur != null && blurOutAnim != null)
+                outBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
         }
 
         prepIncoming?.Invoke();
@@ -380,7 +389,7 @@ public partial class MainWindow
         if (inIsAudio)
         {
             incoming.RenderTransform = null;
-            incoming.CacheMode = new BitmapCache();
+            incoming.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
             var aFadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
             Timeline.SetDesiredFrameRate(aFadeIn, fps);
             aFadeIn.Completed += (s, e) =>
@@ -397,6 +406,7 @@ public partial class MainWindow
         }
         else
         {
+            incoming.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
             bool shrinking = notchFromW > notchToW + 0.5;
             var savedRounding = incoming.UseLayoutRounding;
             if (shrinking)
@@ -439,6 +449,7 @@ public partial class MainWindow
                     ApplyExpandedContentRestTransform();
                 else
                     incoming.RenderTransform = null;
+                incoming.CacheMode = null;
                 if (shrinking)
                 {
                     incoming.HorizontalAlignment = HorizontalAlignment.Stretch;

@@ -46,7 +46,10 @@ public partial class MainWindow
                 GlassBackdropImage,
                 () => _hwnd,
                 GetGlassCaptureRegion,
-                activeFps: 90,
+                // Menu transitions animate several large visual trees at once.
+                // Capping the backdrop at 60 FPS preserves smooth motion while
+                // leaving enough UI/GPU time for Clock and Mixer composition.
+                activeFps: Math.Clamp(VNotch.Services.AnimationConfig.TargetFps, 30, 60),
                 idleFps: 10);
 
             // Match the controller to the notch's current motion state so it starts

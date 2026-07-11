@@ -51,6 +51,9 @@ public partial class MainWindow
     private bool _audioSystemExpanded = true;
     private bool _audioAppsExpanded = true;
     private int _audioPopulateToken;
+    private int _audioPollInFlight;
+    private int _audioPrewarmInFlight;
+    private System.Windows.Threading.DispatcherTimer? _audioPrewarmUiRetryTimer;
 
     private Action<double>? _outputSetVol;
     private TextBlock? _outputDeviceLabel;
@@ -60,6 +63,8 @@ public partial class MainWindow
     private string _audioStructureKey = "";
 
     private AudioSnapshot? _lastAudioSnapshot;
+    private AudioSnapshot? _pendingAudioSnapshot;
+    private Action? _pendingAudioAfterBuild;
 
     private static Brush Frozen(string hex)
     {
@@ -73,7 +78,20 @@ public partial class MainWindow
         public List<AudioDeviceInfo> Output = new();
         public List<AudioDeviceInfo> Input = new();
         public List<AudioSessionInfo> Sessions = new();
+        public float Master = 0.5f;
         public float Capture = 0.5f;
+    }
+
+    private AudioSnapshot ReadAudioSnapshot(bool includeIcons, bool includeDevices = true)
+    {
+        return new AudioSnapshot
+        {
+            Output = includeDevices ? SafeCall(() => AudioMixer.GetOutputDevices()) ?? new() : new(),
+            Input = includeDevices ? SafeCall(() => AudioMixer.GetInputDevices()) ?? new() : new(),
+            Sessions = SafeCall(() => AudioMixer.GetSessions(includeIcons)) ?? new(),
+            Master = SafeCall(() => MasterVolume.IsAvailable ? MasterVolume.GetVolume() : 0.5f),
+            Capture = SafeCall(() => AudioMixer.GetCaptureVolume())
+        };
     }
 
     private void RefreshAudioData(Action? afterBuild = null)
@@ -82,27 +100,48 @@ public partial class MainWindow
 
         System.Threading.Tasks.Task.Run(() =>
         {
-            var snap = new AudioSnapshot
-            {
-                Output = SafeCall(() => AudioMixer.GetOutputDevices()) ?? new(),
-                Input = SafeCall(() => AudioMixer.GetInputDevices()) ?? new(),
-                Sessions = SafeCall(() => AudioMixer.GetSessions(includeIcons: true)) ?? new(),
-                Capture = SafeCall(() => AudioMixer.GetCaptureVolume())
-            };
+            var snap = ReadAudioSnapshot(includeIcons: true);
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (token != _audioPopulateToken) return;
-
-                if (_appRows.Count > 0 && StructureKey(snap) == _audioStructureKey)
-                    PatchInPlace(snap);
-                else
-                    BuildAudioUI(snap);
-
                 _lastAudioSnapshot = snap;
-                afterBuild?.Invoke();
+
+                // A dynamic tree rebuild during the scale/fade transition forces
+                // WPF to invalidate the bitmap cache and can stall Liquid Glass.
+                // Keep the newest snapshot and apply it as soon as the menu settles.
+                if (_isAudioView && _isAnimating)
+                {
+                    _pendingAudioSnapshot = snap;
+                    _pendingAudioAfterBuild = afterBuild;
+                    return;
+                }
+
+                ApplyAudioSnapshot(snap, afterBuild);
             }), System.Windows.Threading.DispatcherPriority.Background);
         });
+    }
+
+    private void ApplyAudioSnapshot(AudioSnapshot snap, Action? afterBuild = null)
+    {
+        if (_appRows.Count > 0 && StructureKey(snap) == _audioStructureKey)
+            PatchInPlace(snap);
+        else
+            BuildAudioUI(snap);
+
+        _lastAudioSnapshot = snap;
+        afterBuild?.Invoke();
+    }
+
+    private bool ApplyPendingAudioSnapshot()
+    {
+        var snap = _pendingAudioSnapshot;
+        var afterBuild = _pendingAudioAfterBuild;
+        _pendingAudioSnapshot = null;
+        _pendingAudioAfterBuild = null;
+        if (snap == null) return false;
+        ApplyAudioSnapshot(snap, afterBuild);
+        return true;
     }
 
     private static string StructureKey(AudioSnapshot s)
@@ -120,91 +159,79 @@ public partial class MainWindow
         if (c != null) { c.Volume = v; if (v > 0.0001f) c.IsMuted = false; }
     }
 
-    private void SyncAudioVolumesImmediate()
-    {
-        if (!_isAudioView) return;
-
-        System.Threading.Tasks.Task.Run(() =>
-        {
-            var sessions = SafeCall(() => AudioMixer.GetSessions(includeIcons: false)) ?? new();
-            float capture = SafeCall(() => AudioMixer.GetCaptureVolume());
-
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                if (!_isAudioView) return;
-
-                if (_outputSetVol != null && MasterVolume.IsAvailable) _outputSetVol(MasterVolume.GetVolume());
-                if (_inputSetVol != null) _inputSetVol(capture);
-
-                foreach (var s in sessions)
-                {
-                    if (s.IsSystemSounds) continue;
-                    if (_appRows.TryGetValue(s.ProcessId, out var h))
-                        h.SetVol(s.IsMuted ? 0 : s.Volume);
-
-                    if (_lastAudioSnapshot != null)
-                    {
-                        var c = _lastAudioSnapshot.Sessions.Find(x => x.ProcessId == s.ProcessId);
-                        if (c != null) { c.Volume = s.Volume; c.IsMuted = s.IsMuted; }
-                    }
-                }
-                if (_lastAudioSnapshot != null) _lastAudioSnapshot.Capture = capture;
-            }), System.Windows.Threading.DispatcherPriority.Render);
-        });
-    }
-
     private void PollAudioVolumes()
     {
         if (!_isAudioView || _isAnimating) return;
+        if (System.Threading.Interlocked.CompareExchange(ref _audioPollInFlight, 1, 0) != 0) return;
 
         System.Threading.Tasks.Task.Run(() =>
         {
             var sessions = SafeCall(() => AudioMixer.GetSessions(includeIcons: false)) ?? new();
             float capture = SafeCall(() => AudioMixer.GetCaptureVolume());
+            float master = SafeCall(() => MasterVolume.IsAvailable ? MasterVolume.GetVolume() : 0.5f);
 
-            Dispatcher.BeginInvoke(new Action(() =>
+            try
             {
-                if (!_isAudioView || _isAnimating) return;
-
-                var pids = new HashSet<uint>(sessions.Where(x => !x.IsSystemSounds).Select(x => x.ProcessId));
-                bool sameSet = _appRows.Count == pids.Count && pids.All(_appRows.ContainsKey);
-
-                if (sameSet)
+                Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    if (_outputSetVol != null && MasterVolume.IsAvailable) _outputSetVol(MasterVolume.GetVolume());
-                    if (_inputSetVol != null) _inputSetVol(capture);
-                    foreach (var s in sessions)
+                    try
                     {
-                        if (s.IsSystemSounds) continue;
-                        if (_appRows.TryGetValue(s.ProcessId, out var h))
-                            h.SetVol(s.IsMuted ? 0 : s.Volume);
-                    }
+                        if (!_isAudioView || _isAnimating) return;
 
-                    if (_lastAudioSnapshot != null)
-                    {
-                        _lastAudioSnapshot.Capture = capture;
-                        foreach (var s in sessions)
+                        var pids = new HashSet<uint>(sessions.Where(x => !x.IsSystemSounds).Select(x => x.ProcessId));
+                        bool sameSet = _appRows.Count == pids.Count && pids.All(_appRows.ContainsKey);
+
+                        if (sameSet)
                         {
-                            if (s.IsSystemSounds) continue;
-                            var c = _lastAudioSnapshot.Sessions.Find(x => x.ProcessId == s.ProcessId);
-                            if (c != null) { c.Volume = s.Volume; c.IsMuted = s.IsMuted; }
+                            _outputSetVol?.Invoke(master);
+                            _inputSetVol?.Invoke(capture);
+                            foreach (var s in sessions)
+                            {
+                                if (s.IsSystemSounds) continue;
+                                if (_appRows.TryGetValue(s.ProcessId, out var h))
+                                    h.SetVol(s.IsMuted ? 0 : s.Volume);
+                            }
+
+                            if (_lastAudioSnapshot != null)
+                            {
+                                _lastAudioSnapshot.Master = master;
+                                _lastAudioSnapshot.Capture = capture;
+                                foreach (var s in sessions)
+                                {
+                                    if (s.IsSystemSounds) continue;
+                                    var c = _lastAudioSnapshot.Sessions.Find(x => x.ProcessId == s.ProcessId);
+                                    if (c != null) { c.Volume = s.Volume; c.IsMuted = s.IsMuted; }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            RefreshAudioData();
                         }
                     }
-                }
-                else
-                {
-                    RefreshAudioData();
-                }
-            }), System.Windows.Threading.DispatcherPriority.Render);
+                    finally
+                    {
+                        System.Threading.Volatile.Write(ref _audioPollInFlight, 0);
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
+            catch
+            {
+                System.Threading.Volatile.Write(ref _audioPollInFlight, 0);
+            }
         });
     }
 
     private void PatchInPlace(AudioSnapshot snap)
     {
-        if (_outputSetVol != null && MasterVolume.IsAvailable) _outputSetVol(MasterVolume.GetVolume());
+        _outputSetVol?.Invoke(snap.Master);
         if (_inputSetVol != null) _inputSetVol(snap.Capture);
-        if (_outputDeviceLabel != null) _outputDeviceLabel.Text = PickName(snap.Output, "Speakers");
-        if (_inputDeviceLabel != null) _inputDeviceLabel.Text = PickName(snap.Input, "Microphone");
+        string outputName = PickName(snap.Output, "Speakers");
+        string inputName = PickName(snap.Input, "Microphone");
+        if (_outputDeviceLabel != null && !string.Equals(_outputDeviceLabel.Text, outputName, StringComparison.Ordinal))
+            _outputDeviceLabel.Text = outputName;
+        if (_inputDeviceLabel != null && !string.Equals(_inputDeviceLabel.Text, inputName, StringComparison.Ordinal))
+            _inputDeviceLabel.Text = inputName;
 
         foreach (var session in snap.Sessions)
         {
@@ -214,15 +241,23 @@ public partial class MainWindow
             h.SetVol(session.IsMuted ? 0 : session.Volume);
             if (session.Icon != null)
             {
-                h.IconHost.Child = new Image
+                if (h.IconHost.Child is Image image)
                 {
-                    Source = session.Icon,
-                    Width = 18,
-                    Height = 18,
-                    SnapsToDevicePixels = true
-                };
+                    if (!ReferenceEquals(image.Source, session.Icon)) image.Source = session.Icon;
+                }
+                else
+                {
+                    h.IconHost.Child = new Image
+                    {
+                        Source = session.Icon,
+                        Width = 18,
+                        Height = 18,
+                        SnapsToDevicePixels = true
+                    };
+                }
             }
-            if (!string.IsNullOrWhiteSpace(session.DisplayName))
+            if (!string.IsNullOrWhiteSpace(session.DisplayName) &&
+                !string.Equals(h.NameLabel.Text, session.DisplayName, StringComparison.Ordinal))
                 h.NameLabel.Text = session.DisplayName;
         }
     }
@@ -230,22 +265,57 @@ public partial class MainWindow
     public void PrewarmAudioSnapshot()
     {
         if (_lastAudioSnapshot != null) return;
+        if (System.Threading.Interlocked.CompareExchange(ref _audioPrewarmInFlight, 1, 0) != 0) return;
         System.Threading.Tasks.Task.Run(() =>
         {
-            var snap = new AudioSnapshot
+            var snap = ReadAudioSnapshot(includeIcons: true);
+            try
             {
-                Output = SafeCall(() => AudioMixer.GetOutputDevices()) ?? new(),
-                Input = SafeCall(() => AudioMixer.GetInputDevices()) ?? new(),
-                Sessions = SafeCall(() => AudioMixer.GetSessions(includeIcons: true)) ?? new(),
-                Capture = SafeCall(() => AudioMixer.GetCaptureVolume())
-            };
-            Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    System.Threading.Volatile.Write(ref _audioPrewarmInFlight, 0);
+                    _lastAudioSnapshot ??= snap;
+                    if (!_isAnimating && !_isAudioView && _appRows.Count == 0)
+                        BuildAudioUI(_lastAudioSnapshot!);
+                    else if (_isAudioView && _appRows.Count == 0)
+                        _pendingAudioSnapshot = _lastAudioSnapshot;
+                    else if (_appRows.Count == 0)
+                        SchedulePrewarmedAudioUiBuild();
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
+            catch
             {
-                _lastAudioSnapshot ??= snap;
-                if (!_isAudioView && _appRows.Count == 0)
-                    BuildAudioUI(_lastAudioSnapshot!);
-            }), System.Windows.Threading.DispatcherPriority.Background);
+                System.Threading.Volatile.Write(ref _audioPrewarmInFlight, 0);
+            }
         });
+    }
+
+    private void SchedulePrewarmedAudioUiBuild()
+    {
+        _audioPrewarmUiRetryTimer ??= new System.Windows.Threading.DispatcherTimer(
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle)
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _audioPrewarmUiRetryTimer.Tick -= PrewarmedAudioUiRetry_Tick;
+        _audioPrewarmUiRetryTimer.Tick += PrewarmedAudioUiRetry_Tick;
+        _audioPrewarmUiRetryTimer.Start();
+    }
+
+    private void PrewarmedAudioUiRetry_Tick(object? sender, EventArgs e)
+    {
+        if (_appRows.Count > 0 || _lastAudioSnapshot == null)
+        {
+            _audioPrewarmUiRetryTimer?.Stop();
+            return;
+        }
+        if (_isAnimating) return;
+
+        _audioPrewarmUiRetryTimer?.Stop();
+        if (_isAudioView)
+            ApplyAudioSnapshot(_lastAudioSnapshot);
+        else
+            BuildAudioUI(_lastAudioSnapshot);
     }
 
     private void EnsureAudioUIBuilt(AudioSnapshot snap)
@@ -286,7 +356,7 @@ public partial class MainWindow
 
             var systemRows = new StackPanel { ClipToBounds = true, Visibility = _audioSystemExpanded ? Visibility.Visible : Visibility.Collapsed };
 
-            float master = MasterVolume.IsAvailable ? MasterVolume.GetVolume() : 0.5f;
+            float master = snap.Master;
             systemRows.Children.Add(BuildSystemRow("\uE7F5", OutputIconGeometry, "Output", master,
                 r => { if (MasterVolume.IsAvailable) MasterVolume.SetVolume((float)r); },
                 deviceGlyph: "\uE7F5", deviceText: outName, devices: snap.Output,
@@ -744,10 +814,14 @@ public partial class MainWindow
             double w = area.ActualWidth;
             if (w <= 0) return;
             double usable = Math.Max(0, w - thumbSize);
-            fill.Width = w;
-            fillScale.ScaleX = Math.Clamp(r, 0, 1);
-            thumbTranslate.X = r * usable;
-            percentLabel.Text = ((int)Math.Round(r * 100)) + "%";
+            double clamped = Math.Clamp(r, 0, 1);
+            if (Math.Abs(fill.Width - w) > 0.1) fill.Width = w;
+            if (Math.Abs(fillScale.ScaleX - clamped) > 0.0005) fillScale.ScaleX = clamped;
+            double thumbX = clamped * usable;
+            if (Math.Abs(thumbTranslate.X - thumbX) > 0.05) thumbTranslate.X = thumbX;
+            string percent = ((int)Math.Round(clamped * 100)) + "%";
+            if (!string.Equals(percentLabel.Text, percent, StringComparison.Ordinal))
+                percentLabel.Text = percent;
         }
 
         area.Loaded += (_, _) => UpdateVisual(currentRatio);
@@ -768,7 +842,9 @@ public partial class MainWindow
         setVisual = r =>
         {
             if (dragging || DateTime.UtcNow < suppressUntil) return;
-            currentRatio = Math.Clamp(r, 0, 1);
+            double next = Math.Clamp(r, 0, 1);
+            if (Math.Abs(next - currentRatio) < 0.0005) return;
+            currentRatio = next;
             UpdateVisual(currentRatio);
         };
 

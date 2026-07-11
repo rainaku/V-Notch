@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
 
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
@@ -84,6 +84,18 @@ public static class SettingsMigrator
                 if (!root.ContainsKey(nameof(NotchSettings.ReopenLastViewOnExpand)))
                 {
                     root[nameof(NotchSettings.ReopenLastViewOnExpand)] = false;
+                }
+                return root;
+            },
+            [7] = root =>
+            {
+                if (!root.ContainsKey(nameof(NotchSettings.EnableWeather)))
+                {
+                    root[nameof(NotchSettings.EnableWeather)] = false;
+                }
+                if (!root.ContainsKey(nameof(NotchSettings.ManualCity)))
+                {
+                    root[nameof(NotchSettings.ManualCity)] = string.Empty;
                 }
                 return root;
             },

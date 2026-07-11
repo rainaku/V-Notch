@@ -13,7 +13,7 @@ V-Notch là ứng dụng desktop miễn phí, mã nguồn mở dành cho Windows
 
 Chính sách bảo mật này giải thích chi tiết: chính xác dữ liệu nào ứng dụng truy cập, tại sao truy cập, dữ liệu đó đi đâu, và được lưu giữ trong bao lâu. Nội dung phản ánh đúng hành vi thực tế của mã nguồn, vốn được công khai để kiểm tra tại [github.com/rainaku/V-Notch](https://github.com/rainaku/V-Notch).
 
-**Nguyên tắc cốt lõi:** V-Notch ưu tiên xử lý cục bộ. Ứng dụng không có analytics, không telemetry, không quảng cáo, và không tài khoản người dùng. Ứng dụng không vận hành bất kỳ máy chủ nào của riêng mình. Các yêu cầu mạng ra ngoài duy nhất mà ứng dụng thực hiện là tới các dịch vụ bên thứ ba công khai cho hai mục đích: kiểm tra cập nhật ứng dụng, và lấy ảnh bìa album / lời bài hát cho phương tiện bạn đang phát. Tất cả được mô tả trong Mục 4.
+**Nguyên tắc cốt lõi:** V-Notch ưu tiên xử lý cục bộ. Ứng dụng không có analytics, không telemetry, không quảng cáo, và không tài khoản người dùng. Ứng dụng không vận hành bất kỳ máy chủ nào của riêng mình. Các yêu cầu mạng ra ngoài duy nhất mà ứng dụng thực hiện là tới các dịch vụ bên thứ ba công khai cho một số mục đích: kiểm tra cập nhật ứng dụng, lấy ảnh bìa album / lời bài hát cho phương tiện bạn đang phát, và — nếu bạn chủ động chọn — hiển thị thời tiết. Tất cả được mô tả trong Mục 4.
 
 Chính sách này dùng các thuật ngữ sau:
 - **"Cục bộ"** — dữ liệu ở lại trên máy của bạn và không bao giờ được gửi đi đâu.
@@ -29,6 +29,7 @@ Chính sách này dùng các thuật ngữ sau:
 | Phương tiện đang phát | Tên bài, nghệ sĩ, ảnh bìa, vị trí, trạng thái phát (Windows SMTC) | Không (trừ tra cứu ảnh bìa/lời — xem §4) | Không (tạm thời) |
 | Tra cứu ảnh bìa album | Tên bài + nghệ sĩ gửi đi như một truy vấn tìm kiếm | Có — YouTube/Google, SoundCloud, Piped/Invidious | Không (ảnh cache trong bộ nhớ) |
 | Lời bài hát đồng bộ | Tên bài + nghệ sĩ + thời lượng gửi đi như truy vấn | Có — lrclib.net | Không (tạm thời) |
+| Thời tiết (opt-in) | Vị trí gần đúng dựa trên IP (ipwho.is) hoặc tên thành phố thủ công (geocoding) | Có — ipwho.is, Open-Meteo | Không (tạm thời) |
 | Kiểm tra cập nhật | Chỉ header HTTP tiêu chuẩn | Có — GitHub API | Thông tin phiên bản cache trong bộ nhớ |
 | Xem trước camera | Khung hình camera trực tiếp | Không | Không (không bao giờ ghi lại) |
 | File Shelf | Đường dẫn tệp + metadata cơ bản | Không | Đường dẫn lưu cục bộ (xem §5) |
@@ -131,9 +132,26 @@ Khi SMTC không cung cấp ảnh bìa nhúng (thường gặp với phát qua tr
 - **Dữ liệu gửi đi:** Tên bài, tên nghệ sĩ, và thời lượng bài làm tham số truy vấn, cùng một `User-Agent` nhận diện V-Notch. Không có dữ liệu cá nhân nào được gửi.
 - **Dữ liệu nhận về:** Các dòng lời đồng bộ, dùng tạm thời để hiển thị.
 
-### 4.4 Bên thứ ba
+### 4.4 Thời tiết (Opt-In)
 
-Các dịch vụ nêu trên (GitHub, Google/YouTube, các instance Piped/Invidious, SoundCloud, và LRCLIB) là các bên thứ ba độc lập với chính sách bảo mật riêng của họ. Khi V-Notch liên hệ với họ, địa chỉ IP của bạn tất yếu sẽ hiển thị với dịch vụ đó, như với mọi yêu cầu web thông thường. V-Notch không kiểm soát và không chịu trách nhiệm về cách các dịch vụ đó xử lý yêu cầu. Nếu muốn tránh các tra cứu này, bạn có thể tắt các tính năng ảnh bìa/lời bài hát và kiểm tra cập nhật, hoặc chặn truy cập mạng của ứng dụng.
+Khi bạn bật widget thời tiết, V-Notch thực hiện các yêu cầu mạng sau đây **chỉ sau khi** bạn đã chủ động bật tính năng này. Widget thời tiết **tắt theo mặc định**; không có yêu cầu liên quan đến thời tiết nào được thực hiện khi cài đặt mới cho đến khi bạn bật nó.
+
+- **Định vị dựa trên IP (mặc định):** `https://ipwho.is/` — Vị trí gần đúng (vĩ độ, kinh độ, thành phố) của bạn được xác định từ địa chỉ IP. Đây **không phải** vị trí GPS chính xác; nó là một xấp xỉ địa lý thô dựa trên khu vực đã đăng ký của IP. Chỉ endpoint HTTPS được sử dụng.
+- **Thành phố thủ công (tùy chọn):** Nếu bạn nhập tên thành phố thủ công, `https://geocoding-api.open-meteo.com/v1/search` được dùng để phân giải thành tọa độ. Khi có thành phố thủ công, không có tra cứu IP nào được thực hiện.
+- **Dự báo thời tiết:** `https://api.open-meteo.com/v1/forecast` — Vĩ độ/kinh độ (từ tra cứu IP hoặc nhập thành phố thủ công) được gửi tới Open-Meteo để lấy nhiệt độ hiện tại, mã thời tiết, cao/thấp hàng ngày, và múi giờ.
+- **Tần suất:** Mỗi 15 phút khi widget thời tiết đang hoạt động. Các yêu cầu bị hủy khi bạn tắt tính năng.
+
+Nếu ipwho.is không truy cập được, widget thời tiết hiển thị "không khả dụng" và không dùng phương án dự phòng — không có endpoint HTTP nào được sử dụng.
+
+Cả ba endpoint đều là dịch vụ bên thứ ba với chính sách bảo mật riêng:
+- [ipwho.is/privacy](https://ipwho.is/privacy)
+- [open-meteo.com/privacy](https://open-meteo.com/privacy)
+
+**Dữ liệu gửi đi:** Địa chỉ IP của bạn (tới ipwho.is), hoặc tên thành phố (tới Open-Meteo geocoding), và tọa độ vĩ độ/kinh độ (tới Open-Meteo forecast). Không có dữ liệu cá nhân nào khác được bao gồm.
+
+### 4.5 Bên thứ ba
+
+Các dịch vụ nêu trên (GitHub, Google/YouTube, các instance Piped/Invidious, SoundCloud, LRCLIB, ipwho.is, và Open-Meteo) là các bên thứ ba độc lập với chính sách bảo mật riêng của họ. Khi V-Notch liên hệ với họ, địa chỉ IP của bạn tất yếu sẽ hiển thị với dịch vụ đó, như với mọi yêu cầu web thông thường. V-Notch không kiểm soát và không chịu trách nhiệm về cách các dịch vụ đó xử lý yêu cầu. Nếu muốn tránh các tra cứu này, bạn có thể tắt các tính năng ảnh bìa/lời bài hát, thời tiết, và kiểm tra cập nhật, hoặc chặn truy cập mạng của ứng dụng.
 
 ---
 
@@ -177,7 +195,7 @@ V-Notch **không**:
 |---|---|---|
 | Media Session (SMTC) | Hiển thị phương tiện đang phát | Có (tính năng cốt lõi) |
 | Audio Endpoint (Core Audio) | Đọc/điều khiển âm lượng hệ thống | Có (tính năng cốt lõi) |
-| Internet | Kiểm tra cập nhật, tra cứu ảnh bìa & lời | Tùy chọn |
+| Internet | Kiểm tra cập nhật, tra cứu ảnh bìa & lời, thời tiết | Tùy chọn |
 | Camera | Xem trước camera trong notch | Opt-in |
 | Hệ thống tệp | File Shelf kéo-thả | Opt-in |
 | UI Automation | Phát hiện URL media đang phát trong trình duyệt | Dùng cho phát hiện media |

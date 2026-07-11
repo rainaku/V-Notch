@@ -1375,6 +1375,46 @@
                                                 <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged"/>
                                             </StackPanel>
                                         </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <CheckBox x:Name="EnableWeatherCheck"
+                                                          x:Uid="enableWeather"
+                                                          Content="Enable weather"
+                                                          Checked="EnableWeatherCheck_Changed"
+                                                          Unchecked="EnableWeatherCheck_Changed"/>
+                                                <TextBlock x:Name="EnableWeatherHint"
+                                                           Text="Show current weather in the expanded notch. When enabled, your approximate location is resolved via IP."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
+                                                <TextBlock x:Name="ManualCityLabel"
+                                                           Text="Manual city (optional)"
+                                                           Style="{StaticResource SettingTitleText}"
+                                                           Margin="0,12,0,0"/>
+                                                <TextBlock x:Name="ManualCityHint"
+                                                           Text="Enter a city name to skip IP-based location. Leave empty to auto-detect."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,6"/>
+                                                <TextBox x:Name="ManualCityTextBox"
+                                                         Height="40"
+                                                         Padding="12,10"
+                                                         FontSize="12"
+                                                         FontFamily="{StaticResource SettingsFont}"
+                                                         Background="#0F0F0F"
+                                                         Foreground="#E0E0E0"
+                                                         BorderBrush="#2A2A2A"
+                                                         BorderThickness="1"
+                                                         CaretBrush="#FFFFFF"
+                                                         VerticalContentAlignment="Center"
+                                                         TextChanged="ManualCityTextBox_TextChanged">
+                                                    <TextBox.Resources>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="CornerRadius" Value="10"/>
+                                                        </Style>
+                                                    </TextBox.Resources>
+                                                </TextBox>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
