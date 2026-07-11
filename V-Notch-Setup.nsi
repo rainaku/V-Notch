@@ -15,10 +15,11 @@
 !define DOTNET_INSTALLER_URL "https://download.visualstudio.microsoft.com/download/pr/dotnet-runtime-10.0-win-x64.exe"
 !define DOTNET_INSTALLER_ARGS "/install /quiet /norestart"
 
-; Auto-extract version from the built exe
-!getdllversion "${APP_BUILD_DIR}\${APP_EXE}" ver_
-!define APP_VERSION "${ver_1}.${ver_2}.${ver_3}"
-!define APP_VERSION_FULL "${ver_1}.${ver_2}.${ver_3}.${ver_4}"
+; Passed from V-Notch.csproj by build-installer.ps1.
+!ifndef APP_VERSION_FULL
+  !error "APP_VERSION_FULL must be supplied by build-installer.ps1"
+!endif
+!define APP_VERSION "${APP_VERSION_FULL}"
 
 !include "LogicLib.nsh"
 !include "x64.nsh"

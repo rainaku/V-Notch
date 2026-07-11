@@ -23,6 +23,8 @@
     <DebugSymbols>true</DebugSymbols>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <Version>1.8.0</Version>
+    <AssemblyVersion>$(Version).0</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
     <Authors>rainaku</Authors>
     <Company>V-Notch</Company>
     <Product>V-Notch</Product>
@@ -68,6 +70,7 @@
 
   <ItemGroup>
     <None Include="Models\yolov8n.onnx" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Models\yolov8n.onnx')" />
+    <None Include="Package.appxmanifest" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -112,6 +115,18 @@
     <Exec Condition="'$(FxcPath)' != '' And Exists('$(FxcPath)')"
           Command="&quot;$(FxcPath)&quot; /nologo /T ps_3_0 /E main /Fo &quot;Shaders\LiquidGlassRefraction.ps&quot; &quot;Shaders\LiquidGlassRefraction.hlsl&quot;"
           ContinueOnError="true" />
+  </Target>
+
+  <Target Name="SetPackageManifestVersion" BeforeTargets="Build">
+    <PropertyGroup>
+      <PackageManifestVersion>$(Version).0</PackageManifestVersion>
+    </PropertyGroup>
+    <ReadLinesFromFile File="Package.appxmanifest">
+      <Output TaskParameter="Lines" ItemName="PackageManifestLines" />
+    </ReadLinesFromFile>
+    <WriteLinesToFile File="$(IntermediateOutputPath)Package.appxmanifest" Lines="@(PackageManifestLines)" Overwrite="true" />
+    <Exec Command="powershell -NoProfile -Command &quot;(Get-Content -Raw '$(IntermediateOutputPath)Package.appxmanifest').Replace('__VERSION__', '$(PackageManifestVersion)') | Set-Content -NoNewline '$(IntermediateOutputPath)Package.appxmanifest'&quot;" />
+    <Copy SourceFiles="$(IntermediateOutputPath)Package.appxmanifest" DestinationFolder="$(OutDir)" />
   </Target>
 
 </Project>

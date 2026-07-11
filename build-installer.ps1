@@ -6,25 +6,18 @@
 # without installing .NET separately (larger installer).
 param(
     [switch]$SelfContained,
-    # Optional version override (e.g. injected from a git tag by CI).
-    # When empty, the version baked into V-Notch.csproj is used.
-    [string]$Version = '',
     # Optional code-signing certificate. In CI, pass these from protected secrets.
     [string]$CertificatePath = '',
     [string]$CertificatePassword = ''
 )
 
-# Build a list of -p:Version arguments only when an override is supplied.
-$versionArgs = @()
-if ($Version) {
-    $versionArgs = @(
-        "-p:Version=$Version",
-        "-p:AssemblyVersion=$Version",
-        "-p:FileVersion=$Version",
-        "-p:InformationalVersion=$Version"
-    )
-    Write-Host "Version override: $Version" -ForegroundColor Cyan
+$projectVersion = ([xml](Get-Content -Raw .\V-Notch.csproj)).Project.PropertyGroup.Version |
+    Where-Object { $_ } |
+    Select-Object -First 1
+if ($projectVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "V-Notch.csproj Version must use major.minor.patch format."
 }
+$installerVersion = "$projectVersion.0"
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "V-Notch Installer Build Script" -ForegroundColor Cyan
@@ -47,7 +40,7 @@ if (Test-Path $publishDir) {
 
 # Step 2: Build Release
 Write-Host "[2/4] Building Release configuration..." -ForegroundColor Yellow
-dotnet build .\V-Notch.csproj --configuration Release @versionArgs
+dotnet build .\V-Notch.csproj --configuration Release
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Build failed!" -ForegroundColor Red
     exit 1
@@ -59,10 +52,10 @@ Write-Host "      Build successful" -ForegroundColor Green
 Write-Host "[3/4] Publishing to $publishDir..." -ForegroundColor Yellow
 if ($SelfContained) {
     # Self-contained: bundles the .NET runtime, runs without installing .NET 10.
-    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false @versionArgs -o $publishDir
+    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
 } else {
     # Framework-dependent single file - requires .NET 10 runtime.
-    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false @versionArgs -o $publishDir
+    dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
 }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Publish failed!" -ForegroundColor Red
@@ -75,7 +68,7 @@ Write-Host "      Published successfully (v$exeVersion)" -ForegroundColor Green
 # Step 3b: Publish the standalone uninstaller into the same release folder so it
 # ships next to V-Notch.exe and ends up in the install directory.
 Write-Host "[3b/4] Publishing uninstaller..." -ForegroundColor Yellow
-dotnet publish .\Uninstall\Uninstall.csproj -c Release -r win-x64 --self-contained $SelfContained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false @versionArgs -o $publishDir
+dotnet publish .\Uninstall\Uninstall.csproj -c Release -r win-x64 --self-contained $SelfContained -p:Version=$projectVersion -p:AssemblyVersion=$installerVersion -p:FileVersion=$installerVersion -p:InformationalVersion=$projectVersion -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Uninstaller publish failed!" -ForegroundColor Red
     exit 1
@@ -105,9 +98,9 @@ if (-not (Test-Path "installers")) {
 # Build installer
 if ($SelfContained) {
     # Tell NSIS to skip the .NET runtime check/install (runtime is bundled).
-    & $nsisPath "/DSELF_CONTAINED" "V-Notch-Setup.nsi"
+    & $nsisPath "/DSELF_CONTAINED" "/DAPP_VERSION_FULL=$installerVersion" "V-Notch-Setup.nsi"
 } else {
-    & $nsisPath "V-Notch-Setup.nsi"
+    & $nsisPath "/DAPP_VERSION_FULL=$installerVersion" "V-Notch-Setup.nsi"
 }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      NSIS build failed!" -ForegroundColor Red

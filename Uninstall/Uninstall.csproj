@@ -14,7 +14,6 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
 
-    <Version>1.8.0</Version>
     <Authors>rainaku</Authors>
     <Company>V-Notch</Company>
     <Product>V-Notch Uninstaller</Product>

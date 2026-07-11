@@ -38,29 +38,13 @@ jobs:
         shell: pwsh
         run: choco install nsis --no-progress -y
 
-      - name: Determine version
-        id: version
-        shell: pwsh
-        env:
-          SOURCE_REF: ${{ github.event.workflow_run.head_branch }}
-        run: |
-          [xml]$csproj = Get-Content V-Notch.csproj
-          $base = ($csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1).Trim()
-          if ($env:SOURCE_REF -like 'v*') {
-            $version = $env:SOURCE_REF.TrimStart('v')
-          } else {
-            $threePart = ($base -split '\.')[0..2] -join '.'
-            $version = "$threePart.$env:GITHUB_RUN_NUMBER"
-          }
-          "version=$version" >> $env:GITHUB_OUTPUT
-
       - name: Build installer (${{ matrix.variant }})
         shell: pwsh
         run: |
           if ('${{ matrix.variant }}' -eq 'self-contained') {
-            ./build-installer.ps1 -SelfContained -Version '${{ steps.version.outputs.version }}'
+            ./build-installer.ps1 -SelfContained
           } else {
-            ./build-installer.ps1 -Version '${{ steps.version.outputs.version }}'
+            ./build-installer.ps1
           }
 
       - name: Name setup files
