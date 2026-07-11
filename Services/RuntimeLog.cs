@@ -97,7 +97,7 @@ public static class RuntimeLog
         var msg = context != null
             ? $"{context}: {ex.GetType().Name}: {ex.Message}"
             : $"{ex.GetType().Name}: {ex.Message}";
-        WriteEntry(LogLevel.Error, category, msg);
+        WriteEntry(LogLevel.Error, category, $"{msg}{Environment.NewLine}{ex}");
 
 #if DEBUG
         System.Diagnostics.Debug.WriteLine($"[{category}] {msg}");

@@ -59,15 +59,28 @@ public partial class App : Application
 
         DispatcherUnhandledException += (s, args) =>
         {
-            RuntimeLog.Error("UNHANDLED-UI", args.Exception);
             if (IsRecoverableException(args.Exception))
             {
+                RuntimeLog.Error("UNHANDLED-UI-RECOVERED", args.Exception,
+                    "Recovered a known animation or media exception on the UI dispatcher");
                 args.Handled = true;
                 return;
             }
-            MessageBox.Show($"An unexpected error occurred: {args.Exception.Message}",
-                "V-Notch Error", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            RuntimeLog.Error("UNHANDLED-UI-FATAL", args.Exception,
+                "Unexpected UI dispatcher exception; shutting down to avoid continuing in an unknown state");
             args.Handled = true;
+
+            try
+            {
+                MessageBox.Show("V-Notch encountered an unexpected error and must close. " +
+                    $"Details were written to: {RuntimeLog.LogPath}",
+                    "V-Notch Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                Shutdown(1);
+            }
         };
 
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
@@ -159,16 +172,9 @@ public partial class App : Application
     }
     private static bool IsRecoverableException(Exception ex)
     {
-        if (ex is InvalidOperationException && ex.Message.Contains("animation"))
-            return true;
-
-        if (ex.GetType().FullName?.Contains("Windows.Media") == true)
-            return true;
-
-        if (ex is System.Runtime.InteropServices.COMException)
-            return true;
-
-        return false;
+        return ex is RecoverableAnimationException
+            or RecoverableMediaException
+            or System.Runtime.InteropServices.COMException;
     }
 
     private static void CheckAndShowPostUpdateReleasePage(VNotch.Models.NotchSettings settings, SettingsService settingsService)
