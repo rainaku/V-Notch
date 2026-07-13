@@ -31,6 +31,7 @@ public class NotchSettings
     public string BatteryDeviceId { get; set; } = SystemBatteryDeviceId;
 
     public bool AutoStart { get; set; } = true;
+    public bool StayBehindWindows { get; set; } = false;
     public bool EnableHoverExpand { get; set; } = false;
     public bool EnableCursorBypass { get; set; } = false;
     public bool EnableAnimations { get; set; } = true;

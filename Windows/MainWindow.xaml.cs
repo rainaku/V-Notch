@@ -273,6 +273,7 @@ public partial class MainWindow : Window
             getHwnd: () => _hwnd,
             isEffectivelyVisible: () => IsEffectivelyNotchVisible,
             isSuspended: () => _isTrayMenuOpen || _isUpdateTooltipOpen || DateTime.UtcNow < _suspendTopmostUntilUtc,
+            stayBehindWindows: () => _settings.StayBehindWindows,
             onForegroundChanged: OnForegroundWindowChanged);
         _clipboardListener = new ClipboardListenerController(
             () => _hwnd,
@@ -285,6 +286,7 @@ public partial class MainWindow : Window
             this,
             _shellState,
             () => IsEffectivelyNotchVisible,
+            () => _settings.StayBehindWindows,
             () => _zOrderManager.EnsureTopmost(force: true),
             HandleAppDeactivated,
             () =>
@@ -992,6 +994,11 @@ public partial class MainWindow : Window
         AnimationPrimitives.ApplyFpsToTree(this);
         VNotch.Controls.MusicVisualizer.ConfigureAudioDevice(_settings.VisualizerAudioDeviceId);
         ApplyPerformanceSettings();
+
+        // Reconfigure immediately so changing this option does not require an app
+        // restart. ConfigureOverlay also performs the corresponding z-order move.
+        if (_hwnd != IntPtr.Zero)
+            ConfigureOverlayWindow();
 
         ApplyExpandedWidgetMode();
 

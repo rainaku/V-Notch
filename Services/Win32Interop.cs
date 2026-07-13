@@ -42,6 +42,13 @@ internal static class Win32Interop
     [DllImport("user32.dll")]
     public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr FindWindowEx(
+        IntPtr hWndParent,
+        IntPtr hWndChildAfter,
+        string? lpszClass,
+        string? lpszWindow);
+
     [DllImport("user32.dll")]
     public static extern IntPtr SetWinEventHook(
         uint eventMin,
@@ -227,6 +234,8 @@ internal static class Win32Interop
     public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
 
     public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+    public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
     public const uint SWP_NOMOVE = 0x0002;
     public const uint SWP_NOSIZE = 0x0001;
     public const uint SWP_NOACTIVATE = 0x0010;
@@ -258,6 +267,39 @@ internal static class Win32Interop
     public const int DWMWA_CLOAKED = 14;
 
     #endregion
+
+    /// <summary>
+    /// Returns a z-order anchor that places an unowned window immediately above
+    /// the desktop icon host, but below all ordinary application windows.
+    /// </summary>
+    public static IntPtr GetDesktopLayerInsertAfter(IntPtr window)
+    {
+        IntPtr desktopHost = IntPtr.Zero;
+
+        EnumWindows((topLevel, _) =>
+        {
+            if (FindWindowEx(topLevel, IntPtr.Zero, "SHELLDLL_DefView", null) == IntPtr.Zero)
+                return true;
+
+            desktopHost = topLevel;
+            return false;
+        }, IntPtr.Zero);
+
+        // Explorer can briefly rebuild its WorkerW/Progman hierarchy (notably
+        // during Win+D and display changes). Falling back to NOTOPMOST is much
+        // safer than HWND_BOTTOM, which puts the notch underneath the desktop.
+        if (desktopHost == IntPtr.Zero)
+            return HWND_NOTOPMOST;
+
+        IntPtr anchor = GetWindow(desktopHost, GW_HWNDPREV);
+        if (anchor != window)
+            return anchor != IntPtr.Zero ? anchor : HWND_NOTOPMOST;
+
+        // The notch is already directly above the desktop. Use the window above
+        // it as the insertion anchor so SetWindowPos preserves that relationship.
+        anchor = GetWindow(window, GW_HWNDPREV);
+        return anchor != IntPtr.Zero ? anchor : HWND_NOTOPMOST;
+    }
 
     #region Structs & Delegates
 

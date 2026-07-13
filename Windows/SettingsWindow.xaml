@@ -1293,6 +1293,17 @@
 
                                         <Border Style="{StaticResource SettingRowBorder}">
                                             <StackPanel>
+                                                <CheckBox x:Name="StayBehindWindowsCheck" Content="Stay behind other windows"/>
+                                                <TextBlock x:Name="StayBehindWindowsHint"
+                                                           Text="Keep V-Notch on the desktop so maximized apps and browser tab controls are never covered."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}">
+                                            <StackPanel>
                                                 <CheckBox x:Name="HelloGreetingCheck" x:Uid="helloGreeting" Content="Hello greeting on startup"/>
                                                 <TextBlock x:Name="HelloGreetingHint" Text="Show handwriting 'hello' animation when the app starts."
                                                            Style="{StaticResource SettingHintText}"

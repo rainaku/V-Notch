@@ -8,6 +8,7 @@ public class ZOrderManager : IDisposable
     private readonly Func<IntPtr> _getHwnd;
     private readonly Func<bool> _isEffectivelyVisible;
     private readonly Func<bool> _isSuspended;
+    private readonly Func<bool> _stayBehindWindows;
     private readonly Action<IntPtr> _onForegroundChanged;
 
     private readonly DispatcherTimer _watchdogTimer;
@@ -25,11 +26,13 @@ public class ZOrderManager : IDisposable
         Func<IntPtr> getHwnd,
         Func<bool> isEffectivelyVisible,
         Func<bool> isSuspended,
+        Func<bool> stayBehindWindows,
         Action<IntPtr> onForegroundChanged)
     {
         _getHwnd = getHwnd;
         _isEffectivelyVisible = isEffectivelyVisible;
         _isSuspended = isSuspended;
+        _stayBehindWindows = stayBehindWindows;
         _onForegroundChanged = onForegroundChanged;
 
         _watchdogTimer = new DispatcherTimer
@@ -68,10 +71,21 @@ public class ZOrderManager : IDisposable
     }
     public void EnsureTopmost(bool force = false)
     {
-        if (_isSuspended()) return;
-
         var hwnd = _getHwnd();
         if (hwnd == IntPtr.Zero || !_isEffectivelyVisible()) return;
+
+        // Desktop mode deliberately opts out of the topmost watchdog. Keeping this
+        // as a normal bottom-most window lets maximized applications own every
+        // pixel (including browser tab controls) while the notch remains available
+        // whenever the desktop is exposed.
+        if (_stayBehindWindows())
+        {
+            SetWindowPos(hwnd, GetDesktopLayerInsertAfter(hwnd), 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            return;
+        }
+
+        if (_isSuspended()) return;
 
         var now = DateTime.UtcNow;
         if (!force && (now - _lastTopmostAssertUtc) < TopmostThrottle)
@@ -104,6 +118,14 @@ public class ZOrderManager : IDisposable
 
     private void WatchdogTimer_Tick(object? sender, EventArgs e)
     {
+        // Explorer may move its desktop host during Win+D, virtual-desktop, and
+        // display transitions. Reassert desktop mode so the notch is visible as
+        // soon as the desktop appears, without requiring an icon/file click.
+        if (_stayBehindWindows())
+        {
+            EnsureTopmost(force: true);
+            return;
+        }
         if (_isSuspended()) return;
 
         var hwnd = _getHwnd();
@@ -118,6 +140,11 @@ public class ZOrderManager : IDisposable
 
     private void FastTimer_Tick(object? sender, EventArgs e)
     {
+        if (_stayBehindWindows())
+        {
+            _fastTimer.Stop();
+            return;
+        }
         if (_isSuspended())
         {
             _fastTimer.Stop();

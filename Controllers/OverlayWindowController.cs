@@ -13,6 +13,7 @@ public sealed class OverlayWindowController : IDisposable
     private readonly Window _window;
     private readonly NotchShellState _state;
     private readonly Func<bool> _isVisible;
+    private readonly Func<bool> _stayBehindWindows;
     private readonly Action _ensureTopmost;
     private readonly Action _onAppDeactivated;
     private readonly Action _onDisplayChanged;
@@ -23,6 +24,7 @@ public sealed class OverlayWindowController : IDisposable
         Window window,
         NotchShellState state,
         Func<bool> isVisible,
+        Func<bool> stayBehindWindows,
         Action ensureTopmost,
         Action onAppDeactivated,
         Action onDisplayChanged,
@@ -31,6 +33,7 @@ public sealed class OverlayWindowController : IDisposable
         _window = window;
         _state = state;
         _isVisible = isVisible;
+        _stayBehindWindows = stayBehindWindows;
         _ensureTopmost = ensureTopmost;
         _onAppDeactivated = onAppDeactivated;
         _onDisplayChanged = onDisplayChanged;
@@ -48,8 +51,9 @@ public sealed class OverlayWindowController : IDisposable
     public void ConfigureOverlay()
     {
         var exStyle = GetWindowLong(_state.Hwnd, GWL_EXSTYLE);
+        var topmostStyle = _stayBehindWindows() ? 0 : WS_EX_TOPMOST;
         SetWindowLong(_state.Hwnd, GWL_EXSTYLE,
-            exStyle | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_LAYERED);
+            (exStyle & ~WS_EX_TOPMOST) | WS_EX_TOOLWINDOW | topmostStyle | WS_EX_NOACTIVATE | WS_EX_LAYERED);
         _ensureTopmost();
     }
 
@@ -79,7 +83,7 @@ public sealed class OverlayWindowController : IDisposable
         _state.WindowHeight = bounds.Height;
         _window.Width = widthDip;
         _window.Height = heightDip;
-        SetWindowPos(_state.Hwnd, HWND_TOPMOST, bounds.X, 0, bounds.Width, bounds.Height, SWP_NOACTIVATE);
+        SetWindowPos(_state.Hwnd, PreferredZOrder, bounds.X, 0, bounds.Width, bounds.Height, SWP_NOACTIVATE);
     }
 
     public void ResizeHeight(double heightDip)
@@ -92,9 +96,13 @@ public sealed class OverlayWindowController : IDisposable
     public void ReassertBounds()
     {
         if (_state.Hwnd != IntPtr.Zero)
-            SetWindowPos(_state.Hwnd, HWND_TOPMOST, _state.FixedX, _state.FixedY,
+            SetWindowPos(_state.Hwnd, PreferredZOrder, _state.FixedX, _state.FixedY,
                 _state.WindowWidth, _state.WindowHeight, SWP_NOACTIVATE);
     }
+
+    private IntPtr PreferredZOrder => _stayBehindWindows()
+        ? GetDesktopLayerInsertAfter(_state.Hwnd)
+        : HWND_TOPMOST;
 
     public IntPtr GetForegroundWindowHandle() => GetForegroundWindow();
 
@@ -134,11 +142,11 @@ public sealed class OverlayWindowController : IDisposable
                 var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
                 pos.y = _state.FixedY;
                 pos.x = _state.FixedX;
-                pos.hwndInsertAfter = HWND_TOPMOST;
+                pos.hwndInsertAfter = PreferredZOrder;
                 Marshal.StructureToPtr(pos, lParam, false);
                 break;
             case WM_ACTIVATE when _isVisible():
-                SetWindowPos(_state.Hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                SetWindowPos(_state.Hwnd, PreferredZOrder, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 break;
             case WM_ACTIVATEAPP when wParam == IntPtr.Zero:

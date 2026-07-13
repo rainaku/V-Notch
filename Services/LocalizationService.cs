@@ -215,6 +215,8 @@ public static class Loc
             ["settings.helloGreeting.hint"] = "Show handwriting 'hello' animation when the app starts.",
             ["settings.autoStart"] = "Start with Windows",
             ["settings.autoStart.hint"] = "Launch automatically when you sign in.",
+            ["settings.stayBehindWindows"] = "Stay behind other windows",
+            ["settings.stayBehindWindows.hint"] = "Keep V-Notch on the desktop so maximized apps and browser tab controls are never covered.",
             ["settings.musicNotify"] = "Show music notifications",
             ["settings.musicNotify.hint"] = "Keep the media widget responsive to playback changes.",
             ["settings.systemNotify"] = "Show system notifications",
