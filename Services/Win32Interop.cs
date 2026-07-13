@@ -221,6 +221,10 @@ internal static class Win32Interop
     [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
     public static extern int DwmGetWindowAttributeInt(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
 
+    /// <summary>Blocks until pending DirectX/DWM drawing commands have been presented.</summary>
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmFlush();
+
 
     #endregion
 

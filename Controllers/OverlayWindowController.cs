@@ -51,9 +51,15 @@ public sealed class OverlayWindowController : IDisposable
     public void ConfigureOverlay()
     {
         var exStyle = GetWindowLong(_state.Hwnd, GWL_EXSTYLE);
-        var topmostStyle = _stayBehindWindows() ? 0 : WS_EX_TOPMOST;
-        SetWindowLong(_state.Hwnd, GWL_EXSTYLE,
-            (exStyle & ~WS_EX_TOPMOST) | WS_EX_TOOLWINDOW | topmostStyle | WS_EX_NOACTIVATE | WS_EX_LAYERED);
+        var desiredStyle = exStyle | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED;
+
+        // Do not toggle WS_EX_TOPMOST through SetWindowLong. SetWindowPos below is
+        // the documented way to move between topmost and non-topmost bands. Writing
+        // the style first and then moving the HWND caused DWM to expose the layered
+        // surface twice, producing a visible flash during desktop-edge reveal.
+        if (desiredStyle != exStyle)
+            SetWindowLong(_state.Hwnd, GWL_EXSTYLE, desiredStyle);
+
         _ensureTopmost();
     }
 

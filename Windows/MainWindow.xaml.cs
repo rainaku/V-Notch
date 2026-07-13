@@ -273,7 +273,7 @@ public partial class MainWindow : Window
             getHwnd: () => _hwnd,
             isEffectivelyVisible: () => IsEffectivelyNotchVisible,
             isSuspended: () => _isTrayMenuOpen || _isUpdateTooltipOpen || DateTime.UtcNow < _suspendTopmostUntilUtc,
-            stayBehindWindows: () => _settings.StayBehindWindows,
+            stayBehindWindows: () => ShouldStayOnDesktopLayer,
             onForegroundChanged: OnForegroundWindowChanged);
         _clipboardListener = new ClipboardListenerController(
             () => _hwnd,
@@ -286,7 +286,7 @@ public partial class MainWindow : Window
             this,
             _shellState,
             () => IsEffectivelyNotchVisible,
-            () => _settings.StayBehindWindows,
+            () => ShouldStayOnDesktopLayer,
             () => _zOrderManager.EnsureTopmost(force: true),
             HandleAppDeactivated,
             () =>
@@ -367,6 +367,7 @@ public partial class MainWindow : Window
 
         _notchManager.HoverService.HoverEnter += HoverService_HoverEnter;
         _notchManager.HoverService.HoverLeave += HoverService_HoverLeave;
+        _notchManager.HoverService.MousePositionChanged += HoverService_MousePositionChangedForDesktopReveal;
 
         Loaded += MainWindow_Loaded;
         Deactivated += MainWindow_Deactivated;
@@ -491,6 +492,7 @@ public partial class MainWindow : Window
 
         _notchManager.HoverService.HoverEnter -= HoverService_HoverEnter;
         _notchManager.HoverService.HoverLeave -= HoverService_HoverLeave;
+        _notchManager.HoverService.MousePositionChanged -= HoverService_MousePositionChangedForDesktopReveal;
         _viewModel.MediaInfoUpdated -= ViewModel_MediaInfoUpdated;
         _viewModel.Dispose();
         _batteryModule.BatteryUpdated -= BatteryModule_BatteryUpdated;
@@ -517,7 +519,9 @@ public partial class MainWindow : Window
         _hoverCollapseTimer?.Stop();
         _hoverThumbnailDelayTimer?.Stop();
         _compactThumbnailHoverLeaveTimer?.Stop();
-        _idleHideTimer?.Stop();
+        _desktopDemotionDelayTimer?.Stop();
+        DetachDesktopTransparentFrameHandler();
+        DisposeIdleAutoHide();
         _moduleHost?.Dispose();
         _camera?.Dispose();
         _timerManager?.Dispose();
@@ -587,16 +591,22 @@ public partial class MainWindow : Window
         double slideDistance = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight + 10 : _collapsedHeight + 10;
 
         double currentY = NotchContainerTranslate.Y;
+        double currentOpacity = NotchContainer.Opacity;
+        bool wasCollapsed = NotchContainer.Visibility != Visibility.Visible;
         NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        NotchContainer.BeginAnimation(UIElement.OpacityProperty, null);
         NotchContainerTranslate.Y = currentY;
+        NotchContainer.Opacity = currentOpacity;
 
         if (shouldBeVisible)
         {
             NotchContainer.Visibility = Visibility.Visible;
-            if (currentY > 0 || currentY < -slideDistance)
+            if (wasCollapsed || currentY > 0 || currentY < -slideDistance)
             {
                 NotchContainerTranslate.Y = -slideDistance;
+                NotchContainer.Opacity = 0;
             }
+            AnimateNotchFade(toOpacity: 1, durationMs: 300, easeOut: true);
             AnimateNotchSlide(toY: 0, durationMs: 350, easeOut: true, onComplete: () =>
             {
                 _isFullscreenSlideAnimating = false;
@@ -604,6 +614,7 @@ public partial class MainWindow : Window
         }
         else
         {
+            AnimateNotchFade(toOpacity: 0, durationMs: 220, easeOut: false);
             AnimateNotchSlide(toY: -slideDistance, durationMs: 250, easeOut: false, onComplete: () =>
             {
                 _isFullscreenSlideAnimating = false;
@@ -612,6 +623,8 @@ public partial class MainWindow : Window
                     NotchContainer.Visibility = Visibility.Collapsed;
                     NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, null);
                     NotchContainerTranslate.Y = 0;
+                    NotchContainer.BeginAnimation(UIElement.OpacityProperty, null);
+                    NotchContainer.Opacity = 0;
                 }
             });
         }
@@ -635,6 +648,21 @@ public partial class MainWindow : Window
         }
 
         NotchContainerTranslate.BeginAnimation(TranslateTransform.YProperty, anim);
+    }
+
+    private void AnimateNotchFade(double toOpacity, int durationMs, bool easeOut)
+    {
+        var easing = new CubicEase
+        {
+            EasingMode = easeOut ? EasingMode.EaseOut : EasingMode.EaseIn
+        };
+
+        var anim = new DoubleAnimation(toOpacity, TimeSpan.FromMilliseconds(durationMs))
+        {
+            EasingFunction = easing
+        };
+        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
+        NotchContainer.BeginAnimation(UIElement.OpacityProperty, anim);
     }
 
     private void UpdateFullscreenAutoHideState(IntPtr foregroundHwnd = default, bool force = false)
@@ -884,6 +912,12 @@ public partial class MainWindow : Window
         double notchSurfaceWidth = Math.Max(Math.Max(_expandedWidth, _clockViewWidth), _audioViewWidth);
         _overlayWindow.PositionAtTop(notchSurfaceWidth, _expandedHeight);
 
+        // Initialize the global hover/top-edge bounds at startup as well as after
+        // monitor or DPI changes. Previously this happened only through
+        // NotchManager.UpdateSettings(), so edge reveal remained inactive until
+        // the Settings window emitted its first SettingsChanged event.
+        _notchManager.UpdatePosition();
+
         if (_hwnd != IntPtr.Zero)
         {
             UpdateFullscreenAutoHideState(_overlayWindow.GetForegroundWindowHandle(), force: true);
@@ -994,6 +1028,8 @@ public partial class MainWindow : Window
         AnimationPrimitives.ApplyFpsToTree(this);
         VNotch.Controls.MusicVisualizer.ConfigureAudioDevice(_settings.VisualizerAudioDeviceId);
         ApplyPerformanceSettings();
+
+        ResetDesktopEdgePromotionIfDisabled();
 
         // Reconfigure immediately so changing this option does not require an app
         // restart. ConfigureOverlay also performs the corresponding z-order move.

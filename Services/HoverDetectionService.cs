@@ -9,6 +9,7 @@ public class HoverDetectionService : IDisposable
     private const int FastIntervalMs = 33;
     private const int SlowIntervalMs = 125;
     private const int ProximityMargin = 120;
+    private const int TopEdgeRevealThickness = 3;
 
     private readonly DispatcherTimer _pollTimer;
     private readonly int _hoverZoneMargin;
@@ -153,6 +154,28 @@ public class HoverDetectionService : IDisposable
     public bool IsPointOverNotch(Point point)
     {
         return _notchBounds.Contains(point);
+    }
+
+    /// <summary>
+    /// Returns true when the pointer is touching the top screen edge directly
+    /// above the notch. The horizontal padding makes the target easy to hit while
+    /// keeping unrelated corners of the monitor from revealing the notch.
+    /// </summary>
+    public bool IsPointInTopEdgeRevealZone(Point point)
+    {
+        if (_notchBounds.IsEmpty || _notchBounds.Width <= 0) return false;
+
+        double left = _notchBounds.Left - _hoverZoneMargin;
+        double right = _notchBounds.Right + _hoverZoneMargin;
+        double bottom = _notchBounds.Top + TopEdgeRevealThickness;
+
+        return point.X >= left && point.X <= right
+            && point.Y >= _notchBounds.Top && point.Y <= bottom;
+    }
+
+    public bool IsPointInHoverZone(Point point)
+    {
+        return !_hoverZone.IsEmpty && _hoverZone.Contains(point);
     }
 
     public double GetDistanceToNotch(Point point)
