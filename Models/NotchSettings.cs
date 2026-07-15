@@ -87,6 +87,11 @@ public class NotchSettings
 
     public bool EnableSpotifyLyrics { get; set; } = true;
 
+    public bool EnableSpotifyCanvas { get; set; } = true;
+
+    [JsonConverter(typeof(VNotch.Services.DpapiJsonConverter))]
+    public string PaxSenixApiKey { get; set; } = "";
+
     public bool EnableYouTubeSubtitles { get; set; } = false;
 
     public bool IsShelfUploadLimitUnlocked { get; set; } = true;
