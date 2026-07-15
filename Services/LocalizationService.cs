@@ -212,12 +212,26 @@ public static class Loc
             ["settings.lyricsDarkOverlay.hint"] = "Add a dark layer over the lyrics background image to improve text readability.",
              ["settings.enableSpotifyLyrics"] = "Show Spotify lyrics",
              ["settings.enableSpotifyLyrics.hint"] = "Display synced lyrics inside the expanded notch when listening on Spotify.",
+            ["settings.lyricsProvider"] = "Lyrics provider",
+            ["settings.lyricsProvider.hint"] = "Choose where synced lyrics are retrieved from.",
+            ["settings.lyricsProvider.auto"] = "Auto — Musixmatch, then LRCLIB",
+            ["settings.lyricsProvider.musixmatch"] = "Musixmatch only",
+            ["settings.lyricsProvider.lrclib"] = "LRCLIB only",
             ["settings.enableSpotifyCanvas"] = "Show Spotify Canvas background",
             ["settings.enableSpotifyCanvas.hint"] = "Play the song's looping Canvas behind lyrics when one is available.",
-            ["settings.spotifyCanvasApiKey"] = "PaxSenix API Key",
-            ["settings.spotifyCanvasApiKey.hint"] = "Required by the hosted Canvas API. The key is encrypted with Windows DPAPI.",
-            ["settings.spotifyCanvasApiKey.missing"] = "API key missing — the normal lyrics background will be used.",
-            ["settings.spotifyCanvasApiKey.ready"] = "API key is ready.",
+            ["settings.spotifyCanvasAccount"] = "Spotify account",
+            ["settings.spotifyCanvasAccount.hint"] = "Sign in once. The Spotify session is encrypted with Windows DPAPI.",
+            ["settings.spotifyCanvas.connect"] = "Connect Spotify",
+            ["settings.spotifyCanvas.disconnect"] = "Disconnect",
+            ["settings.spotifyCanvas.notConnected"] = "Not connected — the normal lyrics background will be used.",
+            ["settings.spotifyCanvas.connected"] = "Spotify is connected.",
+            ["spotifyLogin.title"] = "Connect Spotify",
+            ["spotifyLogin.heading"] = "Connect Spotify",
+            ["spotifyLogin.hint"] = "Sign in once. V-Notch will detect the Spotify session automatically.",
+            ["spotifyLogin.opening"] = "Opening Spotify…",
+            ["spotifyLogin.connected"] = "Spotify connected.",
+            ["spotifyLogin.failed"] = "Could not open Spotify sign-in. Make sure Microsoft Edge WebView2 Runtime is installed.",
+            ["spotifyLogin.cancel"] = "Cancel",
             ["settings.enableYouTubeSubtitles"] = "Show YouTube subtitles",
             ["settings.enableYouTubeSubtitles.hint"] = "Display synced closed captions inside the expanded notch when watching on YouTube.",
             ["settings.subtitlePriority"] = "Subtitle Language",
@@ -516,10 +530,19 @@ public static class Loc
              ["settings.enableSpotifyLyrics.hint"] = "Hiển thị lyrics đồng bộ trong notch khi đang nghe nhạc trên Spotify.",
             ["settings.enableSpotifyCanvas"] = "Hiện Spotify Canvas ở nền lyrics",
             ["settings.enableSpotifyCanvas.hint"] = "Phát video Canvas lặp ở nền lyrics khi bài hát có hỗ trợ.",
-            ["settings.spotifyCanvasApiKey"] = "PaxSenix API Key",
-            ["settings.spotifyCanvasApiKey.hint"] = "API Canvas public yêu cầu key. Key được mã hoá bằng Windows DPAPI.",
-            ["settings.spotifyCanvasApiKey.missing"] = "Chưa có API key — ứng dụng sẽ dùng nền lyrics như cũ.",
-            ["settings.spotifyCanvasApiKey.ready"] = "API key đã sẵn sàng.",
+            ["settings.spotifyCanvasAccount"] = "Tài khoản Spotify",
+            ["settings.spotifyCanvasAccount.hint"] = "Chỉ cần đăng nhập một lần. Phiên Spotify được mã hoá bằng Windows DPAPI.",
+            ["settings.spotifyCanvas.connect"] = "Kết nối Spotify",
+            ["settings.spotifyCanvas.disconnect"] = "Ngắt kết nối",
+            ["settings.spotifyCanvas.notConnected"] = "Chưa kết nối — ứng dụng sẽ dùng nền lyrics như cũ.",
+            ["settings.spotifyCanvas.connected"] = "Đã kết nối Spotify.",
+            ["spotifyLogin.title"] = "Kết nối Spotify",
+            ["spotifyLogin.heading"] = "Kết nối Spotify",
+            ["spotifyLogin.hint"] = "Đăng nhập một lần. V-Notch sẽ tự nhận diện phiên Spotify.",
+            ["spotifyLogin.opening"] = "Đang mở Spotify…",
+            ["spotifyLogin.connected"] = "Đã kết nối Spotify.",
+            ["spotifyLogin.failed"] = "Không thể mở trang đăng nhập Spotify. Hãy kiểm tra Microsoft Edge WebView2 Runtime.",
+            ["spotifyLogin.cancel"] = "Hủy",
             ["settings.enableYouTubeSubtitles"] = "Hiện phụ đề khi xem YouTube",
             ["settings.enableYouTubeSubtitles.hint"] = "Hiển thị phụ đề đồng bộ trong notch khi đang xem video trên YouTube.",
             ["settings.subtitlePriority"] = "Ngôn ngữ phụ đề",
@@ -708,6 +731,31 @@ public static class Loc
             ["intro.body"] = "Giao diện mới biến notch thành kính lỏng — khúc xạ nền desktop phía sau theo thời gian thực, với viền tán sắc nhẹ, chiều sâu và lớp kính mờ.",
             ["intro.close"] = "Đã hiểu",
         };
+
+        var vi = _strings["vi"];
+        vi["settings.btn.changelog"] = "Nh\u1eadt k\u00fd thay \u0111\u1ed5i";
+        vi["settings.camera.none"] = "Kh\u00f4ng ph\u00e1t hi\u1ec7n camera";
+        vi["settings.display.name"] = "M\u00e0n h\u00ecnh {0}";
+        vi["settings.display.primary"] = " (Ch\u00ednh)";
+        vi["settings.lyricsProvider"] = "Ngu\u1ed3n lyrics";
+        vi["settings.lyricsProvider.hint"] = "Ch\u1ecdn ngu\u1ed3n l\u1ea5y lyrics \u0111\u1ed3ng b\u1ed9.";
+        vi["settings.lyricsProvider.auto"] = "T\u1ef1 \u0111\u1ed9ng — Musixmatch, sau \u0111\u00f3 LRCLIB";
+        vi["settings.lyricsProvider.musixmatch"] = "Ch\u1ec9 Musixmatch";
+        vi["settings.lyricsProvider.lrclib"] = "Ch\u1ec9 LRCLIB";
+        vi["settings.stayBehindWindows"] = "Lu\u00f4n n\u1eb1m sau c\u00e1c c\u1eeda s\u1ed5 kh\u00e1c";
+        vi["settings.stayBehindWindows.hint"] = "Gi\u1eef V-Notch tr\u00ean desktop \u0111\u1ec3 kh\u00f4ng che \u1ee9ng d\u1ee5ng ph\u00f3ng to ho\u1eb7c thanh tab tr\u00ecnh duy\u1ec7t.";
+        vi["setup.install.closingRunning"] = "\u0110ang \u0111\u00f3ng c\u00e1c phi\u00ean b\u1ea3n V-Notch \u0111ang ch\u1ea1y...";
+        vi["setup.install.complete"] = "C\u00e0i \u0111\u1eb7t ho\u00e0n t\u1ea5t.";
+        vi["setup.install.copying"] = "\u0110ang sao ch\u00e9p t\u1ec7p...";
+        vi["setup.install.creatingShortcuts"] = "\u0110ang t\u1ea1o l\u1ed1i t\u1eaft...";
+        vi["setup.install.failed"] = "C\u00e0i \u0111\u1eb7t th\u1ea5t b\u1ea1i: {0}";
+        vi["setup.install.headline"] = "\u0110ang c\u00e0i \u0111\u1eb7t V-Notch";
+        vi["setup.install.installingFile"] = "\u0110ang c\u00e0i \u0111\u1eb7t {0}...";
+        vi["setup.install.preparing"] = "\u0110ang chu\u1ea9n b\u1ecb c\u00e0i \u0111\u1eb7t...";
+        vi["setup.install.preparingFolder"] = "\u0110ang chu\u1ea9n b\u1ecb th\u01b0 m\u1ee5c c\u00e0i \u0111\u1eb7t...";
+        vi["setup.install.registeringUninstall"] = "\u0110ang \u0111\u0103ng k\u00fd th\u00f4ng tin g\u1ee1 c\u00e0i \u0111\u1eb7t...";
+        vi["setup.install.savingPreferences"] = "\u0110ang l\u01b0u tu\u1ef3 ch\u1ecdn...";
+        vi["setup.install.savingStartup"] = "\u0110ang l\u01b0u tu\u1ef3 ch\u1ecdn kh\u1edfi \u0111\u1ed9ng...";
     }
 
     private static void InitializeSpanish()
@@ -1073,6 +1121,20 @@ public static class Loc
             ["redo.none"] = "Nada que rehacer",
         };
 
+        var es = _strings["es"];
+        es["settings.enableSpotifyCanvas"] = "Mostrar fondo de Spotify Canvas";
+        es["settings.enableSpotifyCanvas.hint"] = "Reproduce el Canvas en bucle de la canción detrás de las letras cuando esté disponible.";
+        es["settings.spotifyCanvasApiKey"] = "Clave API de PaxSenix";
+        es["settings.spotifyCanvasApiKey.hint"] = "Necesaria para la API de Canvas alojada. La clave se cifra con Windows DPAPI.";
+        es["settings.spotifyCanvasApiKey.missing"] = "Falta la clave API; se usará el fondo normal de letras.";
+        es["settings.spotifyCanvasApiKey.ready"] = "La clave API está lista.";
+        es["settings.lyricsProvider"] = "Proveedor de letras";
+        es["settings.lyricsProvider.hint"] = "Elige de dónde se obtienen las letras sincronizadas.";
+        es["settings.lyricsProvider.auto"] = "Automático — Musixmatch y después LRCLIB";
+        es["settings.lyricsProvider.musixmatch"] = "Solo Musixmatch";
+        es["settings.lyricsProvider.lrclib"] = "Solo LRCLIB";
+        es["settings.stayBehindWindows"] = "Mantener detrás de otras ventanas";
+        es["settings.stayBehindWindows.hint"] = "Mantén V-Notch en el escritorio para no cubrir aplicaciones maximizadas ni controles de pestañas del navegador.";
     }
 
     private static void InitializeFrench()
@@ -1438,6 +1500,20 @@ public static class Loc
             ["redo.none"] = "Rien à refaire",
         };
 
+        var fr = _strings["fr"];
+        fr["settings.enableSpotifyCanvas"] = "Afficher l’arrière-plan Spotify Canvas";
+        fr["settings.enableSpotifyCanvas.hint"] = "Lit le Canvas en boucle du morceau derrière les paroles lorsqu’il est disponible.";
+        fr["settings.spotifyCanvasApiKey"] = "Clé API PaxSenix";
+        fr["settings.spotifyCanvasApiKey.hint"] = "Requise par l’API Canvas hébergée. La clé est chiffrée avec Windows DPAPI.";
+        fr["settings.spotifyCanvasApiKey.missing"] = "Clé API manquante — l’arrière-plan normal des paroles sera utilisé.";
+        fr["settings.spotifyCanvasApiKey.ready"] = "La clé API est prête.";
+        fr["settings.lyricsProvider"] = "Fournisseur de paroles";
+        fr["settings.lyricsProvider.hint"] = "Choisissez la source des paroles synchronisées.";
+        fr["settings.lyricsProvider.auto"] = "Automatique — Musixmatch, puis LRCLIB";
+        fr["settings.lyricsProvider.musixmatch"] = "Musixmatch uniquement";
+        fr["settings.lyricsProvider.lrclib"] = "LRCLIB uniquement";
+        fr["settings.stayBehindWindows"] = "Rester derrière les autres fenêtres";
+        fr["settings.stayBehindWindows.hint"] = "Garde V-Notch sur le bureau afin de ne pas couvrir les applications maximisées ni les onglets du navigateur.";
     }
 
     private static void InitializeGerman()
@@ -1803,6 +1879,20 @@ public static class Loc
             ["redo.none"] = "Nichts zum Wiederholen",
         };
 
+        var de = _strings["de"];
+        de["settings.enableSpotifyCanvas"] = "Spotify-Canvas-Hintergrund anzeigen";
+        de["settings.enableSpotifyCanvas.hint"] = "Spielt den wiederholten Canvas-Clip des Songs hinter dem Liedtext ab, wenn er verfügbar ist.";
+        de["settings.spotifyCanvasApiKey"] = "PaxSenix-API-Schlüssel";
+        de["settings.spotifyCanvasApiKey.hint"] = "Erforderlich für die gehostete Canvas-API. Der Schlüssel wird mit Windows DPAPI verschlüsselt.";
+        de["settings.spotifyCanvasApiKey.missing"] = "API-Schlüssel fehlt — der normale Liedtext-Hintergrund wird verwendet.";
+        de["settings.spotifyCanvasApiKey.ready"] = "API-Schlüssel ist bereit.";
+        de["settings.lyricsProvider"] = "Liedtextanbieter";
+        de["settings.lyricsProvider.hint"] = "Wählen Sie die Quelle für synchronisierte Liedtexte.";
+        de["settings.lyricsProvider.auto"] = "Automatisch — Musixmatch, dann LRCLIB";
+        de["settings.lyricsProvider.musixmatch"] = "Nur Musixmatch";
+        de["settings.lyricsProvider.lrclib"] = "Nur LRCLIB";
+        de["settings.stayBehindWindows"] = "Hinter anderen Fenstern bleiben";
+        de["settings.stayBehindWindows.hint"] = "V-Notch auf dem Desktop belassen, damit maximierte Apps und Browser-Tab-Steuerelemente nicht verdeckt werden.";
     }
 
     private static void InitializeJapanese()
@@ -2152,5 +2242,35 @@ public static class Loc
             ["redo.none"] = "やり直す操作はありません",
         };
 
+        var ja = _strings["ja"];
+        ja["settings.btn.changelog"] = "\u5909\u66f4\u5c65\u6b74\u3092\u8868\u793a";
+        ja["settings.camera.none"] = "\u30ab\u30e1\u30e9\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093";
+        ja["settings.display.name"] = "\u30c7\u30a3\u30b9\u30d7\u30ec\u30a4 {0}";
+        ja["settings.display.primary"] = " (\u30e1\u30a4\u30f3)";
+        ja["settings.enableSpotifyCanvas"] = "Spotify Canvas\u3092\u80cc\u666f\u306b\u8868\u793a";
+        ja["settings.enableSpotifyCanvas.hint"] = "\u5229\u7528\u53ef\u80fd\u306a\u5834\u5408\u3001\u66f2\u306e\u30eb\u30fc\u30d7 Canvas \u3092\u6b4c\u8a5e\u306e\u80cc\u5f8c\u3067\u518d\u751f\u3057\u307e\u3059\u3002";
+        ja["settings.spotifyCanvasApiKey"] = "PaxSenix API \u30ad\u30fc";
+        ja["settings.spotifyCanvasApiKey.hint"] = "\u30db\u30b9\u30c8\u3055\u308c\u305f Canvas API \u306b\u5fc5\u8981\u3067\u3059\u3002\u30ad\u30fc\u306f Windows DPAPI \u3067\u6697\u53f7\u5316\u3055\u308c\u307e\u3059\u3002";
+        ja["settings.spotifyCanvasApiKey.missing"] = "API \u30ad\u30fc\u304c\u3042\u308a\u307e\u305b\u3093\u3002\u901a\u5e38\u306e\u6b4c\u8a5e\u80cc\u666f\u3092\u4f7f\u7528\u3057\u307e\u3059\u3002";
+        ja["settings.spotifyCanvasApiKey.ready"] = "API \u30ad\u30fc\u306e\u6e96\u5099\u304c\u3067\u304d\u307e\u3057\u305f\u3002";
+        ja["settings.lyricsProvider"] = "\u6b4c\u8a5e\u30d7\u30ed\u30d0\u30a4\u30c0\u30fc";
+        ja["settings.lyricsProvider.hint"] = "\u540c\u671f\u6b4c\u8a5e\u306e\u53d6\u5f97\u5143\u3092\u9078\u629e\u3057\u307e\u3059\u3002";
+        ja["settings.lyricsProvider.auto"] = "\u81ea\u52d5 — Musixmatch\u3001\u6b21\u306b LRCLIB";
+        ja["settings.lyricsProvider.musixmatch"] = "Musixmatch \u306e\u307f";
+        ja["settings.lyricsProvider.lrclib"] = "LRCLIB \u306e\u307f";
+        ja["settings.stayBehindWindows"] = "\u4ed6\u306e\u30a6\u30a3\u30f3\u30c9\u30a6\u306e\u80cc\u5f8c\u306b\u8868\u793a";
+        ja["settings.stayBehindWindows.hint"] = "\u6700\u5927\u5316\u3057\u305f\u30a2\u30d7\u30ea\u3084\u30d6\u30e9\u30a6\u30b6\u306e\u30bf\u30d6\u64cd\u4f5c\u3092\u96a0\u3055\u306a\u3044\u3088\u3046\u3001V-Notch \u3092\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u306b\u7dad\u6301\u3057\u307e\u3059\u3002";
+        ja["setup.install.closingRunning"] = "\u5b9f\u884c\u4e2d\u306e V-Notch \u3092\u7d42\u4e86\u3057\u3066\u3044\u307e\u3059...";
+        ja["setup.install.complete"] = "\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u304c\u5b8c\u4e86\u3057\u307e\u3057\u305f\u3002";
+        ja["setup.install.copying"] = "\u30d5\u30a1\u30a4\u30eb\u3092\u30b3\u30d4\u30fc\u3057\u3066\u3044\u307e\u3059...";
+        ja["setup.install.creatingShortcuts"] = "\u30b7\u30e7\u30fc\u30c8\u30ab\u30c3\u30c8\u3092\u4f5c\u6210\u3057\u3066\u3044\u307e\u3059...";
+        ja["setup.install.failed"] = "\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u306b\u5931\u6557\u3057\u307e\u3057\u305f: {0}";
+        ja["setup.install.headline"] = "V-Notch \u3092\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u4e2d";
+        ja["setup.install.installingFile"] = "{0} \u3092\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u4e2d...";
+        ja["setup.install.preparing"] = "\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u3092\u6e96\u5099\u3057\u3066\u3044\u307e\u3059...";
+        ja["setup.install.preparingFolder"] = "\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u30d5\u30a9\u30eb\u30c0\u30fc\u3092\u6e96\u5099\u3057\u3066\u3044\u307e\u3059...";
+        ja["setup.install.registeringUninstall"] = "\u30a2\u30f3\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u60c5\u5831\u3092\u767b\u9332\u3057\u3066\u3044\u307e\u3059...";
+        ja["setup.install.savingPreferences"] = "\u8a2d\u5b9a\u3092\u4fdd\u5b58\u3057\u3066\u3044\u307e\u3059...";
+        ja["setup.install.savingStartup"] = "\u8d77\u52d5\u8a2d\u5b9a\u3092\u4fdd\u5b58\u3057\u3066\u3044\u307e\u3059...";
     }
 }
