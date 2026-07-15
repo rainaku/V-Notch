@@ -1415,8 +1415,7 @@
                                                          BorderBrush="#2A2A2A"
                                                          BorderThickness="1"
                                                          CaretBrush="#FFFFFF"
-                                                         VerticalContentAlignment="Center"
-                                                         TextChanged="ManualCityTextBox_TextChanged">
+                                                         VerticalContentAlignment="Center">
                                                     <TextBox.Resources>
                                                         <Style TargetType="Border">
                                                             <Setter Property="CornerRadius" Value="10"/>

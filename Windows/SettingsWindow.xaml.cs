@@ -1157,12 +1157,6 @@ public partial class SettingsWindow : Window
         ManualCityTextBox.IsEnabled = enabled;
     }
 
-    private void ManualCityTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
-    {
-        if (_isLoadingSettings) return;
-        PushLivePreview();
-    }
-
     private void YouTubeApiCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_isLoadingSettings) return;

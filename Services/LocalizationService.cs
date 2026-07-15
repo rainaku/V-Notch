@@ -91,6 +91,37 @@ public static class Loc
         InitializeFrench();
         InitializeGerman();
         InitializeJapanese();
+        InitializeWeatherStatusStrings();
+    }
+
+    private static void InitializeWeatherStatusStrings()
+    {
+        SetWeatherStatusStrings("en", "Weather is off", "Enable it in Settings",
+            "Weather unavailable", "Check your connection and try again");
+        SetWeatherStatusStrings("vi", "Th\u1eddi ti\u1ebft \u0111ang t\u1eaft", "B\u1eadt trong C\u00e0i \u0111\u1eb7t",
+            "Kh\u00f4ng th\u1ec3 t\u1ea3i th\u1eddi ti\u1ebft", "Ki\u1ec3m tra k\u1ebft n\u1ed1i r\u1ed3i th\u1eed l\u1ea1i");
+        SetWeatherStatusStrings("es", "El clima est\u00e1 desactivado", "Act\u00edvalo en Ajustes",
+            "Clima no disponible", "Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo");
+        SetWeatherStatusStrings("fr", "La m\u00e9t\u00e9o est d\u00e9sactiv\u00e9e", "Activez-la dans les param\u00e8tres",
+            "M\u00e9t\u00e9o indisponible", "V\u00e9rifiez la connexion et r\u00e9essayez");
+        SetWeatherStatusStrings("de", "Wetter ist deaktiviert", "In den Einstellungen aktivieren",
+            "Wetter nicht verf\u00fcgbar", "Verbindung pr\u00fcfen und erneut versuchen");
+        SetWeatherStatusStrings("ja", "\u5929\u6c17\u306f\u30aa\u30d5\u3067\u3059", "\u8a2d\u5b9a\u3067\u6709\u52b9\u306b\u3057\u3066\u304f\u3060\u3055\u3044",
+            "\u5929\u6c17\u3092\u53d6\u5f97\u3067\u304d\u307e\u305b\u3093", "\u63a5\u7d9a\u3092\u78ba\u8a8d\u3057\u3066\u518d\u8a66\u884c\u3057\u3066\u304f\u3060\u3055\u3044");
+    }
+
+    private static void SetWeatherStatusStrings(
+        string language,
+        string disabled,
+        string enableInSettings,
+        string unavailable,
+        string retryLater)
+    {
+        var strings = _strings[language];
+        strings["weather.disabled"] = disabled;
+        strings["weather.enableInSettings"] = enableInSettings;
+        strings["weather.unavailable"] = unavailable;
+        strings["weather.retryLater"] = retryLater;
     }
 
     private static void InitializeEnglish()

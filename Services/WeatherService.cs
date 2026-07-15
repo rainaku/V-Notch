@@ -87,9 +87,9 @@ public sealed class WeatherService : IWeatherService
             var info = new WeatherInfo
             {
                 City = city,
-                Temperature = (int)Math.Round(temp),
-                High = (int)Math.Round(high),
-                Low = (int)Math.Round(low),
+                Temperature = RoundTemperature(temp),
+                High = RoundTemperature(high),
+                Low = RoundTemperature(low),
                 WeatherCode = weatherCode,
                 Condition = DescribeWeatherCode(weatherCode),
                 IsDay = isDay
@@ -214,6 +214,9 @@ public sealed class WeatherService : IWeatherService
         96 or 99 => "Thunderstorm",
         _ => "—"
     };
+
+    private static int RoundTemperature(double value) =>
+        (int)Math.Round(value, MidpointRounding.AwayFromZero);
 
     private static HttpClient CreateHttpClient()
     {

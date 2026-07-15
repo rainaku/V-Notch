@@ -56,8 +56,6 @@
     <Compile Remove="artifacts\**\*.cs" />
     <Compile Remove="Tests\**\*.cs" />
     <Compile Remove="Uninstall\**\*.cs" />
-    <Page Remove="Windows\SetupWindowTest.xaml" />
-    <Compile Remove="Windows\SetupWindowTest.xaml.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -90,12 +88,7 @@
       <Link>logo.ico</Link>
     </None>
     <Resource Include="Assets\logo.png" />
-    <Resource Include="Assets\finish-check.svg" />
-    <Resource Include="Assets\pause-button.svg" />
-    <Resource Include="Assets\play-button.svg" />
-    <Resource Include="Assets\play-and-pause.svg" />
     <Resource Include="Assets\QR.PNG" />
-    <Resource Include="Assets\update-button.svg" />
     <Resource Include="Shaders\LiquidGlassRefraction.ps" />
   </ItemGroup>
 
@@ -117,15 +110,16 @@
           ContinueOnError="true" />
   </Target>
 
-  <Target Name="SetPackageManifestVersion" BeforeTargets="Build">
+  <Target Name="SetPackageManifestVersion" BeforeTargets="Build"
+          Inputs="$(MSBuildProjectFullPath);Package.appxmanifest"
+          Outputs="$(IntermediateOutputPath)Package.appxmanifest;$(OutDir)Package.appxmanifest">
     <PropertyGroup>
       <PackageManifestVersion>$(Version).0</PackageManifestVersion>
     </PropertyGroup>
-    <ReadLinesFromFile File="Package.appxmanifest">
-      <Output TaskParameter="Lines" ItemName="PackageManifestLines" />
-    </ReadLinesFromFile>
-    <WriteLinesToFile File="$(IntermediateOutputPath)Package.appxmanifest" Lines="@(PackageManifestLines)" Overwrite="true" />
-    <Exec Command="powershell -NoProfile -Command &quot;(Get-Content -Raw '$(IntermediateOutputPath)Package.appxmanifest').Replace('__VERSION__', '$(PackageManifestVersion)') | Set-Content -NoNewline '$(IntermediateOutputPath)Package.appxmanifest'&quot;" />
+    <Copy SourceFiles="Package.appxmanifest" DestinationFiles="$(IntermediateOutputPath)Package.appxmanifest" />
+    <XmlPoke XmlInputPath="$(IntermediateOutputPath)Package.appxmanifest"
+             Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version"
+             Value="$(PackageManifestVersion)" />
     <Copy SourceFiles="$(IntermediateOutputPath)Package.appxmanifest" DestinationFolder="$(OutDir)" />
   </Target>
 

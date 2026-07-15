@@ -32,24 +32,14 @@ Write-Host ""
 $publishDir = "release"
 
 # Step 1: Clean previous publish
-Write-Host "[1/4] Cleaning previous publish..." -ForegroundColor Yellow
+Write-Host "[1/3] Cleaning previous publish..." -ForegroundColor Yellow
 if (Test-Path $publishDir) {
     Remove-Item -Path $publishDir -Recurse -Force
     Write-Host "      Cleaned $publishDir" -ForegroundColor Green
 }
 
-# Step 2: Build Release
-Write-Host "[2/4] Building Release configuration..." -ForegroundColor Yellow
-dotnet build .\V-Notch.csproj --configuration Release
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "      Build failed!" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "      Build successful" -ForegroundColor Green
-
-# Step 3: Publish to release folder
-Write-Host "[3/4] Publishing to $publishDir..." -ForegroundColor Yellow
+# Step 2: Publish to release folder. `dotnet publish` already builds the app.
+Write-Host "[2/3] Publishing to $publishDir..." -ForegroundColor Yellow
 if ($SelfContained) {
     # Self-contained: bundles the .NET runtime, runs without installing .NET 10.
     dotnet publish .\V-Notch.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
@@ -65,9 +55,9 @@ if ($LASTEXITCODE -ne 0) {
 $exeVersion = (Get-Item "$publishDir\V-Notch.exe").VersionInfo.FileVersion
 Write-Host "      Published successfully (v$exeVersion)" -ForegroundColor Green
 
-# Step 3b: Publish the standalone uninstaller into the same release folder so it
+# Step 2b: Publish the standalone uninstaller into the same release folder so it
 # ships next to V-Notch.exe and ends up in the install directory.
-Write-Host "[3b/4] Publishing uninstaller..." -ForegroundColor Yellow
+Write-Host "[2b/3] Publishing uninstaller..." -ForegroundColor Yellow
 dotnet publish .\Uninstall\Uninstall.csproj -c Release -r win-x64 --self-contained $SelfContained -p:Version=$projectVersion -p:AssemblyVersion=$installerVersion -p:FileVersion=$installerVersion -p:InformationalVersion=$projectVersion -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o $publishDir
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Uninstaller publish failed!" -ForegroundColor Red
@@ -75,8 +65,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "      Uninstaller published (uninstall.exe)" -ForegroundColor Green
 
-# Step 4: Build NSIS installer
-Write-Host "[4/4] Building NSIS installer..." -ForegroundColor Yellow
+# Step 3: Build NSIS installer
+Write-Host "[3/3] Building NSIS installer..." -ForegroundColor Yellow
 
 # Check if NSIS is installed
 $nsisPath = "C:\Program Files (x86)\NSIS\makensis.exe"

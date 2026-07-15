@@ -7,21 +7,22 @@ namespace VNotch.Modules;
 
 public class WeatherUpdateEventArgs : EventArgs
 {
-    public WeatherInfo Weather { get; init; } = null!;
+    public WeatherInfo? Weather { get; init; }
 }
 
 public class WeatherModule : NotchModuleBase
 {
     private readonly IWeatherService _weatherService;
-    private readonly ISettingsService _settingsService;
+    private NotchSettings _settings;
     private bool _isFetching;
     private CancellationTokenSource? _cts;
-    private WeatherInfo? _lastWeather;
+    private int _requestVersion;
 
     public WeatherModule(IWeatherService weatherService, ISettingsService settingsService)
     {
-        _weatherService = weatherService;
-        _settingsService = settingsService;
+        _weatherService = weatherService ?? throw new ArgumentNullException(nameof(weatherService));
+        ArgumentNullException.ThrowIfNull(settingsService);
+        _settings = settingsService.Load().Clone();
     }
 
     public override string ModuleName => "Weather";
@@ -31,42 +32,67 @@ public class WeatherModule : NotchModuleBase
     public event EventHandler<WeatherUpdateEventArgs>? WeatherUpdated;
 
     /// <summary>
-    /// Called by MainWindow when settings change to enable/disable weather at runtime.
+    /// Applies weather settings immediately, including unsaved settings-window previews.
     /// </summary>
     public void OnSettingsChanged(NotchSettings settings)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        bool wasEnabled = _settings.EnableWeather;
+        string previousCity = NormalizeCity(_settings.ManualCity);
+        string newCity = NormalizeCity(settings.ManualCity);
+        _settings = settings.Clone();
+
         if (!settings.EnableWeather)
         {
-            // Stop timer, cancel any pending request, clear cached UI
+            bool shouldClear = wasEnabled || IsRunning || _isFetching;
             Stop();
             CancelPendingRequest();
-            ClearWeatherData();
+            if (shouldClear)
+            {
+                ClearWeatherData();
+            }
+
+            return;
         }
-        else if (!IsRunning)
+
+        if (!IsRunning)
         {
-            // Weather was just enabled — start the module and do an immediate refresh
+            // Start() performs an immediate tick before starting the timer.
             Start();
+            return;
+        }
+
+        if (!wasEnabled || !string.Equals(previousCity, newCity, StringComparison.OrdinalIgnoreCase))
+        {
+            // The host may already have started this module while weather was disabled.
+            // Refresh explicitly when it is enabled, and whenever the city changes.
+            CancelPendingRequest();
             _ = RefreshAsync();
         }
     }
 
+    private static string NormalizeCity(string? city) => city?.Trim() ?? string.Empty;
+
     private void CancelPendingRequest()
     {
-        try
-        {
-            _cts?.Cancel();
-            _cts?.Dispose();
-        }
-        catch (ObjectDisposedException) { }
+        _requestVersion++;
+        var cts = _cts;
         _cts = null;
         _isFetching = false;
+
+        try
+        {
+            cts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     private void ClearWeatherData()
     {
-        _lastWeather = null;
-        // Notify UI to clear with a null weather
-        WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs { Weather = null! });
+        WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs());
     }
 
     protected override void OnTick()
@@ -76,38 +102,49 @@ public class WeatherModule : NotchModuleBase
 
     private async System.Threading.Tasks.Task RefreshAsync()
     {
-        var settings = _settingsService.Load();
-        if (!settings.EnableWeather)
+        var settings = _settings;
+        if (!settings.EnableWeather || _isFetching)
         {
-            // Safety check — should not happen if module is stopped when disabled
             return;
         }
 
-        if (_isFetching) return;
         _isFetching = true;
+        int requestVersion = ++_requestVersion;
+        using var requestCts = new CancellationTokenSource();
+        _cts = requestCts;
 
-        _cts = new CancellationTokenSource();
         try
         {
-            string? manualCity = string.IsNullOrWhiteSpace(settings.ManualCity) ? null : settings.ManualCity;
-            var weather = await _weatherService.GetCurrentWeatherAsync(manualCity, _cts.Token).ConfigureAwait(true);
-            if (weather != null)
+            string manualCity = NormalizeCity(settings.ManualCity);
+            var weather = await _weatherService
+                .GetCurrentWeatherAsync(manualCity.Length == 0 ? null : manualCity, requestCts.Token)
+                .ConfigureAwait(true);
+
+            if (requestVersion == _requestVersion)
             {
-                _lastWeather = weather;
+                // A null update tells the UI that the provider could not return data.
                 WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs { Weather = weather });
             }
         }
         catch (OperationCanceledException)
         {
-            // Request was cancelled — expected when disabling weather
+            // Expected when weather is disabled or its location changes.
         }
         catch (Exception ex)
         {
-            RuntimeLog.Log("MODULE-Weather", $"Refresh failed: {ex.Message}");
+            if (requestVersion == _requestVersion)
+            {
+                RuntimeLog.Log("MODULE-Weather", $"Refresh failed: {ex.Message}");
+                WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs());
+            }
         }
         finally
         {
-            _isFetching = false;
+            if (requestVersion == _requestVersion)
+            {
+                _cts = null;
+                _isFetching = false;
+            }
         }
     }
 

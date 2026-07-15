@@ -248,6 +248,10 @@ public partial class MainWindow : Window
 
         _weatherModule = weatherModule;
         _weatherModule.WeatherUpdated += WeatherModule_WeatherUpdated;
+        if (!_settings.EnableWeather)
+        {
+            ShowWeatherStatus(isEnabled: false);
+        }
 
         _systemMonitorModule = systemMonitorModule;
         _systemMonitorModule.StatsUpdated += SystemMonitorModule_StatsUpdated;

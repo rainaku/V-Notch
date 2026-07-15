@@ -40,14 +40,21 @@ public sealed class WeatherPresenter : IDisposable
         }
     }
 
-    private void UpdateWeatherUI(WeatherInfo weather)
+    private void UpdateWeatherUI(WeatherInfo? weather)
     {
-        if (weather == null) return;
+        if (weather == null)
+        {
+            _refs.LocationText.Text = Loc.Get("weather.unavailable");
+            _refs.TempText.Text = "\u2014\u00b0";
+            _refs.ConditionText.Text = Loc.Get("weather.retryLater");
+            _refs.HiLoText.Text = string.Empty;
+            return;
+        }
 
-        _refs.LocationText.Text = string.IsNullOrWhiteSpace(weather.City) ? "—" : weather.City;
-        _refs.TempText.Text = $"{weather.Temperature}°";
+        _refs.LocationText.Text = string.IsNullOrWhiteSpace(weather.City) ? "\u2014" : weather.City;
+        _refs.TempText.Text = $"{weather.Temperature}\u00b0";
         _refs.ConditionText.Text = weather.Condition;
-        _refs.HiLoText.Text = $"H:{weather.High}° L:{weather.Low}°";
+        _refs.HiLoText.Text = $"H:{weather.High}\u00b0 L:{weather.Low}\u00b0";
     }
 
     public void Dispose()

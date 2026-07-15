@@ -32,30 +32,30 @@ public partial class MainWindow
 
     private void WeatherModule_WeatherUpdated(object? sender, WeatherUpdateEventArgs e)
     {
-        if (e.Weather == null)
+        var weather = e.Weather;
+        if (weather == null)
         {
-            // Weather was disabled — clear cached data from UI
-            Dispatcher.Invoke(() =>
-            {
-                WeatherLocationText.Text = "—";
-                WeatherTempText.Text = "—°";
-                WeatherConditionText.Text = "";
-                WeatherHiLoText.Text = "";
-            });
+            Dispatcher.Invoke(() => ShowWeatherStatus(_settings.EnableWeather));
             return;
         }
 
-        UpdateWeatherUI(e.Weather);
+        UpdateWeatherUI(weather);
+    }
+
+    private void ShowWeatherStatus(bool isEnabled)
+    {
+        WeatherLocationText.Text = Loc.Get(isEnabled ? "weather.unavailable" : "weather.disabled");
+        WeatherTempText.Text = "\u2014\u00b0";
+        WeatherConditionText.Text = Loc.Get(isEnabled ? "weather.retryLater" : "weather.enableInSettings");
+        WeatherHiLoText.Text = string.Empty;
     }
 
     private void UpdateWeatherUI(WeatherInfo weather)
     {
-        if (weather == null) return;
-
-        WeatherLocationText.Text = string.IsNullOrWhiteSpace(weather.City) ? "—" : weather.City;
-        WeatherTempText.Text = $"{weather.Temperature}°";
+        WeatherLocationText.Text = string.IsNullOrWhiteSpace(weather.City) ? "\u2014" : weather.City;
+        WeatherTempText.Text = $"{weather.Temperature}\u00b0";
         WeatherConditionText.Text = weather.Condition;
-        WeatherHiLoText.Text = $"H:{weather.High}° L:{weather.Low}°";
+        WeatherHiLoText.Text = $"H:{weather.High}\u00b0 L:{weather.Low}\u00b0";
     }
 
     #endregion

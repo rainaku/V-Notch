@@ -25,14 +25,9 @@ debug_log.txt
 build_output.txt
 build_output_clean.txt
 build_output_clean_final.txt
-*.txt
-!Tests/coverage-baseline.txt
+orig_cal.txt
 task.md
 *.iss
-*.md
-!README.md
-!PRIVACY_POLICY.md
-!PRIVACY_POLICY_VI.md
 fix_xaml.py
 /artifacts
 *.v2
