@@ -48,6 +48,14 @@ public class SettingsMigratorTests
     }
 
     [Fact]
+    public void NewDefaults_UseReadableSpotifyCanvasBrightness()
+    {
+        var settings = new NotchSettings();
+
+        Assert.Equal(0.7, settings.SpotifyCanvasBrightness);
+    }
+
+    [Fact]
     public void Migrate_Version4_AddsPerformanceDefaults()
     {
         const string rawJson = """

@@ -13,7 +13,7 @@ V-Notch is a free, open-source desktop application for Windows that recreates a 
 
 This Privacy Policy explains, in detail, exactly what data the application accesses, why it accesses it, where that data goes, and how long it is kept. It reflects the actual behavior of the application source code, which is publicly available for inspection at [github.com/rainaku/V-Notch](https://github.com/rainaku/V-Notch).
 
-**Core principle:** V-Notch is local-first. It contains no analytics, no telemetry, no advertising, and no user accounts. It does not operate any server of its own. The only outbound network requests it makes are to public third-party services for a few purposes: checking for application updates, fetching album artwork / lyrics for the media you are already playing, and — if you explicitly opt in — showing the weather. All of these are described in Section 4.
+**Core principle:** V-Notch is local-first. It contains no analytics, no telemetry, no advertising, and requires no V-Notch account. It does not operate any server of its own. The only outbound network requests it makes are to public third-party services for a few purposes: checking for application updates, fetching album artwork / lyrics / Spotify Canvas for the media you are already playing, and — if you explicitly opt in — showing the weather. All of these are described in Section 4.
 
 This policy uses the following terms:
 - **"Local"** — data that stays on your computer and is never sent anywhere.
@@ -29,6 +29,7 @@ This policy uses the following terms:
 | Now-playing media | Track title, artist, artwork, position, play state (Windows SMTC) | No (except artwork/lyrics lookup — see §4) | No (transient) |
 | Album artwork lookup | Track title + artist sent as a search query | Yes — YouTube/Google, SoundCloud, Piped/Invidious | No (image cached in memory) |
 | Synced lyrics | Track title + artist + duration sent as a query | Yes — lrclib.net | No (transient) |
+| Spotify Canvas (opt-in) | Spotify web session, track title + artist | Yes — Spotify | Session encrypted locally with Windows DPAPI |
 | Weather (opt-in) | Approximate IP-based location (ipwho.is) or manual city name (geocoding) | Yes — ipwho.is, Open-Meteo | No (transient) |
 | Update check | Standard HTTP headers only | Yes — GitHub API | Version info cached in memory |
 | Camera preview | Live camera frames | No | No (never recorded) |
@@ -96,7 +97,7 @@ If enabled, V-Notch uses a bundled YOLOv8n object-detection model running locall
 
 ## 4. Network Connections
 
-V-Notch has no backend server and performs no analytics or telemetry. It makes outbound requests **only** to the following public third-party services, and **only** for the purposes described. No account identifiers, device identifiers, or tracking tokens are attached to these requests.
+V-Notch has no backend server and performs no analytics or telemetry. It makes outbound requests **only** to the following public third-party services, and **only** for the purposes described. No device identifiers or tracking tokens are attached; the optional Spotify Canvas feature uses your Spotify session only as described in Section 4.4.
 
 ### 4.1 Application Update Checks — GitHub
 
@@ -132,7 +133,15 @@ When SMTC does not provide embedded artwork (common for browser-based playback),
 - **Data sent:** Track title, artist name, and track duration as query parameters, plus a `User-Agent` identifying V-Notch. No personal data is sent.
 - **Data received:** Synced lyric lines, used transiently for display.
 
-### 4.4 Weather (Opt-In)
+### 4.4 Spotify Canvas (Opt-In)
+
+When you choose **Connect Spotify**, V-Notch opens Spotify's own sign-in page in a temporary Microsoft Edge WebView2 profile. After sign-in, it reads only Spotify's `sp_dc` session cookie, clears the temporary browser profile, and stores the cookie encrypted with Windows DPAPI for the current Windows user. It is never sent to a V-Notch or PaxSenix server.
+
+While Canvas is enabled, the session is sent only to Spotify (`open.spotify.com`) to obtain a short-lived access token. V-Notch sends the current track title, artist, and duration to Musixmatch (`apic-desktop.musixmatch.com`) to resolve the Spotify track ID, then requests Canvas metadata from Spotify (`spclient.wg.spotify.com`). Canvas video is streamed from Spotify's `*.scdn.co` content delivery network. The rotating token secret used by Spotify's web player is downloaded from the public `xyloflake/spot-secrets-go` GitHub repository; no user data is sent with that request.
+
+You can disconnect Spotify at any time in Settings. This removes the stored session from V-Notch. If authentication fails or no Canvas exists, V-Notch uses the normal lyrics background.
+
+### 4.5 Weather (Opt-In)
 
 When you enable the weather widget, V-Notch makes the following network requests **only** after you have explicitly turned the feature on. The weather widget is **off by default**; no weather-related requests are made on a fresh install until you enable it.
 
@@ -149,9 +158,9 @@ All three endpoints are third-party services with their own privacy policies:
 
 **Data sent:** Your IP address (to ipwho.is), or a city name (to Open-Meteo geocoding), and latitude/longitude coordinates (to Open-Meteo forecast). No other personal data is included.
 
-### 4.5 Third Parties
+### 4.6 Third Parties
 
-The services above (GitHub, Google/YouTube, the Piped/Invidious instances, SoundCloud, LRCLIB, ipwho.is, and Open-Meteo) are independent third parties with their own privacy policies. When V-Notch contacts them, your IP address is necessarily visible to that service, as with any normal web request. V-Notch does not control and is not responsible for how those services handle requests. If you prefer to avoid these lookups, you can disable artwork/lyrics features, weather, and update checks, or block the app's network access.
+The services above (Spotify, GitHub, Google/YouTube, the Piped/Invidious instances, SoundCloud, LRCLIB, ipwho.is, and Open-Meteo) are independent third parties with their own privacy policies. When V-Notch contacts them, your IP address is necessarily visible to that service, as with any normal web request. V-Notch does not control and is not responsible for how those services handle requests. If you prefer to avoid these lookups, you can disable artwork/lyrics/Canvas features, weather, and update checks, or block the app's network access.
 
 ---
 
@@ -161,7 +170,7 @@ All persistent data created by V-Notch lives only on your device.
 
 ### 5.1 Settings (`%APPDATA%\V-Notch\settings.json`)
 
- Stores your preferences: notch size and position, visual style and animation options, notification toggles, language, startup behavior, the File Shelf contents (file paths), and feature flags. Settings may contain a YouTube API key only if you explicitly provide one. Before it is written to disk, the key is encrypted using Windows DPAPI (Data Protection API). The encrypted value uses the current Windows user account and cannot be decrypted by another user or on another machine. If DPAPI is unavailable, the API key is not saved at all.
+ Stores your preferences: notch size and position, visual style and animation options, notification toggles, language, startup behavior, the File Shelf contents (file paths), and feature flags. Settings may contain a YouTube API key only if you explicitly provide one and a Spotify session only if you choose Connect Spotify. Both values are encrypted using Windows DPAPI (Data Protection API) before they are written to disk. The encrypted values use the current Windows user account and cannot be decrypted by another user or on another machine. If DPAPI is unavailable, these sensitive values are not saved.
 
 ### 5.2 Diagnostic Log (`vnotch-debug.log`)
 

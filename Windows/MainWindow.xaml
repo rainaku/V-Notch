@@ -1505,6 +1505,10 @@
                                               MediaOpened="LyricsCanvasVideo_MediaOpened"
                                               MediaEnded="LyricsCanvasVideo_MediaEnded"
                                               MediaFailed="LyricsCanvasVideo_MediaFailed"/>
+                                <Rectangle x:Name="LyricsCanvasBrightnessOverlay"
+                                           Fill="Black"
+                                           Opacity="0.3"
+                                           IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
 

@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.IO;
 using System.Text;
 using VNotch.Services;
 using Xunit;
@@ -12,94 +14,135 @@ public sealed class SpotifyCanvasServiceTests
     private const string CanvasUrl = "https://canvaz.scdn.co/upload/licensor/video/test.cnvs.mp4";
 
     [Fact]
-    public async Task FetchCanvasAsync_ResolvesTrackAndParsesRepositoryResponse()
+    public async Task FetchCanvasAsync_UsesSpotifySessionAndParsesProtobuf()
     {
-        var requests = new List<(Uri Uri, string? Authorization)>();
+        var requests = new List<RequestInfo>();
         var handler = new StubHandler(request =>
         {
-            requests.Add((request.RequestUri!, request.Headers.Authorization?.ToString()));
-            string json = request.RequestUri!.AbsolutePath.EndsWith("/spotify/search", StringComparison.Ordinal)
-                ? "{\"data\":{\"tracks\":{\"items\":[{\"id\":\"" + TrackId +
-                  "\",\"name\":\"Kill Bill\",\"artists\":[{\"name\":\"SZA\"}],\"duration_ms\":153000}]}}}"
-                : "{\"data\":{\"canvasesList\":[{\"canvasUrl\":\"" + CanvasUrl +
-                  "\",\"trackUri\":\"spotify:track:" + TrackId + "\"}]}}";
-            return JsonResponse(json);
+            requests.Add(RequestInfo.From(request));
+            string host = request.RequestUri!.Host;
+            string path = request.RequestUri.AbsolutePath;
+
+            if (host == "raw.githubusercontent.com")
+                return JsonResponse("{\"42\":[99,111,47,88,49,56,118,65]}");
+            if (host == "open.spotify.com" && path.EndsWith("/server-time", StringComparison.Ordinal))
+                return JsonResponse("{\"serverTime\":1700000000}");
+            if (host == "open.spotify.com" && path.EndsWith("/token", StringComparison.Ordinal))
+                return JsonResponse("{\"accessToken\":\"spotify-token\",\"accessTokenExpirationTimestampMs\":4102444800000}");
+            if (host == "apic-desktop.musixmatch.com" && path.EndsWith("/token.get", StringComparison.Ordinal))
+            {
+                return JsonResponse("{\"message\":{\"body\":{\"user_token\":\"musixmatch-token\"}}}");
+            }
+            if (host == "apic-desktop.musixmatch.com" && path.EndsWith("/macro.subtitles.get", StringComparison.Ordinal))
+            {
+                return JsonResponse("{\"message\":{\"body\":{\"macro_calls\":{\"matcher.track.get\":{\"message\":{\"body\":{\"track\":{" +
+                    "\"track_spotify_id\":\"" + TrackId + "\",\"track_name\":\"Kill Bill\"," +
+                    "\"artist_name\":\"SZA\",\"track_length\":153}}}}}}}}");
+            }
+            if (host == "spclient.wg.spotify.com")
+                return ProtobufResponse(BuildCanvasResponse(CanvasUrl));
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
         });
-        using var service = new SpotifyCanvasService(new HttpClient(handler), new Uri("https://api.example.test/"));
+        using var service = new SpotifyCanvasService(new HttpClient(handler));
 
         Uri? result = await service.FetchCanvasAsync(
-            "Kill Bill", "SZA", TimeSpan.FromSeconds(153), "secret-key");
+            "Kill Bill", "SZA", TimeSpan.FromSeconds(153), "session-cookie");
 
         Assert.Equal(CanvasUrl, result?.AbsoluteUri);
-        Assert.Equal(2, requests.Count);
-        Assert.Equal("/spotify/search", requests[0].Uri.AbsolutePath);
-        Assert.Contains("Kill%20Bill%20SZA", requests[0].Uri.Query, StringComparison.Ordinal);
-        Assert.Equal($"/spotify/canvas", requests[1].Uri.AbsolutePath);
-        Assert.Contains($"id={TrackId}", requests[1].Uri.Query, StringComparison.Ordinal);
-        Assert.All(requests, request => Assert.Equal("Bearer secret-key", request.Authorization));
+        Assert.Equal(6, requests.Count);
+        Assert.Contains(requests, request =>
+            request.Uri.Host == "open.spotify.com" && request.Cookie == "sp_dc=session-cookie");
+        Assert.Contains(requests, request =>
+            request.Uri.Host == "spclient.wg.spotify.com" &&
+            request.Authorization == "Bearer spotify-token" &&
+            request.ContentType == "application/x-www-form-urlencoded");
+        Assert.Contains(requests, request =>
+            request.Uri.Host == "apic-desktop.musixmatch.com" &&
+            request.Uri.AbsolutePath.EndsWith("/macro.subtitles.get", StringComparison.Ordinal));
+        Assert.DoesNotContain(requests, request => request.Uri.Host == "api.spotify.com");
     }
 
     [Fact]
-    public async Task FetchCanvasAsync_MismatchedSearchResult_FallsBackWithoutCanvasRequest()
+    public async Task FetchCanvasAsync_MissingSessionFallsBackWithoutRequest()
     {
-        var handler = new StubHandler(_ => JsonResponse(
-            "{\"tracks\":[{\"id\":\"" + TrackId +
-            "\",\"name\":\"Another Song\",\"artist\":\"Someone Else\"}]}"));
-        using var service = new SpotifyCanvasService(new HttpClient(handler), new Uri("https://api.example.test/"));
+        var handler = new StubHandler(_ => throw new InvalidOperationException("No request expected"));
+        using var service = new SpotifyCanvasService(new HttpClient(handler));
 
         Uri? result = await service.FetchCanvasAsync(
-            "Kill Bill", "SZA", TimeSpan.FromSeconds(153), "secret-key");
+            "Kill Bill", "SZA", TimeSpan.FromSeconds(153), "");
 
         Assert.Null(result);
-        Assert.Equal(1, handler.Requests);
+        Assert.Equal(0, handler.Requests);
     }
 
     [Fact]
-    public async Task FetchCanvasAsync_UntrustedVideoUrl_IsRejected()
+    public void ParseTrackId_MismatchedSearchResultReturnsNull()
     {
-        var handler = new StubHandler(request =>
+        string? result = SpotifyCanvasService.ParseTrackId(
+            "{\"tracks\":{\"items\":[{\"id\":\"" + TrackId +
+            "\",\"name\":\"Another Song\",\"artists\":[{\"name\":\"Someone Else\"}]}]}}",
+            "Kill Bill",
+            "SZA",
+            TimeSpan.FromSeconds(153));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ParseCanvasResponse_RejectsUntrustedVideoUrl()
+    {
+        Uri? result = SpotifyCanvasService.ParseCanvasResponse(
+            BuildCanvasResponse("https://example.com/untrusted.mp4"));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void BuildCanvasRequest_IncludesSpotifyTrackUri()
+    {
+        byte[] request = SpotifyCanvasService.BuildCanvasRequest(TrackId);
+
+        Assert.Contains("spotify:track:" + TrackId, Encoding.UTF8.GetString(request), StringComparison.Ordinal);
+    }
+
+    private static byte[] BuildCanvasResponse(string canvasUrl)
+    {
+        byte[] url = Encoding.UTF8.GetBytes(canvasUrl);
+        using var canvas = new MemoryStream();
+        canvas.WriteByte(0x12); // Canvas.canvas_url, field 2.
+        WriteVarint(canvas, (ulong)url.Length);
+        canvas.Write(url);
+
+        byte[] canvasBytes = canvas.ToArray();
+        using var response = new MemoryStream();
+        response.WriteByte(0x0A); // CanvasResponse.canvases, field 1.
+        WriteVarint(response, (ulong)canvasBytes.Length);
+        response.Write(canvasBytes);
+        return response.ToArray();
+    }
+
+    private static void WriteVarint(Stream stream, ulong value)
+    {
+        while (value >= 0x80)
         {
-            string json = request.RequestUri!.AbsolutePath.EndsWith("/spotify/search", StringComparison.Ordinal)
-                ? "{\"tracks\":[{\"id\":\"" + TrackId +
-                  "\",\"name\":\"Kill Bill\",\"artist\":\"SZA\"}]}"
-                : "{\"canvasUrl\":\"https://example.com/untrusted.mp4\"}";
-            return JsonResponse(json);
-        });
-        using var service = new SpotifyCanvasService(new HttpClient(handler), new Uri("https://api.example.test/"));
-
-        Uri? result = await service.FetchCanvasAsync(
-            "Kill Bill", "SZA", TimeSpan.FromSeconds(153), "secret-key");
-
-        Assert.Null(result);
-        Assert.Equal(2, handler.Requests);
-    }
-
-    [Fact]
-    public async Task FetchCanvasAsync_HttpError_ReturnsNull()
-    {
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
-        using var service = new SpotifyCanvasService(new HttpClient(handler), new Uri("https://api.example.test/"));
-
-        Uri? result = await service.FetchCanvasAsync(
-            "Kill Bill", "SZA", TimeSpan.FromSeconds(153), "bad-key");
-
-        Assert.Null(result);
-        Assert.Equal(1, handler.Requests);
-    }
-
-    [Fact]
-    public void ParseCanvasUri_AcceptsSnakeCaseCanvasUrl()
-    {
-        Uri? result = SpotifyCanvasService.ParseCanvasUri(
-            "{\"canvases\":[{\"canvas_url\":\"" + CanvasUrl + "\"}]}");
-
-        Assert.Equal(CanvasUrl, result?.AbsoluteUri);
+            stream.WriteByte((byte)(value | 0x80));
+            value >>= 7;
+        }
+        stream.WriteByte((byte)value);
     }
 
     private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(json, Encoding.UTF8, "application/json")
     };
+
+    private static HttpResponseMessage ProtobufResponse(byte[] bytes)
+    {
+        var content = new ByteArrayContent(bytes);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/protobuf");
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+    }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> reply) : HttpMessageHandler
     {
@@ -110,5 +153,15 @@ public sealed class SpotifyCanvasServiceTests
             Requests++;
             return Task.FromResult(reply(request));
         }
+    }
+
+    private sealed record RequestInfo(Uri Uri, string Method, string? Authorization, string? Cookie, string? ContentType)
+    {
+        public static RequestInfo From(HttpRequestMessage request) => new(
+            request.RequestUri!,
+            request.Method.Method,
+            request.Headers.Authorization?.ToString(),
+            request.Headers.TryGetValues("Cookie", out var cookies) ? cookies.SingleOrDefault() : null,
+            request.Content?.Headers.ContentType?.MediaType);
     }
 }

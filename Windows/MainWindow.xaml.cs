@@ -957,7 +957,7 @@ public partial class MainWindow : Window
              bool languageChanged = newSettings.Language != _settings.Language;
             bool spotifyCanvasSettingsChanged =
                 newSettings.EnableSpotifyCanvas != _settings.EnableSpotifyCanvas ||
-                !string.Equals(newSettings.PaxSenixApiKey, _settings.PaxSenixApiKey, StringComparison.Ordinal);
+                !string.Equals(newSettings.SpotifySpDc, _settings.SpotifySpDc, StringComparison.Ordinal);
              _modeTransitionPending = newSettings.EnableDynamicIslandMode != _settings.EnableDynamicIslandMode;
             string oldSubtitlePriority = _settings.SubtitlePriority ?? "";
             _settings = newSettings.Clone();
@@ -1206,11 +1206,7 @@ public partial class MainWindow : Window
             LyricsBlurImage.BeginAnimation(UIElement.OpacityProperty, null);
              LyricsBlurImage.Opacity = lyricsImageOpacity;
          }
-        if (LyricsCanvasVideo != null)
-        {
-            LyricsCanvasVideo.BeginAnimation(UIElement.OpacityProperty, null);
-            LyricsCanvasVideo.Opacity = lyricsImageOpacity;
-        }
+        ApplySpotifyCanvasBrightness();
 
         if (!_settings.EnableSpotifyLyrics)
         {

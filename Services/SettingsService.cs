@@ -172,7 +172,8 @@ public class SettingsService : ISettingsService
                 bool hasPlaintextKey = new[]
                 {
                     nameof(NotchSettings.YouTubeApiKey),
-                    nameof(NotchSettings.PaxSenixApiKey),
+                    nameof(NotchSettings.SpotifySpDc),
+                    "PaxSenixApiKey",
                 }.Any(keyName =>
                     document.RootElement.TryGetProperty(keyName, out var key)
                     && key.ValueKind == JsonValueKind.String
@@ -254,6 +255,13 @@ public class SettingsService : ISettingsService
         if (settings.DynamicIslandHeight < 24)
         {
             settings.DynamicIslandHeight = 40;
+            changed = true;
+        }
+
+        double canvasBrightness = Math.Clamp(settings.SpotifyCanvasBrightness, 0.2, 1.0);
+        if (Math.Abs(canvasBrightness - settings.SpotifyCanvasBrightness) > double.Epsilon)
+        {
+            settings.SpotifyCanvasBrightness = canvasBrightness;
             changed = true;
         }
 

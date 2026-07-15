@@ -211,7 +211,7 @@ public partial class MainWindow
                 ShowMediaBackground();
                 UpdateProgressSectionLayout();
                 RefreshMediaMarquee();
-                if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
+                if (_settings.EnableBlurEffects && _isLyricsActive && !_isSpotifyCanvasMediaOpen && LyricsBlurBackground != null)
                 {
                     LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                     LyricsBlurImage.Opacity = 1;

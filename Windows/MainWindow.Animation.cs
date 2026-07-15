@@ -467,7 +467,7 @@ public partial class MainWindow
             UpdateCalendarInfo();
             ShowMediaBackground();
 
-            if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
+            if (_settings.EnableBlurEffects && _isLyricsActive && !_isSpotifyCanvasMediaOpen && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;

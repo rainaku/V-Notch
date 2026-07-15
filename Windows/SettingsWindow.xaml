@@ -1443,10 +1443,10 @@
                                                           Content="Show Spotify lyrics"
                                                           Checked="EnableSpotifyLyricsCheck_Changed"
                                                           Unchecked="EnableSpotifyLyricsCheck_Changed"/>
-                                                 <TextBlock x:Name="EnableSpotifyLyricsHint"
-                                                            Text="Display synced lyrics inside the expanded notch when listening on Spotify."
-                                                            Style="{StaticResource SettingHintText}"
-                                                            Margin="0,3,0,0"/>
+                                                <TextBlock x:Name="EnableSpotifyLyricsHint"
+                                                           Text="Display synced lyrics inside the expanded notch when listening on Spotify."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,3,0,0"/>
 
                                                 <CheckBox x:Name="EnableSpotifyCanvasCheck"
                                                           Content="Show Spotify Canvas background"
@@ -1458,7 +1458,7 @@
                                                            Style="{StaticResource SettingHintText}"
                                                            Margin="0,3,0,0"/>
 
-                                                <Border x:Name="SpotifyCanvasApiKeyPanel"
+                                                <Border x:Name="SpotifyCanvasAccountPanel"
                                                         Background="#0F0F0F"
                                                         BorderBrush="#2A2A2A"
                                                         BorderThickness="1"
@@ -1466,40 +1466,56 @@
                                                         Padding="12"
                                                         Margin="0,10,0,0">
                                                     <StackPanel>
-                                                        <TextBlock x:Name="SpotifyCanvasApiKeyLabel"
-                                                                   Text="PaxSenix API Key"
+                                                        <TextBlock x:Name="SpotifyCanvasAccountLabel"
+                                                                   Text="Spotify account"
                                                                    Style="{StaticResource SettingTitleText}"/>
-                                                        <TextBlock x:Name="SpotifyCanvasApiKeyHint"
-                                                                   Text="Required by the hosted Canvas API. The key is encrypted with Windows DPAPI."
+                                                        <TextBlock x:Name="SpotifyCanvasAccountHint"
+                                                                   Text="Sign in once. The Spotify session is encrypted with Windows DPAPI."
                                                                    Style="{StaticResource SettingHintText}"
                                                                    TextWrapping="Wrap"
-                                                                   Margin="0,5,0,8"/>
-                                                        <PasswordBox x:Name="SpotifyCanvasApiKeyPasswordBox"
-                                                                     Height="40"
-                                                                     Padding="12,10"
-                                                                     FontSize="12"
-                                                                     FontFamily="{StaticResource SettingsFont}"
-                                                                     Background="#090909"
-                                                                     Foreground="#E0E0E0"
-                                                                     BorderBrush="#2A2A2A"
-                                                                     BorderThickness="1"
-                                                                     CaretBrush="#FFFFFF"
-                                                                     VerticalContentAlignment="Center"
-                                                                     PasswordChar="●"
-                                                                     PasswordChanged="SpotifyCanvasApiKeyPasswordBox_PasswordChanged">
-                                                            <PasswordBox.Resources>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="CornerRadius" Value="9"/>
-                                                                </Style>
-                                                            </PasswordBox.Resources>
-                                                        </PasswordBox>
-                                                        <TextBlock x:Name="SpotifyCanvasApiKeyStatus"
-                                                                   Text=""
-                                                                   FontSize="11"
-                                                                   Foreground="#6B7280"
-                                                                   Margin="0,6,0,0"/>
+                                                                   Margin="0,5,0,10"/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock x:Name="SpotifyCanvasAccountStatus"
+                                                                       Text="Not connected — the normal lyrics background will be used."
+                                                                       FontSize="11"
+                                                                       Foreground="#EAB308"
+                                                                       TextWrapping="Wrap"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,10,0"/>
+                                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                                <Button x:Name="SpotifyConnectButton"
+                                                                        Content="Connect Spotify"
+                                                                        Style="{StaticResource PrimaryButton}"
+                                                                        Height="36"
+                                                                        Padding="16,8"
+                                                                        Click="SpotifyConnectButton_Click"/>
+                                                                <Button x:Name="SpotifyDisconnectButton"
+                                                                        Content="Disconnect"
+                                                                        Height="36"
+                                                                        Padding="14,8"
+                                                                        Margin="8,0,0,0"
+                                                                        Visibility="Collapsed"
+                                                                        Click="SpotifyDisconnectButton_Click"/>
+                                                            </StackPanel>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </Border>
+
+                                                <controls:ElasticSlider x:Name="SpotifyCanvasBrightnessSlider"
+                                                        Label="Canvas brightness"
+                                                        Unit="%"
+                                                        Description="Adjust the Canvas brightness so lyrics remain easy to read."
+                                                        Minimum="20"
+                                                        Maximum="100"
+                                                        Value="70"
+                                                        TickFrequency="5"
+                                                        IsSnapToTickEnabled="True"
+                                                        ValueChanged="SpotifyCanvasBrightnessSlider_ValueChanged"
+                                                        Margin="0,12,0,0"/>
 
                                                  <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}" Visibility="Collapsed" Margin="0,12,0,0"/>
                                                 <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">

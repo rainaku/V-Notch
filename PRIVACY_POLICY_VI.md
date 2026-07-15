@@ -13,7 +13,7 @@ V-Notch là ứng dụng desktop miễn phí, mã nguồn mở dành cho Windows
 
 Chính sách bảo mật này giải thích chi tiết: chính xác dữ liệu nào ứng dụng truy cập, tại sao truy cập, dữ liệu đó đi đâu, và được lưu giữ trong bao lâu. Nội dung phản ánh đúng hành vi thực tế của mã nguồn, vốn được công khai để kiểm tra tại [github.com/rainaku/V-Notch](https://github.com/rainaku/V-Notch).
 
-**Nguyên tắc cốt lõi:** V-Notch ưu tiên xử lý cục bộ. Ứng dụng không có analytics, không telemetry, không quảng cáo, và không tài khoản người dùng. Ứng dụng không vận hành bất kỳ máy chủ nào của riêng mình. Các yêu cầu mạng ra ngoài duy nhất mà ứng dụng thực hiện là tới các dịch vụ bên thứ ba công khai cho một số mục đích: kiểm tra cập nhật ứng dụng, lấy ảnh bìa album / lời bài hát cho phương tiện bạn đang phát, và — nếu bạn chủ động chọn — hiển thị thời tiết. Tất cả được mô tả trong Mục 4.
+**Nguyên tắc cốt lõi:** V-Notch ưu tiên xử lý cục bộ. Ứng dụng không có analytics, không telemetry, không quảng cáo, và không yêu cầu tài khoản V-Notch. Ứng dụng không vận hành máy chủ riêng. Các yêu cầu mạng ra ngoài chỉ phục vụ một số mục đích: kiểm tra cập nhật, lấy ảnh bìa / lời bài hát / Spotify Canvas cho phương tiện bạn đang phát, và — nếu bạn chủ động chọn — hiển thị thời tiết. Tất cả được mô tả trong Mục 4.
 
 Chính sách này dùng các thuật ngữ sau:
 - **"Cục bộ"** — dữ liệu ở lại trên máy của bạn và không bao giờ được gửi đi đâu.
@@ -29,6 +29,7 @@ Chính sách này dùng các thuật ngữ sau:
 | Phương tiện đang phát | Tên bài, nghệ sĩ, ảnh bìa, vị trí, trạng thái phát (Windows SMTC) | Không (trừ tra cứu ảnh bìa/lời — xem §4) | Không (tạm thời) |
 | Tra cứu ảnh bìa album | Tên bài + nghệ sĩ gửi đi như một truy vấn tìm kiếm | Có — YouTube/Google, SoundCloud, Piped/Invidious | Không (ảnh cache trong bộ nhớ) |
 | Lời bài hát đồng bộ | Tên bài + nghệ sĩ + thời lượng gửi đi như truy vấn | Có — lrclib.net | Không (tạm thời) |
+| Spotify Canvas (tùy chọn) | Phiên Spotify, tên bài + nghệ sĩ | Có — Spotify | Phiên được mã hóa cục bộ bằng Windows DPAPI |
 | Thời tiết (opt-in) | Vị trí gần đúng dựa trên IP (ipwho.is) hoặc tên thành phố thủ công (geocoding) | Có — ipwho.is, Open-Meteo | Không (tạm thời) |
 | Kiểm tra cập nhật | Chỉ header HTTP tiêu chuẩn | Có — GitHub API | Thông tin phiên bản cache trong bộ nhớ |
 | Xem trước camera | Khung hình camera trực tiếp | Không | Không (không bao giờ ghi lại) |
@@ -96,7 +97,7 @@ Nếu được bật, V-Notch dùng một mô hình nhận diện đối tượn
 
 ## 4. Kết nối mạng
 
-V-Notch không có máy chủ backend và không thực hiện analytics hay telemetry. Ứng dụng chỉ thực hiện yêu cầu ra ngoài tới các dịch vụ bên thứ ba công khai sau đây, và **chỉ** cho các mục đích được mô tả. Không có định danh tài khoản, định danh thiết bị, hay token theo dõi nào được đính kèm vào các yêu cầu này.
+V-Notch không có máy chủ backend và không thực hiện analytics hay telemetry. Ứng dụng chỉ thực hiện yêu cầu ra ngoài tới các dịch vụ bên thứ ba công khai sau đây, và **chỉ** cho các mục đích được mô tả. Không có định danh thiết bị hay token theo dõi; tính năng Spotify Canvas tùy chọn chỉ dùng phiên Spotify như mô tả tại Mục 4.4.
 
 ### 4.1 Kiểm tra cập nhật ứng dụng — GitHub
 
@@ -132,7 +133,15 @@ Khi SMTC không cung cấp ảnh bìa nhúng (thường gặp với phát qua tr
 - **Dữ liệu gửi đi:** Tên bài, tên nghệ sĩ, và thời lượng bài làm tham số truy vấn, cùng một `User-Agent` nhận diện V-Notch. Không có dữ liệu cá nhân nào được gửi.
 - **Dữ liệu nhận về:** Các dòng lời đồng bộ, dùng tạm thời để hiển thị.
 
-### 4.4 Thời tiết (Opt-In)
+### 4.4 Spotify Canvas (Tùy chọn)
+
+Khi bạn chọn **Kết nối Spotify**, V-Notch mở trang đăng nhập chính thức của Spotify trong một hồ sơ Microsoft Edge WebView2 tạm thời. Sau khi đăng nhập, ứng dụng chỉ đọc cookie phiên `sp_dc`, xóa hồ sơ trình duyệt tạm và lưu cookie đã mã hóa bằng Windows DPAPI cho tài khoản Windows hiện tại. Cookie này không được gửi đến máy chủ V-Notch hoặc PaxSenix.
+
+Khi Canvas được bật, phiên chỉ được gửi đến Spotify (`open.spotify.com`) để lấy access token ngắn hạn. V-Notch gửi tên bài, nghệ sĩ và thời lượng tới Musixmatch (`apic-desktop.musixmatch.com`) để tìm Spotify track ID, sau đó yêu cầu metadata Canvas từ Spotify (`spclient.wg.spotify.com`) và phát video từ mạng phân phối nội dung `*.scdn.co` của Spotify. Secret luân phiên dùng bởi Spotify web player được tải từ repository GitHub công khai `xyloflake/spot-secrets-go`; yêu cầu này không kèm dữ liệu người dùng.
+
+Bạn có thể ngắt kết nối Spotify bất kỳ lúc nào trong Cài đặt. Thao tác này xóa phiên đã lưu khỏi V-Notch. Nếu xác thực thất bại hoặc bài hát không có Canvas, ứng dụng dùng nền lyrics bình thường.
+
+### 4.5 Thời tiết (Opt-In)
 
 Khi bạn bật widget thời tiết, V-Notch thực hiện các yêu cầu mạng sau đây **chỉ sau khi** bạn đã chủ động bật tính năng này. Widget thời tiết **tắt theo mặc định**; không có yêu cầu liên quan đến thời tiết nào được thực hiện khi cài đặt mới cho đến khi bạn bật nó.
 
@@ -149,9 +158,9 @@ Cả ba endpoint đều là dịch vụ bên thứ ba với chính sách bảo m
 
 **Dữ liệu gửi đi:** Địa chỉ IP của bạn (tới ipwho.is), hoặc tên thành phố (tới Open-Meteo geocoding), và tọa độ vĩ độ/kinh độ (tới Open-Meteo forecast). Không có dữ liệu cá nhân nào khác được bao gồm.
 
-### 4.5 Bên thứ ba
+### 4.6 Bên thứ ba
 
-Các dịch vụ nêu trên (GitHub, Google/YouTube, các instance Piped/Invidious, SoundCloud, LRCLIB, ipwho.is, và Open-Meteo) là các bên thứ ba độc lập với chính sách bảo mật riêng của họ. Khi V-Notch liên hệ với họ, địa chỉ IP của bạn tất yếu sẽ hiển thị với dịch vụ đó, như với mọi yêu cầu web thông thường. V-Notch không kiểm soát và không chịu trách nhiệm về cách các dịch vụ đó xử lý yêu cầu. Nếu muốn tránh các tra cứu này, bạn có thể tắt các tính năng ảnh bìa/lời bài hát, thời tiết, và kiểm tra cập nhật, hoặc chặn truy cập mạng của ứng dụng.
+Các dịch vụ nêu trên (Spotify, GitHub, Google/YouTube, các instance Piped/Invidious, SoundCloud, LRCLIB, ipwho.is, và Open-Meteo) là các bên thứ ba độc lập với chính sách bảo mật riêng của họ. Khi V-Notch liên hệ với họ, địa chỉ IP của bạn tất yếu sẽ hiển thị với dịch vụ đó, như với mọi yêu cầu web thông thường. V-Notch không kiểm soát và không chịu trách nhiệm về cách các dịch vụ đó xử lý yêu cầu. Nếu muốn tránh các tra cứu này, bạn có thể tắt các tính năng ảnh bìa/lời bài hát/Canvas, thời tiết, và kiểm tra cập nhật, hoặc chặn truy cập mạng của ứng dụng.
 
 ---
 
@@ -161,7 +170,7 @@ Toàn bộ dữ liệu lâu dài do V-Notch tạo ra chỉ nằm trên thiết b
 
 ### 5.1 Cài đặt (`%APPDATA%\V-Notch\settings.json`)
 
- Lưu các tùy chọn của bạn: kích thước và vị trí notch, kiểu hiển thị và tùy chọn animation, công tắc thông báo, ngôn ngữ, hành vi khởi động, nội dung File Shelf (đường dẫn tệp), và các cờ tính năng. Tệp này có thể chứa YouTube API key nếu bạn tự cung cấp; key được mã hóa bằng Windows DPAPI trước khi ghi xuống đĩa, gắn với tài khoản Windows hiện tại và không thể giải mã bởi người dùng hoặc máy khác. Nếu DPAPI không khả dụng, API key không được lưu.
+ Lưu các tùy chọn của bạn: kích thước và vị trí notch, kiểu hiển thị và animation, thông báo, ngôn ngữ, hành vi khởi động, File Shelf và các cờ tính năng. Tệp có thể chứa YouTube API key nếu bạn tự cung cấp và phiên Spotify nếu bạn chọn Kết nối Spotify. Cả hai đều được mã hóa bằng Windows DPAPI trước khi ghi xuống đĩa, gắn với tài khoản Windows hiện tại và không thể giải mã bởi người dùng hoặc máy khác. Nếu DPAPI không khả dụng, các giá trị nhạy cảm này không được lưu.
 
 ### 5.2 Nhật ký chẩn đoán (`vnotch-debug.log`)
 

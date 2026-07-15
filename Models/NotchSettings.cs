@@ -89,8 +89,10 @@ public class NotchSettings
 
     public bool EnableSpotifyCanvas { get; set; } = true;
 
+    public double SpotifyCanvasBrightness { get; set; } = 0.7;
+
     [JsonConverter(typeof(VNotch.Services.DpapiJsonConverter))]
-    public string PaxSenixApiKey { get; set; } = "";
+    public string SpotifySpDc { get; set; } = "";
 
     public bool EnableYouTubeSubtitles { get; set; } = false;
 
