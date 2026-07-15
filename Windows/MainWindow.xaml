@@ -1454,7 +1454,7 @@
                             </Grid>
                         </Border>
 
-                        <Border x:Name="LyricsBlurBackground"
+                         <Border x:Name="LyricsBlurBackground"
                                 Grid.Column="2"
                                 HorizontalAlignment="Stretch"
                                 VerticalAlignment="Stretch"
@@ -1474,10 +1474,41 @@
                             <Grid>
                                 <Image x:Name="LyricsBlurImage" Stretch="UniformToFill" Opacity="1.0"/>
                                 <Image x:Name="LyricsBlurImageNext" Stretch="UniformToFill" Opacity="0"/>
+                             </Grid>
+                         </Border>
+
+                        <Border x:Name="LyricsCanvasBackground"
+                                Grid.Column="2"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                Opacity="0"
+                                Margin="-30,-20,-20,-30"
+                                Panel.ZIndex="0"
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False">
+                            <Border.OpacityMask>
+                                <RadialGradientBrush GradientOrigin="0.75,0.6" Center="0.75,0.6" RadiusX="0.55" RadiusY="0.6">
+                                    <GradientStop Color="#EEFFFFFF" Offset="0"/>
+                                    <GradientStop Color="#AAFFFFFF" Offset="0.35"/>
+                                    <GradientStop Color="#44FFFFFF" Offset="0.7"/>
+                                    <GradientStop Color="#00FFFFFF" Offset="0.98"/>
+                                </RadialGradientBrush>
+                            </Border.OpacityMask>
+                            <Grid Background="Black">
+                                <MediaElement x:Name="LyricsCanvasVideo"
+                                              LoadedBehavior="Manual"
+                                              UnloadedBehavior="Manual"
+                                              Stretch="UniformToFill"
+                                              IsMuted="True"
+                                              ScrubbingEnabled="False"
+                                              Opacity="1"
+                                              MediaOpened="LyricsCanvasVideo_MediaOpened"
+                                              MediaEnded="LyricsCanvasVideo_MediaEnded"
+                                              MediaFailed="LyricsCanvasVideo_MediaFailed"/>
                             </Grid>
                         </Border>
 
-                        <Grid x:Name="MediaWidgetContainer" Grid.Column="0" Margin="-8,0,0,0" SizeChanged="MediaWidgetContainer_SizeChanged" Panel.ZIndex="1">
+                         <Grid x:Name="MediaWidgetContainer" Grid.Column="0" Margin="-8,0,0,0" SizeChanged="MediaWidgetContainer_SizeChanged" Panel.ZIndex="1">
 
                             <Border x:Name="MediaWidget"
                                     Background="{StaticResource CardGradient}"

@@ -1443,12 +1443,65 @@
                                                           Content="Show Spotify lyrics"
                                                           Checked="EnableSpotifyLyricsCheck_Changed"
                                                           Unchecked="EnableSpotifyLyricsCheck_Changed"/>
-                                                <TextBlock x:Name="EnableSpotifyLyricsHint"
-                                                           Text="Display synced lyrics inside the expanded notch when listening on Spotify."
+                                                 <TextBlock x:Name="EnableSpotifyLyricsHint"
+                                                            Text="Display synced lyrics inside the expanded notch when listening on Spotify."
+                                                            Style="{StaticResource SettingHintText}"
+                                                            Margin="0,3,0,0"/>
+
+                                                <CheckBox x:Name="EnableSpotifyCanvasCheck"
+                                                          Content="Show Spotify Canvas background"
+                                                          Checked="EnableSpotifyCanvasCheck_Changed"
+                                                          Unchecked="EnableSpotifyCanvasCheck_Changed"
+                                                          Margin="0,14,0,0"/>
+                                                <TextBlock x:Name="EnableSpotifyCanvasHint"
+                                                           Text="Play the song's looping Canvas behind lyrics when one is available."
                                                            Style="{StaticResource SettingHintText}"
                                                            Margin="0,3,0,0"/>
 
-                                                <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}" Visibility="Collapsed" Margin="0,12,0,0"/>
+                                                <Border x:Name="SpotifyCanvasApiKeyPanel"
+                                                        Background="#0F0F0F"
+                                                        BorderBrush="#2A2A2A"
+                                                        BorderThickness="1"
+                                                        CornerRadius="10"
+                                                        Padding="12"
+                                                        Margin="0,10,0,0">
+                                                    <StackPanel>
+                                                        <TextBlock x:Name="SpotifyCanvasApiKeyLabel"
+                                                                   Text="PaxSenix API Key"
+                                                                   Style="{StaticResource SettingTitleText}"/>
+                                                        <TextBlock x:Name="SpotifyCanvasApiKeyHint"
+                                                                   Text="Required by the hosted Canvas API. The key is encrypted with Windows DPAPI."
+                                                                   Style="{StaticResource SettingHintText}"
+                                                                   TextWrapping="Wrap"
+                                                                   Margin="0,5,0,8"/>
+                                                        <PasswordBox x:Name="SpotifyCanvasApiKeyPasswordBox"
+                                                                     Height="40"
+                                                                     Padding="12,10"
+                                                                     FontSize="12"
+                                                                     FontFamily="{StaticResource SettingsFont}"
+                                                                     Background="#090909"
+                                                                     Foreground="#E0E0E0"
+                                                                     BorderBrush="#2A2A2A"
+                                                                     BorderThickness="1"
+                                                                     CaretBrush="#FFFFFF"
+                                                                     VerticalContentAlignment="Center"
+                                                                     PasswordChar="●"
+                                                                     PasswordChanged="SpotifyCanvasApiKeyPasswordBox_PasswordChanged">
+                                                            <PasswordBox.Resources>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="CornerRadius" Value="9"/>
+                                                                </Style>
+                                                            </PasswordBox.Resources>
+                                                        </PasswordBox>
+                                                        <TextBlock x:Name="SpotifyCanvasApiKeyStatus"
+                                                                   Text=""
+                                                                   FontSize="11"
+                                                                   Foreground="#6B7280"
+                                                                   Margin="0,6,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                 <TextBlock x:Name="DarkOverlayLabel" Text="Lyrics Dark Overlay" Style="{StaticResource SettingTitleText}" Visibility="Collapsed" Margin="0,12,0,0"/>
                                                 <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
                                                     <Run x:Name="BlurDarkOverlayValue" Text="30"/><Run Text=" %"/>
                                                 </TextBlock>

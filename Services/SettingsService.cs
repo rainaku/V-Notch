@@ -89,7 +89,7 @@ public class SettingsService : ISettingsService
         {
             // A legacy key could not be protected. Do not touch the existing file.
             RuntimeLog.Error("SETTINGS-LOAD", "DPAPI encryption failed; legacy settings were left unchanged.");
-            _apiKeySaveWarning("Your YouTube API key was not saved because Windows DPAPI could not encrypt it. Your existing settings file was left unchanged.");
+            _apiKeySaveWarning("Your API key was not saved because Windows DPAPI could not encrypt it. Your existing settings file was left unchanged.");
             return new NotchSettings { SettingsVersion = SettingsMigrator.CurrentVersion };
         }
         catch (Exception ex)
@@ -135,10 +135,10 @@ public class SettingsService : ISettingsService
         catch (System.Security.Cryptography.CryptographicException)
         {
             // DPAPI encryption failed — do NOT overwrite the existing settings file.
-            // The old file remains intact. Notify the user so they know the API key
+            // The old file remains intact. Notify the user so they know the API keys
             // was not saved.
             RuntimeLog.Error("SETTINGS-SAVE", "DPAPI encryption failed — settings were not saved.");
-            _apiKeySaveWarning("Unable to encrypt your YouTube API key. Your settings have not been saved.\n\nPlease try again or restart your computer.");
+            _apiKeySaveWarning("Unable to encrypt your API key. Your settings have not been saved.\n\nPlease try again or restart your computer.");
         }
         catch (Exception ex)
         {
@@ -165,16 +165,22 @@ public class SettingsService : ISettingsService
         // plaintext key. Once migration has succeeded, remove only those unsafe
         // settings artifacts; encrypted backups remain available for recovery.
         foreach (var path in Directory.GetFiles(_appFolder, "settings*.json"))
-        {
+         {
             try
             {
                 using var document = JsonDocument.Parse(File.ReadAllText(path));
-                if (document.RootElement.TryGetProperty(nameof(NotchSettings.YouTubeApiKey), out var key)
+                bool hasPlaintextKey = new[]
+                {
+                    nameof(NotchSettings.YouTubeApiKey),
+                    nameof(NotchSettings.PaxSenixApiKey),
+                }.Any(keyName =>
+                    document.RootElement.TryGetProperty(keyName, out var key)
                     && key.ValueKind == JsonValueKind.String
                     && !string.IsNullOrEmpty(key.GetString())
-                    && !DataProtection.IsEncrypted(key.GetString()))
-                {
-                    File.Delete(path);
+                    && !DataProtection.IsEncrypted(key.GetString()));
+                if (hasPlaintextKey)
+                 {
+                     File.Delete(path);
                 }
             }
             catch (JsonException)

@@ -127,9 +127,13 @@ public partial class SettingsWindow : Window
         EnableSubjectBlurCheck.IsChecked = _settings.EnableSubjectBlur;
         EnableSmartCropCheck.IsChecked = _settings.EnableSmartCrop;
         UpdatePerformanceDependentControls(_settings.EnableBlurEffects);
-        EnableSpotifyLyricsCheck.IsChecked = _settings.EnableSpotifyLyrics;
-        UpdateLyricsDependentControls(_settings.EnableSpotifyLyrics);
-        EnableYouTubeSubtitlesCheck.IsChecked = _settings.EnableYouTubeSubtitles;
+         EnableSpotifyLyricsCheck.IsChecked = _settings.EnableSpotifyLyrics;
+         UpdateLyricsDependentControls(_settings.EnableSpotifyLyrics);
+        EnableSpotifyCanvasCheck.IsChecked = _settings.EnableSpotifyCanvas;
+        SpotifyCanvasApiKeyPasswordBox.Password = _settings.PaxSenixApiKey;
+        UpdateSpotifyCanvasDependentControls();
+        UpdateSpotifyCanvasApiKeyStatus();
+         EnableYouTubeSubtitlesCheck.IsChecked = _settings.EnableYouTubeSubtitles;
         UpdateYouTubeSubtitlesDependentControls(_settings.EnableYouTubeSubtitles);
 
         LoadSubtitlePriority();
@@ -321,9 +325,13 @@ public partial class SettingsWindow : Window
         DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay");
         BlurDarkOverlaySlider.Label = Loc.Get("settings.lyricsDarkOverlay");
         BlurDarkOverlaySlider.Description = Loc.Get("settings.lyricsDarkOverlay.hint");
-        EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics");
-        EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint");
-        EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles");
+         EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics");
+         EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint");
+        EnableSpotifyCanvasCheck.Content = Loc.Get("settings.enableSpotifyCanvas");
+        EnableSpotifyCanvasHint.Text = Loc.Get("settings.enableSpotifyCanvas.hint");
+        SpotifyCanvasApiKeyLabel.Text = Loc.Get("settings.spotifyCanvasApiKey");
+        SpotifyCanvasApiKeyHint.Text = Loc.Get("settings.spotifyCanvasApiKey.hint");
+         EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles");
         if (YouTubeSubtitlesAlphaBadge != null) YouTubeSubtitlesAlphaBadge.Text = Loc.Get("settings.badge.alpha");
         EnableYouTubeSubtitlesHint.Text = Loc.Get("settings.enableYouTubeSubtitles.hint");
 
@@ -498,12 +506,53 @@ public partial class SettingsWindow : Window
         PushLivePreview();
     }
 
-    private void EnableSpotifyLyricsCheck_Changed(object sender, RoutedEventArgs e)
+     private void EnableSpotifyLyricsCheck_Changed(object sender, RoutedEventArgs e)
+     {
+         if (_isLoadingSettings) return;
+         bool enabled = EnableSpotifyLyricsCheck.IsChecked ?? true;
+         UpdateLyricsDependentControls(enabled);
+        UpdateSpotifyCanvasDependentControls();
+         PushLivePreview();
+     }
+
+    private void EnableSpotifyCanvasCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_isLoadingSettings) return;
-        bool enabled = EnableSpotifyLyricsCheck.IsChecked ?? true;
-        UpdateLyricsDependentControls(enabled);
+        UpdateSpotifyCanvasDependentControls();
         PushLivePreview();
+    }
+
+    private void SpotifyCanvasApiKeyPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        UpdateSpotifyCanvasApiKeyStatus();
+    }
+
+    private void UpdateSpotifyCanvasDependentControls()
+    {
+        if (SpotifyCanvasApiKeyPanel == null || EnableSpotifyCanvasCheck == null)
+            return;
+
+        bool lyricsEnabled = EnableSpotifyLyricsCheck?.IsChecked ?? true;
+        bool canvasEnabled = EnableSpotifyCanvasCheck.IsChecked ?? true;
+        EnableSpotifyCanvasCheck.IsEnabled = lyricsEnabled;
+        EnableSpotifyCanvasCheck.Opacity = lyricsEnabled ? 1.0 : 0.45;
+        EnableSpotifyCanvasHint.Opacity = lyricsEnabled ? 1.0 : 0.45;
+        SpotifyCanvasApiKeyPanel.IsEnabled = lyricsEnabled && canvasEnabled;
+        SpotifyCanvasApiKeyPanel.Opacity = lyricsEnabled && canvasEnabled ? 1.0 : 0.45;
+    }
+
+    private void UpdateSpotifyCanvasApiKeyStatus()
+    {
+        if (SpotifyCanvasApiKeyStatus == null || SpotifyCanvasApiKeyPasswordBox == null)
+            return;
+
+        string key = SpotifyCanvasApiKeyPasswordBox.Password?.Trim() ?? "";
+        SpotifyCanvasApiKeyStatus.Text = string.IsNullOrEmpty(key)
+            ? Loc.Get("settings.spotifyCanvasApiKey.missing")
+            : Loc.Get("settings.spotifyCanvasApiKey.ready");
+        SpotifyCanvasApiKeyStatus.Foreground = new SolidColorBrush(
+            string.IsNullOrEmpty(key) ? Color.FromRgb(234, 179, 8) : Color.FromRgb(74, 222, 128));
     }
 
     private void EnableYouTubeSubtitlesCheck_Changed(object sender, RoutedEventArgs e)
@@ -1741,9 +1790,11 @@ public partial class SettingsWindow : Window
         EnableSubjectBlurCheck.IsChecked = defaults.EnableSubjectBlur;
         EnableSmartCropCheck.IsChecked = defaults.EnableSmartCrop;
         UpdatePerformanceDependentControls(defaults.EnableBlurEffects);
-        EnableSpotifyLyricsCheck.IsChecked = defaults.EnableSpotifyLyrics;
-        EnableYouTubeSubtitlesCheck.IsChecked = defaults.EnableYouTubeSubtitles;
-        UpdateLyricsDependentControls(defaults.EnableSpotifyLyrics);
+         EnableSpotifyLyricsCheck.IsChecked = defaults.EnableSpotifyLyrics;
+        EnableSpotifyCanvasCheck.IsChecked = defaults.EnableSpotifyCanvas;
+         EnableYouTubeSubtitlesCheck.IsChecked = defaults.EnableYouTubeSubtitles;
+         UpdateLyricsDependentControls(defaults.EnableSpotifyLyrics);
+        UpdateSpotifyCanvasDependentControls();
         UpdateYouTubeSubtitlesDependentControls(defaults.EnableYouTubeSubtitles);
 
         _settings.SubtitlePriority = defaults.SubtitlePriority;
@@ -2139,8 +2190,10 @@ public partial class SettingsWindow : Window
         SaveLiquidGlassUi();
         _settings.EnableSubjectBlur = EnableSubjectBlurCheck.IsChecked ?? true;
         _settings.EnableSmartCrop = EnableSmartCropCheck.IsChecked ?? true;
-        _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
-        _settings.EnableYouTubeSubtitles = EnableYouTubeSubtitlesCheck.IsChecked ?? true;
+         _settings.EnableSpotifyLyrics = EnableSpotifyLyricsCheck.IsChecked ?? true;
+        _settings.EnableSpotifyCanvas = EnableSpotifyCanvasCheck.IsChecked ?? true;
+        _settings.PaxSenixApiKey = SpotifyCanvasApiKeyPasswordBox.Password?.Trim() ?? "";
+         _settings.EnableYouTubeSubtitles = EnableYouTubeSubtitlesCheck.IsChecked ?? true;
 
         _settings.SubtitlePriority = GetSubtitlePriorityString();
 

@@ -513,9 +513,12 @@ public partial class MainWindow : Window
         StopZOrderWatchdog();
         StopTitleGradientShift();
         _progressTimer?.Stop();
-        _mediaService?.Dispose();
-        _lyricsService?.Dispose();
-        _notchManager?.Dispose();
+         _mediaService?.Dispose();
+         _lyricsService?.Dispose();
+        _spotifyCanvasCts?.Cancel();
+        _spotifyCanvasCts?.Dispose();
+        _spotifyCanvasService.Dispose();
+         _notchManager?.Dispose();
         _zOrderManager?.Dispose();
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
@@ -951,8 +954,11 @@ public partial class MainWindow : Window
                             || newSettings.DynamicIslandHeight != _settings.DynamicIslandHeight
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
-            bool languageChanged = newSettings.Language != _settings.Language;
-            _modeTransitionPending = newSettings.EnableDynamicIslandMode != _settings.EnableDynamicIslandMode;
+             bool languageChanged = newSettings.Language != _settings.Language;
+            bool spotifyCanvasSettingsChanged =
+                newSettings.EnableSpotifyCanvas != _settings.EnableSpotifyCanvas ||
+                !string.Equals(newSettings.PaxSenixApiKey, _settings.PaxSenixApiKey, StringComparison.Ordinal);
+             _modeTransitionPending = newSettings.EnableDynamicIslandMode != _settings.EnableDynamicIslandMode;
             string oldSubtitlePriority = _settings.SubtitlePriority ?? "";
             _settings = newSettings.Clone();
             _notchManager.UpdateSettings(_settings);
@@ -961,7 +967,16 @@ public partial class MainWindow : Window
             ApplySettings(sizeChanged);
             _weatherModule.OnSettingsChanged(_settings);
 
-            _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
+             _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
+
+            if (spotifyCanvasSettingsChanged)
+            {
+                _spotifyCanvasService.ClearCache();
+                if (_settings.EnableSpotifyCanvas)
+                    RefreshSpotifyCanvasForCurrentTrack();
+                else
+                    ResetSpotifyCanvas();
+            }
 
             bool priorityChanged = !string.Equals(oldSubtitlePriority, _settings.SubtitlePriority, StringComparison.Ordinal);
             if (priorityChanged)
@@ -1186,10 +1201,15 @@ public partial class MainWindow : Window
         this.Opacity = _settings.Opacity;
 
         double lyricsImageOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
-        if (LyricsBlurImage != null)
-        {
+         if (LyricsBlurImage != null)
+         {
             LyricsBlurImage.BeginAnimation(UIElement.OpacityProperty, null);
-            LyricsBlurImage.Opacity = lyricsImageOpacity;
+             LyricsBlurImage.Opacity = lyricsImageOpacity;
+         }
+        if (LyricsCanvasVideo != null)
+        {
+            LyricsCanvasVideo.BeginAnimation(UIElement.OpacityProperty, null);
+            LyricsCanvasVideo.Opacity = lyricsImageOpacity;
         }
 
         if (!_settings.EnableSpotifyLyrics)

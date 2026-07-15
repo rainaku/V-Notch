@@ -144,16 +144,22 @@ public static class SettingsMigrator
         // Therefore inspect every loaded file, not just a particular migration
         // step. Protect intentionally throws: callers must retain the old file
         // rather than clear or rewrite a key that could not be protected.
-        const string keyName = nameof(NotchSettings.YouTubeApiKey);
-        if (root.TryGetPropertyValue(keyName, out var keyNode)
-            && keyNode is JsonValue keyValue
-            && keyValue.TryGetValue<string>(out var key)
-            && !string.IsNullOrEmpty(key)
-            && !DataProtection.IsEncrypted(key))
-        {
-            root[keyName] = DataProtection.Protect(key);
-            migrated = true;
-        }
+        foreach (string keyName in new[]
+                 {
+                     nameof(NotchSettings.YouTubeApiKey),
+                     nameof(NotchSettings.PaxSenixApiKey),
+                 })
+         {
+            if (root.TryGetPropertyValue(keyName, out var keyNode)
+                && keyNode is JsonValue keyValue
+                && keyValue.TryGetValue<string>(out var key)
+                && !string.IsNullOrEmpty(key)
+                && !DataProtection.IsEncrypted(key))
+            {
+                root[keyName] = DataProtection.Protect(key);
+                migrated = true;
+            }
+         }
 
         var normalizedJson = root.ToJsonString();
         var settings = JsonSerializer.Deserialize<NotchSettings>(normalizedJson) ?? new NotchSettings();

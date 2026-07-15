@@ -286,7 +286,8 @@ internal sealed class SpotifyCanvasService : IDisposable
     }
 
     private static bool IsSpotifyId(string? value) =>
-        value is { Length: 22 } && value.All(char.IsLetterOrDigit);
+        value is { Length: 22 } && value.All(ch =>
+            ch is >= '0' and <= '9' or >= 'A' and <= 'Z' or >= 'a' and <= 'z');
 
     private static string? GetArtistName(JsonElement element)
     {

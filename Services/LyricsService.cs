@@ -16,9 +16,22 @@ internal sealed class LyricsService : IDisposable
         Timeout = TimeSpan.FromSeconds(8)
     };
 
+    // This is an unofficial desktop endpoint. Fail fast and always retain
+    // LRCLIB as the fallback when Musixmatch rejects or changes it.
+    private static readonly HttpClient _musixmatchHttp = new()
+    {
+        BaseAddress = new Uri("https://apic-desktop.musixmatch.com"),
+        Timeout = TimeSpan.FromSeconds(5)
+    };
+    private static readonly SemaphoreSlim _musixmatchTokenLock = new(1, 1);
+    private static string? _musixmatchToken;
+    private static DateTime _musixmatchTokenExpiresUtc;
+
     static LyricsService()
     {
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("V-Notch/1.7.0 (https://github.com/rainaku/V-Notch)");
+        _musixmatchHttp.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+        _musixmatchHttp.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", "AWSELBCORS=0; AWSELB=0");
     }
 
     private CancellationTokenSource? _cts;
@@ -42,6 +55,9 @@ internal sealed class LyricsService : IDisposable
             //    to match closely. Spotify titles often carry suffixes
             //    ("- Remastered", "(feat. X)") or a slightly different duration,
             //    so this misses plenty of songs that DO have lyrics.
+            var musixmatch = await TryGetMusixmatchAsync(trackName, artistName, durationSeconds, token);
+            if (musixmatch is { Count: > 0 }) return musixmatch;
+
             var exact = await TryGetExactAsync(trackName, artistName, durationSeconds, token);
             if (exact is { Count: > 0 }) return exact;
 
@@ -69,6 +85,130 @@ internal sealed class LyricsService : IDisposable
             RuntimeLog.Log("LYRICS", $"Error: {ex.Message}");
             return null;
         }
+    }
+
+    private static async Task<List<LyricLine>?> TryGetMusixmatchAsync(
+        string trackName, string artistName, int durationSeconds, CancellationToken token)
+    {
+        try
+        {
+            string? userToken = await GetMusixmatchTokenAsync(token);
+            if (string.IsNullOrEmpty(userToken)) return null;
+
+            string url = "/ws/1.1/macro.subtitles.get?format=json" +
+                         "&namespace=lyrics_richsynched&subtitle_format=mxm" +
+                         "&app_id=web-desktop-app-v1.0" +
+                         $"&usertoken={Uri.EscapeDataString(userToken)}" +
+                         $"&q_artist={Uri.EscapeDataString(artistName)}" +
+                         $"&q_artists={Uri.EscapeDataString(artistName)}" +
+                         $"&q_track={Uri.EscapeDataString(trackName)}" +
+                         $"&q_duration={durationSeconds}&f_subtitle_length={durationSeconds}";
+
+            RuntimeLog.Log("LYRICS", $"Fetching (Musixmatch): {trackName} - {artistName}");
+            var response = await _musixmatchHttp.GetAsync(url, token);
+            if (!response.IsSuccessStatusCode)
+            {
+                RuntimeLog.Log("LYRICS", $"Musixmatch HTTP {(int)response.StatusCode}; falling back to LRCLIB");
+                return null;
+            }
+
+            string json = await response.Content.ReadAsStringAsync(token);
+            using var doc = JsonDocument.Parse(json);
+            if (!TryGetMusixmatchSubtitle(doc.RootElement, out string? subtitle)) return null;
+
+            var lines = ParseMusixmatchLyrics(subtitle!);
+            if (lines.Count > 0)
+                RuntimeLog.Log("LYRICS", $"Got {lines.Count} synced lines (Musixmatch) for '{trackName}'");
+            return lines.Count > 0 ? lines : null;
+        }
+        catch (OperationCanceledException) { return null; }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("LYRICS", $"Musixmatch unavailable ({ex.Message}); falling back to LRCLIB");
+            return null;
+        }
+    }
+
+    private static async Task<string?> GetMusixmatchTokenAsync(CancellationToken token)
+    {
+        if (!string.IsNullOrEmpty(_musixmatchToken) && DateTime.UtcNow < _musixmatchTokenExpiresUtc)
+            return _musixmatchToken;
+
+        await _musixmatchTokenLock.WaitAsync(token);
+        try
+        {
+            if (!string.IsNullOrEmpty(_musixmatchToken) && DateTime.UtcNow < _musixmatchTokenExpiresUtc)
+                return _musixmatchToken;
+
+            var response = await _musixmatchHttp.GetAsync(
+                "/ws/1.1/token.get?app_id=web-desktop-app-v1.0", token);
+            if (!response.IsSuccessStatusCode) return null;
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+            if (!doc.RootElement.TryGetProperty("message", out var message) ||
+                !message.TryGetProperty("body", out var body) ||
+                !body.TryGetProperty("user_token", out var tokenElement))
+                return null;
+
+            _musixmatchToken = tokenElement.GetString();
+            _musixmatchTokenExpiresUtc = DateTime.UtcNow.AddMinutes(9);
+            return _musixmatchToken;
+        }
+        finally
+        {
+            _musixmatchTokenLock.Release();
+        }
+    }
+
+    private static bool TryGetMusixmatchSubtitle(JsonElement root, out string? subtitle)
+    {
+        subtitle = null;
+        if (!root.TryGetProperty("message", out var message) ||
+            !message.TryGetProperty("body", out var body) ||
+            !body.TryGetProperty("macro_calls", out var calls) ||
+            !calls.TryGetProperty("track.subtitles.get", out var trackSubtitles) ||
+            !trackSubtitles.TryGetProperty("message", out var subtitleMessage) ||
+            !subtitleMessage.TryGetProperty("body", out var subtitleBody) ||
+            !subtitleBody.TryGetProperty("subtitle_list", out var subtitleList) ||
+            subtitleList.ValueKind != JsonValueKind.Array || subtitleList.GetArrayLength() == 0)
+            return false;
+
+        var first = subtitleList[0];
+        if (!first.TryGetProperty("subtitle", out var subtitleElement) ||
+            !subtitleElement.TryGetProperty("subtitle_body", out var subtitleBodyElement))
+            return false;
+
+        subtitle = subtitleBodyElement.GetString();
+        return !string.IsNullOrWhiteSpace(subtitle);
+    }
+
+    private static List<LyricLine> ParseMusixmatchLyrics(string lyrics)
+    {
+        var lines = new List<LyricLine>();
+        using var doc = JsonDocument.Parse(lyrics);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) return lines;
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            if (!item.TryGetProperty("time", out var time) ||
+                !time.TryGetProperty("minutes", out var minutes) ||
+                !time.TryGetProperty("seconds", out var seconds) ||
+                !minutes.TryGetInt32(out int minuteValue) ||
+                !seconds.TryGetInt32(out int secondValue))
+                continue;
+
+            int hundredths = time.TryGetProperty("hundredths", out var hundredthsElement) &&
+                             hundredthsElement.TryGetInt32(out int value)
+                ? value : 0;
+            string text = item.TryGetProperty("text", out var textElement) ? textElement.GetString() ?? "" : "";
+            if (string.IsNullOrWhiteSpace(text)) continue;
+
+            lines.Add(new LyricLine(
+                new TimeSpan(0, 0, minuteValue, secondValue, hundredths * 10), text));
+        }
+
+        lines.Sort((a, b) => a.Time.CompareTo(b.Time));
+        return lines;
     }
 
     private async Task<List<LyricLine>?> TryGetExactAsync(string trackName, string artistName, int durationSeconds, CancellationToken token)
