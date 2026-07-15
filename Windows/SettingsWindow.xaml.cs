@@ -2868,16 +2868,22 @@ public partial class SettingsWindow : Window
 
     private bool IsAnyComboBoxDropDownOpen()
     {
-        return MonitorCombo.IsDropDownOpen
+        return WidgetCombo.IsDropDownOpen
+            || MonitorCombo.IsDropDownOpen
             || LanguageCombo.IsDropDownOpen
             || CameraCombo.IsDropDownOpen
-            || VisualizerAudioCombo.IsDropDownOpen;
+            || VisualizerAudioCombo.IsDropDownOpen
+            || SkinCombo.IsDropDownOpen
+            || GlassPresetCombo.IsDropDownOpen;
     }
 
     private void SettingsScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (IsAnyComboBoxDropDownOpen())
         {
+            // Do not let wheel input fall through an open dropdown and scroll
+            // the settings page behind it.
+            e.Handled = true;
             return;
         }
 
