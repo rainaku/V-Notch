@@ -1409,12 +1409,12 @@ public partial class MainWindow : Window
 
         if (ClipboardCheckIcon != null)
         {
-            ClipboardCheckIcon.Margin = islandMode ? new Thickness(2, 0, -2, 0) : new Thickness(2, 4, -2, 0);
+            ClipboardCheckIcon.Margin = new Thickness(2, 4, -2, 0);
         }
 
         if (ClipboardCopiedText != null)
         {
-            ClipboardCopiedText.Margin = islandMode ? new Thickness(0) : new Thickness(0, 4, 0, 0);
+            ClipboardCopiedText.Margin = new Thickness(0, 4, 0, 0);
         }
 
         if (BluetoothNotification?.Children.Count > 0 && BluetoothNotification.Children[0] is FrameworkElement bluetoothContent)

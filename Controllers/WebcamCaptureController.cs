@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading;
 using System.Threading.Tasks;
 using VNotch.Services;
 using Windows.Graphics.Imaging;
@@ -28,6 +29,9 @@ public sealed class WebcamCaptureController : IDisposable
 
     private long _lastFrameTimestamp;
     private const long FrameIntervalTicks = 333_333;
+
+    private byte[] _frameBuffer = Array.Empty<byte>();
+    private int _frameBufferInUse;
     public bool IsActive => _isActive;
 
     public bool IsStarting => _starting;
@@ -54,6 +58,11 @@ public sealed class WebcamCaptureController : IDisposable
     }
 
     public event Action<byte[], int, int>? FrameAvailable;
+
+    public void ReleaseFrameBuffer()
+    {
+        Volatile.Write(ref _frameBufferInUse, 0);
+    }
 
     public int NextFadeToken() => ++_fadeToken;
 
@@ -276,32 +285,56 @@ public sealed class WebcamCaptureController : IDisposable
             return;
         _lastFrameTimestamp = now;
 
-        using var frame = sender.TryAcquireLatestFrame();
-        if (frame?.VideoMediaFrame?.SoftwareBitmap == null) return;
-
-        var softwareBitmap = frame.VideoMediaFrame.SoftwareBitmap;
-
-        var converted = false;
-        if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 ||
-            softwareBitmap.BitmapAlphaMode != BitmapAlphaMode.Premultiplied)
+        // Keep at most one copied frame in flight. The UI consumes this buffer
+        // asynchronously, so it must release the lease before capture can reuse it.
+        if (Interlocked.CompareExchange(ref _frameBufferInUse, 1, 0) != 0)
         {
-            softwareBitmap = SoftwareBitmap.Convert(softwareBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
-            converted = true;
+            return;
         }
 
-        int width = softwareBitmap.PixelWidth;
-        int height = softwareBitmap.PixelHeight;
-        int requiredSize = width * height * 4;
-
-        var frameBuffer = new byte[requiredSize];
-        softwareBitmap.CopyToBuffer(frameBuffer.AsBuffer());
-
-        if (converted)
+        bool handedOff = false;
+        SoftwareBitmap? convertedBitmap = null;
+        try
         {
-            softwareBitmap.Dispose();
-        }
+            using var frame = sender.TryAcquireLatestFrame();
+            if (frame?.VideoMediaFrame?.SoftwareBitmap == null) return;
 
-        FrameAvailable?.Invoke(frameBuffer, width, height);
+            var softwareBitmap = frame.VideoMediaFrame.SoftwareBitmap;
+            if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 ||
+                softwareBitmap.BitmapAlphaMode != BitmapAlphaMode.Premultiplied)
+            {
+                convertedBitmap = SoftwareBitmap.Convert(
+                    softwareBitmap,
+                    BitmapPixelFormat.Bgra8,
+                    BitmapAlphaMode.Premultiplied);
+                softwareBitmap = convertedBitmap;
+            }
+
+            int width = softwareBitmap.PixelWidth;
+            int height = softwareBitmap.PixelHeight;
+            int requiredSize = checked(width * height * 4);
+
+            if (_frameBuffer.Length < requiredSize)
+            {
+                _frameBuffer = GC.AllocateUninitializedArray<byte>(requiredSize);
+            }
+
+            softwareBitmap.CopyToBuffer(_frameBuffer.AsBuffer());
+
+            var handler = FrameAvailable;
+            if (handler == null) return;
+
+            handler(_frameBuffer, width, height);
+            handedOff = true;
+        }
+        finally
+        {
+            convertedBitmap?.Dispose();
+            if (!handedOff)
+            {
+                ReleaseFrameBuffer();
+            }
+        }
     }
 
     public void Dispose()

@@ -465,35 +465,52 @@ public partial class MainWindow
     private void OnCameraFrameAvailable(byte[] buffer, int w, int h)
     {
         if (_cameraFrameDispatchPending)
+        {
+            _camera.ReleaseFrameBuffer();
             return;
+        }
 
         _cameraFrameDispatchPending = true;
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
+        try
+        {
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
+            {
+                try
+                {
+                    if (!_isCameraActive) return;
+
+                    var wbmp = _cameraWriteableBitmap;
+                    if (wbmp == null || wbmp.PixelWidth != w || wbmp.PixelHeight != h)
+                    {
+                        wbmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
+                        _cameraWriteableBitmap = wbmp;
+                        CameraPreviewImage.Source = wbmp;
+                    }
+
+                    wbmp.WritePixels(new Int32Rect(0, 0, w, h), buffer, w * 4, 0);
+
+                    if (_cameraPreviewMorphPending)
+                    {
+                        AnimateCameraPreviewMorphIn();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Error("CAMERA", ex, "Frame update failed");
+                }
+                finally
+                {
+                    _cameraFrameDispatchPending = false;
+                    _camera.ReleaseFrameBuffer();
+                }
+            });
+        }
+        catch (Exception ex)
         {
             _cameraFrameDispatchPending = false;
-            if (!_isCameraActive) return;
-            try
-            {
-                var wbmp = _cameraWriteableBitmap;
-                if (wbmp == null || wbmp.PixelWidth != w || wbmp.PixelHeight != h)
-                {
-                    wbmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
-                    _cameraWriteableBitmap = wbmp;
-                    CameraPreviewImage.Source = wbmp;
-                }
-
-                wbmp.WritePixels(new Int32Rect(0, 0, w, h), buffer, w * 4, 0);
-
-                if (_cameraPreviewMorphPending)
-                {
-                    AnimateCameraPreviewMorphIn();
-                }
-            }
-            catch (Exception ex)
-            {
-                RuntimeLog.Error("CAMERA", ex, "Frame update failed");
-            }
-        });
+            _camera.ReleaseFrameBuffer();
+            RuntimeLog.Error("CAMERA", ex, "Frame dispatch failed");
+        }
     }
 
     private async Task StopCameraPreview()
