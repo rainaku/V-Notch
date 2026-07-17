@@ -6,9 +6,9 @@ namespace VNotch.Services;
 
 internal static class AnimationConfig
 {
-    public const int MinFps = 60;
-    public const int MaxFps = 144;
-    private const int FallbackFps = 144;
+    public const int MinFps = 30;
+    public const int MaxFps = 60;
+    private const int FallbackFps = 60;
 
     private static int _targetFps = FallbackFps;
     private static int _configuredFps = FallbackFps;
@@ -50,7 +50,17 @@ internal static class AnimationConfig
 
     private static void Recompute()
     {
-        _targetFps = Math.Clamp(_configuredFps, MinFps, MaxFps);
+        _targetFps = ComputeTargetFps(_configuredFps, DetectRefreshHz(_deviceName));
+    }
+
+    internal static int ComputeTargetFps(int configuredFps, int? detectedRefreshHz)
+    {
+        int configuredCap = Math.Clamp(configuredFps, MinFps, MaxFps);
+        int displayRefresh = detectedRefreshHz is >= 24 and <= 1000
+            ? detectedRefreshHz.Value
+            : FallbackFps;
+
+        return Math.Min(configuredCap, displayRefresh);
     }
 
     private static int? DetectRefreshHz(string? deviceName)

@@ -22,7 +22,7 @@ public class NotchSettings
     public double MediaBlurDarkOverlay { get; set; } = 0.0;
     public bool EnableBlurEffects { get; set; } = true;
     public bool ShowMediaArtBackground { get; set; } = true;
-    public int AnimationFps { get; set; } = 144;
+    public int AnimationFps { get; set; } = 60;
 
     public int MonitorIndex { get; set; } = 0;
 

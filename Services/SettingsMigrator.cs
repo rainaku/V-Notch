@@ -9,7 +9,7 @@ namespace VNotch.Services;
 public static class SettingsMigrator
 {
 
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 
     private static readonly IReadOnlyDictionary<int, Func<JsonObject, JsonObject>> _migrations =
         new Dictionary<int, Func<JsonObject, JsonObject>>
@@ -67,7 +67,7 @@ public static class SettingsMigrator
                 }
                 if (!root.ContainsKey(nameof(NotchSettings.AnimationFps)))
                 {
-                    root[nameof(NotchSettings.AnimationFps)] = 144;
+                    root[nameof(NotchSettings.AnimationFps)] = 60;
                 }
                 return root;
             },
@@ -105,6 +105,19 @@ public static class SettingsMigrator
                 // Canvas no longer uses the hosted PaxSenix API. Remove the old
                 // credential entirely when upgrading to the Spotify login flow.
                 root.Remove("PaxSenixApiKey");
+                return root;
+            },
+            [10] = root =>
+            {
+                int animationFps = AnimationConfig.MaxFps;
+                if (root.TryGetPropertyValue(nameof(NotchSettings.AnimationFps), out var fpsNode)
+                    && fpsNode is JsonValue fpsValue
+                    && fpsValue.TryGetValue(out int parsedFps))
+                {
+                    animationFps = Math.Clamp(parsedFps, AnimationConfig.MinFps, AnimationConfig.MaxFps);
+                }
+
+                root[nameof(NotchSettings.AnimationFps)] = animationFps;
                 return root;
             },
         };

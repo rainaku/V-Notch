@@ -171,7 +171,7 @@
                                                                 From="0,0,0,0"
                                                                 To="18,0,0,0"
                                                                 Duration="0:0:0.4"
-                                                                Timeline.DesiredFrameRate="144">
+                                                                Timeline.DesiredFrameRate="60">
                                                 <ThicknessAnimation.EasingFunction>
                                                     <BackEase EasingMode="EaseOut" Amplitude="0.4"/>
                                                 </ThicknessAnimation.EasingFunction>
@@ -181,7 +181,7 @@
                                                             From="#000000"
                                                             To="#00FF00"
                                                             Duration="0:0:0.4"
-                                                            Timeline.DesiredFrameRate="144">
+                                                            Timeline.DesiredFrameRate="60">
                                                 <ColorAnimation.EasingFunction>
                                                     <BackEase EasingMode="EaseOut" Amplitude="0.3"/>
                                                 </ColorAnimation.EasingFunction>
@@ -196,7 +196,7 @@
                                                                 Storyboard.TargetProperty="Margin"
                                                                 To="0,0,0,0"
                                                                 Duration="0:0:0.4"
-                                                                Timeline.DesiredFrameRate="144">
+                                                                Timeline.DesiredFrameRate="60">
                                                 <ThicknessAnimation.EasingFunction>
                                                     <BackEase EasingMode="EaseOut" Amplitude="0.4"/>
                                                 </ThicknessAnimation.EasingFunction>
@@ -205,7 +205,7 @@
                                                             Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
                                                             To="#000000"
                                                             Duration="0:0:0.4"
-                                                            Timeline.DesiredFrameRate="144">
+                                                            Timeline.DesiredFrameRate="60">
                                                 <ColorAnimation.EasingFunction>
                                                     <BackEase EasingMode="EaseOut" Amplitude="0.3"/>
                                                 </ColorAnimation.EasingFunction>
@@ -1696,16 +1696,16 @@
                                             <StackPanel>
                                                 <TextBlock x:Name="AnimationFpsLabel" Text="Animation FPS" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
                                                 <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
-                                                    <Run x:Name="AnimationFpsValue" Text="144"/><Run Text=" FPS"/>
+                                                    <Run x:Name="AnimationFpsValue" Text="60"/><Run Text=" FPS"/>
                                                 </TextBlock>
                                                 <TextBlock x:Name="AnimationFpsHint" Visibility="Collapsed"/>
                                                 <controls:ElasticSlider x:Name="AnimationFpsSlider"
                                                         Label="Animation FPS" Unit=" FPS"
                                                         Description="Cap UI animation frame rate. Lower values reduce render/GPU load."
-                                                        Minimum="60"
-                                                        Maximum="144"
-                                                        Value="144"
-                                                        TickFrequency="12"
+                                                        Minimum="30"
+                                                        Maximum="60"
+                                                        Value="60"
+                                                        TickFrequency="5"
                                                         IsSnapToTickEnabled="False"
                                                         ValueChanged="AnimationFpsSlider_ValueChanged"/>
                                             </StackPanel>

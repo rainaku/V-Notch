@@ -69,6 +69,23 @@ public class SettingsMigratorTests
         Assert.True(migrated);
         Assert.Equal(SettingsMigrator.CurrentVersion, settings.SettingsVersion);
         Assert.True(settings.EnableBlurEffects);
-        Assert.Equal(144, settings.AnimationFps);
+        Assert.Equal(60, settings.AnimationFps);
+    }
+
+    [Fact]
+    public void Migrate_Version10_CapsLegacyAnimationFpsAt60()
+    {
+        const string rawJson = """
+            {
+              "SettingsVersion": 10,
+              "AnimationFps": 144
+            }
+            """;
+
+        var (settings, migrated) = SettingsMigrator.Migrate(rawJson);
+
+        Assert.True(migrated);
+        Assert.Equal(SettingsMigrator.CurrentVersion, settings.SettingsVersion);
+        Assert.Equal(60, settings.AnimationFps);
     }
 }
