@@ -89,6 +89,14 @@ public partial class App : Application
             if (args.ExceptionObject is Exception ex)
             {
                 RuntimeLog.Error("UNHANDLED-BG", ex, "Background thread crash");
+
+                // The process may terminate immediately after this callback, so
+                // synchronously preserve only this exceptional final batch.
+                if (args.IsTerminating)
+                {
+                    try { RuntimeLog.FlushAsync().Wait(TimeSpan.FromSeconds(1)); }
+                    catch { }
+                }
             }
         };
 
@@ -163,15 +171,21 @@ public partial class App : Application
     }
     protected override void OnExit(ExitEventArgs e)
     {
-        RuntimeLog.Log("SYSTEM", "Application exit");
-
-        if (Services is IDisposable disposable)
+        try
         {
-            disposable.Dispose();
-        }
+            if (Services is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
 
-        _guard?.Dispose();
-        base.OnExit(e);
+            _guard?.Dispose();
+            RuntimeLog.Log("SYSTEM", "Application exit");
+            base.OnExit(e);
+        }
+        finally
+        {
+            RuntimeLog.Shutdown(TimeSpan.FromSeconds(2));
+        }
     }
     private static bool IsRecoverableException(Exception ex)
     {
