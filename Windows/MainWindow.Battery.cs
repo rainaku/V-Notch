@@ -44,15 +44,17 @@ public partial class MainWindow
     {
         AnimationConfig.SetReduceMotion(battery.IsBatterySaver);
 
+        const double batteryFillWidth = 22.8;
         double targetWidth = Math.Max(1.08, battery.Percentage / 100.0 * 23.0);
-        var widthAnimation = new DoubleAnimation
+        double targetScale = targetWidth / batteryFillWidth;
+        var scaleAnimation = new DoubleAnimation
         {
-            To = targetWidth,
+            To = targetScale,
             Duration = TimeSpan.FromMilliseconds(300),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
         };
-        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnimation, VNotch.Services.AnimationConfig.TargetFps);
-        BatteryFill.BeginAnimation(WidthProperty, widthAnimation);
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(scaleAnimation, VNotch.Services.AnimationConfig.TargetFps);
+        BatteryFillScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimation);
 
         SolidColorBrush fillBrush;
         SolidColorBrush percentBrush;

@@ -16,7 +16,65 @@ public partial class MainWindow
 
     private bool _isMusicExpanded => _notchState.IsMusicExpanded;
     private bool _isMusicAnimating = false;
-    private double _musicWidgetSmallWidth = 0;
+
+    private double GetMediaWidgetLayoutX()
+    {
+        try
+        {
+            return MediaWidgetContainer.TranslatePoint(new Point(0, 0), ExpandedContent).X;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private void AnimateMediaWidgetLayoutFrom(
+        double previousWidth,
+        double previousX,
+        Duration duration,
+        IEasingFunction easing,
+        Action onCompleted)
+    {
+        ExpandedContent.UpdateLayout();
+
+        double targetWidth = MediaWidgetContainer.ActualWidth;
+        double targetX = GetMediaWidgetLayoutX();
+        double initialScaleX = targetWidth > 0
+            ? Math.Clamp(previousWidth / targetWidth, 0.05, 8.0)
+            : 1.0;
+        double initialTranslateX = previousX - targetX;
+
+        MediaWidgetLayoutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        MediaWidgetLayoutTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+        MediaWidgetLayoutScale.ScaleX = initialScaleX;
+        MediaWidgetLayoutTranslate.X = initialTranslateX;
+        MediaWidgetContainer.CacheMode = new BitmapCache(2.0);
+
+        var scaleAnim = new DoubleAnimation(initialScaleX, 1.0, duration)
+        {
+            EasingFunction = easing
+        };
+        var translateAnim = new DoubleAnimation(initialTranslateX, 0.0, duration)
+        {
+            EasingFunction = easing
+        };
+        Timeline.SetDesiredFrameRate(scaleAnim, AnimationConfig.TargetFps);
+        Timeline.SetDesiredFrameRate(translateAnim, AnimationConfig.TargetFps);
+
+        scaleAnim.Completed += (s, e) =>
+        {
+            MediaWidgetLayoutScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            MediaWidgetLayoutTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+            MediaWidgetLayoutScale.ScaleX = 1.0;
+            MediaWidgetLayoutTranslate.X = 0.0;
+            MediaWidgetContainer.CacheMode = null;
+            onCompleted();
+        };
+
+        MediaWidgetLayoutScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
+        MediaWidgetLayoutTranslate.BeginAnimation(TranslateTransform.XProperty, translateAnim);
+    }
 
     private void ExpandMusicWidget()
     {
@@ -25,7 +83,6 @@ public partial class MainWindow
         _notchState.TryTransitionTo(NotchState.MusicExpanding);
         UpdateProgressSectionLayout();
 
-        _musicWidgetSmallWidth = MediaWidgetContainer.ActualWidth;
         ResetCalendarHoverFocusVisualState();
 
         var expandDuration = new Duration(TimeSpan.FromMilliseconds(500));
@@ -79,40 +136,23 @@ public partial class MainWindow
         GreetingSection.BeginAnimation(OpacityProperty, fadeOutGreeting);
 
         double startWidth = MediaWidgetContainer.ActualWidth;
-        double finalWidth = ExpandedContent.ActualWidth;
+        double startX = GetMediaWidgetLayoutX();
 
-        MediaWidgetContainer.Width = startWidth;
-        MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Left;
+        MediaWidgetContainer.BeginAnimation(WidthProperty, null);
+        MediaWidgetContainer.BeginAnimation(MarginProperty, null);
+        MediaWidgetContainer.Width = double.NaN;
+        MediaWidgetContainer.Margin = new Thickness(-8, 0, 0, 0);
+        MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
         Panel.SetZIndex(MediaWidgetContainer, 10);
         Grid.SetColumnSpan(MediaWidgetContainer, 3);
 
-        var widthAnim = new DoubleAnimation(startWidth, finalWidth, expandDuration)
+        AnimateMediaWidgetLayoutFrom(startWidth, startX, expandDuration, _easeExpOut7, () =>
         {
-            EasingFunction = _easeExpOut7
-        };
-
-        var marginAnim = new ThicknessAnimation(new Thickness(-8, 0, 0, 0), new Thickness(0), expandDuration)
-        {
-            EasingFunction = _easeExpOut7
-        };
-
-        widthAnim.Completed += (s, e) =>
-        {
-            MediaWidgetContainer.Width = double.NaN;
-            MediaWidgetContainer.Margin = new Thickness(-8, 0, 0, 0);
-            MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
             UpdateProgressSectionLayout();
-            MediaWidgetContainer.BeginAnimation(WidthProperty, null);
-            MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             _isMusicAnimating = false;
             _notchState.TryTransitionTo(NotchState.MusicExpanded);
             UpdateProgressTimerState();
-        };
-
-        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnim, VNotch.Services.AnimationConfig.TargetFps);
-        MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
-        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(marginAnim, VNotch.Services.AnimationConfig.TargetFps);
-        MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
+        });
 
         InlineControls.Visibility = Visibility.Visible;
 
@@ -150,40 +190,23 @@ public partial class MainWindow
         InlineControls.BeginAnimation(OpacityProperty, fadeOutInline);
 
         double currentWidth = MediaWidgetContainer.ActualWidth;
-        double targetSmallWidth = _musicWidgetSmallWidth > 0 ? _musicWidgetSmallWidth : (ExpandedContent.ActualWidth / 3.0) - 8;
+        double currentX = GetMediaWidgetLayoutX();
 
-        MediaWidgetContainer.Width = currentWidth;
-        MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Left;
+        MediaWidgetContainer.BeginAnimation(WidthProperty, null);
+        MediaWidgetContainer.BeginAnimation(MarginProperty, null);
+        MediaWidgetContainer.Width = double.NaN;
+        MediaWidgetContainer.Margin = new Thickness(-8, 0, 0, 0);
+        MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Grid.SetColumnSpan(MediaWidgetContainer, 1);
+        Panel.SetZIndex(MediaWidgetContainer, 0);
 
-        var widthAnim = new DoubleAnimation(currentWidth, targetSmallWidth, collapseDuration)
+        AnimateMediaWidgetLayoutFrom(currentWidth, currentX, collapseDuration, _easeExpOut7, () =>
         {
-            EasingFunction = _easeExpOut7
-        };
-
-        var marginAnim = new ThicknessAnimation(new Thickness(0), new Thickness(-8, 0, 0, 0), collapseDuration)
-        {
-            EasingFunction = _easeExpOut7
-        };
-
-        widthAnim.Completed += (s, e) =>
-        {
-            MediaWidgetContainer.Width = double.NaN;
-            MediaWidgetContainer.Margin = new Thickness(-8, 0, 0, 0);
-            MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
-            Grid.SetColumnSpan(MediaWidgetContainer, 1);
-            Panel.SetZIndex(MediaWidgetContainer, 0);
             UpdateProgressSectionLayout();
-            MediaWidgetContainer.BeginAnimation(WidthProperty, null);
-            MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             _isMusicAnimating = false;
             _notchState.TryTransitionTo(NotchState.Expanded);
             UpdateProgressTimerState();
-        };
-
-        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnim, VNotch.Services.AnimationConfig.TargetFps);
-        MediaWidgetContainer.BeginAnimation(WidthProperty, widthAnim);
-        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(marginAnim, VNotch.Services.AnimationConfig.TargetFps);
-        MediaWidgetContainer.BeginAnimation(MarginProperty, marginAnim);
+        });
 
         MediaControls.BeginAnimation(OpacityProperty, null);
         MediaControls.Opacity = 0;

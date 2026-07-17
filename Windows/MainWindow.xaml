@@ -1517,7 +1517,13 @@
                             </Grid>
                         </Border>
 
-                         <Grid x:Name="MediaWidgetContainer" Grid.Column="0" Margin="-8,0,0,0" SizeChanged="MediaWidgetContainer_SizeChanged" Panel.ZIndex="1">
+                         <Grid x:Name="MediaWidgetContainer" Grid.Column="0" Margin="-8,0,0,0" SizeChanged="MediaWidgetContainer_SizeChanged" Panel.ZIndex="1" RenderTransformOrigin="0,0.5">
+                            <Grid.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="MediaWidgetLayoutScale" ScaleX="1" ScaleY="1"/>
+                                    <TranslateTransform x:Name="MediaWidgetLayoutTranslate" X="0" Y="0"/>
+                                </TransformGroup>
+                            </Grid.RenderTransform>
 
                             <Border x:Name="MediaWidget"
                                     Background="{StaticResource CardGradient}"

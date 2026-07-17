@@ -152,9 +152,12 @@ public partial class MainWindow
         double right = compact ? PrivacyDotCompactMusicRightMargin : PrivacyDotDefaultRightMargin;
 
         double top = PrivacyDotTopMargin;
-        if (compact && _settings.EnableDynamicIslandMode)
+        bool isCollapsed = !_isExpanded && !_isMusicExpanded;
+        if (isCollapsed && _settings.EnableDynamicIslandMode)
         {
-            double h = GetCollapsedHeight();
+            double h = NotchBorder?.ActualHeight > 0
+                ? NotchBorder.ActualHeight
+                : GetCollapsedHeight();
             if (h > 0) top = Math.Max(0, (h - PrivacyDotSize) / 2.0);
         }
 
