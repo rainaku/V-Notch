@@ -323,6 +323,11 @@ public partial class MainWindow
             LyricsBlurBackground.Opacity = 0;
             LyricsBlurBackground.Visibility = Visibility.Collapsed;
         }
+        if (_isLyricsActive && LyricsCanvasBackground != null)
+        {
+            LyricsCanvasBackground.BeginAnimation(OpacityProperty, null);
+            LyricsCanvasBackground.Opacity = 0;
+        }
         ExpandedContent.Width = _expandedWidth - 16;
         ExpandedContent.Height = _expandedHeight - 10;
         ExpandedContent.UpdateLayout();
@@ -467,7 +472,7 @@ public partial class MainWindow
             UpdateCalendarInfo();
             ShowMediaBackground();
 
-            if (_settings.EnableBlurEffects && _isLyricsActive && !_isSpotifyCanvasMediaOpen && LyricsBlurBackground != null)
+            if (_settings.EnableBlurEffects && _isLyricsActive && LyricsBlurBackground != null)
             {
                 LyricsBlurImage.BeginAnimation(OpacityProperty, null);
                 LyricsBlurImage.Opacity = 1;
@@ -480,6 +485,8 @@ public partial class MainWindow
                 System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeIn);
             }
+
+            FadeInSpotifyCanvasBackgroundIfReady();
 
             if (_isLyricsActive)
             {

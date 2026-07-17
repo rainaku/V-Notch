@@ -10,21 +10,29 @@ namespace VNotch.Services;
 
 internal sealed class LyricsService : IDisposable
 {
-    private static readonly HttpClient _http = new()
+    private static readonly HttpClient _lrclibHttp = new()
     {
         BaseAddress = new Uri("https://lrclib.net"),
         Timeout = TimeSpan.FromSeconds(8)
     };
 
+    private static readonly HttpClient _lrcMuxHttp = new()
+    {
+        BaseAddress = new Uri("https://api.lrcmux.dev"),
+        Timeout = TimeSpan.FromSeconds(12)
+    };
+
     static LyricsService()
     {
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("V-Notch/1.7.0 (https://github.com/rainaku/V-Notch)");
+        const string userAgent = "V-Notch/1.8.0 (https://github.com/rainaku/V-Notch)";
+        _lrclibHttp.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        _lrcMuxHttp.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
     }
 
     private CancellationTokenSource? _cts;
     private string _lastFetchKey = "";
 
-    public async Task<List<LyricLine>?> FetchSyncedLyricsAsync(string trackName, string artistName, int durationSeconds)
+    public async Task<LyricsResult?> FetchSyncedLyricsAsync(string trackName, string artistName, int durationSeconds)
     {
         string fetchKey = $"{trackName}|{artistName}|{durationSeconds}";
         if (fetchKey == _lastFetchKey) return null;
@@ -43,20 +51,25 @@ internal sealed class LyricsService : IDisposable
             //    ("- Remastered", "(feat. X)") or a slightly different duration,
             //    so this misses plenty of songs that DO have lyrics.
             var exact = await TryGetExactAsync(trackName, artistName, durationSeconds, token);
-            if (exact is { Count: > 0 }) return exact;
+            if (exact is { Count: > 0 }) return new LyricsResult(exact, "LRCLIB");
 
             // 2. Fuzzy search fallback — far more forgiving. Try the raw title
             //    first, then a cleaned version with the noisy suffixes removed.
             var searched = await TrySearchAsync(trackName, artistName, durationSeconds, token);
-            if (searched is { Count: > 0 }) return searched;
+            if (searched is { Count: > 0 }) return new LyricsResult(searched, "LRCLIB");
 
             string cleanTrack = CleanTitle(trackName);
             string cleanArtist = CleanArtist(artistName);
             if (cleanTrack != trackName || cleanArtist != artistName)
             {
                 var cleaned = await TrySearchAsync(cleanTrack, cleanArtist, durationSeconds, token);
-                if (cleaned is { Count: > 0 }) return cleaned;
+                if (cleaned is { Count: > 0 }) return new LyricsResult(cleaned, "LRCLIB");
             }
+
+            // LRCLIB has already been tried, so ask lrc mux only for its other
+            // providers. It may return either word- or line-synchronised lyrics.
+            var aggregated = await TryLrcMuxAsync(trackName, artistName, durationSeconds, token);
+            if (aggregated != null) return aggregated;
 
             return null;
         }
@@ -78,7 +91,7 @@ internal sealed class LyricsService : IDisposable
 
         RuntimeLog.Log("LYRICS", $"Fetching (exact): {trackName} - {artistName} ({durationSeconds}s)");
 
-        var response = await _http.GetAsync(url, token);
+        var response = await _lrclibHttp.GetAsync(url, token);
         if (!response.IsSuccessStatusCode)
         {
             RuntimeLog.Log("LYRICS", $"Exact HTTP {(int)response.StatusCode} for '{trackName}'");
@@ -100,7 +113,7 @@ internal sealed class LyricsService : IDisposable
 
         RuntimeLog.Log("LYRICS", $"Fetching (search): {trackName} - {artistName}");
 
-        var response = await _http.GetAsync(url, token);
+        var response = await _lrclibHttp.GetAsync(url, token);
         if (!response.IsSuccessStatusCode)
         {
             RuntimeLog.Log("LYRICS", $"Search HTTP {(int)response.StatusCode} for '{trackName}'");
@@ -144,6 +157,91 @@ internal sealed class LyricsService : IDisposable
         if (lines is { Count: > 0 })
             RuntimeLog.Log("LYRICS", $"Got {lines.Count} synced lines (search, Δ{bestDelta}s) for '{trackName}'");
         return lines;
+    }
+
+    private async Task<LyricsResult?> TryLrcMuxAsync(
+        string trackName,
+        string artistName,
+        int durationSeconds,
+        CancellationToken token)
+    {
+        string url = $"/get?title={Uri.EscapeDataString(trackName)}" +
+                     $"&artist={Uri.EscapeDataString(artistName)}" +
+                     $"&duration={durationSeconds}" +
+                     "&level=word&format=json&sources=%21lrclib";
+
+        RuntimeLog.Log("LYRICS", $"Fetching (lrc mux): {trackName} - {artistName}");
+
+        using var response = await _lrcMuxHttp.GetAsync(url, token);
+        if (!response.IsSuccessStatusCode)
+        {
+            RuntimeLog.Log("LYRICS", $"lrc mux HTTP {(int)response.StatusCode} for '{trackName}'");
+            return null;
+        }
+
+        string json = await response.Content.ReadAsStringAsync(token);
+        var result = ParseLrcMuxResult(json);
+        if (result is { Lines.Count: > 0 })
+            RuntimeLog.Log("LYRICS", $"Got {result.Lines.Count} synced lines from {result.Provider} for '{trackName}'");
+        return result;
+    }
+
+    internal static LyricsResult? ParseLrcMuxResult(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
+        using var doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) return null;
+
+        if (!root.TryGetProperty("meta", out var meta) || meta.ValueKind != JsonValueKind.Object)
+            return null;
+
+        string syncLevel = meta.TryGetProperty("level", out var levelProp)
+            ? levelProp.GetString() ?? ""
+            : "";
+        if (!syncLevel.Equals("word", StringComparison.OrdinalIgnoreCase) &&
+            !syncLevel.Equals("line", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        string provider = "lrc mux";
+        if (meta.TryGetProperty("source", out var source) &&
+            source.ValueKind == JsonValueKind.Object &&
+            source.TryGetProperty("name", out var nameProp) &&
+            !string.IsNullOrWhiteSpace(nameProp.GetString()))
+        {
+            provider = $"{nameProp.GetString()!.Trim()} via lrc mux";
+        }
+
+        if (!root.TryGetProperty("lines", out var linesProp) || linesProp.ValueKind != JsonValueKind.Array)
+            return null;
+
+        var lines = new List<LyricLine>();
+        foreach (var item in linesProp.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                !item.TryGetProperty("text", out var textProp) ||
+                !item.TryGetProperty("start", out var startProp) ||
+                startProp.ValueKind != JsonValueKind.Number)
+            {
+                continue;
+            }
+
+            string text = textProp.GetString()?.Trim() ?? "";
+            if (text.Length == 0 ||
+                !startProp.TryGetInt64(out long startMilliseconds) ||
+                startMilliseconds < 0)
+            {
+                continue;
+            }
+
+            lines.Add(new LyricLine(TimeSpan.FromMilliseconds(startMilliseconds), text));
+        }
+
+        lines.Sort((a, b) => a.Time.CompareTo(b.Time));
+        return lines.Count > 0 ? new LyricsResult(lines, provider) : null;
     }
 
     private static List<LyricLine>? ExtractSyncedLines(JsonElement element)
@@ -254,3 +352,5 @@ internal sealed class LyricsService : IDisposable
 }
 
 internal readonly record struct LyricLine(TimeSpan Time, string Text);
+
+internal sealed record LyricsResult(List<LyricLine> Lines, string Provider);
