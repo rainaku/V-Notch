@@ -137,6 +137,7 @@ public partial class MainWindow
         if (_isSecondaryView || _isAnimating) return;
         _isSecondaryView = true;
         _isAnimating = true;
+        SuspendSpotifyCanvasLifecycle();
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
 
@@ -357,6 +358,7 @@ public partial class MainWindow
             ExpandedContent.BeginAnimation(OpacityProperty, null);
             ExpandedContent.CacheMode = null;
             ApplyExpandedContentRestTransform();
+            ResumeSpotifyCanvasLifecycle();
 
             ShowMediaBackground();
 

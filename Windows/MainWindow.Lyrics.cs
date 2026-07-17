@@ -14,7 +14,9 @@ public partial class MainWindow
 {
     private readonly LyricsService _lyricsService = new();
     private readonly YouTubeSubtitleService _youtubeSubtitleService = new();
-    private readonly SpotifyCanvasService _spotifyCanvasService = new();
+    private SpotifyCanvasService? _spotifyCanvasService;
+    private SpotifyCanvasService SpotifyCanvasService =>
+        _spotifyCanvasService ??= new SpotifyCanvasService();
     private List<LyricLine>? _currentLyrics;
     private int _currentLyricIndex = -1;
     private string _lyricsTrackKey = "";
@@ -33,6 +35,14 @@ public partial class MainWindow
     private Uri? _spotifyCanvasUri;
     private bool _spotifyCanvasShouldPlay;
     private bool _isSpotifyCanvasMediaOpen;
+    private bool _spotifyCanvasLookupCompleted;
+
+    private bool IsSpotifyCanvasSurfaceVisible =>
+        _isLyricsActive &&
+        !_isSecondaryView &&
+        !_isTimerView &&
+        !_isAudioView &&
+        ExpandedContent?.Visibility == Visibility.Visible;
 
     private enum SyncedTextSource { None, SpotifyLyrics, YouTubeSubtitles }
     private SyncedTextSource _syncedTextSource = SyncedTextSource.None;
@@ -79,13 +89,15 @@ public partial class MainWindow
 
     private void StartSpotifyCanvasFetch(MediaInfo info, string trackKey)
     {
-        _spotifyCanvasCts?.Cancel();
-        _spotifyCanvasCts?.Dispose();
-        _spotifyCanvasCts = new CancellationTokenSource();
+        CancelSpotifyCanvasFetch(retryWhenVisible: false);
         _spotifyCanvasTrackKey = trackKey;
         _spotifyCanvasUri = null;
+        _spotifyCanvasLookupCompleted = false;
 
-        Dispatcher.BeginInvoke(new Action(() => HideSpotifyCanvasBackground(clearSource: true)));
+        if (Dispatcher.CheckAccess())
+            HideSpotifyCanvasBackground(clearSource: true);
+        else
+            Dispatcher.BeginInvoke(new Action(() => HideSpotifyCanvasBackground(clearSource: true)));
 
         RuntimeLog.Debug("SPOTIFY-CANVAS", () =>
             $"Fetch gate: enabled={_settings.EnableSpotifyCanvas}, platform={info.Platform}, " +
@@ -93,41 +105,77 @@ public partial class MainWindow
         if (!_settings.EnableSpotifyCanvas || info.Platform != MediaPlatform.Spotify)
             return;
 
-        FetchSpotifyCanvasAsync(info, trackKey, _spotifyCanvasCts.Token)
-            .SafeFireAndForget("SPOTIFY-CANVAS");
+        TryStartSpotifyCanvasFetch(info, trackKey);
     }
 
-    private async Task FetchSpotifyCanvasAsync(MediaInfo info, string trackKey, CancellationToken token)
+    private void TryStartSpotifyCanvasFetch(MediaInfo info, string trackKey)
     {
-        Uri? canvasUri = await _spotifyCanvasService.FetchCanvasAsync(
-            info.CurrentTrack,
-            info.CurrentArtist,
-            info.Duration,
-            _settings.SpotifySpDc,
-            token);
-
-        if (token.IsCancellationRequested ||
-            canvasUri == null ||
-            trackKey != _lyricsTrackKey ||
-            trackKey != _spotifyCanvasTrackKey)
+        if (!_settings.EnableSpotifyCanvas ||
+            info.Platform != MediaPlatform.Spotify ||
+            !IsSpotifyCanvasSurfaceVisible ||
+            _spotifyCanvasLookupCompleted ||
+            _spotifyCanvasCts != null)
         {
-            if (!token.IsCancellationRequested && canvasUri == null && trackKey == _spotifyCanvasTrackKey)
-                RuntimeLog.Debug("SPOTIFY-CANVAS", "No Canvas available; keeping normal lyrics background");
             return;
         }
 
-        _spotifyCanvasUri = canvasUri;
-        RuntimeLog.Debug("SPOTIFY-CANVAS", "Canvas is ready for the current lyrics view");
-        await Dispatcher.InvokeAsync(() =>
+        var requestCts = new CancellationTokenSource();
+        _spotifyCanvasCts = requestCts;
+        FetchSpotifyCanvasAsync(info, trackKey, requestCts)
+            .SafeFireAndForget("SPOTIFY-CANVAS");
+    }
+
+    private async Task FetchSpotifyCanvasAsync(
+        MediaInfo info,
+        string trackKey,
+        CancellationTokenSource requestCts)
+    {
+        CancellationToken token = requestCts.Token;
+        try
         {
-            if (!token.IsCancellationRequested &&
-                _isLyricsActive &&
-                _syncedTextSource == SyncedTextSource.SpotifyLyrics &&
-                trackKey == _lyricsTrackKey)
+            Uri? canvasUri = await SpotifyCanvasService.FetchCanvasAsync(
+                info.CurrentTrack,
+                info.CurrentArtist,
+                info.Duration,
+                _settings.SpotifySpDc,
+                token);
+
+            if (token.IsCancellationRequested ||
+                canvasUri == null ||
+                trackKey != _lyricsTrackKey ||
+                trackKey != _spotifyCanvasTrackKey)
             {
-                ShowSpotifyCanvasBackgroundIfAvailable();
+                if (!token.IsCancellationRequested && canvasUri == null && trackKey == _spotifyCanvasTrackKey)
+                    RuntimeLog.Debug("SPOTIFY-CANVAS", "No Canvas available; keeping normal lyrics background");
+                return;
             }
-        });
+
+            _spotifyCanvasUri = canvasUri;
+            RuntimeLog.Debug("SPOTIFY-CANVAS", "Canvas is ready for the current lyrics view");
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (!token.IsCancellationRequested &&
+                    IsSpotifyCanvasSurfaceVisible &&
+                    _syncedTextSource == SyncedTextSource.SpotifyLyrics &&
+                    trackKey == _lyricsTrackKey)
+                {
+                    ShowSpotifyCanvasBackgroundIfAvailable();
+                }
+            });
+        }
+        finally
+        {
+            if (ReferenceEquals(_spotifyCanvasCts, requestCts))
+            {
+                _spotifyCanvasCts = null;
+                if (!token.IsCancellationRequested && trackKey == _spotifyCanvasTrackKey)
+                {
+                    _spotifyCanvasLookupCompleted = true;
+                }
+            }
+
+            requestCts.Dispose();
+        }
     }
 
     private void RefreshSpotifyCanvasForCurrentTrack()
@@ -147,6 +195,7 @@ public partial class MainWindow
     private void ShowSpotifyCanvasBackgroundIfAvailable()
     {
         if (!_settings.EnableSpotifyCanvas ||
+            !IsSpotifyCanvasSurfaceVisible ||
             _spotifyCanvasUri == null ||
             LyricsCanvasBackground == null ||
             LyricsCanvasVideo == null)
@@ -181,7 +230,7 @@ public partial class MainWindow
         }
     }
 
-    private void HideSpotifyCanvasBackground(bool clearSource)
+    private void HideSpotifyCanvasBackground(bool clearSource, bool restoreFallback = true)
     {
         if (LyricsCanvasBackground == null || LyricsCanvasVideo == null)
             return;
@@ -193,16 +242,104 @@ public partial class MainWindow
 
         try
         {
-            LyricsCanvasVideo.Stop();
             if (clearSource)
-                LyricsCanvasVideo.Source = null;
+            {
+                ReleaseSpotifyCanvasMediaElement();
+            }
+            else
+            {
+                LyricsCanvasVideo.Stop();
+            }
         }
         catch
         {
             // MediaElement can throw while Windows is tearing down a failed codec.
         }
 
-        RestoreLyricsBlurFallback();
+        if (restoreFallback)
+        {
+            RestoreLyricsBlurFallback();
+        }
+    }
+
+    private void ReleaseSpotifyCanvasMediaElement()
+    {
+        _isSpotifyCanvasMediaOpen = false;
+        if (LyricsCanvasVideo == null) return;
+
+        try
+        {
+            LyricsCanvasVideo.Stop();
+            LyricsCanvasVideo.Close();
+            LyricsCanvasVideo.Source = null;
+            LyricsCanvasVideo.Width = double.NaN;
+            LyricsCanvasVideo.Height = double.NaN;
+        }
+        catch
+        {
+            try { LyricsCanvasVideo.Source = null; } catch { }
+        }
+    }
+
+    private void CancelSpotifyCanvasFetch(bool retryWhenVisible)
+    {
+        var pending = _spotifyCanvasCts;
+        _spotifyCanvasCts = null;
+        if (pending == null) return;
+
+        if (retryWhenVisible)
+        {
+            _spotifyCanvasLookupCompleted = false;
+        }
+
+        try { pending.Cancel(); } catch (ObjectDisposedException) { }
+        pending.Dispose();
+    }
+
+    private void SuspendSpotifyCanvasLifecycle()
+    {
+        CancelSpotifyCanvasFetch(retryWhenVisible: true);
+        if (Dispatcher.CheckAccess())
+        {
+            HideSpotifyCanvasBackground(clearSource: true, restoreFallback: false);
+        }
+        else
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+                HideSpotifyCanvasBackground(clearSource: true, restoreFallback: false)));
+        }
+    }
+
+    private void ResumeSpotifyCanvasLifecycle()
+    {
+        if (!IsSpotifyCanvasSurfaceVisible ||
+            !_settings.EnableSpotifyCanvas ||
+            _currentMediaInfo?.Platform != MediaPlatform.Spotify)
+        {
+            return;
+        }
+
+        if (_spotifyCanvasUri != null)
+        {
+            ShowSpotifyCanvasBackgroundIfAvailable();
+            return;
+        }
+
+        string trackKey = $"{_currentMediaInfo.CurrentTrack}|{_currentMediaInfo.CurrentArtist}";
+        if (trackKey == _lyricsTrackKey && trackKey == _spotifyCanvasTrackKey)
+        {
+            TryStartSpotifyCanvasFetch(_currentMediaInfo, trackKey);
+        }
+    }
+
+    private void DisposeSpotifyCanvasLifecycle()
+    {
+        CancelSpotifyCanvasFetch(retryWhenVisible: false);
+        _spotifyCanvasTrackKey = "";
+        _spotifyCanvasUri = null;
+        _spotifyCanvasShouldPlay = false;
+        _spotifyCanvasLookupCompleted = false;
+        ReleaseSpotifyCanvasMediaElement();
     }
 
     private void ApplySpotifyCanvasBrightness()
@@ -259,11 +396,10 @@ public partial class MainWindow
 
     private void ResetSpotifyCanvas()
     {
-        _spotifyCanvasCts?.Cancel();
-        _spotifyCanvasCts?.Dispose();
-        _spotifyCanvasCts = null;
+        CancelSpotifyCanvasFetch(retryWhenVisible: false);
         _spotifyCanvasTrackKey = "";
         _spotifyCanvasUri = null;
+        _spotifyCanvasLookupCompleted = false;
 
         if (Dispatcher.CheckAccess())
             HideSpotifyCanvasBackground(clearSource: true);
@@ -296,7 +432,9 @@ public partial class MainWindow
 
     private void LyricsCanvasVideo_MediaOpened(object sender, RoutedEventArgs e)
     {
-        if (!_isLyricsActive || _spotifyCanvasUri == null || LyricsCanvasVideo.Source != _spotifyCanvasUri)
+        if (!IsSpotifyCanvasSurfaceVisible ||
+            _spotifyCanvasUri == null ||
+            LyricsCanvasVideo.Source != _spotifyCanvasUri)
         {
             HideSpotifyCanvasBackground(clearSource: true);
             return;
@@ -384,6 +522,13 @@ public partial class MainWindow
 
     private void LyricsCanvasVideo_MediaEnded(object sender, RoutedEventArgs e)
     {
+        if (!IsSpotifyCanvasSurfaceVisible ||
+            _spotifyCanvasUri == null ||
+            LyricsCanvasVideo.Source != _spotifyCanvasUri)
+        {
+            return;
+        }
+
         try
         {
             LyricsCanvasVideo.Position = TimeSpan.Zero;
@@ -400,9 +545,20 @@ public partial class MainWindow
 
     private void LyricsCanvasVideo_MediaFailed(object sender, ExceptionRoutedEventArgs e)
     {
+        if (!IsSpotifyCanvasSurfaceVisible || LyricsCanvasVideo.Source == null)
+        {
+            return;
+        }
+
         RuntimeLog.Warn("SPOTIFY-CANVAS", $"Canvas video failed; using lyrics fallback: {e.ErrorException?.Message}");
         _spotifyCanvasUri = null;
         HideSpotifyCanvasBackground(clearSource: true);
+    }
+
+    private void LyricsCanvasVideo_Unloaded(object sender, RoutedEventArgs e)
+    {
+        CancelSpotifyCanvasFetch(retryWhenVisible: true);
+        ReleaseSpotifyCanvasMediaElement();
     }
 
     private async Task FetchSubtitlesForTrack(MediaInfo info, bool force = false)
@@ -888,6 +1044,7 @@ public partial class MainWindow
 
             RestoreLyricsBlurFallback();
 
+            ResumeSpotifyCanvasLifecycle();
             ShowSpotifyCanvasBackgroundIfAvailable();
         });
     }
@@ -944,7 +1101,7 @@ public partial class MainWindow
                 LyricsBlurBackground.BeginAnimation(OpacityProperty, fadeOutBlur);
             }
 
-            HideSpotifyCanvasBackground(clearSource: true);
+            SuspendSpotifyCanvasLifecycle();
 
             CalendarWidget.Visibility = Visibility.Visible;
             CalendarWidget.Opacity = 0;

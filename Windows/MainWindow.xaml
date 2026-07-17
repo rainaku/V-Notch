@@ -1509,7 +1509,8 @@
                                               Opacity="1"
                                               MediaOpened="LyricsCanvasVideo_MediaOpened"
                                               MediaEnded="LyricsCanvasVideo_MediaEnded"
-                                              MediaFailed="LyricsCanvasVideo_MediaFailed"/>
+                                              MediaFailed="LyricsCanvasVideo_MediaFailed"
+                                              Unloaded="LyricsCanvasVideo_Unloaded"/>
                                 <Rectangle x:Name="LyricsCanvasBrightnessOverlay"
                                            Fill="Black"
                                            Opacity="0.3"
@@ -2220,9 +2221,9 @@
                                     </Grid>
 
                                     <ctrl:AnalogClock x:Name="ClockWidget"
-                                                      Grid.Column="0"
-                                                      Grid.ColumnSpan="2"
-                                                      Width="108" Height="108"
+                                                      Grid.Column="1"
+                                                      Width="92" Height="92"
+                                                      Margin="0,0,4,0"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"
                                                       Visibility="Collapsed"/>

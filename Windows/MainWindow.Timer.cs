@@ -72,6 +72,7 @@ public partial class MainWindow
         if (_isTimerView || _isAnimating) return;
         _isTimerView = true;
         _isAnimating = true;
+        SuspendSpotifyCanvasLifecycle();
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
 
@@ -413,6 +414,7 @@ public partial class MainWindow
             ExpandedContent.Width = double.NaN;
             ExpandedContent.Height = double.NaN;
             ExpandedContent.UpdateLayout();
+            ResumeSpotifyCanvasLifecycle();
 
             ShowMediaBackground();
 

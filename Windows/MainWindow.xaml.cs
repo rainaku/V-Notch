@@ -520,9 +520,8 @@ public partial class MainWindow : Window
         _volumeSyncTimer?.Stop();
         _mediaService?.Dispose();
         _lyricsService?.Dispose();
-        _spotifyCanvasCts?.Cancel();
-        _spotifyCanvasCts?.Dispose();
-        _spotifyCanvasService.Dispose();
+        DisposeSpotifyCanvasLifecycle();
+        _spotifyCanvasService?.Dispose();
         _notchManager?.Dispose();
         _zOrderManager?.Dispose();
         TrayIcon?.Dispose();
@@ -830,7 +829,7 @@ public partial class MainWindow : Window
 
             if (spotifyCanvasSettingsChanged)
             {
-                _spotifyCanvasService.ClearCache();
+                _spotifyCanvasService?.ClearCache();
                 if (_settings.EnableSpotifyCanvas)
                     RefreshSpotifyCanvasForCurrentTrack();
                 else

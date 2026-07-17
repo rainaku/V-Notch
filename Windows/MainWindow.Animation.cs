@@ -487,6 +487,7 @@ public partial class MainWindow
             }
 
             FadeInSpotifyCanvasBackgroundIfReady();
+            ResumeSpotifyCanvasLifecycle();
 
             if (_isLyricsActive)
             {
@@ -599,6 +600,7 @@ public partial class MainWindow
         }
         _isAnimating = true;
         _notchState.TryTransitionTo(NotchState.Collapsing);
+        SuspendSpotifyCanvasLifecycle();
         bool suppressCompactThumbnailMotion = IsCountdownCompletionVisualActive;
         if (suppressCompactThumbnailMotion)
         {
