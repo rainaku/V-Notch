@@ -165,7 +165,7 @@ public class SettingsService : ISettingsService
         // plaintext key. Once migration has succeeded, remove only those unsafe
         // settings artifacts; encrypted backups remain available for recovery.
         foreach (var path in Directory.GetFiles(_appFolder, "settings*.json"))
-         {
+        {
             try
             {
                 using var document = JsonDocument.Parse(File.ReadAllText(path));
@@ -180,8 +180,8 @@ public class SettingsService : ISettingsService
                     && !string.IsNullOrEmpty(key.GetString())
                     && !DataProtection.IsEncrypted(key.GetString()));
                 if (hasPlaintextKey)
-                 {
-                     File.Delete(path);
+                {
+                    File.Delete(path);
                 }
             }
             catch (JsonException)

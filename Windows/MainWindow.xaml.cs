@@ -449,12 +449,6 @@ public partial class MainWindow : Window
                 _viewModel.Initialize();
                 _moduleHost.StartAll();
             }
-
-            Task.Delay(3000).ContinueWith(_ =>
-            {
-                GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
-                TrimWorkingSet();
-            }, TaskScheduler.Default);
         }), DispatcherPriority.ContextIdle);
     }
 
@@ -513,12 +507,12 @@ public partial class MainWindow : Window
         StopZOrderWatchdog();
         StopTitleGradientShift();
         _progressTimer?.Stop();
-         _mediaService?.Dispose();
-         _lyricsService?.Dispose();
+        _mediaService?.Dispose();
+        _lyricsService?.Dispose();
         _spotifyCanvasCts?.Cancel();
         _spotifyCanvasCts?.Dispose();
         _spotifyCanvasService.Dispose();
-         _notchManager?.Dispose();
+        _notchManager?.Dispose();
         _zOrderManager?.Dispose();
         TrayIcon?.Dispose();
         _updateTimer?.Stop();
@@ -544,20 +538,6 @@ public partial class MainWindow : Window
     {
         PerformCleanup();
         base.OnClosed(e);
-    }
-    private static void TrimWorkingSet()
-    {
-        try
-        {
-            SetProcessWorkingSetSize(
-                GetCurrentProcess(),
-                (IntPtr)(-1),
-                (IntPtr)(-1));
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Warn("TRIM-WS", $"SetProcessWorkingSetSize failed: {ex.Message}");
-        }
     }
 
     #endregion
@@ -954,11 +934,11 @@ public partial class MainWindow : Window
                             || newSettings.DynamicIslandHeight != _settings.DynamicIslandHeight
                             || newSettings.Height != _settings.Height
                             || newSettings.CornerRadius != _settings.CornerRadius;
-             bool languageChanged = newSettings.Language != _settings.Language;
+            bool languageChanged = newSettings.Language != _settings.Language;
             bool spotifyCanvasSettingsChanged =
                 newSettings.EnableSpotifyCanvas != _settings.EnableSpotifyCanvas ||
                 !string.Equals(newSettings.SpotifySpDc, _settings.SpotifySpDc, StringComparison.Ordinal);
-             _modeTransitionPending = newSettings.EnableDynamicIslandMode != _settings.EnableDynamicIslandMode;
+            _modeTransitionPending = newSettings.EnableDynamicIslandMode != _settings.EnableDynamicIslandMode;
             string oldSubtitlePriority = _settings.SubtitlePriority ?? "";
             _settings = newSettings.Clone();
             _notchManager.UpdateSettings(_settings);
@@ -967,7 +947,7 @@ public partial class MainWindow : Window
             ApplySettings(sizeChanged);
             _weatherModule.OnSettingsChanged(_settings);
 
-             _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
+            _youtubeSubtitleService.SetMode(_settings.SubtitlePriority);
 
             if (spotifyCanvasSettingsChanged)
             {
@@ -1201,11 +1181,11 @@ public partial class MainWindow : Window
         this.Opacity = _settings.Opacity;
 
         double lyricsImageOpacity = Math.Max(0.2, 1.0 - _settings.MediaBlurDarkOverlay);
-         if (LyricsBlurImage != null)
-         {
+        if (LyricsBlurImage != null)
+        {
             LyricsBlurImage.BeginAnimation(UIElement.OpacityProperty, null);
-             LyricsBlurImage.Opacity = lyricsImageOpacity;
-         }
+            LyricsBlurImage.Opacity = lyricsImageOpacity;
+        }
         ApplySpotifyCanvasBrightness();
 
         if (!_settings.EnableSpotifyLyrics)
@@ -1805,21 +1785,10 @@ public partial class MainWindow : Window
 
     #region Timer Handlers
 
-    private int _trimTickCounter = 0;
-
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {
         if (_isMusicExpanded) SyncVolumeFromActiveSession();
         EnsureTopmost();
-
-        if (++_trimTickCounter >= 4)
-        {
-            _trimTickCounter = 0;
-            if (!_isExpanded && !_isMusicExpanded && !_isAnimating)
-            {
-                Task.Run(TrimWorkingSet);
-            }
-        }
     }
 
     private void BatteryModule_BatteryUpdated(object? sender, BatteryInfo battery)

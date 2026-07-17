@@ -47,12 +47,12 @@ public partial class MainWindow
                 }
             }
 
-             var result = _mediaDisplayController.ProcessMediaUpdate(
-                 info, _isExpanded, _isMusicExpanded, _isMusicCompactMode, _isAnimating);
+            var result = _mediaDisplayController.ProcessMediaUpdate(
+                info, _isExpanded, _isMusicExpanded, _isMusicCompactMode, _isAnimating);
 
             UpdateSpotifyCanvasPlaybackState(info);
 
-             if (result.Action == MediaDisplayAction.Ignore)
+            if (result.Action == MediaDisplayAction.Ignore)
                 return;
 
             _lastAnimatedTrackSignature = _mediaDisplayController.LastAnimatedTrackSignature;
