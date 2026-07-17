@@ -17,7 +17,7 @@ public sealed class SmartThumbnailCropService : IDisposable
 {
     private readonly object _lock = new();
 
-    private const int ModelInputSize = 640;
+    private const int ModelInputSize = 416;
 
     private const float ConfidenceThreshold = 0.35f;
     private const float PersonConfidenceThreshold = 0.10f;
