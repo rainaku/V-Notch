@@ -168,7 +168,13 @@ public partial class MainWindow : Window
 
     private readonly VNotch.Controllers.CompactPillArbiter _compactPillArbiter = new();
 
+    private static readonly TimeSpan ProgressRenderInterval = TimeSpan.FromMilliseconds(16);
+    private static readonly TimeSpan LyricsUpdateInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan VolumeSyncInterval = TimeSpan.FromMilliseconds(500);
+
     private readonly DispatcherTimer _progressTimer;
+    private readonly DispatcherTimer _lyricsTimer;
+    private readonly DispatcherTimer _volumeSyncTimer;
 
     private static readonly SolidColorBrush _brushCharging = CreateFrozenBrush(48, 209, 88);
     private static readonly SolidColorBrush _brushLowBattery = CreateFrozenBrush(255, 59, 48);
@@ -302,9 +308,21 @@ public partial class MainWindow : Window
 
         _progressTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
-            Interval = TimeSpan.FromMilliseconds(1000)
+            Interval = ProgressRenderInterval
         };
         _progressTimer.Tick += ProgressTimer_Tick;
+
+        _lyricsTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = LyricsUpdateInterval
+        };
+        _lyricsTimer.Tick += LyricsTimer_Tick;
+
+        _volumeSyncTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = VolumeSyncInterval
+        };
+        _volumeSyncTimer.Tick += VolumeSyncTimer_Tick;
         InputMonitorService.MouseActionTriggered += GlobalMouseHook_MouseLeftButtonDown;
 
         _hoverCollapseTimer = new DispatcherTimer
@@ -507,6 +525,8 @@ public partial class MainWindow : Window
         StopZOrderWatchdog();
         StopTitleGradientShift();
         _progressTimer?.Stop();
+        _lyricsTimer?.Stop();
+        _volumeSyncTimer?.Stop();
         _mediaService?.Dispose();
         _lyricsService?.Dispose();
         _spotifyCanvasCts?.Cancel();

@@ -97,36 +97,30 @@ public partial class MainWindow
         Spring.SettleFrames = _springSettleFrames;
     }
 
-    private DateTime _lastVolumeSyncUtc = DateTime.MinValue;
-
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
-        if (_isExpanded || _isMusicExpanded)
+        if ((_isExpanded || _isMusicExpanded) && _currentMediaInfo != null)
         {
-            if (_currentMediaInfo != null)
-            {
-                RenderProgressBar();
-            }
+            RenderProgressBar();
         }
+    }
 
-        if (_isExpanded && _isLyricsActive)
+    private void LyricsTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_isExpanded && !_isMusicExpanded && _isLyricsActive)
         {
             UpdateLyricsDisplay();
         }
+    }
 
-        if (_isExpanded && _isMusicExpanded && !_isDraggingVolume)
+    private void VolumeSyncTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_isExpanded && _isMusicExpanded && !_isDraggingVolume &&
+            _mediaService.TryGetCurrentSessionVolume(out float volume, out bool isMuted))
         {
-            var now = DateTime.UtcNow;
-            if ((now - _lastVolumeSyncUtc).TotalMilliseconds >= 500)
-            {
-                _lastVolumeSyncUtc = now;
-                if (_mediaService.TryGetCurrentSessionVolume(out float volume, out bool isMuted))
-                {
-                    _currentVolume = volume;
-                    VolumeBarScale.ScaleX = _currentVolume;
-                    UpdateVolumeIcon(_currentVolume, isMuted);
-                }
-            }
+            _currentVolume = volume;
+            VolumeBarScale.ScaleX = _currentVolume;
+            UpdateVolumeIcon(_currentVolume, isMuted);
         }
     }
 
@@ -1168,8 +1162,6 @@ public partial class MainWindow
 
     private void UpdateProgressTimerState()
     {
-        if (_progressTimer == null) return;
-
         bool isExpanded = _isExpanded || _isMusicExpanded;
 
         bool hasTimeline = _currentMediaInfo != null &&
@@ -1178,23 +1170,12 @@ public partial class MainWindow
              _currentMediaInfo.Duration.TotalSeconds > 0 ||
              _currentMediaInfo.IsAnyMediaPlaying);
         bool shouldRunProgress = isExpanded && hasTimeline;
+        bool shouldRunLyrics = _isExpanded && !_isMusicExpanded;
+        bool shouldRunVolumeSync = _isExpanded && _isMusicExpanded;
 
-        _progressTimer.Interval = TimeSpan.FromMilliseconds(16);
-
-        if (shouldRunProgress)
-        {
-            if (!_progressTimer.IsEnabled)
-            {
-                _progressTimer.Start();
-            }
-        }
-        else
-        {
-            if (_progressTimer.IsEnabled)
-            {
-                _progressTimer.Stop();
-            }
-        }
+        SetTimerEnabled(_progressTimer, shouldRunProgress);
+        SetTimerEnabled(_lyricsTimer, shouldRunLyrics);
+        SetTimerEnabled(_volumeSyncTimer, shouldRunVolumeSync);
 
         if (isExpanded)
         {
@@ -1204,6 +1185,16 @@ public partial class MainWindow
         {
             InputMonitorService.Stop();
         }
+    }
+
+    private static void SetTimerEnabled(DispatcherTimer timer, bool shouldRun)
+    {
+        if (shouldRun == timer.IsEnabled) return;
+
+        if (shouldRun)
+            timer.Start();
+        else
+            timer.Stop();
     }
 
     #endregion

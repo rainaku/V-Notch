@@ -102,11 +102,11 @@ public partial class MainWindow
             MediaWidgetContainer.Margin = new Thickness(-8, 0, 0, 0);
             MediaWidgetContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
             UpdateProgressSectionLayout();
-            UpdateProgressTimerState();
             MediaWidgetContainer.BeginAnimation(WidthProperty, null);
             MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             _isMusicAnimating = false;
             _notchState.TryTransitionTo(NotchState.MusicExpanded);
+            UpdateProgressTimerState();
         };
 
         System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnim, VNotch.Services.AnimationConfig.TargetFps);
@@ -173,11 +173,11 @@ public partial class MainWindow
             Grid.SetColumnSpan(MediaWidgetContainer, 1);
             Panel.SetZIndex(MediaWidgetContainer, 0);
             UpdateProgressSectionLayout();
-            UpdateProgressTimerState();
             MediaWidgetContainer.BeginAnimation(WidthProperty, null);
             MediaWidgetContainer.BeginAnimation(MarginProperty, null);
             _isMusicAnimating = false;
             _notchState.TryTransitionTo(NotchState.Expanded);
+            UpdateProgressTimerState();
         };
 
         System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(widthAnim, VNotch.Services.AnimationConfig.TargetFps);
