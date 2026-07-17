@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
@@ -39,6 +40,11 @@ public sealed class SmartThumbnailCropService : IDisposable
     private bool _modelExists;
     private bool _modelExistsChecked;
     private InferenceSession? _cachedSession;
+
+    private const int MaxInferenceCacheEntries = 64;
+    private readonly Dictionary<ArtworkFingerprint, InferenceCacheEntry> _inferenceCache = new();
+    private readonly ConditionalWeakTable<BitmapSource, FingerprintHolder> _fingerprintCache = new();
+    private long _inferenceCacheAccess;
 
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(5);
     private DateTime _lastUsedUtc;
@@ -131,42 +137,10 @@ public sealed class SmartThumbnailCropService : IDisposable
 
         lock (_lock)
         {
-            float[]? tensorBuffer = null;
             try
             {
-                if (_cachedSession == null)
-                {
-                    var options = new SessionOptions();
-                    options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-                    options.ExecutionMode = ExecutionMode.ORT_SEQUENTIAL;
-                    options.InterOpNumThreads = 1;
-                    options.IntraOpNumThreads = 4;
-                    options.EnableMemoryPattern = true;
-                    options.EnableCpuMemArena = true;
-                    _cachedSession = new InferenceSession(GetModelPath(), options);
-                }
-
-                MarkSessionUsed();
-
-                int requiredLength = 1 * 3 * ModelInputSize * ModelInputSize;
-                tensorBuffer = ArrayPool<float>.Shared.Rent(requiredLength);
-
-                var (scale, _, padX, padY) = PreprocessImageFast(source, tensorBuffer);
-
-                var tensor = new DenseTensor<float>(
-                    new Memory<float>(tensorBuffer, 0, requiredLength),
-                    new[] { 1, 3, ModelInputSize, ModelInputSize });
-                var inputName = _cachedSession.InputNames[0];
-                var inputs = new List<NamedOnnxValue>(1)
-                {
-                    NamedOnnxValue.CreateFromTensor(inputName, tensor)
-                };
-
-                using var results = _cachedSession.Run(inputs);
-                var output = results.First().AsTensor<float>();
-
-                var detections = ParseYolov8Output(output, imgWidth, imgHeight, scale, padX, padY);
-                if (detections.Count == 0) return null;
+                var detections = GetOrRunInferenceLocked(source, imgWidth, imgHeight);
+                if (detections.Length == 0) return null;
 
                 Detection? best = null;
                 float bestScore = float.MinValue;
@@ -206,11 +180,6 @@ public sealed class SmartThumbnailCropService : IDisposable
                 _cachedSession = null;
                 return null;
             }
-            finally
-            {
-                if (tensorBuffer != null)
-                    ArrayPool<float>.Shared.Return(tensorBuffer);
-            }
         }
     }
 
@@ -240,8 +209,6 @@ public sealed class SmartThumbnailCropService : IDisposable
 
         lock (_lock)
         {
-            float[]? tensorBuffer = null;
-
             try
             {
                 int imgWidth = source.PixelWidth;
@@ -261,48 +228,15 @@ public sealed class SmartThumbnailCropService : IDisposable
                     return GetSaliencyCropRect(source, imgWidth, imgHeight, cropSz);
                 }
 
-                if (_cachedSession == null)
-                {
-                    var options = new SessionOptions();
-                    options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-                    options.ExecutionMode = ExecutionMode.ORT_SEQUENTIAL;
-                    options.InterOpNumThreads = 1;
-                    options.IntraOpNumThreads = 4;
-                    options.EnableMemoryPattern = true;
-                    options.EnableCpuMemArena = true;
+                var detections = GetOrRunInferenceLocked(source, imgWidth, imgHeight);
 
-                    _cachedSession = new InferenceSession(GetModelPath(), options);
-                    System.Diagnostics.Debug.WriteLine("[SmartCrop] Model loaded (cached session).");
-                }
-
-                MarkSessionUsed();
-
-                int requiredLength = 1 * 3 * ModelInputSize * ModelInputSize;
-                tensorBuffer = ArrayPool<float>.Shared.Rent(requiredLength);
-
-                var (scaleX, scaleY, padX, padY) = PreprocessImageFast(source, tensorBuffer);
-
-                var tensor = new DenseTensor<float>(
-                    new Memory<float>(tensorBuffer, 0, requiredLength),
-                    new[] { 1, 3, ModelInputSize, ModelInputSize });
-                var inputName = _cachedSession.InputNames[0];
-                var inputs = new List<NamedOnnxValue>(1)
-                {
-                    NamedOnnxValue.CreateFromTensor(inputName, tensor)
-                };
-
-                using var results = _cachedSession.Run(inputs);
-                var output = results.First().AsTensor<float>();
-
-                var detections = ParseYolov8Output(output, imgWidth, imgHeight, scaleX, padX, padY);
-
-                if (detections.Count == 0)
+                if (detections.Length == 0)
                 {
                     VNotch.Services.RuntimeLog.Log("SMART-CROP", "ONNX produced 0 detections -> saliency fallback");
                     return GetSaliencyCropRect(source, imgWidth, imgHeight, targetSquareSize);
                 }
 
-                VNotch.Services.RuntimeLog.Log("SMART-CROP", $"raw detections count={detections.Count}");
+                VNotch.Services.RuntimeLog.Log("SMART-CROP", $"raw detections count={detections.Length}");
                 return GetHybridCropRect(detections, source, imgWidth, imgHeight, targetSquareSize);
             }
             catch (Exception ex)
@@ -313,12 +247,86 @@ public sealed class SmartThumbnailCropService : IDisposable
                 _cachedSession = null;
                 return null;
             }
-            finally
-            {
-                if (tensorBuffer != null)
-                    ArrayPool<float>.Shared.Return(tensorBuffer);
-            }
         }
+    }
+
+    private Detection[] GetOrRunInferenceLocked(BitmapImage source, int imgWidth, int imgHeight)
+    {
+        ArtworkFingerprint fingerprint = _fingerprintCache
+            .GetValue(source, static bitmap => new FingerprintHolder(ArtworkFingerprint.Create(bitmap)))
+            .Value;
+
+        if (_inferenceCache.TryGetValue(fingerprint, out var cached))
+        {
+            cached.LastAccess = ++_inferenceCacheAccess;
+            VNotch.Services.RuntimeLog.Debug("SMART-CROP", () =>
+                $"ONNX cache hit artwork={fingerprint.ContentHash:X16} detections={cached.Detections.Length}");
+            return cached.Detections;
+        }
+
+        EnsureSessionLoadedLocked();
+        MarkSessionUsed();
+
+        float[]? tensorBuffer = null;
+        try
+        {
+            int requiredLength = 3 * ModelInputSize * ModelInputSize;
+            tensorBuffer = ArrayPool<float>.Shared.Rent(requiredLength);
+
+            var (scale, _, padX, padY) = PreprocessImageFast(source, tensorBuffer);
+            var tensor = new DenseTensor<float>(
+                new Memory<float>(tensorBuffer, 0, requiredLength),
+                new[] { 1, 3, ModelInputSize, ModelInputSize });
+            var inputs = new List<NamedOnnxValue>(1)
+            {
+                NamedOnnxValue.CreateFromTensor(_cachedSession!.InputNames[0], tensor)
+            };
+
+            using var results = _cachedSession.Run(inputs);
+            var output = results.First().AsTensor<float>();
+            Detection[] detections = ParseYolov8Output(
+                output, imgWidth, imgHeight, scale, padX, padY).ToArray();
+
+            AddInferenceCacheEntryLocked(fingerprint, detections);
+            return detections;
+        }
+        finally
+        {
+            if (tensorBuffer != null)
+                ArrayPool<float>.Shared.Return(tensorBuffer);
+        }
+    }
+
+    private void EnsureSessionLoadedLocked()
+    {
+        if (_cachedSession != null)
+            return;
+
+        using var options = new SessionOptions
+        {
+            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+            ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
+            InterOpNumThreads = 1,
+            IntraOpNumThreads = 4,
+            EnableMemoryPattern = true,
+            EnableCpuMemArena = true
+        };
+
+        _cachedSession = new InferenceSession(GetModelPath(), options);
+        System.Diagnostics.Debug.WriteLine("[SmartCrop] Model loaded (cached session).");
+    }
+
+    private void AddInferenceCacheEntryLocked(ArtworkFingerprint fingerprint, Detection[] detections)
+    {
+        if (_inferenceCache.Count >= MaxInferenceCacheEntries)
+        {
+            ArtworkFingerprint oldestKey = _inferenceCache
+                .MinBy(static pair => pair.Value.LastAccess)
+                .Key;
+            _inferenceCache.Remove(oldestKey);
+        }
+
+        _inferenceCache[fingerprint] = new InferenceCacheEntry(detections, ++_inferenceCacheAccess);
     }
 
     private (float scale, float scaleY, float padX, float padY) PreprocessImageFast(BitmapImage source, float[] tensorBuffer)
@@ -624,7 +632,7 @@ public sealed class SmartThumbnailCropService : IDisposable
         return regions;
     }
 
-    private Int32Rect GetHybridCropRect(List<Detection> detections, BitmapImage source, int imgWidth, int imgHeight, int targetSize)
+    private Int32Rect GetHybridCropRect(IReadOnlyList<Detection> detections, BitmapImage source, int imgWidth, int imgHeight, int targetSize)
     {
         int maxCropSize = Math.Min(imgWidth, imgHeight);
         int cropSize = Math.Min(targetSize, maxCropSize);
@@ -977,7 +985,26 @@ public sealed class SmartThumbnailCropService : IDisposable
             _idleTimer = null;
             _cachedSession?.Dispose();
             _cachedSession = null;
+            _inferenceCache.Clear();
         }
+    }
+
+    private sealed class FingerprintHolder
+    {
+        public FingerprintHolder(ArtworkFingerprint value) => Value = value;
+        public ArtworkFingerprint Value { get; }
+    }
+
+    private sealed class InferenceCacheEntry
+    {
+        public InferenceCacheEntry(Detection[] detections, long lastAccess)
+        {
+            Detections = detections;
+            LastAccess = lastAccess;
+        }
+
+        public Detection[] Detections { get; }
+        public long LastAccess { get; set; }
     }
 
     private struct Detection
