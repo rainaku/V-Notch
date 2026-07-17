@@ -56,13 +56,25 @@ public partial class MainWindow : IClockWidgetHost
 
     #region Shell shims → ClockWidgetPresenter
 
-    internal void BuildClockViewCalendar()
+    private ClockWidgetPresenter EnsureClockWidgetPresenterLoaded()
     {
         if (_clockWidgetPresenter == null) InitializeClockWidgetPresenter();
-        _clockWidgetPresenter?.BuildClockViewCalendar();
+        return _clockWidgetPresenter!;
     }
 
-    private void RefreshClockView() => _clockWidgetPresenter?.RefreshClockView();
+    private ClockWidgetPresenter EnsureClockViewFeatureLoaded()
+    {
+        var presenter = EnsureClockWidgetPresenterLoaded();
+        presenter.BuildClockViewCalendar();
+        return presenter;
+    }
+
+    internal void BuildClockViewCalendar()
+    {
+        EnsureClockViewFeatureLoaded();
+    }
+
+    private void RefreshClockView() => EnsureClockViewFeatureLoaded().RefreshClockView();
 
     private void RefreshClockViewLocale() => _clockWidgetPresenter?.RefreshClockViewLocale();
 
@@ -70,18 +82,18 @@ public partial class MainWindow : IClockWidgetHost
 
     private void UpdateClockViewCalendar(DateTime now) => _clockWidgetPresenter?.UpdateClockViewCalendar(now);
 
-    private void PrepareClockViewContentSize() => _clockWidgetPresenter?.PrepareClockViewContentSize();
+    private void PrepareClockViewContentSize() => EnsureClockWidgetPresenterLoaded().PrepareClockViewContentSize();
 
-    private void ApplyClockViewWindowSize() => _clockWidgetPresenter?.ApplyClockViewWindowSize();
+    private void ApplyClockViewWindowSize() => EnsureClockWidgetPresenterLoaded().ApplyClockViewWindowSize();
 
-    private void RestoreExpandedWindowSize() => _clockWidgetPresenter?.RestoreExpandedWindowSize();
+    private void RestoreExpandedWindowSize() => EnsureClockWidgetPresenterLoaded().RestoreExpandedWindowSize();
 
     private void ResizeHostWindowHeight(double notchHeightDip)
-        => _clockWidgetPresenter?.ResizeHostWindowHeight(notchHeightDip);
+        => EnsureClockWidgetPresenterLoaded().ResizeHostWindowHeight(notchHeightDip);
 
     private void AnimateClockViewNotchResize(double fromWidth, double fromHeight,
         double toWidth, double toHeight, Duration duration, TimeSpan delay, Action? onCompleted = null)
-        => _clockWidgetPresenter?.AnimateClockViewNotchResize(
+        => EnsureClockWidgetPresenterLoaded().AnimateClockViewNotchResize(
             fromWidth, fromHeight, toWidth, toHeight, duration, delay, onCompleted);
 
     #endregion

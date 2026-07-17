@@ -28,6 +28,7 @@ public partial class MainWindow
     {
         if (_clockWidgetPresenter == null) InitializeClockWidgetPresenter();
         _clockWidgetPresenter?.ApplyExpandedWidgetMode();
+        EnsureActiveExpandedWidgetFeatureLoaded();
     }
 
     #endregion
@@ -38,10 +39,16 @@ public partial class MainWindow
         => _clockWidgetPresenter?.OnCalendarWidgetMouseLeftButtonDown(e);
 
     private void CalendarWidget_MouseMoveDrag(object sender, MouseEventArgs e)
-        => _clockWidgetPresenter?.OnCalendarWidgetMouseMoveDrag(e);
+    {
+        _clockWidgetPresenter?.OnCalendarWidgetMouseMoveDrag(e);
+        EnsureActiveExpandedWidgetFeatureLoaded();
+    }
 
     private void CalendarWidget_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        => _clockWidgetPresenter?.OnCalendarWidgetMouseLeftButtonUp(e);
+    {
+        _clockWidgetPresenter?.OnCalendarWidgetMouseLeftButtonUp(e);
+        EnsureActiveExpandedWidgetFeatureLoaded();
+    }
 
     #endregion
 }

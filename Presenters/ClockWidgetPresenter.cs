@@ -112,7 +112,7 @@ public sealed class ClockWidgetPresenter : IDisposable
         _refs.CalendarStripContainer.Visibility = useCalendar ? Visibility.Visible : Visibility.Collapsed;
 
         if (_refs.MonthText != null)
-            _refs.MonthText.Visibility = (useWeather || useSystemMonitor) ? Visibility.Collapsed : Visibility.Visible;
+            _refs.MonthText.Visibility = useCalendar ? Visibility.Visible : Visibility.Collapsed;
 
         UpdateGreetingVisibilityForWidget();
     }

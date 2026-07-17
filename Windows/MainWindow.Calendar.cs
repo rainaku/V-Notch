@@ -58,16 +58,27 @@ public partial class MainWindow
     }
 
     private void CalendarWidget_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
-        => _calendarPresenter?.HandleMouseEnter();
+    {
+        EnsureCalendarFeatureLoaded();
+        _calendarPresenter?.HandleMouseEnter();
+    }
 
     private void CalendarWidget_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
-        => _calendarPresenter?.HandleMouseLeave();
+    {
+        EnsureCalendarFeatureLoaded();
+        _calendarPresenter?.HandleMouseLeave();
+    }
 
     private void CalendarWidget_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
-        => _calendarPresenter?.HandleMouseWheel(e);
+    {
+        EnsureCalendarFeatureLoaded();
+        _calendarPresenter?.HandleMouseWheel(e);
+    }
 
     private void UpdateCalendarInfo()
     {
+        EnsureCalendarFeatureLoaded();
+        EnsureActiveExpandedWidgetFeatureLoaded();
         _viewModel.UpdateCalendarInfo();
         _calendarPresenter?.UpdateCalendarInfo();
     }

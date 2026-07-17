@@ -53,8 +53,6 @@ public partial class MainWindow
     private bool _audioAppsExpanded { get => _viewModel.AudioMixer.IsApplicationsExpanded; set => _viewModel.AudioMixer.IsApplicationsExpanded = value; }
     private int _audioPopulateToken;
     private int _audioPollInFlight;
-    private int _audioPrewarmInFlight;
-    private System.Windows.Threading.DispatcherTimer? _audioPrewarmUiRetryTimer;
 
     private Action<double>? _outputSetVol;
     private TextBlock? _outputDeviceLabel;
@@ -240,62 +238,6 @@ public partial class MainWindow
                 !string.Equals(h.NameLabel.Text, session.DisplayName, StringComparison.Ordinal))
                 h.NameLabel.Text = session.DisplayName;
         }
-    }
-
-    public void PrewarmAudioSnapshot()
-    {
-        if (_lastAudioSnapshot != null) return;
-        if (System.Threading.Interlocked.CompareExchange(ref _audioPrewarmInFlight, 1, 0) != 0) return;
-        System.Threading.Tasks.Task.Run(() =>
-        {
-            var snap = ReadAudioSnapshot(includeIcons: true);
-            try
-            {
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    System.Threading.Volatile.Write(ref _audioPrewarmInFlight, 0);
-                    _lastAudioSnapshot ??= snap;
-                    if (!_isAnimating && !_isAudioView && _appRows.Count == 0)
-                        BuildAudioUI(_lastAudioSnapshot!);
-                    else if (_isAudioView && _appRows.Count == 0)
-                        _pendingAudioSnapshot = _lastAudioSnapshot;
-                    else if (_appRows.Count == 0)
-                        SchedulePrewarmedAudioUiBuild();
-                }), System.Windows.Threading.DispatcherPriority.Background);
-            }
-            catch
-            {
-                System.Threading.Volatile.Write(ref _audioPrewarmInFlight, 0);
-            }
-        });
-    }
-
-    private void SchedulePrewarmedAudioUiBuild()
-    {
-        _audioPrewarmUiRetryTimer ??= new System.Windows.Threading.DispatcherTimer(
-            System.Windows.Threading.DispatcherPriority.ApplicationIdle)
-        {
-            Interval = TimeSpan.FromMilliseconds(250)
-        };
-        _audioPrewarmUiRetryTimer.Tick -= PrewarmedAudioUiRetry_Tick;
-        _audioPrewarmUiRetryTimer.Tick += PrewarmedAudioUiRetry_Tick;
-        _audioPrewarmUiRetryTimer.Start();
-    }
-
-    private void PrewarmedAudioUiRetry_Tick(object? sender, EventArgs e)
-    {
-        if (_appRows.Count > 0 || _lastAudioSnapshot == null)
-        {
-            _audioPrewarmUiRetryTimer?.Stop();
-            return;
-        }
-        if (_isAnimating) return;
-
-        _audioPrewarmUiRetryTimer?.Stop();
-        if (_isAudioView)
-            ApplyAudioSnapshot(_lastAudioSnapshot);
-        else
-            BuildAudioUI(_lastAudioSnapshot);
     }
 
     private void EnsureAudioUIBuilt(AudioMixerSnapshot snap)

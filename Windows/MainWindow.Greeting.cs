@@ -335,7 +335,7 @@ public partial class MainWindow
             if (_isStartupLayoutReady)
             {
                 _mediaService.Start();
-                _moduleHost.StartAll();
+                StartCoreModules();
             }
         };
 

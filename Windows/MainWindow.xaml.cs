@@ -243,7 +243,6 @@ public partial class MainWindow : Window
         AnimationConfig.ReduceMotionChanged += OnReduceMotionChanged;
 
         _calendarModule = calendarModule;
-        InitializeCalendarPresenter();
 
         _bluetoothModule = bluetoothModule;
         _bluetoothModule.DeviceConnected += BluetoothModule_DeviceConnected;
@@ -445,19 +444,11 @@ public partial class MainWindow : Window
             PlayAppearAnimation();
         }
 
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
-        {
-            BuildClockViewCalendar();
-            PrewarmAudioSnapshot();
-        }));
-
         Dispatcher.BeginInvoke(new Action(() =>
         {
             UpdateLayout();
             UpdateNotchClip();
             UpdateMediaBackgroundFootprint();
-
-            PreWarmHiddenContentLayout();
 
             _isStartupLayoutReady = true;
             _pendingStartupClickToggle = false;
@@ -465,7 +456,7 @@ public partial class MainWindow : Window
             if (!_isGreetingActive)
             {
                 _viewModel.Initialize();
-                _moduleHost.StartAll();
+                StartCoreModules();
             }
         }), DispatcherPriority.ContextIdle);
     }
@@ -780,138 +771,6 @@ public partial class MainWindow : Window
     private static bool IsMyDockFinder(string processName)
     {
         return processName.Contains("mydockfinder", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void PreWarmHiddenContentLayout()
-    {
-        try
-        {
-            var elementsToWarm = new System.Collections.Generic.List<(FrameworkElement Element, Visibility Original, double Opacity)>();
-
-            void Track(FrameworkElement? el)
-            {
-                if (el == null) return;
-                if (el.Visibility != Visibility.Collapsed) return;
-                elementsToWarm.Add((el, el.Visibility, el.Opacity));
-                el.Opacity = 0;
-                el.Visibility = Visibility.Visible;
-            }
-
-            Track(ExpandedContent);
-            Track(SecondaryContent);
-            Track(MusicCompactContent);
-
-            Track(InlineControls);
-            Track(LyricsWidget);
-            Track(LyricsBlurBackground);
-
-            Track(CompactHoverInfo);
-            Track(NavIconsPanel);
-            Track(NavIconsBackground);
-
-            Track(BatterySection);
-            Track(SettingsButton);
-
-            double prevExpandedWidth = ExpandedContent.Width;
-            double prevExpandedHeight = ExpandedContent.Height;
-            ExpandedContent.Width = _expandedWidth - 16;
-            ExpandedContent.Height = _expandedHeight - 10;
-
-            double prevNotchWidth = NotchBorder.Width;
-            double prevNotchHeight = NotchBorder.Height;
-            NotchBorder.Width = _expandedWidth;
-            NotchBorder.Height = _expandedHeight;
-
-            UpdateLayout();
-
-            if (TryComputeThumbnailExpandTarget(out var target))
-            {
-                _cachedThumbnailExpandTarget = target;
-            }
-
-            CompactThumbnailBorder.CacheMode ??= new System.Windows.Media.BitmapCache(2.0);
-            AnimationThumbnailBorder.CacheMode ??= new System.Windows.Media.BitmapCache(2.0);
-            SettingsButton.CacheMode ??= new System.Windows.Media.BitmapCache(1.5);
-
-            if (ThumbnailOutBlur != null) { ThumbnailOutBlur.Radius = 0; }
-            if (ThumbnailNextBlur != null) { ThumbnailNextBlur.Radius = 0; }
-            if (CompactThumbnailOutBlur != null) { CompactThumbnailOutBlur.Radius = 0; }
-            if (CompactThumbnailNextBlur != null) { CompactThumbnailNextBlur.Radius = 0; }
-            if (CollapsedContentBlur != null) { CollapsedContentBlur.Radius = 0; }
-
-            var thumbDur = new Duration(TimeSpan.FromMilliseconds(500));
-            var thumbEase = _easeExpOut6;
-            var thumbDelay = TimeSpan.FromMilliseconds(30);
-            int thumbFps = VNotch.Services.AnimationConfig.TargetFps;
-
-            if (_cachedThumbWidthExpand == null)
-            {
-                _cachedThumbWidthExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
-                _cachedThumbHeightExpand = MakeAnim(22, 102, thumbDur, thumbEase, thumbDelay);
-                Timeline.SetDesiredFrameRate(_cachedThumbWidthExpand, thumbFps);
-                Timeline.SetDesiredFrameRate(_cachedThumbHeightExpand, thumbFps);
-
-                _cachedThumbRectExpand = new RectAnimation(new Rect(0, 0, 22, 22), new Rect(0, 0, 102, 102), thumbDur)
-                {
-                    EasingFunction = thumbEase,
-                    BeginTime = thumbDelay
-                };
-                Timeline.SetDesiredFrameRate(_cachedThumbRectExpand, thumbFps);
-
-                _cachedThumbWidthExpand.Freeze();
-                _cachedThumbHeightExpand.Freeze();
-                _cachedThumbRectExpand.Freeze();
-            }
-
-            var collapseDur = new Duration(TimeSpan.FromMilliseconds(420));
-            var collapseEase = _easeExpOut6;
-            var collapseDelay = TimeSpan.FromMilliseconds(20);
-
-            if (_cachedThumbWidthCollapse == null)
-            {
-                _cachedThumbWidthCollapse = MakeAnim(102, 22, collapseDur, collapseEase, collapseDelay);
-                _cachedThumbHeightCollapse = MakeAnim(102, 22, collapseDur, collapseEase, collapseDelay);
-                Timeline.SetDesiredFrameRate(_cachedThumbWidthCollapse, thumbFps);
-                Timeline.SetDesiredFrameRate(_cachedThumbHeightCollapse, thumbFps);
-
-                _cachedThumbRectCollapse = new RectAnimation(new Rect(0, 0, 102, 102), new Rect(0, 0, 22, 22), collapseDur)
-                {
-                    EasingFunction = collapseEase,
-                    BeginTime = collapseDelay
-                };
-                Timeline.SetDesiredFrameRate(_cachedThumbRectCollapse, thumbFps);
-
-                _cachedThumbWidthCollapse.Freeze();
-                _cachedThumbHeightCollapse.Freeze();
-                _cachedThumbRectCollapse.Freeze();
-            }
-
-            ThumbnailImageNext.Opacity = 0;
-            CompactThumbnailNext.Opacity = 0;
-            ThumbnailNextScale.ScaleX = 1.0;
-            ThumbnailNextScale.ScaleY = 1.0;
-            CompactThumbnailNextScale.ScaleX = 1.0;
-            CompactThumbnailNextScale.ScaleY = 1.0;
-            ThumbnailOutScale.ScaleX = 1.0;
-            ThumbnailOutScale.ScaleY = 1.0;
-            CompactThumbnailOutScale.ScaleX = 1.0;
-            CompactThumbnailOutScale.ScaleY = 1.0;
-
-            foreach (var (el, originalVis, originalOpacity) in elementsToWarm)
-            {
-                el.Visibility = originalVis;
-                el.Opacity = originalOpacity;
-            }
-            ExpandedContent.Width = prevExpandedWidth;
-            ExpandedContent.Height = prevExpandedHeight;
-            NotchBorder.Width = prevNotchWidth;
-            NotchBorder.Height = prevNotchHeight;
-            UpdateLayout();
-        }
-        catch (Exception ex)
-        {
-            VNotch.Services.RuntimeLog.Error("LAYOUT-PREWARM", ex.ToString());
-        }
     }
 
     private void PositionAtTop()
