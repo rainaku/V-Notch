@@ -2747,6 +2747,7 @@
                                              HorizontalScrollBarVisibility="Auto"
                                              VerticalScrollBarVisibility="Disabled"
                                              Padding="0"
+                                             ScrollChanged="ShelfScrollViewer_ScrollChanged"
                                              PreviewMouseWheel="ShelfScrollViewer_PreviewMouseWheel">
                                     <ScrollViewer.Resources>
 
@@ -2799,12 +2800,12 @@
                                             </Style.Triggers>
                                         </Style>
                                     </ScrollViewer.Resources>
-                                    <WrapPanel x:Name="ShelfItemsContainer"
-                                               Background="Transparent"
-                                               Orientation="Vertical"
-                                               Height="112"
-                                               Margin="8,4"
-                                               VerticalAlignment="Center"/>
+                                    <Canvas x:Name="ShelfItemsContainer"
+                                            Background="Transparent"
+                                            Height="112"
+                                            Margin="8,4"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"/>
                                 </ScrollViewer>
 
                                 <Canvas x:Name="SelectionCanvas"

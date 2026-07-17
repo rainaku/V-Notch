@@ -63,6 +63,13 @@ public partial class MainWindow
 
     private string[]? _pendingUnlockFiles = null;
 
+    private const int ShelfVirtualizationOverscanColumns = 1;
+    private bool _shelfUsesSmallItems;
+    private int _shelfRowCount = 1;
+    private double _shelfCellWidth = 66;
+    private double _shelfCellHeight = 82;
+    private bool _shelfViewportRefreshQueued;
+
     #region File Shelf Visual State
 
     private static readonly SolidColorBrush _brushShelfNormalBg = CreateFrozenBrush(26, 26, 26);
@@ -99,34 +106,31 @@ public partial class MainWindow
     {
         RefreshShelfLayout();
 
-        if (ShelfItemsContainer.Children.Count > 0)
+        var lastItem = FindRealizedShelfItem(filePath);
+        if (lastItem != null)
         {
-            var lastItem = ShelfItemsContainer.Children[ShelfItemsContainer.Children.Count - 1] as FrameworkElement;
-            if (lastItem != null)
+            lastItem.Opacity = 0;
+            lastItem.RenderTransformOrigin = new Point(0.5, 0.5);
+            var st = new ScaleTransform(0.75, 0.75);
+            lastItem.RenderTransform = st;
+
+            var fadeIn = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(200))) { EasingFunction = _easeExpOut6 };
+            var scaleIn = new DoubleAnimation(0.75, 1, new Duration(TimeSpan.FromMilliseconds(280))) { EasingFunction = _easeMenuSpring };
+            Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
+            Timeline.SetDesiredFrameRate(scaleIn, VNotch.Services.AnimationConfig.TargetFps);
+
+            fadeIn.Completed += (s2, e2) =>
             {
-                lastItem.Opacity = 0;
-                lastItem.RenderTransformOrigin = new Point(0.5, 0.5);
-                var st = new ScaleTransform(0.75, 0.75);
-                lastItem.RenderTransform = st;
+                lastItem.Opacity = 1;
+                lastItem.BeginAnimation(OpacityProperty, null);
+                lastItem.RenderTransform = new ScaleTransform(1, 1);
+            };
 
-                var fadeIn = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(200))) { EasingFunction = _easeExpOut6 };
-                var scaleIn = new DoubleAnimation(0.75, 1, new Duration(TimeSpan.FromMilliseconds(280))) { EasingFunction = _easeMenuSpring };
-                Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
-                Timeline.SetDesiredFrameRate(scaleIn, VNotch.Services.AnimationConfig.TargetFps);
+            lastItem.BeginAnimation(OpacityProperty, fadeIn);
+            st.BeginAnimation(ScaleTransform.ScaleXProperty, scaleIn);
+            st.BeginAnimation(ScaleTransform.ScaleYProperty, scaleIn);
 
-                fadeIn.Completed += (s2, e2) =>
-                {
-                    lastItem.Opacity = 1;
-                    lastItem.BeginAnimation(OpacityProperty, null);
-                    lastItem.RenderTransform = new ScaleTransform(1, 1);
-                };
-
-                lastItem.BeginAnimation(OpacityProperty, fadeIn);
-                st.BeginAnimation(ScaleTransform.ScaleXProperty, scaleIn);
-                st.BeginAnimation(ScaleTransform.ScaleYProperty, scaleIn);
-
-                AnimateShelfItemProgress(lastItem);
-            }
+            AnimateShelfItemProgress(lastItem);
         }
 
         if (_shelfProcessNextTimer == null)
@@ -535,61 +539,87 @@ public partial class MainWindow
         int fileCount = files.Count;
         bool useSmallSize = fileCount > 4;
 
+        bool sizeChanged = _shelfUsesSmallItems != useSmallSize;
+        _shelfUsesSmallItems = useSmallSize;
+        _shelfRowCount = useSmallSize ? 2 : 1;
+        _shelfCellWidth = useSmallSize ? 56 : 66;
+        _shelfCellHeight = useSmallSize ? 56 : 82;
+
+        int columnCount = fileCount == 0 ? 0 : (fileCount + _shelfRowCount - 1) / _shelfRowCount;
+        ShelfItemsContainer.Width = columnCount * _shelfCellWidth;
         ShelfItemsContainer.Height = useSmallSize ? 112 : 82;
 
-        int existingCount = ShelfItemsContainer.Children.Count;
+        RealizeShelfViewport(forceFullRebuild || sizeChanged);
+    }
 
-        if (!forceFullRebuild && existingCount > 0 && fileCount > 0)
+    private void RealizeShelfViewport(bool forceFullRebuild = false)
+    {
+        var files = _fileShelf.Files;
+        if (forceFullRebuild)
+            ShelfItemsContainer.Children.Clear();
+
+        double viewportWidth = ShelfScrollViewer.ViewportWidth;
+        if (!double.IsFinite(viewportWidth) || viewportWidth <= 0)
+            viewportWidth = ShelfScrollViewer.ActualWidth;
+
+        var range = ShelfViewportVirtualizer.Calculate(
+            files.Count,
+            _shelfRowCount,
+            _shelfCellWidth,
+            ShelfScrollViewer.HorizontalOffset,
+            viewportWidth,
+            ShelfVirtualizationOverscanColumns);
+
+        var desiredPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = range.StartIndex; i < range.EndIndexExclusive; i++)
+            desiredPaths.Add(files[i]);
+
+        for (int i = ShelfItemsContainer.Children.Count - 1; i >= 0; i--)
         {
-            var firstExisting = ShelfItemsContainer.Children[0] as Border;
-            double expectedWidth = useSmallSize ? 48 : 58;
-            bool sizeChanged = firstExisting != null && Math.Abs(firstExisting.Width - expectedWidth) > 0.1;
-
-            if (!sizeChanged && existingCount == fileCount)
+            if (ShelfItemsContainer.Children[i] is not Border border ||
+                border.Tag is not string path ||
+                !desiredPaths.Contains(path))
             {
-                for (int i = 0; i < fileCount; i++)
-                {
-                    var border = ShelfItemsContainer.Children[i] as Border;
-                    var file = files[i];
-                    if (border != null && (string)border.Tag == file)
-                    {
-                        UpdateShelfItemVisualState(border, _fileShelf.IsSelected(file));
-                        continue;
-                    }
-                    RemoveChildrenFrom(i);
-                    AppendShelfItems(files, i, useSmallSize);
-                    return;
-                }
-                return;
+                ShelfItemsContainer.Children.RemoveAt(i);
             }
         }
 
-        ShelfItemsContainer.Children.Clear();
-        AppendShelfItems(files, 0, useSmallSize);
-    }
-
-    private void RemoveChildrenFrom(int startIndex)
-    {
-        int count = ShelfItemsContainer.Children.Count;
-        for (int i = count - 1; i >= startIndex; i--)
-            ShelfItemsContainer.Children.RemoveAt(i);
-    }
-
-    private void AppendShelfItems(IReadOnlyList<string> files, int startIndex, bool useSmallSize)
-    {
-        for (int i = startIndex; i < files.Count; i++)
+        var realized = new Dictionary<string, Border>(StringComparer.OrdinalIgnoreCase);
+        foreach (var child in ShelfItemsContainer.Children)
         {
-            var file = files[i];
-            var item = CreateShelfItem(file, useSmallSize);
-
-            if (_fileShelf.IsSelected(file))
-            {
-                var border = (Border)item;
-                border.Background = _brushShelfSelectedBg;
-                border.BorderBrush = _brushShelfSelectedBorder;
-            }
-            ShelfItemsContainer.Children.Add(item);
+            if (child is Border border && border.Tag is string path)
+                realized[path] = border;
         }
+
+        for (int i = range.StartIndex; i < range.EndIndexExclusive; i++)
+        {
+            string file = files[i];
+            if (!realized.TryGetValue(file, out var item))
+            {
+                item = (Border)CreateShelfItem(file, _shelfUsesSmallItems);
+                ShelfItemsContainer.Children.Add(item);
+            }
+
+            UpdateShelfItemVisualState(item, _fileShelf.IsSelected(file));
+            int column = i / _shelfRowCount;
+            int row = i % _shelfRowCount;
+            Canvas.SetLeft(item, column * _shelfCellWidth);
+            Canvas.SetTop(item, row * _shelfCellHeight);
+        }
+    }
+
+    private Border? FindRealizedShelfItem(string filePath)
+    {
+        foreach (var child in ShelfItemsContainer.Children)
+        {
+            if (child is Border border && border.Tag is string path &&
+                string.Equals(path, filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return border;
+            }
+        }
+
+        return null;
     }
 
     private FrameworkElement CreateShelfItem(string filePath, bool isSmall)
@@ -1212,6 +1242,31 @@ public partial class MainWindow
     }
 
     private DispatcherTimer? _scrollbarFadeTimer;
+
+    private void ShelfScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (Math.Abs(e.HorizontalChange) < 0.01 &&
+            Math.Abs(e.ViewportWidthChange) < 0.01 &&
+            Math.Abs(e.ExtentWidthChange) < 0.01)
+        {
+            return;
+        }
+
+        QueueShelfViewportRefresh();
+    }
+
+    private void QueueShelfViewportRefresh()
+    {
+        if (_shelfViewportRefreshQueued)
+            return;
+
+        _shelfViewportRefreshQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+        {
+            _shelfViewportRefreshQueued = false;
+            RealizeShelfViewport();
+        }));
+    }
 
     private void ShelfScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
