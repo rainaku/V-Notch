@@ -3208,6 +3208,31 @@
                             <StackPanel x:Name="AudioRoot"/>
                         </ScrollViewer>
 
+                        <StackPanel x:Name="AudioLoadingPanel"
+                                    Visibility="Collapsed"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    IsHitTestVisible="False">
+                            <Border Width="36"
+                                    Height="36"
+                                    Margin="0,0,0,10"
+                                    CornerRadius="18"
+                                    Background="#12FFFFFF"
+                                    BorderBrush="#18FFFFFF"
+                                    BorderThickness="1">
+                                <TextBlock Text="&#xE995;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="17"
+                                           Foreground="#BFFFFFFF"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Loading sound mixer..."
+                                       FontSize="12"
+                                       Foreground="#8FFFFFFF"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+
                         <Grid x:Name="AudioOverlay"
                               Background="Transparent"
                               Visibility="Collapsed"

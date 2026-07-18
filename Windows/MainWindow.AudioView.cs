@@ -153,9 +153,15 @@ public partial class MainWindow
 
         bool hadSnapshot = _lastAudioSnapshot != null;
         if (hadSnapshot)
+        {
+            SetAudioLoadingState(false);
             EnsureAudioUIBuilt(_lastAudioSnapshot!);
+        }
         else
+        {
+            SetAudioLoadingState(true);
             _audioViewHeight = _audioViewMaxHeight;
+        }
 
         double fromW = NotchBorder.ActualWidth > 0 ? NotchBorder.ActualWidth : _expandedWidth;
         double fromH = NotchBorder.ActualHeight > 0 ? NotchBorder.ActualHeight : _expandedHeight;
@@ -311,7 +317,6 @@ public partial class MainWindow
         if (outIsAudio)
         {
 
-            outgoing.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
             var closeGroup = new TransformGroup();
             var closeScale = new ScaleTransform(1, 1);
             var closeTranslate = new TranslateTransform(0, 0);
@@ -331,7 +336,6 @@ public partial class MainWindow
             aFade.Completed += (s, e) =>
             {
                 outgoing.Visibility = Visibility.Collapsed;
-                outgoing.CacheMode = null;
                 outgoing.RenderTransform = null;
                 outgoing.BeginAnimation(OpacityProperty, null);
                 outgoing.Opacity = 1;
@@ -344,7 +348,6 @@ public partial class MainWindow
         else
         {
             double outRestY = ReferenceEquals(outgoing, ExpandedContent) ? ExpandedContentRestY : 0;
-            outgoing.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
 
             var outGroup = new TransformGroup();
             var outScale = new ScaleTransform(1, 1);
@@ -377,7 +380,6 @@ public partial class MainWindow
                 outgoing.Visibility = Visibility.Collapsed;
                 outgoing.RenderTransform = null;
                 outgoing.Effect = null;
-                outgoing.CacheMode = null;
                 if (outBlur != null) outBlur.Radius = 0;
             };
 
@@ -391,13 +393,16 @@ public partial class MainWindow
 
         prepIncoming?.Invoke();
 
+        // Do not bitmap-cache transition roots: AudioContent and the other views
+        // update while hidden, and WPF can briefly reuse the previous surface.
         incoming.Visibility = Visibility.Visible;
+        incoming.BeginAnimation(OpacityProperty, null);
         incoming.Opacity = 0;
 
         if (inIsAudio)
         {
             incoming.RenderTransform = null;
-            incoming.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
+            incoming.UpdateLayout();
             var aFadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
             Timeline.SetDesiredFrameRate(aFadeIn, fps);
             aFadeIn.Completed += (s, e) =>
@@ -407,14 +412,12 @@ public partial class MainWindow
                 NotchBorder.IsHitTestVisible = true;
                 incoming.Opacity = 1;
                 incoming.BeginAnimation(OpacityProperty, null);
-                incoming.CacheMode = null;
                 onComplete?.Invoke();
             };
             incoming.BeginAnimation(OpacityProperty, aFadeIn);
         }
         else
         {
-            incoming.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
             bool shrinking = notchFromW > notchToW + 0.5;
             var savedRounding = incoming.UseLayoutRounding;
             if (shrinking)
@@ -426,6 +429,8 @@ public partial class MainWindow
 
             if (ReferenceEquals(incoming, ExpandedContent))
                 PrepareExpandedContentLayoutForReveal();
+            else
+                incoming.UpdateLayout();
 
             double restY = ReferenceEquals(incoming, ExpandedContent) ? ExpandedContentRestY : 0;
 
@@ -457,7 +462,6 @@ public partial class MainWindow
                     ApplyExpandedContentRestTransform();
                 else
                     incoming.RenderTransform = null;
-                incoming.CacheMode = null;
                 if (shrinking)
                 {
                     incoming.HorizontalAlignment = HorizontalAlignment.Stretch;

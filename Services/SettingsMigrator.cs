@@ -67,7 +67,7 @@ public static class SettingsMigrator
                 }
                 if (!root.ContainsKey(nameof(NotchSettings.AnimationFps)))
                 {
-                    root[nameof(NotchSettings.AnimationFps)] = 60;
+                    root[nameof(NotchSettings.AnimationFps)] = AnimationConfig.MaxFps;
                 }
                 return root;
             },

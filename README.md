@@ -125,7 +125,7 @@
 - Camera indicator
 
 ### Animation & UI
-- Apple-style expand/collapse transitions at 60 FPS
+- Apple-style expand/collapse transitions configurable up to 120 FPS
 - Glassmorphism blur effects with hardware acceleration
 - Glow engine — real-time HSL color extraction for vibrant UI accents
 - Spring animations for language switching and UI element transitions

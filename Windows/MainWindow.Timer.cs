@@ -110,7 +110,6 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        ExpandedContent.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
         var primaryGroup = new TransformGroup();
         var primaryScale = new ScaleTransform(1, 1);
         var primaryTranslate = new TranslateTransform(0, ExpandedContentRestY);
@@ -142,7 +141,6 @@ public partial class MainWindow
             ExpandedContent.Visibility = Visibility.Collapsed;
             ExpandedContent.RenderTransform = null;
             ExpandedContent.Effect = null;
-            ExpandedContent.CacheMode = null;
             if (expandedBlur != null) expandedBlur.Radius = 0;
         };
 
@@ -153,8 +151,8 @@ public partial class MainWindow
         if (expandedBlur != null && blurOutAnim != null)
             expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        TimerContent.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
         TimerContent.Visibility = Visibility.Visible;
+        TimerContent.BeginAnimation(OpacityProperty, null);
         TimerContent.Opacity = 0;
 
         var timerGroup = new TransformGroup();
@@ -182,11 +180,11 @@ public partial class MainWindow
             TimerContent.Opacity = 1;
             TimerContent.BeginAnimation(OpacityProperty, null);
             TimerContent.RenderTransform = null;
-            TimerContent.CacheMode = null;
             RestoreTimerContentOpacity();
         };
 
         RestoreTimerContentOpacity();
+        TimerContent.UpdateLayout();
 
         TimerContent.BeginAnimation(OpacityProperty, fadeIn);
         timerTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
@@ -231,7 +229,6 @@ public partial class MainWindow
         var inDelay = TimeSpan.FromMilliseconds(40);
         int fps = VNotch.Services.AnimationConfig.TargetFps;
 
-        SecondaryContent.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
         var secondaryGroup = new TransformGroup();
         var secondaryScale = new ScaleTransform(1, 1);
         var secondaryTranslate = new TranslateTransform(0, 0);
@@ -263,7 +260,6 @@ public partial class MainWindow
             SecondaryContent.Visibility = Visibility.Collapsed;
             SecondaryContent.RenderTransform = null;
             SecondaryContent.Effect = null;
-            SecondaryContent.CacheMode = null;
             if (secondaryBlur != null) secondaryBlur.Radius = 0;
         };
 
@@ -274,8 +270,8 @@ public partial class MainWindow
         if (secondaryBlur != null && blurOutAnim != null)
             secondaryBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
-        TimerContent.CacheMode = new BitmapCache { EnableClearType = false, RenderAtScale = 1.0 };
         TimerContent.Visibility = Visibility.Visible;
+        TimerContent.BeginAnimation(OpacityProperty, null);
         TimerContent.Opacity = 0;
 
         var timerGroup = new TransformGroup();
@@ -303,11 +299,11 @@ public partial class MainWindow
             TimerContent.Opacity = 1;
             TimerContent.BeginAnimation(OpacityProperty, null);
             TimerContent.RenderTransform = null;
-            TimerContent.CacheMode = null;
             RestoreTimerContentOpacity();
         };
 
         RestoreTimerContentOpacity();
+        TimerContent.UpdateLayout();
 
         TimerContent.BeginAnimation(OpacityProperty, fadeIn);
         timerTranslate.BeginAnimation(TranslateTransform.YProperty, springSlide);
@@ -363,6 +359,7 @@ public partial class MainWindow
         timerTranslate.BeginAnimation(TranslateTransform.YProperty, timerSlideDown);
 
         ExpandedContent.Visibility = Visibility.Visible;
+        ExpandedContent.BeginAnimation(OpacityProperty, null);
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
         ExpandedContent.Width = _expandedWidth - 16;
@@ -505,6 +502,7 @@ public partial class MainWindow
         timerBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
         SecondaryContent.Visibility = Visibility.Visible;
+        SecondaryContent.BeginAnimation(OpacityProperty, null);
         SecondaryContent.Opacity = 0;
         EnableKeyboardInput();
 
@@ -515,6 +513,7 @@ public partial class MainWindow
         secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
+        SecondaryContent.UpdateLayout();
 
         var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
         var springSlide = MakeAnim(16, 0, durIn, _easeAppleOut, inDelay);

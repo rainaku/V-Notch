@@ -1696,15 +1696,15 @@
                                             <StackPanel>
                                                 <TextBlock x:Name="AnimationFpsLabel" Text="Animation FPS" Style="{StaticResource SettingTitleText}" Visibility="Collapsed"/>
                                                 <TextBlock Grid.Column="1" Style="{StaticResource ValueText}" Visibility="Collapsed">
-                                                    <Run x:Name="AnimationFpsValue" Text="60"/><Run Text=" FPS"/>
+                                                    <Run x:Name="AnimationFpsValue" Text="120"/><Run Text=" FPS"/>
                                                 </TextBlock>
                                                 <TextBlock x:Name="AnimationFpsHint" Visibility="Collapsed"/>
                                                 <controls:ElasticSlider x:Name="AnimationFpsSlider"
                                                         Label="Animation FPS" Unit=" FPS"
                                                         Description="Cap UI animation frame rate. Lower values reduce render/GPU load."
                                                         Minimum="30"
-                                                        Maximum="60"
-                                                        Value="60"
+                                                        Maximum="120"
+                                                        Value="120"
                                                         TickFrequency="5"
                                                         IsSnapToTickEnabled="False"
                                                         ValueChanged="AnimationFpsSlider_ValueChanged"/>

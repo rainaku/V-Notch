@@ -6,7 +6,9 @@ namespace VNotch.Tests;
 public class AnimationConfigTests
 {
     [Theory]
-    [InlineData(144, 144, 60)]
+    [InlineData(144, 144, 120)]
+    [InlineData(120, 144, 120)]
+    [InlineData(120, 60, 60)]
     [InlineData(60, 144, 60)]
     [InlineData(60, 50, 50)]
     [InlineData(30, 144, 30)]

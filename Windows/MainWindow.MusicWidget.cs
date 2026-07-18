@@ -49,7 +49,8 @@ public partial class MainWindow
         MediaWidgetLayoutTranslate.BeginAnimation(TranslateTransform.XProperty, null);
         MediaWidgetLayoutScale.ScaleX = initialScaleX;
         MediaWidgetLayoutTranslate.X = initialTranslateX;
-        MediaWidgetContainer.CacheMode = new BitmapCache(2.0);
+        // Album art and progress remain live during the transform; caching this
+        // container can replay the pre-transition image for a frame.
 
         var scaleAnim = new DoubleAnimation(initialScaleX, 1.0, duration)
         {
@@ -68,7 +69,6 @@ public partial class MainWindow
             MediaWidgetLayoutTranslate.BeginAnimation(TranslateTransform.XProperty, null);
             MediaWidgetLayoutScale.ScaleX = 1.0;
             MediaWidgetLayoutTranslate.X = 0.0;
-            MediaWidgetContainer.CacheMode = null;
             onCompleted();
         };
 

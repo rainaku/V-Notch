@@ -7,7 +7,7 @@ namespace VNotch.Services;
 internal static class AnimationConfig
 {
     public const int MinFps = 30;
-    public const int MaxFps = 60;
+    public const int MaxFps = 120;
     private const int FallbackFps = 60;
 
     private static int _targetFps = FallbackFps;

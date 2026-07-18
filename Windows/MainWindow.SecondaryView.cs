@@ -208,6 +208,7 @@ public partial class MainWindow
         expandedBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
         SecondaryContent.Visibility = Visibility.Visible;
+        SecondaryContent.BeginAnimation(OpacityProperty, null);
         SecondaryContent.Opacity = 0;
         EnableKeyboardInput();
 
@@ -218,8 +219,10 @@ public partial class MainWindow
         secondaryGroup.Children.Add(secondaryTranslate);
         SecondaryContent.RenderTransform = secondaryGroup;
         SecondaryContent.RenderTransformOrigin = new Point(0.5, 0.5);
-
-        SecondaryContent.CacheMode = new BitmapCache { RenderAtScale = 1.0 };
+        // Hidden views may have received data updates without a layout pass.
+        // Keep the root live and prepare it while transparent so the first
+        // animated frame contains current content instead of a cached surface.
+        SecondaryContent.UpdateLayout();
 
         var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
         var springSlide = MakeAnim(16, 0, durIn, _easeAppleOut, inDelay);
@@ -238,7 +241,6 @@ public partial class MainWindow
             SecondaryContent.Opacity = 1;
             SecondaryContent.BeginAnimation(OpacityProperty, null);
             SecondaryContent.RenderTransform = null;
-            SecondaryContent.CacheMode = null;
 
             if (_pendingFlipThumbnail != null)
             {
@@ -325,6 +327,7 @@ public partial class MainWindow
         secondaryBlur.BeginAnimation(BlurEffect.RadiusProperty, blurOutAnim);
 
         ExpandedContent.Visibility = Visibility.Visible;
+        ExpandedContent.BeginAnimation(OpacityProperty, null);
         ExpandedContent.Opacity = 0;
         ExpandedContent.Effect = null;
 
@@ -337,8 +340,6 @@ public partial class MainWindow
         ExpandedContent.RenderTransformOrigin = new Point(0.5, 0.5);
 
         PrepareExpandedContentLayoutForReveal();
-
-        ExpandedContent.CacheMode = new BitmapCache { RenderAtScale = 1.0 };
 
         var fadeIn = MakeAnim(0, 1, durIn, _easeAppleOut, inDelay);
         var springSlide = MakeAnim(ExpandedContentRestY - 16, ExpandedContentRestY, durIn, _easeAppleOut, inDelay);
@@ -356,7 +357,6 @@ public partial class MainWindow
             NotchBorder.IsHitTestVisible = true;
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
-            ExpandedContent.CacheMode = null;
             ApplyExpandedContentRestTransform();
             ResumeSpotifyCanvasLifecycle();
 

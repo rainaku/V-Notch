@@ -65,6 +65,16 @@ public partial class MainWindow
     private AudioMixerSnapshot? _pendingAudioSnapshot;
     private Action? _pendingAudioAfterBuild;
 
+    internal static bool ShouldDeferAudioSnapshotDuringTransition(
+        bool isAudioView, bool isAnimating, bool hasBuiltUi)
+        => isAudioView && isAnimating && hasBuiltUi;
+
+    private void SetAudioLoadingState(bool isLoading)
+    {
+        if (AudioLoadingPanel == null) return;
+        AudioLoadingPanel.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private static Brush Frozen(string hex)
     {
         var b = (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;
@@ -97,10 +107,12 @@ public partial class MainWindow
                 if (token != _audioPopulateToken) return;
                 _lastAudioSnapshot = snap;
 
-                // A dynamic tree rebuild during the scale/fade transition forces
-                // WPF to invalidate the bitmap cache and can stall Liquid Glass.
-                // Keep the newest snapshot and apply it as soon as the menu settles.
-                if (_isAudioView && _isAnimating)
+                // Rebuilding an existing dynamic tree during the scale/fade can
+                // still invalidate layout and stall Liquid Glass. Defer later
+                // structural updates, but always build the empty first-boot view
+                // immediately so the opening animation never reveals a blank panel.
+                bool hasBuiltUi = AudioRoot?.Children.Count > 0;
+                if (ShouldDeferAudioSnapshotDuringTransition(_isAudioView, _isAnimating, hasBuiltUi))
                 {
                     _pendingAudioSnapshot = snap;
                     _pendingAudioAfterBuild = afterBuild;
@@ -120,6 +132,7 @@ public partial class MainWindow
             BuildAudioUI(snap);
 
         _lastAudioSnapshot = snap;
+        SetAudioLoadingState(false);
         afterBuild?.Invoke();
     }
 
