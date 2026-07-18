@@ -19,6 +19,7 @@ public partial class SpotifyLoginWindow : Window
     {
         InitializeComponent();
 
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
         Title = Loc.Get("spotifyLogin.title");
         HeadingText.Text = Loc.Get("spotifyLogin.heading");
         HintText.Text = Loc.Get("spotifyLogin.hint");

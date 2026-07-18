@@ -14,6 +14,8 @@ public partial class IntroducingWindow : Window
     {
         InitializeComponent();
 
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
+        Title = Loc.Get("intro.headline");
         TitleText.Text = Loc.Get("intro.title");
         HeadlineText.Text = Loc.Get("intro.headline");
         BodyText.Text = Loc.Get("intro.body");

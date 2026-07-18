@@ -285,7 +285,8 @@
                     
                     <Image Source="/Assets/logo.png" Width="30" Height="30" Margin="18,0,0,0"/>
                     
-                    <TextBlock Grid.Column="1"
+                    <TextBlock x:Name="SetupAssistantText"
+                               Grid.Column="1"
                                Text="Setup Assistant"
                                Foreground="#F2FFFFFF"
                                FontSize="14"
@@ -294,7 +295,8 @@
                                VerticalAlignment="Center"
                                Margin="12,0,0,0"/>
                     
-                    <Button Grid.Column="2"
+                    <Button x:Name="CloseSetupButton"
+                            Grid.Column="2"
                             Width="52"
                             Height="58"
                             Background="Transparent"
@@ -387,7 +389,7 @@
                         <StackPanel>
                             <Image Source="/Assets/logo.png" Width="68" Height="68" HorizontalAlignment="Left" Margin="0,0,0,18"/>
                             <TextBlock Text="V-Notch" FontSize="18" FontWeight="Bold" Foreground="White" FontFamily="{StaticResource SFProDisplay}"/>
-                            <TextBlock Text="Dynamic Island for Windows" FontSize="11.5" Foreground="#99FFFFFF" TextWrapping="Wrap" LineHeight="16" Margin="0,4,0,18"/>
+                            <TextBlock x:Name="SetupTaglineText" Text="Dynamic Island for Windows" FontSize="11.5" Foreground="#99FFFFFF" TextWrapping="Wrap" LineHeight="16" Margin="0,4,0,18"/>
                             <StackPanel>
                                 <TextBlock x:Name="Step1Text" Text="01  Language" Foreground="#FFFFFFFF" FontSize="11.5" Margin="0,0,0,8"/>
                                 <TextBlock x:Name="Step2Text" Text="02  Welcome" Foreground="#88FFFFFF" FontSize="11.5" Margin="0,0,0,8"/>

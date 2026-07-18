@@ -54,7 +54,7 @@ public sealed class WeatherPresenter : IDisposable
         _refs.LocationText.Text = string.IsNullOrWhiteSpace(weather.City) ? "\u2014" : weather.City;
         _refs.TempText.Text = $"{weather.Temperature}\u00b0";
         _refs.ConditionText.Text = weather.Condition;
-        _refs.HiLoText.Text = $"H:{weather.High}\u00b0 L:{weather.Low}\u00b0";
+        _refs.HiLoText.Text = Loc.Get("weather.highLow", weather.High, weather.Low);
     }
 
     public void Dispose()

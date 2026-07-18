@@ -233,6 +233,13 @@ public partial class SettingsWindow : Window
 
         // Button tooltips
         TooltipHelper.SetLocalizedTooltip(CheckUpdateButton, "tooltip.checkUpdates");
+        TooltipHelper.SetLocalizedTooltip(DownloadUpdateButton, "tooltip.downloadUpdate");
+        TooltipHelper.SetLocalizedTooltip(ViewChangelogButton, "tooltip.viewChangelog");
+        TooltipHelper.SetLocalizedTooltip(ReportBugButton, "tooltip.reportBug");
+        TooltipHelper.SetLocalizedTooltip(RequestFeatureButton, "tooltip.requestFeature");
+        TooltipHelper.SetLocalizedTooltip(ClearCacheButton, "tooltip.clearCache");
+        TooltipHelper.SetLocalizedTooltip(ToggleKeyVisibilityButton, "tooltip.showHideKey");
+        TooltipHelper.SetLocalizedTooltip(CloseSettingsButton, "tooltip.close");
         TooltipHelper.SetLocalizedTooltip(ResetButton, "tooltip.resetSettings");
         TooltipHelper.SetLocalizedTooltip(ApplyButton, "tooltip.applySettings");
         TooltipHelper.SetLocalizedTooltip(SaveButton, "tooltip.saveSettings");
@@ -259,6 +266,9 @@ public partial class SettingsWindow : Window
         TooltipHelper.SetLocalizedTooltip(ShelfUnlockCheck, "tooltip.shelfUnlock");
         TooltipHelper.SetLocalizedTooltip(CopyShelfClipboardCheck, "tooltip.copyShelfClipboard");
         TooltipHelper.SetLocalizedTooltip(HelloGreetingCheck, "tooltip.helloGreeting");
+        TooltipHelper.SetLocalizedTooltip(EnableWeatherCheck, "tooltip.enableWeather");
+        TooltipHelper.SetLocalizedTooltip(GpuRefractionCheck, "tooltip.gpuRefraction");
+        TooltipHelper.SetLocalizedTooltip(EnableSpotifyCanvasCheck, "tooltip.spotifyCanvas");
 
         // Combo box tooltips
         TooltipHelper.SetLocalizedTooltip(WidgetCombo, "tooltip.widgetCombo");
@@ -272,7 +282,7 @@ public partial class SettingsWindow : Window
 
     private void ApplyLocalization()
     {
-        ApplyTooltips();
+        ApplySupplementalLocalization();
         SettingsTitleText.Text = Loc.Get("settings.title");
         SettingsSubtitleText.Text = Loc.Get("settings.subtitle");
         SearchPlaceholder.Text = Loc.Get("settings.searchPlaceholder");
@@ -364,6 +374,7 @@ public partial class SettingsWindow : Window
         IdleAutoHideDelayKeywords.Text = Loc.Get("settings.idleAutoHideDelay.keywords");
 
         CheckUpdateButton.Content = Loc.Get("settings.checkUpdate");
+        DownloadUpdateButton.Content = Loc.Get("settings.downloadInstall");
         UpdateStatusText.Text = Loc.Get("settings.upToDate");
         CurrentVersionText.Text = Loc.Get("settings.currentVersion", GetAppVersion());
         ViewChangelogButton.Content = Loc.Get("settings.btn.changelog");
@@ -444,6 +455,35 @@ public partial class SettingsWindow : Window
         DonatePaypalButton.Content = Loc.Get("settings.donating.paypal");
         DonatingBankTitle.Text = Loc.Get("settings.donating.bank");
         DonatingBankHint.Text = Loc.Get("settings.donating.bank.hint");
+    }
+
+    private void ApplySupplementalLocalization()
+    {
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
+        Title = Loc.Get("settings.windowTitle");
+        ApplyTooltips();
+
+        DownloadUpdateButton.Content = Loc.Get("settings.downloadInstall");
+        EnableWeatherCheck.Content = Loc.Get("settings.enableWeather");
+        EnableWeatherHint.Text = Loc.Get("settings.enableWeather.hint");
+        ManualCityLabel.Text = Loc.Get("settings.manualCity");
+        ManualCityHint.Text = Loc.Get("settings.manualCity.hint");
+
+        GpuRefractionCheck.Content = Loc.Get("settings.gpuRefraction");
+        GpuRefractionHint.Text = Loc.Get("settings.gpuRefraction.hint");
+
+        EnableSpotifyCanvasCheck.Content = Loc.Get("settings.enableSpotifyCanvas");
+        EnableSpotifyCanvasHint.Text = Loc.Get("settings.enableSpotifyCanvas.hint");
+        SpotifyCanvasAccountLabel.Text = Loc.Get("settings.spotifyCanvasAccount");
+        SpotifyCanvasAccountHint.Text = Loc.Get("settings.spotifyCanvasAccount.hint");
+        SpotifyConnectButton.Content = Loc.Get("settings.spotifyCanvas.connect");
+        SpotifyDisconnectButton.Content = Loc.Get("settings.spotifyCanvas.disconnect");
+        CopyShelfClipboardHint.Text = Loc.Get("settings.copyShelfClipboard.hint");
+        if (YouTubeSubtitlesAlphaBadge != null)
+            YouTubeSubtitlesAlphaBadge.Text = Loc.Get("settings.badge.alpha");
+
+        UpdateSpotifyCanvasConnectionStatus();
+        UpdateYouTubeApiKeyStatus();
     }
 
     #region Slider Value Changed Handlers
@@ -1309,28 +1349,29 @@ public partial class SettingsWindow : Window
         }
         else if (key.Length < 30)
         {
-            YouTubeApiKeyStatus.Text = "✗ Invalid key format — too short";
+            YouTubeApiKeyStatus.Text = Loc.Get("settings.youtubeApi.statusTooShort");
             YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
         }
         else if (!key.StartsWith("AIza", StringComparison.Ordinal))
         {
-            YouTubeApiKeyStatus.Text = "✗ Invalid key format — must start with AIza";
+            YouTubeApiKeyStatus.Text = Loc.Get("settings.youtubeApi.statusMustStart");
             YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
         }
         else if (key.Length >= 35 && key.Length <= 45)
         {
-            YouTubeApiKeyStatus.Text = "✓ Key format looks valid";
+            YouTubeApiKeyStatus.Text = Loc.Get("settings.youtubeApi.statusValid");
             YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(74, 222, 128));
         }
         else
         {
-            YouTubeApiKeyStatus.Text = "⚠ Unexpected key length";
+            YouTubeApiKeyStatus.Text = Loc.Get("settings.youtubeApi.statusUnexpectedLength");
             YouTubeApiKeyStatus.Foreground = new SolidColorBrush(Color.FromRgb(234, 179, 8));
         }
     }
 
     private void AnimateLocalizationChange()
     {
+        ApplySupplementalLocalization();
         var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
         int fps = VNotch.Services.AnimationConfig.TargetFps;
         const double slideDist = 3.0;
@@ -2313,7 +2354,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            UpdateStatusText.Text = $"Error: {ex.Message}";
+            UpdateStatusText.Text = Loc.Get("error.updateStatus", ex.Message);
             CheckUpdateButton.IsEnabled = true;
         }
     }
@@ -2376,7 +2417,7 @@ public partial class SettingsWindow : Window
         catch (Exception ex)
         {
             updateProgressWindow.Close();
-            UpdateStatusText.Text = $"Error: {ex.Message}";
+            UpdateStatusText.Text = Loc.Get("error.updateStatus", ex.Message);
             DownloadUpdateButton.IsEnabled = true;
             CheckUpdateButton.IsEnabled = true;
         }
@@ -2397,8 +2438,8 @@ public partial class SettingsWindow : Window
         {
             RuntimeLog.Error("SETTINGS", ex, "Failed to open changelog window");
             MessageBox.Show(
-                $"Failed to open changelog: {ex.Message}",
-                "Error",
+                Loc.Get("settings.changelogOpenFailed", ex.Message),
+                Loc.Get("error.title"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }

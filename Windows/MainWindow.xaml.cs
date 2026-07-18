@@ -218,6 +218,7 @@ public partial class MainWindow : Window
         SystemMonitorModule systemMonitorModule)
     {
         InitializeComponent();
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
         _viewModel = viewModel;
         DataContext = _viewModel;
         _viewModel.IsExpandedCheck = () => _isExpanded || _isMusicExpanded;
@@ -1195,14 +1196,26 @@ public partial class MainWindow : Window
 
     private void RefreshNotchLocalization()
     {
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
         UpdateShelfCapacityIndicator();
         EventText.Text = Loc.Get("greeting.enjoyDay");
+        ChargingStatusText.Text = Loc.Get("battery.charging");
+        ClipboardCopiedText.Text = Loc.Get("clipboard.copied");
         CameraErrorText.Text = Loc.Get("notch.camera.error");
         CameraRetryText.Text = Loc.Get("notch.camera.retry");
+        AudioLoadingText.Text = Loc.Get("audio.loading");
         ShelfUnlockButtonText.Text = Loc.Get("shelf.unlockButton");
         ShelfUnlockDismissText.Text = Loc.Get("shelf.unlockDismiss");
         ShelfUnlockSettingsHint.Text = Loc.Get("shelf.unlockSettingsHint");
+        MenuToggleText.Text = Loc.Get(_isNotchVisible ? "tray.hide" : "tray.show");
+        MenuResetText.Text = Loc.Get("tray.reset");
+        MenuSettingsText.Text = Loc.Get("tray.settings");
+        MenuRestartText.Text = Loc.Get("tray.restart");
+        MenuExitText.Text = Loc.Get("tray.exit");
+        _calendarPresenter?.RefreshLocale();
+        RefreshAudioLocalization();
         RefreshClockViewLocale();
+        WordClockWidget.RefreshLocalization();
     }
 
     private const double DynamicIslandTopMargin = 8.0;
@@ -1838,6 +1851,7 @@ public partial class MainWindow : Window
     private void TrayContextMenu_Opened(object sender, RoutedEventArgs e)
     {
         _isTrayMenuOpen = true;
+        MenuToggleText.Text = Loc.Get(_isNotchVisible ? "tray.hide" : "tray.show");
     }
 
     private void TrayContextMenu_Closed(object sender, RoutedEventArgs e)

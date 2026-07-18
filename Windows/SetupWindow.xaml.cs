@@ -84,6 +84,7 @@ public partial class SetupWindow : Window
         };
 
         _languagePage.LanguageChanged += OnSetupLanguageChanged;
+        ApplyLocalizationToSetupUi();
     }
 
     private void OnSetupLanguageChanged(string lang)
@@ -110,6 +111,11 @@ public partial class SetupWindow : Window
 
     private void ApplyLocalizationToSetupUi()
     {
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
+        Title = Loc.Get("setup.windowTitle");
+        SetupAssistantText.Text = Loc.Get("setup.assistant");
+        SetupTaglineText.Text = Loc.Get("setup.tagline");
+        TooltipHelper.SetLocalizedTooltip(CloseSetupButton, "tooltip.close");
         HeadlineText.Text = Loc.Get("setup.welcome.headline");
 
         Step1Text.Text = Loc.Get("setup.step.language");
@@ -172,8 +178,8 @@ public partial class SetupWindow : Window
         if (_isInstalling)
         {
             MessageBox.Show(
-                "Installation is in progress. Please wait for it to finish.",
-                "V-Notch Setup",
+                Loc.Get("setup.install.inProgress"),
+                Loc.Get("setup.windowTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;
@@ -289,7 +295,11 @@ public partial class SetupWindow : Window
             catch (Exception ex)
             {
                 CompleteTransition();
-                MessageBox.Show($"Error loading page: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    Loc.Get("setup.pageLoadFailed", ex.Message),
+                    Loc.Get("setup.windowTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         });
     }
@@ -910,8 +920,8 @@ public partial class SetupWindow : Window
         if (string.IsNullOrWhiteSpace(installPath))
         {
             MessageBox.Show(
-                "Choose an installation folder before continuing.",
-                "V-Notch Setup",
+                Loc.Get("setup.directory.required"),
+                Loc.Get("setup.windowTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return false;
@@ -925,8 +935,8 @@ public partial class SetupWindow : Window
                 !SetupOperations.IsRunningAsAdministrator())
             {
                 MessageBox.Show(
-                    "This folder needs administrator permission.\n\nChoose a folder inside your user profile, or run the installer as administrator if you want to install into C:\\ or Program Files.",
-                    "V-Notch Setup",
+                    Loc.Get("setup.directory.adminRequired"),
+                    Loc.Get("setup.windowTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return false;
@@ -937,8 +947,8 @@ public partial class SetupWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show(
-                $"The selected install path is not valid.\n\n{ex.Message}",
-                "V-Notch Setup",
+                Loc.Get("setup.directory.invalid", ex.Message),
+                Loc.Get("setup.windowTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return false;
@@ -1565,7 +1575,7 @@ public class InstallProgressPage : UserControl, ISetupAnimatedPage
 
     public void ShowFailure(string errorMessage)
     {
-        _status.Text = $"Installation failed: {errorMessage}";
+        _status.Text = Loc.Get("setup.install.failed", errorMessage);
         _progressBar.IsIndeterminate = false;
         _progressBar.Minimum = 0;
         _progressBar.Maximum = 1;

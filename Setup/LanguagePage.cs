@@ -30,11 +30,12 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
         new LanguageMetadata { FlagCode = "ES", Name = "Español", Description = "Usar V-Notch en español", Code = "es" },
         new LanguageMetadata { FlagCode = "FR", Name = "Français", Description = "Utiliser V-Notch en français", Code = "fr" },
         new LanguageMetadata { FlagCode = "DE", Name = "Deutsch", Description = "V-Notch auf Deutsch verwenden", Code = "de" },
-        new LanguageMetadata { FlagCode = "JP", Name = "日本語", Description = "V-Notchを日本語で使用する", Code = "ja" }
+        new LanguageMetadata { FlagCode = "JP", Name = "日本語", Description = "V-Notchを日本語で使用する", Code = "ja" },
+        new LanguageMetadata { FlagCode = "IN", Name = "हिन्दी", Description = "V-Notch का उपयोग हिन्दी में करें", Code = "hi" }
     };
 
-    private static readonly FontFamily SFProBold = new("SF Pro Display, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif");
-    private static readonly FontFamily SFProText = new("SF Pro Text, Segoe UI, Inter, Roboto, Sans-serif");
+    private static readonly FontFamily SFProBold = new("SF Pro Display, Nirmala UI, Segoe UI Variable Display, Segoe UI, Inter, Roboto, Sans-serif");
+    private static readonly FontFamily SFProText = new("SF Pro Text, Nirmala UI, Segoe UI, Inter, Roboto, Sans-serif");
 
     private static readonly SolidColorBrush BrushCardBg = Freeze(new SolidColorBrush(Color.FromArgb(255, 22, 22, 26)));
     private static readonly SolidColorBrush BrushCardBorder = Freeze(new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)));

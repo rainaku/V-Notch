@@ -13,7 +13,7 @@
         Loaded="Window_Loaded">
 
     <Window.Resources>
-        <FontFamily x:Key="SettingsFont">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
+        <FontFamily x:Key="SettingsFont">pack://application:,,,/Fonts/#SF Pro Display, Nirmala UI, Segoe UI</FontFamily>
         
         <SolidColorBrush x:Key="PanelBg" Color="#F4020202"/>
         <SolidColorBrush x:Key="MutedText" Color="#8C959E"/>

@@ -9,6 +9,8 @@ public partial class UpdateDownloadWindow : Window
     public UpdateDownloadWindow()
     {
         InitializeComponent();
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
+        Title = Loc.Get("update.installingTitle");
         TitleText.Text = Loc.Get("update.installingTitle");
     }
 

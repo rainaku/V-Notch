@@ -29,6 +29,11 @@ public partial class ConfirmationDialog : Window
     {
         InitializeComponent();
         AnimationPrimitives.ApplyFpsToTree(this);
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
+        Title = Loc.Get("dialog.confirm.title");
+        TitleText.Text = Loc.Get("dialog.confirm.title");
+        ConfirmButton.Content = Loc.Get("dialog.confirm");
+        CancelButton.Content = Loc.Get("dialog.cancel");
     }
 
     /// <summary>

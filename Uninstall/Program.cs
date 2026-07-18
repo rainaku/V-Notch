@@ -4,8 +4,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using VNotch.Services;
 
 namespace VNotch.Uninstaller;
 
@@ -39,13 +41,13 @@ internal static class Program
             a.Equals("--quiet", StringComparison.OrdinalIgnoreCase));
 
         Application.EnableVisualStyles();
+        InitializeLanguage();
 
         if (!silent)
         {
             var confirm = MessageBox.Show(
-                "This will completely remove V-Notch and all of its settings, " +
-                "cache and data from this computer.\n\nDo you want to continue?",
-                "Uninstall V-Notch",
+                Loc.Get("uninstall.confirmMessage"),
+                Loc.Get("uninstall.title"),
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning,
                 MessageBoxDefaultButton.Button2);
@@ -59,41 +61,66 @@ internal static class Program
         var installDirectory = ResolveInstallDirectory();
         var errors = new List<string>();
 
-        TrySilently(StopRunningInstances, errors, "stop running V-Notch");
-        TrySilently(RemoveStartupEntry, errors, "remove startup entry");
-        TrySilently(RemoveRegistryKeys, errors, "remove registry keys");
-        TrySilently(RemoveShortcuts, errors, "remove shortcuts");
-        TrySilently(RemoveAppData, errors, "remove app data");
+        TrySilently(StopRunningInstances, errors, Loc.Get("uninstall.action.stopApp"));
+        TrySilently(RemoveStartupEntry, errors, Loc.Get("uninstall.action.removeStartup"));
+        TrySilently(RemoveRegistryKeys, errors, Loc.Get("uninstall.action.removeRegistry"));
+        TrySilently(RemoveShortcuts, errors, Loc.Get("uninstall.action.removeShortcuts"));
+        TrySilently(RemoveAppData, errors, Loc.Get("uninstall.action.removeData"));
 
         // The install folder contains this running uninstall.exe, so it cannot
         // delete itself directly. Hand the final wipe to a temp batch script
         // that waits for us to exit, deletes the folder, then deletes itself.
         TrySilently(() => ScheduleInstallDirRemoval(installDirectory), errors,
-            "schedule install folder removal");
+            Loc.Get("uninstall.action.removeInstallFolder"));
 
         if (!silent)
         {
             if (errors.Count == 0)
             {
                 MessageBox.Show(
-                    "V-Notch has been completely removed from this computer.",
-                    "Uninstall complete",
+                    Loc.Get("uninstall.successMessage"),
+                    Loc.Get("uninstall.successTitle"),
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
             else
             {
                 MessageBox.Show(
-                    "V-Notch was uninstalled, but some items could not be removed:\n\n  - " +
-                    string.Join("\n  - ", errors) +
-                    "\n\nYou may need to delete them manually.",
-                    "Uninstall finished with warnings",
+                    Loc.Get("uninstall.warningMessage", string.Join("\n  - ", errors)),
+                    Loc.Get("uninstall.warningTitle"),
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
         }
 
         return errors.Count == 0 ? 0 : 2;
+    }
+
+    private static void InitializeLanguage()
+    {
+        string language = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        try
+        {
+            var settingsPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                AppName,
+                "settings.json");
+            if (File.Exists(settingsPath))
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+                if (document.RootElement.TryGetProperty("Language", out var value) &&
+                    value.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(value.GetString()))
+                {
+                    language = value.GetString()!;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        Loc.SetLanguage(language);
     }
 
     /// <summary>

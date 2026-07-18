@@ -280,10 +280,7 @@ public sealed class ClockWidgetPresenter : IDisposable
     private readonly Border[] _clockViewDayCircles = new Border[42];
     private readonly TextBlock[] _clockViewWeekHeaders = new TextBlock[7];
 
-    private static readonly string[] _weekHeadersEn = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-    private static readonly string[] _weekHeadersVi = { "T2", "T3", "T4", "T5", "T6", "T7", "CN" };
-
-    private static bool WeekStartsOnMonday => Loc.CurrentLanguage == "vi";
+    private static DayOfWeek FirstDayOfWeek => Loc.GetCulture().DateTimeFormat.FirstDayOfWeek;
 
     private static readonly SolidColorBrush _clockViewAccent = CreateFrozenBrush(255, 69, 58);
     private static readonly SolidColorBrush _clockViewWeekday = CreateFrozenBrush(235, 235, 240);
@@ -377,13 +374,13 @@ public sealed class ClockWidgetPresenter : IDisposable
 
         if (_refs.ClockViewMonthText != null)
         {
-            _refs.ClockViewMonthText.Text = now.ToString("MMMM", CultureInfo.InvariantCulture).ToUpperInvariant();
+            var culture = Loc.GetCulture();
+            _refs.ClockViewMonthText.Text = now.ToString("MMMM", culture).ToUpper(culture);
         }
 
         var firstOfMonth = new DateTime(now.Year, now.Month, 1);
         int dow = (int)firstOfMonth.DayOfWeek;
-        int offset = WeekStartsOnMonday ? (dow + 6) % 7
-                                        : dow;
+        int offset = (dow - (int)FirstDayOfWeek + 7) % 7;
         int daysInMonth = DateTime.DaysInMonth(now.Year, now.Month);
 
         for (int i = 0; i < 42; i++)
@@ -431,11 +428,13 @@ public sealed class ClockWidgetPresenter : IDisposable
     {
         if (_clockViewWeekHeaders[0] == null) return;
 
-        var labels = Loc.CurrentLanguage == "vi" ? _weekHeadersVi : _weekHeadersEn;
+        var culture = Loc.GetCulture();
+        var labels = culture.DateTimeFormat.AbbreviatedDayNames;
+        int firstDay = (int)culture.DateTimeFormat.FirstDayOfWeek;
         for (int i = 0; i < 7; i++)
         {
             if (_clockViewWeekHeaders[i] != null)
-                _clockViewWeekHeaders[i].Text = labels[i];
+                _clockViewWeekHeaders[i].Text = labels[(firstDay + i) % 7];
         }
 
         AlignMonthLabelToFirstColumn();
@@ -460,7 +459,7 @@ public sealed class ClockWidgetPresenter : IDisposable
         if (string.IsNullOrEmpty(text)) return 0;
         var typeface = new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal);
         double ppd = VisualTreeHelper.GetDpi(_refs.Window).PixelsPerDip;
-        var ft = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+        var ft = new FormattedText(text, Loc.GetCulture(), FlowDirection.LeftToRight,
             typeface, fontSize, Brushes.White, ppd);
         return ft.Width;
     }

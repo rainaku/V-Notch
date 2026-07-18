@@ -58,7 +58,7 @@
             <GradientStop Color="#FB5C74" Offset="1"/>
         </LinearGradientBrush>
 
-        <FontFamily x:Key="MainSystemFont">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
+        <FontFamily x:Key="MainSystemFont">pack://application:,,,/Fonts/#SF Pro Display, Nirmala UI, Segoe UI</FontFamily>
 
         <Style x:Key="TitleText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="White"/>
@@ -251,7 +251,7 @@
                         <MenuItem.Header>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8A7;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
-                                <TextBlock Text="Hide Notch" Style="{StaticResource TrayMenuItemText}"/>
+                                <TextBlock x:Name="MenuToggleText" Text="Hide Notch" Style="{StaticResource TrayMenuItemText}"/>
                             </StackPanel>
                         </MenuItem.Header>
                     </MenuItem>
@@ -259,7 +259,7 @@
                         <MenuItem.Header>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE777;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
-                                <TextBlock Text="Reset position" Style="{StaticResource TrayMenuItemText}"/>
+                                <TextBlock x:Name="MenuResetText" Text="Reset position" Style="{StaticResource TrayMenuItemText}"/>
                             </StackPanel>
                         </MenuItem.Header>
                     </MenuItem>
@@ -268,7 +268,7 @@
                         <MenuItem.Header>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE713;" Style="{StaticResource TrayMenuIcon}" Margin="0,0,10,0"/>
-                                <TextBlock Text="Notch settings" Style="{StaticResource TrayMenuItemText}"/>
+                                <TextBlock x:Name="MenuSettingsText" Text="Notch settings" Style="{StaticResource TrayMenuItemText}"/>
                             </StackPanel>
                         </MenuItem.Header>
                     </MenuItem>
@@ -284,7 +284,7 @@
                     <Separator Style="{StaticResource TraySeparatorStyle}"/>
                     <MenuItem Style="{StaticResource TrayMenuItemStyle}" Click="Exit_Click">
                         <MenuItem.Header>
-                            <TextBlock Text="Exit" Style="{StaticResource TrayMenuItemText}" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="MenuExitText" Text="Exit" Style="{StaticResource TrayMenuItemText}" HorizontalAlignment="Center"/>
                         </MenuItem.Header>
                     </MenuItem>
                 </ContextMenu>
@@ -3227,7 +3227,8 @@
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
                             </Border>
-                            <TextBlock Text="Loading sound mixer..."
+                            <TextBlock x:Name="AudioLoadingText"
+                                       Text="Loading sound mixer..."
                                        FontSize="12"
                                        Foreground="#8FFFFFFF"
                                        HorizontalAlignment="Center"/>

@@ -6,6 +6,7 @@ using System.Security.Principal;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Win32;
+using VNotch.Services;
 
 namespace VNotch;
 
@@ -96,12 +97,12 @@ internal static class SetupOperations
             var sourceExePath = Path.Combine(sourceDirectory, AppExeName);
             if (!Directory.Exists(sourceDirectory))
             {
-                throw new DirectoryNotFoundException($"Setup source folder was not found: {sourceDirectory}");
+                throw new DirectoryNotFoundException(Loc.Get("setup.install.sourceFolderMissing", sourceDirectory));
             }
 
             if (!File.Exists(sourceExePath))
             {
-                throw new FileNotFoundException($"Setup source is missing {AppExeName}.", sourceExePath);
+                throw new FileNotFoundException(Loc.Get("setup.install.sourceExeMissing", AppExeName), sourceExePath);
             }
 
             reportProgress(new SetupProgressInfo(VNotch.Services.Loc.Get("setup.install.closingRunning"), IsIndeterminate: true));
@@ -113,7 +114,7 @@ internal static class SetupOperations
             var files = Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories);
             if (files.Length == 0)
             {
-                throw new InvalidOperationException("No install files were found in the setup payload.");
+                throw new InvalidOperationException(Loc.Get("setup.install.payloadEmpty"));
             }
 
             for (int i = 0; i < files.Length; i++)
@@ -171,8 +172,8 @@ internal static class SetupOperations
         var installedExePath = Path.Combine(installDirectory, AppExeName);
 
         var confirmation = MessageBox.Show(
-            "Remove V-Notch from this computer?",
-            "Uninstall V-Notch",
+            Loc.Get("setup.uninstall.confirm"),
+            Loc.Get("setup.uninstall.title"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
@@ -185,8 +186,8 @@ internal static class SetupOperations
         if (RequiresAdministratorForInstallPath(installDirectory) && !IsRunningAsAdministrator())
         {
             MessageBox.Show(
-                "This installation is in a protected Windows folder. Please run the uninstall as administrator.",
-                "V-Notch Setup",
+                Loc.Get("setup.uninstall.adminRequired"),
+                Loc.Get("setup.windowTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             Application.Current.Shutdown(1);
@@ -276,7 +277,7 @@ internal static class SetupOperations
         using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
         if (runKey == null)
         {
-            throw new InvalidOperationException("Unable to open the Windows startup registry key.");
+            throw new InvalidOperationException(Loc.Get("setup.install.startupRegistryUnavailable"));
         }
 
         if (startWithWindows)
@@ -316,7 +317,7 @@ internal static class SetupOperations
 
         if (uninstallKey == null)
         {
-            throw new InvalidOperationException("Unable to write uninstall information to the registry.");
+            throw new InvalidOperationException(Loc.Get("setup.install.uninstallRegistryUnavailable"));
         }
 
         uninstallKey.SetValue("DisplayName", AppName);

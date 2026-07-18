@@ -136,6 +136,15 @@ public partial class MainWindow
         afterBuild?.Invoke();
     }
 
+    private void RefreshAudioLocalization()
+    {
+        AudioLoadingText.Text = Loc.Get("audio.loading");
+        if (_lastAudioSnapshot != null && AudioRoot?.Children.Count > 0)
+        {
+            BuildAudioUI(_lastAudioSnapshot);
+        }
+    }
+
     private bool ApplyPendingAudioSnapshot()
     {
         var snap = _pendingAudioSnapshot;
@@ -286,26 +295,26 @@ public partial class MainWindow
                 AudioScrollViewer.VerticalAlignment = VerticalAlignment.Top;
             }
 
-            string outName = snap.GetDefaultOutputName();
-            string inName = snap.GetDefaultInputName();
+            string outName = snap.GetDefaultOutputName(Loc.Get("audio.speakers"));
+            string inName = snap.GetDefaultInputName(Loc.Get("audio.microphone"));
 
             var systemRows = new StackPanel { ClipToBounds = true, Visibility = _audioSystemExpanded ? Visibility.Visible : Visibility.Collapsed };
 
             float master = snap.Master;
-            systemRows.Children.Add(BuildSystemRow("\uE7F5", OutputIconGeometry, "Output", master,
+            systemRows.Children.Add(BuildSystemRow("\uE7F5", OutputIconGeometry, Loc.Get("audio.output"), master,
                 r => { if (MasterVolume.IsAvailable) MasterVolume.SetVolume((float)r); },
                 deviceGlyph: "\uE7F5", deviceText: outName, devices: snap.Output,
                 onDevice: id => { if (AudioMixer.SetDefaultOutputDevice(id)) RefreshAudioData(); },
                 out _outputSetVol, out _outputDeviceLabel));
 
-            systemRows.Children.Add(BuildSystemRow("\uE720", InputIconGeometry, "Input", snap.Capture,
+            systemRows.Children.Add(BuildSystemRow("\uE720", InputIconGeometry, Loc.Get("audio.input"), snap.Capture,
                 r => { AudioMixer.SetCaptureVolume((float)r); if (_lastAudioSnapshot != null) _lastAudioSnapshot.Capture = (float)r; },
                 deviceGlyph: "\uE720", deviceText: inName, devices: snap.Input,
                 onDevice: id => { if (AudioMixer.SetDefaultInputDevice(id)) RefreshAudioData(); },
                 out _inputSetVol, out _inputDeviceLabel));
 
-            AudioRoot.Children.Add(BuildSectionHeader("System", _audioSystemExpanded,
-                showVolumeLabel: true, deviceLabel: "Device", out var sysChevron, out var sysClick, out var sysLabels, topMargin: 0));
+            AudioRoot.Children.Add(BuildSectionHeader(Loc.Get("audio.system"), _audioSystemExpanded,
+                showVolumeLabel: true, deviceLabel: Loc.Get("audio.device"), out var sysChevron, out var sysClick, out var sysLabels, topMargin: 0));
             AudioRoot.Children.Add(systemRows);
             WireSectionToggle(sysClick, sysChevron, () => _audioSystemExpanded, v => _audioSystemExpanded = v, systemRows, sysLabels);
 
@@ -321,8 +330,8 @@ public partial class MainWindow
                 }));
             }
 
-            AudioRoot.Children.Add(BuildSectionHeader("Applications", _audioAppsExpanded,
-                showVolumeLabel: false, deviceLabel: "Redirect Audio To", out var appChevron, out var appClick, out var appLabels, topMargin: 14));
+            AudioRoot.Children.Add(BuildSectionHeader(Loc.Get("audio.applications"), _audioAppsExpanded,
+                showVolumeLabel: false, deviceLabel: Loc.Get("audio.redirectTo"), out var appChevron, out var appClick, out var appLabels, topMargin: 14));
             AudioRoot.Children.Add(appRows);
             WireSectionToggle(appClick, appChevron, () => _audioAppsExpanded, v => _audioAppsExpanded = v, appRows, appLabels);
         }
@@ -503,7 +512,7 @@ public partial class MainWindow
 
         if (showVolumeLabel)
         {
-            var vol = ColumnLabel("Volume");
+            var vol = ColumnLabel(Loc.Get("audio.volume"));
             vol.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
             vol.Opacity = expanded ? 1 : 0;
             Grid.SetColumn(vol, 1);
@@ -634,7 +643,7 @@ public partial class MainWindow
         var setVol = AddVolumeColumns(grid, session.IsMuted ? 0 : session.Volume, onVol);
         _appRows[session.ProcessId] = (setVol, iconHost, nameLabel);
 
-        var combo = CreateDeviceCombo("\uE898", null, "No Redirect", null, null, out _);
+        var combo = CreateDeviceCombo("\uE898", null, Loc.Get("audio.noRedirect"), null, null, out _);
         Grid.SetColumn(combo, 3);
         grid.Children.Add(combo);
 

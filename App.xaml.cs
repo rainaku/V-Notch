@@ -28,6 +28,11 @@ public partial class App : Application
             return;
         }
 
+        var earlySettings = new SettingsService();
+        var loadedSettings = earlySettings.Load();
+        Loc.SetLanguage(loadedSettings.Language);
+        AnimationConfig.Configure(loadedSettings.AnimationFps);
+
         if (e.Args.Contains("--uninstall"))
         {
             SetupOperations.RunUninstallFlow();
@@ -44,7 +49,7 @@ public partial class App : Application
 
         if (!ownsMutex)
         {
-            MessageBox.Show("V-Notch is already running!", "V-Notch",
+            MessageBox.Show(Loc.Get("error.alreadyRunning"), "V-Notch",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
@@ -52,11 +57,6 @@ public partial class App : Application
 
         RuntimeLog.InitializeNewSession("vnotch-debug.log");
         RuntimeLog.Log("SYSTEM", $"Application startup. Log file: {RuntimeLog.LogPath}");
-
-        var earlySettings = new SettingsService();
-        var loadedSettings = earlySettings.Load();
-        Loc.SetLanguage(loadedSettings.Language);
-        AnimationConfig.Configure(loadedSettings.AnimationFps);
 
         DispatcherUnhandledException += (s, args) =>
         {
@@ -74,9 +74,11 @@ public partial class App : Application
 
             try
             {
-                MessageBox.Show("V-Notch encountered an unexpected error and must close. " +
-                    $"Details were written to: {RuntimeLog.LogPath}",
-                    "V-Notch Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    Loc.Get("app.fatalClose", RuntimeLog.LogPath),
+                    Loc.Get("error.title"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
             finally
             {

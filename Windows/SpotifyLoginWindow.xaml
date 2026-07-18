@@ -12,7 +12,7 @@
         Foreground="White"
         Closed="Window_Closed">
     <Window.Resources>
-        <FontFamily x:Key="SpotifyLoginFont">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
+        <FontFamily x:Key="SpotifyLoginFont">pack://application:,,,/Fonts/#SF Pro Display, Nirmala UI, Segoe UI</FontFamily>
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{StaticResource SpotifyLoginFont}"/>
             <Setter Property="Foreground" Value="White"/>

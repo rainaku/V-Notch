@@ -4,8 +4,8 @@
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
         <!-- Embedded SF Pro Display font - works on all machines without SF Pro installed -->
-        <FontFamily x:Key="SFProDisplay">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
+        <FontFamily x:Key="SFProDisplay">pack://application:,,,/Fonts/#SF Pro Display, Nirmala UI, Segoe UI</FontFamily>
         <!-- SF Pro Text maps to Display since we only ship Display weights -->
-        <FontFamily x:Key="SFProText">pack://application:,,,/Fonts/#SF Pro Display</FontFamily>
+        <FontFamily x:Key="SFProText">pack://application:,,,/Fonts/#SF Pro Display, Nirmala UI, Segoe UI</FontFamily>
     </Application.Resources>
 </Application>

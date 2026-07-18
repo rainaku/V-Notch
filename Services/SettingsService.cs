@@ -138,12 +138,12 @@ public class SettingsService : ISettingsService
             // The old file remains intact. Notify the user so they know the API keys
             // was not saved.
             RuntimeLog.Error("SETTINGS-SAVE", "DPAPI encryption failed — settings were not saved.");
-            _apiKeySaveWarning("Unable to encrypt your API key. Your settings have not been saved.\n\nPlease try again or restart your computer.");
+            _apiKeySaveWarning(Loc.Get("error.apiKeyEncrypt"));
         }
         catch (Exception ex)
         {
             RuntimeLog.Error("SETTINGS-SAVE", ex.ToString());
-            System.Windows.MessageBox.Show($"Unable to save settings: {ex.Message}", "Error",
+            System.Windows.MessageBox.Show(Loc.Get("error.settingsSave", ex.Message), Loc.Get("error.title"),
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
         finally
@@ -156,7 +156,7 @@ public class SettingsService : ISettingsService
     }
 
     private static void ShowApiKeySaveWarning(string message) =>
-        System.Windows.MessageBox.Show(message, "Settings Not Saved",
+        System.Windows.MessageBox.Show(message, Loc.Get("error.settingsNotSavedTitle"),
             System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
 
     private void RemovePlaintextKeySettingsFiles()

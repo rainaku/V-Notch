@@ -115,7 +115,8 @@
                                    Margin="0,2,0,0"/>
                     </StackPanel>
 
-                    <Button Grid.Column="1"
+                    <Button x:Name="CloseChangelogButton"
+                            Grid.Column="1"
                             Style="{StaticResource CloseButton}"
                             Content="✕"
                             Click="CloseButton_Click"
@@ -142,7 +143,8 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0"
+                        <TextBlock x:Name="VersionsText"
+                                   Grid.Row="0"
                                    Text="VERSIONS"
                                    FontSize="11"
                                    FontWeight="SemiBold"

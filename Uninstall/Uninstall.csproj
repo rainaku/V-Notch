@@ -22,4 +22,8 @@
     <ApplicationIcon>..\Services\icons\logo.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Services\LocalizationService.cs" Link="Services\LocalizationService.cs" />
+  </ItemGroup>
+
 </Project>

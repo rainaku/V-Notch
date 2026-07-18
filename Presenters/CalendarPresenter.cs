@@ -108,15 +108,15 @@ public sealed class CalendarPresenter : IDisposable
 
         _lastCalendarUpdate = now;
 
-        var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+        var culture = Loc.GetCulture();
 
         for (int i = -5; i <= 5; i++)
         {
             int idx = i + 5;
             var date = now.AddDays(i);
 
-            _calendarDayNames[idx].Text = dayNames[(int)date.DayOfWeek];
-            _calendarDayNumbers[idx].Text = date.Day.ToString();
+            _calendarDayNames[idx].Text = date.ToString("ddd", culture);
+            _calendarDayNumbers[idx].Text = date.Day.ToString(culture);
         }
 
         UpdateCalendarHighlight(animate: false, pulse: false);
@@ -128,7 +128,7 @@ public sealed class CalendarPresenter : IDisposable
     private void ApplyCalendarCenterVisualState(int centerIdx)
     {
         var highlightedDate = _lastCalendarUpdate.AddDays(centerIdx - 5);
-        string newMonth = highlightedDate.ToString("MMM", CultureInfo.InvariantCulture);
+        string newMonth = highlightedDate.ToString("MMM", Loc.GetCulture());
 
         if (_refs.MonthText.Text != newMonth)
         {
@@ -310,6 +310,12 @@ public sealed class CalendarPresenter : IDisposable
     public void UpdateCalendarInfo()
     {
         HandleCalendarUpdated(DateTime.Now);
+    }
+
+    public void RefreshLocale()
+    {
+        if (_calendarInitialized)
+            HandleCalendarUpdated(_lastCalendarUpdate);
     }
 
     #endregion

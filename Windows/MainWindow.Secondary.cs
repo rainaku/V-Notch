@@ -323,7 +323,7 @@ public partial class MainWindow
         FileShelf.Background = _brushShelfUnlockHintBg;
         FileShelfDashedBorder.Stroke = _brushShelfUnlockHintBorder;
         FileShelfDashedBorder.StrokeDashArray = new DoubleCollection { 2, 1 };
-        UpdateShelfCapacityIndicator("Drop to unlock upload limit", isError: false);
+        UpdateShelfCapacityIndicator(Loc.Get("shelf.unlockHint"), isError: false);
     }
 
     #endregion

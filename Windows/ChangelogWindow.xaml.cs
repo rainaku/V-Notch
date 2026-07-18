@@ -23,6 +23,15 @@ public partial class ChangelogWindow : Window
         AnimationPrimitives.ApplyFpsToTree(this);
         _updateService = updateService ?? throw new ArgumentNullException(nameof(updateService));
 
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
+        Title = Loc.Get("changelog.windowTitle");
+        TitleText.Text = Loc.Get("changelog.title");
+        SubtitleText.Text = Loc.Get("changelog.subtitle");
+        VersionsText.Text = Loc.Get("changelog.versions");
+        LoadingText.Text = Loc.Get("changelog.loading");
+        ErrorText.Text = Loc.Get("changelog.loadFailed");
+        TooltipHelper.SetLocalizedTooltip(CloseChangelogButton, "tooltip.close");
+
         Loaded += ChangelogWindow_Loaded;
     }
 
@@ -61,7 +70,7 @@ public partial class ChangelogWindow : Window
                 {
                     Version = currentVersion,
                     Date = DateTime.Now,
-                    Content = "Current installed version",
+                    Content = Loc.Get("changelog.currentInstalled"),
                     IsCurrent = true
                 });
             }
@@ -79,12 +88,12 @@ public partial class ChangelogWindow : Window
             }
             else
             {
-                ShowError("No changelog entries available");
+                ShowError(Loc.Get("changelog.noEntries"));
             }
         }
         catch (Exception ex)
         {
-            ShowError($"Error loading changelog: {ex.Message}");
+            ShowError(Loc.Get("changelog.loadError", ex.Message));
         }
         finally
         {
@@ -119,7 +128,7 @@ public partial class ChangelogWindow : Window
             {
                 var badge = new TextBlock
                 {
-                    Text = "LATEST",
+                    Text = Loc.Get("changelog.latest"),
                     FontSize = 9,
                     FontWeight = FontWeights.Bold,
                     Foreground = new SolidColorBrush(Color.FromRgb(0, 204, 102)),
@@ -131,7 +140,7 @@ public partial class ChangelogWindow : Window
             {
                 var badge = new TextBlock
                 {
-                    Text = "CURRENT",
+                    Text = Loc.Get("changelog.current"),
                     FontSize = 9,
                     FontWeight = FontWeights.Bold,
                     Foreground = new SolidColorBrush(Color.FromRgb(0, 102, 255)),
@@ -142,7 +151,7 @@ public partial class ChangelogWindow : Window
 
             var dateText = new TextBlock
             {
-                Text = entry.Date.ToString("MMM dd, yyyy"),
+                Text = entry.Date.ToString("d", Loc.GetCulture()),
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136)),
                 Margin = new Thickness(0, 2, 0, 0)
@@ -195,7 +204,7 @@ public partial class ChangelogWindow : Window
 
         var versionTitle = new TextBlock
         {
-            Text = $"Version {entry.Version}",
+            Text = Loc.Get("changelog.version", entry.Version),
             FontSize = 24,
             FontWeight = FontWeights.Bold,
             Foreground = Brushes.White
@@ -204,7 +213,7 @@ public partial class ChangelogWindow : Window
 
         var dateText = new TextBlock
         {
-            Text = entry.Date.ToString("MMMM dd, yyyy"),
+            Text = entry.Date.ToString("D", Loc.GetCulture()),
             FontSize = 13,
             Foreground = new SolidColorBrush(Color.FromRgb(153, 153, 153)),
             Margin = new Thickness(0, 4, 0, 0)
@@ -221,13 +230,13 @@ public partial class ChangelogWindow : Window
 
             if (entry.IsLatest)
             {
-                var latestBadge = CreateBadge("LATEST", Color.FromRgb(0, 204, 102));
+                var latestBadge = CreateBadge(Loc.Get("changelog.latest"), Color.FromRgb(0, 204, 102));
                 badgeStack.Children.Add(latestBadge);
             }
 
             if (entry.IsCurrent)
             {
-                var currentBadge = CreateBadge("CURRENT", Color.FromRgb(0, 102, 255));
+                var currentBadge = CreateBadge(Loc.Get("changelog.current"), Color.FromRgb(0, 102, 255));
                 badgeStack.Children.Add(currentBadge);
                 if (entry.IsLatest) currentBadge.Margin = new Thickness(8, 0, 0, 0);
             }
@@ -275,7 +284,7 @@ public partial class ChangelogWindow : Window
         {
             var emptyText = new TextBlock
             {
-                Text = "No release notes available",
+                Text = Loc.Get("changelog.noNotes"),
                 FontSize = 13,
                 Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136)),
                 FontStyle = FontStyles.Italic

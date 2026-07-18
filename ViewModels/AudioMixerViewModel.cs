@@ -87,8 +87,11 @@ public sealed class AudioMixerSnapshot
         }
     }
 
-    public string GetDefaultOutputName(string fallback = "Speakers") => GetDefaultName(Output, fallback);
-    public string GetDefaultInputName(string fallback = "Microphone") => GetDefaultName(Input, fallback);
+    public string GetDefaultOutputName(string? fallback = null) =>
+        GetDefaultName(Output, fallback ?? Loc.Get("audio.speakers"));
+
+    public string GetDefaultInputName(string? fallback = null) =>
+        GetDefaultName(Input, fallback ?? Loc.Get("audio.microphone"));
 
     private static string GetDefaultName(List<AudioDeviceInfo> devices, string fallback) =>
         devices.Find(x => x.IsDefault)?.FriendlyName ??
