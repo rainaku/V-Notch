@@ -188,6 +188,36 @@ public sealed class LocalizationTests
         Loc.SetLanguage("en");
     }
 
+    [Theory]
+    [InlineData("en", "Drizzle")]
+    [InlineData("vi", "Mưa phùn")]
+    [InlineData("es", "Llovizna")]
+    [InlineData("fr", "Bruine")]
+    [InlineData("de", "Nieselregen")]
+    [InlineData("ja", "霧雨")]
+    [InlineData("hi", "बूंदाबांदी")]
+    public void WeatherConditionsUseTheSelectedLanguage(string language, string expected)
+    {
+        Loc.SetLanguage(language);
+
+        Assert.Equal(expected, WeatherConditionFormatter.Format(51));
+
+        Loc.SetLanguage("en");
+    }
+
+    [Fact]
+    public void WeatherTextReformatsImmediatelyWhenSwitchingFromHindiToVietnamese()
+    {
+        Loc.SetLanguage("hi");
+        Assert.Contains("अधिकतम", Loc.Get("weather.highLow", 32, 26));
+
+        Loc.SetLanguage("vi");
+        Assert.Equal("Mưa phùn", WeatherConditionFormatter.Format(51));
+        Assert.Equal("C:32° T:26°", Loc.Get("weather.highLow", 32, 26));
+
+        Loc.SetLanguage("en");
+    }
+
     private static int[] GetPlaceholderIndexes(string value) =>
         Regex.Matches(value, @"\{(?<index>\d+)(?:[^}]*)\}")
             .Select(match => int.Parse(match.Groups["index"].Value))

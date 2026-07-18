@@ -17,6 +17,7 @@ public class WeatherModule : NotchModuleBase
     private bool _isFetching;
     private CancellationTokenSource? _cts;
     private int _requestVersion;
+    private WeatherInfo? _lastWeather;
 
     public WeatherModule(IWeatherService weatherService, ISettingsService settingsService)
     {
@@ -30,6 +31,15 @@ public class WeatherModule : NotchModuleBase
     public override TimeSpan? TickInterval => TimeSpan.FromMinutes(15);
 
     public event EventHandler<WeatherUpdateEventArgs>? WeatherUpdated;
+
+    /// <summary>
+    /// Replays the latest provider data so the UI can reformat it after a locale change
+    /// without making another network request.
+    /// </summary>
+    public void RefreshLocalization()
+    {
+        WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs { Weather = _lastWeather });
+    }
 
     /// <summary>
     /// Applies weather settings immediately, including unsaved settings-window previews.
@@ -92,7 +102,13 @@ public class WeatherModule : NotchModuleBase
 
     private void ClearWeatherData()
     {
-        WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs());
+        PublishWeather(null);
+    }
+
+    private void PublishWeather(WeatherInfo? weather)
+    {
+        _lastWeather = weather;
+        WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs { Weather = weather });
     }
 
     protected override void OnTick()
@@ -123,7 +139,7 @@ public class WeatherModule : NotchModuleBase
             if (requestVersion == _requestVersion)
             {
                 // A null update tells the UI that the provider could not return data.
-                WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs { Weather = weather });
+                PublishWeather(weather);
             }
         }
         catch (OperationCanceledException)
@@ -135,7 +151,7 @@ public class WeatherModule : NotchModuleBase
             if (requestVersion == _requestVersion)
             {
                 RuntimeLog.Log("MODULE-Weather", $"Refresh failed: {ex.Message}");
-                WeatherUpdated?.Invoke(this, new WeatherUpdateEventArgs());
+                PublishWeather(null);
             }
         }
         finally

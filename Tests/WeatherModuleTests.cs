@@ -81,6 +81,23 @@ public sealed class WeatherModuleTests
         Assert.Null(update!.Weather);
     }
 
+    [Fact]
+    public void LocaleRefresh_ReplaysCachedWeatherWithoutAnotherProviderRequest()
+    {
+        var settings = new NotchSettings { EnableWeather = true };
+        var weatherService = new FakeWeatherService(CreateWeather("Ho Chi Minh City"));
+        using var module = new WeatherModule(weatherService, new FakeSettingsService(settings));
+
+        module.Start();
+        WeatherInfo? replayed = null;
+        module.WeatherUpdated += (_, e) => replayed = e.Weather;
+
+        module.RefreshLocalization();
+
+        Assert.Equal("Ho Chi Minh City", replayed?.City);
+        Assert.Equal(1, weatherService.CallCount);
+    }
+
     private static WeatherInfo CreateWeather(string city) => new()
     {
         City = city,

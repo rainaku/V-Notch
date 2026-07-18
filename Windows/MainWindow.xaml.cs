@@ -1213,6 +1213,7 @@ public partial class MainWindow : Window
         MenuRestartText.Text = Loc.Get("tray.restart");
         MenuExitText.Text = Loc.Get("tray.exit");
         _calendarPresenter?.RefreshLocale();
+        _weatherModule.RefreshLocalization();
         RefreshAudioLocalization();
         RefreshClockViewLocale();
         WordClockWidget.RefreshLocalization();

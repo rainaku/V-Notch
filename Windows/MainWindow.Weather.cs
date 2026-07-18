@@ -54,7 +54,7 @@ public partial class MainWindow
     {
         WeatherLocationText.Text = string.IsNullOrWhiteSpace(weather.City) ? "\u2014" : weather.City;
         WeatherTempText.Text = $"{weather.Temperature}\u00b0";
-        WeatherConditionText.Text = weather.Condition;
+        WeatherConditionText.Text = WeatherConditionFormatter.Format(weather.WeatherCode);
         WeatherHiLoText.Text = Loc.Get("weather.highLow", weather.High, weather.Low);
     }
 

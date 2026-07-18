@@ -1779,6 +1779,7 @@
                                     <StackPanel>
                                         <TextBlock x:Name="DonatingHeader" Text="DONATING" Style="{StaticResource SectionHeader}"/>
 
+                                        <Border Style="{StaticResource SettingRowBorder}" Padding="0" Margin="0">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -1839,6 +1840,7 @@
                                                            Margin="0,8,0,0"/>
                                             </StackPanel>
                                         </Grid>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

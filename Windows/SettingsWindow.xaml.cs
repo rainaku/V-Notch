@@ -2710,6 +2710,7 @@ public partial class SettingsWindow : Window
         {
             _isSearchMode = true;
             IndexSearchRows();
+            RefreshSearchRows();
         }
         else
         {
@@ -2826,6 +2827,15 @@ public partial class SettingsWindow : Window
         foreach (string translation in Loc.GetAllTranslations(text))
         {
             parts.Add(translation);
+        }
+    }
+
+    private void RefreshSearchRows()
+    {
+        foreach (var row in _searchRows)
+        {
+            row.OriginalVisibility = row.Row.Visibility;
+            row.UpdateSearchText(BuildSearchText(row.Row, row.Section));
         }
     }
 
@@ -2954,7 +2964,7 @@ public partial class SettingsWindow : Window
             OriginalParent = originalParent;
             OriginalIndex = originalIndex;
             OriginalVisibility = originalVisibility;
-            NormalizedSearchText = SettingsSearchMatcher.Normalize(searchText);
+            UpdateSearchText(searchText);
         }
 
         public string Section { get; }
@@ -2962,7 +2972,12 @@ public partial class SettingsWindow : Window
         public StackPanel OriginalParent { get; }
         public int OriginalIndex { get; }
         public Visibility OriginalVisibility { get; set; }
-        public string NormalizedSearchText { get; }
+        public string NormalizedSearchText { get; private set; } = string.Empty;
+
+        public void UpdateSearchText(string searchText)
+        {
+            NormalizedSearchText = SettingsSearchMatcher.Normalize(searchText);
+        }
     }
 
     private static readonly SolidColorBrush _whiteBrush = new(Colors.White);
