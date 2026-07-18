@@ -641,6 +641,8 @@ public partial class SettingsWindow : Window
     {
         public string Key { get; set; } = "";
         public string DisplayName { get; set; } = "";
+
+        public override string ToString() => DisplayName;
     }
 
     private readonly System.Collections.ObjectModel.ObservableCollection<SubtitlePriorityItem> _subtitleItems = new();
@@ -1371,7 +1373,9 @@ public partial class SettingsWindow : Window
 
     private void AnimateLocalizationChange()
     {
-        ApplySupplementalLocalization();
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(Loc.GetCulture().IetfLanguageTag);
+        Title = Loc.Get("settings.windowTitle");
+        ApplyTooltips();
         var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
         int fps = VNotch.Services.AnimationConfig.TargetFps;
         const double slideDist = 3.0;
@@ -1416,7 +1420,18 @@ public partial class SettingsWindow : Window
             (DarkOverlayLabel, () => { DarkOverlayLabel.Text = Loc.Get("settings.lyricsDarkOverlay"); BlurDarkOverlaySlider.Label = Loc.Get("settings.lyricsDarkOverlay"); BlurDarkOverlaySlider.Description = Loc.Get("settings.lyricsDarkOverlay.hint"); }),
             (SpotifyCanvasBrightnessSlider, () => { SpotifyCanvasBrightnessSlider.Label = Loc.Get("settings.spotifyCanvasBrightness"); SpotifyCanvasBrightnessSlider.Description = Loc.Get("settings.spotifyCanvasBrightness.hint"); }),
             (EnableSpotifyLyricsHint, () => EnableSpotifyLyricsHint.Text = Loc.Get("settings.enableSpotifyLyrics.hint")),
+            (EnableSpotifyCanvasHint, () => EnableSpotifyCanvasHint.Text = Loc.Get("settings.enableSpotifyCanvas.hint")),
             (EnableYouTubeSubtitlesHint, () => EnableYouTubeSubtitlesHint.Text = Loc.Get("settings.enableYouTubeSubtitles.hint")),
+            (YouTubeSubtitlesAlphaBadge, () => YouTubeSubtitlesAlphaBadge.Text = Loc.Get("settings.badge.alpha")),
+            (SubtitlePriorityLabel, () => SubtitlePriorityLabel.Text = Loc.Get("settings.subtitlePriority")),
+            (SubtitlePriorityHint, () =>
+            {
+                SubtitlePriorityHint.Text = Loc.Get("settings.subtitlePriority.hint");
+                LoadSubtitlePriority();
+            }),
+            (SpotifyCanvasAccountLabel, () => SpotifyCanvasAccountLabel.Text = Loc.Get("settings.spotifyCanvasAccount")),
+            (SpotifyCanvasAccountHint, () => SpotifyCanvasAccountHint.Text = Loc.Get("settings.spotifyCanvasAccount.hint")),
+            (SpotifyCanvasAccountStatus, UpdateSpotifyCanvasConnectionStatus),
             (DynamicIslandModeCheck, () => DynamicIslandModeCheck.Content = Loc.Get("settings.dynamicIslandMode")),
             (DynamicIslandModeHint, () => DynamicIslandModeHint.Text = Loc.Get("settings.dynamicIslandMode.hint")),
 
@@ -1466,14 +1481,20 @@ public partial class SettingsWindow : Window
             (MusicNotifyHint, () => MusicNotifyHint.Text = Loc.Get("settings.musicNotify.hint")),
             (SystemNotifyHint, () => SystemNotifyHint.Text = Loc.Get("settings.systemNotify.hint")),
             (ShelfUnlockHint, () => ShelfUnlockHint.Text = Loc.Get("settings.shelfUnlock.hint")),
+            (CopyShelfClipboardHint, () => CopyShelfClipboardHint.Text = Loc.Get("settings.copyShelfClipboard.hint")),
             (ShowBatteryHint, () => ShowBatteryHint.Text = Loc.Get("settings.showBattery.hint")),
             (LanguageLabel, () => LanguageLabel.Text = Loc.Get("settings.language")),
             (LanguageHint, () => LanguageHint.Text = Loc.Get("settings.language.hint")),
+
+            (EnableWeatherHint, () => EnableWeatherHint.Text = Loc.Get("settings.enableWeather.hint")),
+            (ManualCityLabel, () => ManualCityLabel.Text = Loc.Get("settings.manualCity")),
+            (ManualCityHint, () => ManualCityHint.Text = Loc.Get("settings.manualCity.hint")),
 
             (AdvancedHeader, () => AdvancedHeader.Text = Loc.Get("settings.advanced")),
             (YouTubeApiHint, () => YouTubeApiHint.Text = Loc.Get("settings.youtubeApi.hint")),
             (YouTubeApiKeyLabel, () => YouTubeApiKeyLabel.Text = Loc.Get("settings.youtubeApiKey")),
             (YouTubeApiKeyHint, () => YouTubeApiKeyHint.Text = Loc.Get("settings.youtubeApiKey.hint")),
+            (YouTubeApiKeyStatus, UpdateYouTubeApiKeyStatus),
 
             (AnimationFpsLabel, () => { AnimationFpsLabel.Text = Loc.Get("settings.animationFps"); AnimationFpsSlider.Label = Loc.Get("settings.animationFps"); AnimationFpsSlider.Description = Loc.Get("settings.animationFps.hint"); }),
             (EnableBlurEffectsHint, () => EnableBlurEffectsHint.Text = Loc.Get("settings.enableBlurEffects.hint")),
@@ -1485,9 +1506,18 @@ public partial class SettingsWindow : Window
             (DonatingDescription, () => DonatingDescription.Text = Loc.Get("settings.donating.description")),
             (DonatingBankTitle, () => DonatingBankTitle.Text = Loc.Get("settings.donating.bank")),
             (DonatingBankHint, () => DonatingBankHint.Text = Loc.Get("settings.donating.bank.hint")),
+
+            (SkinCard, () =>
+            {
+                ApplyLiquidGlassLocalization();
+                GpuRefractionCheck.Content = Loc.Get("settings.gpuRefraction");
+                GpuRefractionHint.Text = Loc.Get("settings.gpuRefraction.hint");
+            }),
         };
 
         AnimateContentChange(CheckUpdateButton, () => CheckUpdateButton.Content = Loc.Get("settings.checkUpdate"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(DownloadUpdateButton, () => DownloadUpdateButton.Content = Loc.Get("settings.downloadInstall"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(DonatePaypalButton, () => DonatePaypalButton.Content = Loc.Get("settings.donating.paypal"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
@@ -1530,6 +1560,12 @@ public partial class SettingsWindow : Window
         staggerMs += staggerStep;
         AnimateContentChange(EnableSpotifyLyricsCheck, () => EnableSpotifyLyricsCheck.Content = Loc.Get("settings.enableSpotifyLyrics"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
+        AnimateContentChange(EnableSpotifyCanvasCheck, () => EnableSpotifyCanvasCheck.Content = Loc.Get("settings.enableSpotifyCanvas"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(SpotifyConnectButton, () => SpotifyConnectButton.Content = Loc.Get("settings.spotifyCanvas.connect"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(SpotifyDisconnectButton, () => SpotifyDisconnectButton.Content = Loc.Get("settings.spotifyCanvas.disconnect"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
         AnimateContentChange(EnableYouTubeSubtitlesCheck, () => EnableYouTubeSubtitlesLabel.Text = Loc.Get("settings.enableYouTubeSubtitles"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(EnableBlurEffectsCheck, () => EnableBlurEffectsCheck.Content = Loc.Get("settings.enableBlurEffects"), staggerMs, easeOut, fps, slideDist);
@@ -1537,6 +1573,8 @@ public partial class SettingsWindow : Window
         AnimateContentChange(EnableSubjectBlurCheck, () => EnableSubjectBlurCheck.Content = Loc.Get("settings.enableSubjectBlur"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
         AnimateContentChange(EnableSmartCropCheck, () => EnableSmartCropCheck.Content = Loc.Get("settings.enableSmartCrop"), staggerMs, easeOut, fps, slideDist);
+        staggerMs += staggerStep;
+        AnimateContentChange(EnableWeatherCheck, () => EnableWeatherCheck.Content = Loc.Get("settings.enableWeather"), staggerMs, easeOut, fps, slideDist);
         staggerMs += staggerStep;
 
         foreach (var (element, update) in textUpdates)
@@ -1546,7 +1584,6 @@ public partial class SettingsWindow : Window
             staggerMs += staggerStep;
         }
 
-        ApplyLiquidGlassLocalization();
     }
 
     private void AnimateTextSwap(FrameworkElement element, Action updateText, int delayMs, IEasingFunction easing, int fps, double slideDist)
@@ -2632,70 +2669,18 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private static string NormalizeSearchString(string input)
-    {
-        if (string.IsNullOrWhiteSpace(input)) return "";
-        string normalizedString = input.Normalize(System.Text.NormalizationForm.FormD);
-        var stringBuilder = new System.Text.StringBuilder(input.Length);
-
-        foreach (char c in normalizedString)
-        {
-            var unicodeCategory = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
-            if (unicodeCategory != System.Globalization.UnicodeCategory.NonSpacingMark)
-            {
-                stringBuilder.Append(c);
-            }
-        }
-        return stringBuilder.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
-    }
-
-    private static int CalculateLevenshteinDistance(string s, string t)
-    {
-        if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;
-        if (string.IsNullOrEmpty(t)) return s.Length;
-
-        int[] v0 = new int[t.Length + 1];
-        int[] v1 = new int[t.Length + 1];
-
-        for (int i = 0; i < v0.Length; i++) v0[i] = i;
-
-        for (int i = 0; i < s.Length; i++)
-        {
-            v1[0] = i + 1;
-            for (int j = 0; j < t.Length; j++)
-            {
-                int cost = (s[i] == t[j]) ? 0 : 1;
-                v1[j + 1] = Math.Min(Math.Min(v1[j] + 1, v0[j + 1] + 1), v0[j] + cost);
-            }
-            for (int j = 0; j < v0.Length; j++) v0[j] = v1[j];
-        }
-        return v1[t.Length];
-    }
-
-    private static double CalculateFuzzyMatchScore(string source, string target)
-    {
-        if (source == target) return 1.0;
-        if (source.Length == 0 || target.Length == 0) return 0.0;
-
-        int distance = CalculateLevenshteinDistance(source, target);
-        int maxLength = Math.Max(source.Length, target.Length);
-
-        return 1.0 - (double)distance / maxLength;
-    }
-
     private void ExecuteSearch(string query)
     {
         if (string.IsNullOrWhiteSpace(query)) return;
 
-        string normalizedQuery = NormalizeSearchString(query);
+        string normalizedQuery = SettingsSearchMatcher.Normalize(query);
         EnterSearchMode();
         SearchResultsStack.Children.Clear();
 
         var matches = new List<SearchRowEntry>();
         foreach (var row in _searchRows)
         {
-            row.SearchText = BuildSearchText(row.Row, row.Section);
-            if (SearchTextMatches(row.SearchText, normalizedQuery))
+            if (SettingsSearchMatcher.IsNormalizedMatch(row.NormalizedSearchText, normalizedQuery))
             {
                 matches.Add(row);
             }
@@ -2717,37 +2702,6 @@ public partial class SettingsWindow : Window
         SearchingEmptyText.Visibility = matches.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         SettingsScrollViewer.ScrollToTop();
         AnimateActivePanel("Searching");
-    }
-
-    private bool SearchTextMatches(string sourceText, string normalizedQuery)
-    {
-        string normalizedText = NormalizeSearchString(sourceText);
-        if (normalizedText.Contains(normalizedQuery))
-        {
-            return true;
-        }
-
-        if (normalizedText.Length == 0 || normalizedQuery.Length < 3)
-        {
-            return false;
-        }
-
-        if (normalizedText.Length <= 30 &&
-            CalculateFuzzyMatchScore(normalizedQuery, normalizedText) > 0.75)
-        {
-            return true;
-        }
-
-        string[] words = normalizedText.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
-        foreach (var word in words)
-        {
-            if (word.Length >= 3 && CalculateFuzzyMatchScore(normalizedQuery, word) > 0.75)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void EnterSearchMode()
@@ -2855,38 +2809,27 @@ public partial class SettingsWindow : Window
 
     private string BuildSearchText(DependencyObject root, string section)
     {
-        var parts = new List<string> { section };
+        var parts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { section };
         if (_navButtons.TryGetValue(section, out var navButton))
         {
-            parts.Add(ReadVisibleText(navButton));
+            CollectSearchText(navButton, parts);
         }
 
-        parts.Add(ReadVisibleText(root));
-        return string.Join(" ", parts);
-    }
-
-    private string ReadVisibleText(DependencyObject root)
-    {
-        var parts = new List<string>();
         CollectSearchText(root, parts);
         return string.Join(" ", parts);
     }
 
-    private void AddAllTranslations(string text, List<string> parts)
+    private void AddAllTranslations(string text, ISet<string> parts)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
-        var translations = Loc.GetAllTranslations(text);
-        if (translations.Count > 0)
+
+        foreach (string translation in Loc.GetAllTranslations(text))
         {
-            parts.AddRange(translations);
-        }
-        else
-        {
-            parts.Add(text);
+            parts.Add(translation);
         }
     }
 
-    private void CollectSearchText(DependencyObject current, List<string> parts)
+    private void CollectSearchText(DependencyObject current, ISet<string> parts)
     {
         switch (current)
         {
@@ -2904,12 +2847,77 @@ public partial class SettingsWindow : Window
                 AddAllTranslations(slider.Description, parts);
                 AddAllTranslations(slider.Unit, parts);
                 break;
+            case ItemsControl itemsControl:
+                foreach (object item in itemsControl.Items)
+                {
+                    AddSearchItemText(item, parts);
+                }
+
+                if (ReferenceEquals(itemsControl, LanguageCombo))
+                {
+                    AddLanguageSearchTerms(parts);
+                }
+
+                break;
         }
 
         int childCount = VisualTreeHelper.GetChildrenCount(current);
         for (int i = 0; i < childCount; i++)
         {
             CollectSearchText(VisualTreeHelper.GetChild(current, i), parts);
+        }
+    }
+
+    private void AddSearchItemText(object? item, ISet<string> parts)
+    {
+        switch (item)
+        {
+            case null:
+                return;
+            case string text:
+                AddAllTranslations(text, parts);
+                return;
+            case ContentControl contentControl:
+                AddSearchItemText(contentControl.Content, parts);
+                if (contentControl.Tag is string tag && !string.IsNullOrWhiteSpace(tag))
+                {
+                    parts.Add(tag);
+                }
+
+                return;
+            case SubtitlePriorityItem subtitleItem:
+                AddAllTranslations(subtitleItem.DisplayName, parts);
+                parts.Add(subtitleItem.Key);
+                return;
+            case CameraDeviceItem camera:
+                parts.Add(camera.Name);
+                return;
+            case AudioDeviceItem audioDevice:
+                parts.Add(audioDevice.Name);
+                return;
+        }
+    }
+
+    private void AddLanguageSearchTerms(ISet<string> parts)
+    {
+        foreach (var (code, nativeName) in Loc.GetAvailableLanguages())
+        {
+            parts.Add(code);
+            parts.Add(nativeName);
+
+            string cultureName = code switch
+            {
+                "vi" => "vi-VN",
+                "es" => "es-ES",
+                "fr" => "fr-FR",
+                "de" => "de-DE",
+                "ja" => "ja-JP",
+                "hi" => "hi-IN",
+                _ => "en-US"
+            };
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(cultureName);
+            parts.Add(culture.EnglishName);
+            parts.Add(culture.NativeName);
         }
     }
 
@@ -2946,7 +2954,7 @@ public partial class SettingsWindow : Window
             OriginalParent = originalParent;
             OriginalIndex = originalIndex;
             OriginalVisibility = originalVisibility;
-            SearchText = searchText;
+            NormalizedSearchText = SettingsSearchMatcher.Normalize(searchText);
         }
 
         public string Section { get; }
@@ -2954,7 +2962,7 @@ public partial class SettingsWindow : Window
         public StackPanel OriginalParent { get; }
         public int OriginalIndex { get; }
         public Visibility OriginalVisibility { get; set; }
-        public string SearchText { get; set; }
+        public string NormalizedSearchText { get; }
     }
 
     private static readonly SolidColorBrush _whiteBrush = new(Colors.White);
@@ -3010,8 +3018,20 @@ public partial class SettingsWindow : Window
     {
         if (IsAnyComboBoxDropDownOpen())
         {
-            // Do not let wheel input fall through an open dropdown and scroll
-            // the settings page behind it.
+            // A ComboBox popup is logically connected to this window, so this
+            // preview handler sees the wheel before the popup's ScrollViewer.
+            // Route that input to the dropdown instead of swallowing it.
+            var dropdownScrollViewer = FindVisualAncestor<ScrollViewer>(e.OriginalSource as DependencyObject);
+            if (dropdownScrollViewer != null && !ReferenceEquals(dropdownScrollViewer, SettingsScrollViewer))
+            {
+                double target = CalculateDropDownWheelTarget(
+                    dropdownScrollViewer.VerticalOffset,
+                    dropdownScrollViewer.ScrollableHeight,
+                    e.Delta);
+                dropdownScrollViewer.ScrollToVerticalOffset(target);
+            }
+
+            // Never scroll the settings page behind an open dropdown.
             e.Handled = true;
             return;
         }
@@ -3034,6 +3054,28 @@ public partial class SettingsWindow : Window
             _isScrollAnimating = true;
             CompositionTarget.Rendering += SmoothScroll_Tick;
         }
+    }
+
+    internal static double CalculateDropDownWheelTarget(double currentOffset, double scrollableHeight, int wheelDelta)
+    {
+        const double wheelScale = 0.35;
+        return Math.Clamp(currentOffset - wheelDelta * wheelScale, 0, Math.Max(0, scrollableHeight));
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject? source) where T : DependencyObject
+    {
+        var current = source;
+        while (current != null)
+        {
+            if (current is T match)
+                return match;
+
+            current = current is Visual
+                ? VisualTreeHelper.GetParent(current)
+                : LogicalTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     private void SmoothScroll_Tick(object? sender, EventArgs e)

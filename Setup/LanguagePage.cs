@@ -12,6 +12,7 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
 {
     private readonly TextBlock _headline;
     private readonly TextBlock _description;
+    private readonly ScrollViewer _languageListScrollViewer;
     private readonly Dictionary<string, Border> _cards = new();
     private string _selectedLanguage = "en";
 
@@ -55,13 +56,8 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
         _selectedLanguage = initialLanguage;
 
         var grid = new Grid();
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
-
-        for (int i = 0; i < AvailableLanguages.Count; i++)
-        {
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
-        }
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         _headline = new TextBlock
@@ -90,18 +86,45 @@ public class LanguagePage : UserControl, ISetupAnimatedPage
         Grid.SetRow(_description, 1);
         grid.Children.Add(_description);
 
-        for (int i = 0; i < AvailableLanguages.Count; i++)
+        var languageCards = new StackPanel
         {
-            var lang = AvailableLanguages[i];
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+
+        foreach (var lang in AvailableLanguages)
+        {
             var card = CreateLanguageCard(lang.FlagCode, lang.Name, lang.Description, lang.Code);
-            Grid.SetRow(card, i + 2);
-            grid.Children.Add(card);
+            languageCards.Children.Add(card);
             _cards[lang.Code] = card;
         }
 
+        _languageListScrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            CanContentScroll = false,
+            PanningMode = PanningMode.VerticalOnly,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Content = languageCards
+        };
+        Grid.SetRow(_languageListScrollViewer, 2);
+        grid.Children.Add(_languageListScrollViewer);
+
         UpdateSelectionVisuals(animate: false);
         Content = grid;
+
+        Loaded += (_, _) =>
+        {
+            if (_cards.TryGetValue(_selectedLanguage, out var selectedCard))
+                selectedCard.BringIntoView();
+        };
     }
+
+    internal ScrollViewer LanguageListScrollViewer => _languageListScrollViewer;
+
+    internal bool HasLanguageOption(string languageCode) => _cards.ContainsKey(languageCode);
 
     public IReadOnlyList<UIElement> GetAnimatedElements()
     {

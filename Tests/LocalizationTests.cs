@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using VNotch.Controls;
 using VNotch.Services;
 using Xunit;
 
@@ -140,6 +141,50 @@ public sealed class LocalizationTests
     {
         Loc.SetLanguage(language);
         Assert.Equal(culture, Loc.GetCulture().Name);
+        Loc.SetLanguage("en");
+    }
+
+    [Theory]
+    [InlineData("en", 11, 13, "It's\nEleven\nThirteen")]
+    [InlineData("en", 11, 0, "It's\nEleven\nO'Clock")]
+    [InlineData("vi", 11, 13, "Bây giờ là\nmười một giờ\nmười ba")]
+    [InlineData("vi", 11, 0, "Bây giờ là\nmười một giờ")]
+    [InlineData("es", 11, 13, "Son las\nonce\ny trece")]
+    [InlineData("es", 11, 0, "Son las\nonce\nEn punto")]
+    [InlineData("fr", 11, 13, "Il est\nonze heures\ntreize")]
+    [InlineData("fr", 11, 0, "Il est\nonze heures\nPile")]
+    [InlineData("de", 11, 13, "Es ist\nelf Uhr\ndreizehn")]
+    [InlineData("de", 11, 0, "Es ist\nelf Uhr")]
+    [InlineData("ja", 11, 13, "現在\n十一時\n十三分")]
+    [InlineData("ja", 11, 0, "現在\nちょうど十一時")]
+    [InlineData("hi", 11, 13, "अभी समय है\nग्यारह बजकर\nतेरह मिनट")]
+    [InlineData("hi", 11, 0, "अभी समय है\nग्यारह बजे")]
+    public void WordClockUsesNativeTimeGrammarForEverySupportedLanguage(
+        string language, int hour, int minute, string expected)
+    {
+        Loc.SetLanguage(language);
+
+        string actual = WordClock.FormatLocalizedTime(new DateTime(2026, 7, 18, hour, minute, 0));
+
+        Assert.Equal(expected, actual);
+        Loc.SetLanguage("en");
+    }
+
+    [Theory]
+    [InlineData("en", 11, 5, "It's\nEleven\nOh Five")]
+    [InlineData("en", 11, 21, "It's\nEleven\nTwenty One")]
+    [InlineData("vi", 11, 5, "Bây giờ là\nmười một giờ\nlẻ năm")]
+    [InlineData("es", 1, 13, "Es la\nuna\ny trece")]
+    [InlineData("fr", 1, 21, "Il est\nune heure\nvingt-et-une")]
+    [InlineData("de", 1, 13, "Es ist\nein Uhr\ndreizehn")]
+    public void WordClockHandlesLanguageSpecificTimeGrammarEdges(
+        string language, int hour, int minute, string expected)
+    {
+        Loc.SetLanguage(language);
+
+        string actual = WordClock.FormatLocalizedTime(new DateTime(2026, 7, 18, hour, minute, 0));
+
+        Assert.Equal(expected, actual);
         Loc.SetLanguage("en");
     }
 

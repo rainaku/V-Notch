@@ -402,7 +402,8 @@
                         </StackPanel>
                     </Border>
 
-                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                    <ScrollViewer x:Name="PageScrollViewer"
+                                  Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                   Padding="0" Background="Transparent" BorderThickness="0">
                     <Grid>
                         <Grid.RowDefinitions>

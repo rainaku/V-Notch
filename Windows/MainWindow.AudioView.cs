@@ -118,6 +118,7 @@ public partial class MainWindow
         _isSecondaryView = false;
         _isTimerView = false;
         _isAnimating = true;
+        SuppressPrivacyDot();
         SuspendSpotifyCanvasLifecycle();
         _lastViewSwitchUtc = DateTime.UtcNow;
         _isScrollSessionLocked = true;
@@ -473,6 +474,8 @@ public partial class MainWindow
                     incoming.Height = double.NaN;
                     incoming.UpdateLayout();
                 }
+                if (outIsAudio)
+                    RestorePrivacyDotVisibility();
                 onComplete?.Invoke();
             };
 

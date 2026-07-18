@@ -2146,7 +2146,9 @@
                                 </Border.RenderTransform>
                                 <Grid x:Name="CalendarInnerContent" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="40"/>
+                                        <ColumnDefinition Width="Auto"
+                                                          MinWidth="40"
+                                                          SharedSizeGroup="CalendarMonthColumn"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
@@ -2228,22 +2230,29 @@
                                                       VerticalAlignment="Center"
                                                       Visibility="Collapsed"/>
 
-                                    <ctrl:WordClock x:Name="WordClockWidget"
-                                                    Grid.Column="1"
-                                                    Text="It's&#x0a;Three&#x0a;Twentyfive"
-                                                    Style="{StaticResource TitleText}"
-                                                    FontSize="17"
-                                                    FontWeight="Bold"
-                                                    LineHeight="21"
-                                                    LineStackingStrategy="BlockLineHeight"
-                                                    Foreground="White"
-                                                    TextWrapping="NoWrap"
-                                                    HorizontalAlignment="Left"
-                                                    VerticalAlignment="Center"
-                                                    Margin="2,0,0,0"
-                                                    Visibility="Collapsed"
-                                                    TextOptions.TextRenderingMode="Grayscale"
-                                                    TextOptions.TextHintingMode="Animated"/>
+                                    <Viewbox Grid.Column="1"
+                                             MaxWidth="92"
+                                             MaxHeight="92"
+                                             Stretch="Uniform"
+                                             StretchDirection="DownOnly"
+                                             HorizontalAlignment="Left"
+                                             VerticalAlignment="Center"
+                                             Margin="2,0,0,0">
+                                        <ctrl:WordClock x:Name="WordClockWidget"
+                                                        Text="It's&#x0a;Three&#x0a;Twenty Five"
+                                                        Style="{StaticResource TitleText}"
+                                                        FontSize="17"
+                                                        FontWeight="Bold"
+                                                        LineHeight="21"
+                                                        LineStackingStrategy="BlockLineHeight"
+                                                        Foreground="White"
+                                                        TextWrapping="NoWrap"
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Center"
+                                                        Visibility="Collapsed"
+                                                        TextOptions.TextRenderingMode="Grayscale"
+                                                        TextOptions.TextHintingMode="Animated"/>
+                                    </Viewbox>
 
                                     <Grid x:Name="WeatherWidgetContent"
                                           Grid.Column="0" Grid.ColumnSpan="2"
@@ -2440,7 +2449,9 @@
                                     <BlurEffect x:Name="CalendarGreetingContextBlur" Radius="0" RenderingBias="Performance"/>
                                 </Grid.Effect>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="Auto"
+                                                      MinWidth="40"
+                                                      SharedSizeGroup="CalendarMonthColumn"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 

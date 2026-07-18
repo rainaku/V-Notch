@@ -100,28 +100,51 @@ public partial class MainWindow
 
         System.Threading.Tasks.Task.Run(() =>
         {
-            var snap = ReadAudioSnapshot(includeIcons: true);
+            // Shell and file-version lookups for application icons can be much
+            // slower than the Core Audio queries. Publish a lightweight snapshot
+            // first so the mixer is usable without waiting for that work.
+            var quick = ReadAudioSnapshot(includeIcons: false);
+            QueueAudioSnapshot(token, quick);
 
-            Dispatcher.BeginInvoke(new Action(() =>
+            var detailedSessions = SafeCall(() => AudioMixer.GetSessions(includeIcons: true));
+            if (detailedSessions == null || token != System.Threading.Volatile.Read(ref _audioPopulateToken))
+                return;
+
+            // Preserve the device lists from the quick pass. Re-enumerating them
+            // here adds latency and can make the second snapshot look structural.
+            var detailed = new AudioMixerSnapshot
             {
-                if (token != _audioPopulateToken) return;
-                _lastAudioSnapshot = snap;
-
-                // Rebuilding an existing dynamic tree during the scale/fade can
-                // still invalidate layout and stall Liquid Glass. Defer later
-                // structural updates, but always build the empty first-boot view
-                // immediately so the opening animation never reveals a blank panel.
-                bool hasBuiltUi = AudioRoot?.Children.Count > 0;
-                if (ShouldDeferAudioSnapshotDuringTransition(_isAudioView, _isAnimating, hasBuiltUi))
-                {
-                    _pendingAudioSnapshot = snap;
-                    _pendingAudioAfterBuild = afterBuild;
-                    return;
-                }
-
-                ApplyAudioSnapshot(snap, afterBuild);
-            }), System.Windows.Threading.DispatcherPriority.Background);
+                Output = quick.Output,
+                Input = quick.Input,
+                Sessions = detailedSessions,
+                Master = quick.Master,
+                Capture = quick.Capture
+            };
+            QueueAudioSnapshot(token, detailed, afterBuild);
         });
+    }
+
+    private void QueueAudioSnapshot(int token, AudioMixerSnapshot snap, Action? afterBuild = null)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (token != _audioPopulateToken) return;
+            _lastAudioSnapshot = snap;
+
+            // Rebuilding an existing dynamic tree during the scale/fade can
+            // still invalidate layout and stall Liquid Glass. Defer later
+            // structural updates, but always build the empty first-boot view
+            // immediately so the opening animation never reveals a blank panel.
+            bool hasBuiltUi = AudioRoot?.Children.Count > 0;
+            if (ShouldDeferAudioSnapshotDuringTransition(_isAudioView, _isAnimating, hasBuiltUi))
+            {
+                _pendingAudioSnapshot = snap;
+                _pendingAudioAfterBuild = afterBuild;
+                return;
+            }
+
+            ApplyAudioSnapshot(snap, afterBuild);
+        }), System.Windows.Threading.DispatcherPriority.Background);
     }
 
     private void ApplyAudioSnapshot(AudioMixerSnapshot snap, Action? afterBuild = null)

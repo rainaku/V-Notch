@@ -24,6 +24,20 @@ public partial class MainWindow
     private static readonly Color _bothColor = Color.FromRgb(0x00, 0x4E, 0x92);
     private static readonly Color _screenRecColor = Color.FromRgb(0xFF, 0x3B, 0x30);
 
+    internal static bool ShouldSuppressPrivacyDot(
+        bool isAudioView,
+        bool isVolumeIndicatorActive,
+        bool isBluetoothNotificationVisible,
+        bool isClipboardPeekActive)
+        => isAudioView || isVolumeIndicatorActive ||
+           isBluetoothNotificationVisible || isClipboardPeekActive;
+
+    private bool IsPrivacyDotTemporarilySuppressed => ShouldSuppressPrivacyDot(
+        _isAudioView,
+        _isVolumeIndicatorActive,
+        _isBluetoothNotificationVisible,
+        _isClipboardPeekActive);
+
     private void PrivacyModule_StateChanged(object? sender, PrivacyIndicatorState state)
     {
         Dispatcher.BeginInvoke(() => UpdatePrivacyIndicators(state));
@@ -62,9 +76,7 @@ public partial class MainWindow
         }
         else if (shouldShow)
         {
-            bool suppressed = _isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive;
-
-            if (!suppressed && PrivacyIndicatorPanel.Visibility != Visibility.Visible)
+            if (!IsPrivacyDotTemporarilySuppressed && PrivacyIndicatorPanel.Visibility != Visibility.Visible)
             {
                 ShowPrivacyDot(state);
             }
@@ -79,7 +91,7 @@ public partial class MainWindow
     {
         _privacyIndicatorsVisible = true;
 
-        if (_isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive)
+        if (IsPrivacyDotTemporarilySuppressed)
             return;
 
         PrivacyDot.Visibility = Visibility.Visible;
@@ -131,7 +143,7 @@ public partial class MainWindow
     private void RestorePrivacyDotVisibility()
     {
         if (!_privacyIndicatorsVisible) return;
-        if (_isVolumeIndicatorActive || _isBluetoothNotificationVisible || _isClipboardPeekActive) return;
+        if (IsPrivacyDotTemporarilySuppressed) return;
 
         PrivacyDot.Visibility = Visibility.Visible;
         PrivacyIndicatorPanel.Visibility = Visibility.Visible;

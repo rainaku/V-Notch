@@ -149,6 +149,7 @@ public partial class SetupWindow : Window
         _isWelcomePage = false;
         _currentPageIndex = 0;
 
+        ConfigurePageScrolling(_languagePage);
         ContentPresenter.Content = _languagePage;
         ContentPresenter.Visibility = Visibility.Visible;
         ContentPresenter.Opacity = 1;
@@ -306,6 +307,8 @@ public partial class SetupWindow : Window
 
     private void ShowWelcomePage(NavigationDirection direction)
     {
+        PageScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+        PageScrollViewer.ScrollToHome();
         ResetContentPresenter();
         ContentPresenter.Content = null;
         ContentPresenter.Visibility = Visibility.Collapsed;
@@ -701,6 +704,7 @@ public partial class SetupWindow : Window
     {
         HideWelcomeElements();
 
+        ConfigurePageScrolling(content);
         ResetContentPresenter();
         ContentPresenter.Content = content;
         ContentPresenter.Visibility = Visibility.Visible;
@@ -708,6 +712,16 @@ public partial class SetupWindow : Window
 
         AnimateDynamicPageIn(direction, onComplete);
         AnimateButtonPanel();
+    }
+
+    private void ConfigurePageScrolling(UIElement content)
+    {
+        // LanguagePage owns its scroll viewport so its header stays visible and
+        // the seventh option remains reachable at every window size/DPI scale.
+        PageScrollViewer.VerticalScrollBarVisibility = content is LanguagePage
+            ? ScrollBarVisibility.Disabled
+            : ScrollBarVisibility.Auto;
+        PageScrollViewer.ScrollToHome();
     }
 
     private List<UIElement> GetAnimatedElementsForCurrentPage()

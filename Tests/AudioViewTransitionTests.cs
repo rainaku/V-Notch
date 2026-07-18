@@ -16,4 +16,21 @@ public class AudioViewTransitionTests
             MainWindow.ShouldDeferAudioSnapshotDuringTransition(
                 isAudioView, isAnimating, hasBuiltUi));
     }
+
+    [Theory]
+    [InlineData(true, false, false, false)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, false, true)]
+    public void PrivacyDotIsSuppressedByMixerAndTemporaryOverlays(
+        bool audio, bool volume, bool bluetooth, bool clipboard)
+    {
+        Assert.True(MainWindow.ShouldSuppressPrivacyDot(audio, volume, bluetooth, clipboard));
+    }
+
+    [Fact]
+    public void PrivacyDotIsVisibleWhenMixerAndTemporaryOverlaysAreInactive()
+    {
+        Assert.False(MainWindow.ShouldSuppressPrivacyDot(false, false, false, false));
+    }
 }

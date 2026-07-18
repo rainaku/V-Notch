@@ -920,6 +920,10 @@ public partial class MainWindow
             {
                 RestoreExpandedWindowSize();
             }
+            if (wasAudio)
+            {
+                RestorePrivacyDotVisibility();
+            }
 
             contentToShow.RenderTransform = null;
 

@@ -401,7 +401,11 @@
                                     <Border.RenderTransform>
                                         <ScaleTransform ScaleX="1" ScaleY="1"/>
                                     </Border.RenderTransform>
-                                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                                    <ScrollViewer MaxHeight="200"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  CanContentScroll="False"
+                                                  PanningMode="VerticalOnly">
                                         <ItemsPresenter/>
                                     </ScrollViewer>
                                 </Border>

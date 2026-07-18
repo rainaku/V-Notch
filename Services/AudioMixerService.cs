@@ -166,6 +166,17 @@ public sealed class AudioMixerService : IDisposable
                 return display;
         }
         catch { }
+
+        // ProcessName does not open the executable or invoke the shell, so it is
+        // suitable for the first lightweight mixer snapshot.
+        try
+        {
+            using var process = Process.GetProcessById((int)pid);
+            if (!string.IsNullOrWhiteSpace(process.ProcessName))
+                return process.ProcessName;
+        }
+        catch { }
+
         return "App";
     }
 

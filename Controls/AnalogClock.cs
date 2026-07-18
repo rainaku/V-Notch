@@ -22,6 +22,7 @@ public class AnalogClock : FrameworkElement
     private bool _isRunning;
 
     private const int SweepStartDelayMs = 480;
+    private const double FacePadding = 4.0;
 
     public static readonly DependencyProperty ShowDateProperty =
         DependencyProperty.Register(
@@ -135,8 +136,8 @@ public class AnalogClock : FrameworkElement
         double h = ActualHeight;
         if (w <= 0 || h <= 0) return;
 
-        double diameter = Math.Min(w, h);
-        double r = diameter / 2.0;
+        double r = CalculateFaceRadius(w, h);
+        if (r <= 0) return;
         var center = new Point(w / 2.0, h / 2.0);
 
         DateTime now = DateTime.Now;
@@ -157,6 +158,9 @@ public class AnalogClock : FrameworkElement
         DrawHands(dc, center, r, now);
         DrawCenterHub(dc, center, r);
     }
+
+    internal static double CalculateFaceRadius(double width, double height) =>
+        Math.Max(0, Math.Min(width, height) / 2.0 - FacePadding);
 
     private DrawingGroup BuildStaticFace(Point center, double r, int day, double pixelsPerDip)
     {

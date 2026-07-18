@@ -9,6 +9,7 @@ public static class Loc
     private static string _currentLanguage = "en";
     private static readonly Dictionary<string, Dictionary<string, string>> _strings = new();
     private static readonly string[] SupportedLanguages = { "en", "vi", "es", "fr", "de", "ja", "hi" };
+    private static readonly Dictionary<string, IReadOnlyList<string>> TranslationsByText;
 
     public static string CurrentLanguage => _currentLanguage;
 
@@ -66,39 +67,11 @@ public static class Loc
 
     public static List<string> GetAllTranslations(string text)
     {
-        var result = new List<string>();
-        if (string.IsNullOrWhiteSpace(text)) return result;
+        if (string.IsNullOrWhiteSpace(text)) return new List<string>();
 
-        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var langDict in _strings.Values)
-        {
-            foreach (var kvp in langDict)
-            {
-                if (string.Equals(kvp.Value, text, StringComparison.OrdinalIgnoreCase))
-                {
-                    keys.Add(kvp.Key);
-                }
-            }
-        }
-
-        var uniqueTranslations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var key in keys)
-        {
-            foreach (var langDict in _strings.Values)
-            {
-                if (langDict.TryGetValue(key, out var val) && !string.IsNullOrWhiteSpace(val))
-                {
-                    uniqueTranslations.Add(val);
-                }
-            }
-        }
-
-        if (uniqueTranslations.Count == 0)
-        {
-            uniqueTranslations.Add(text);
-        }
-
-        return new List<string>(uniqueTranslations);
+        return TranslationsByText.TryGetValue(text, out var translations)
+            ? new List<string>(translations)
+            : new List<string> { text };
     }
 
     static Loc()
@@ -112,6 +85,51 @@ public static class Loc
         InitializeHindi();
         InitializeWeatherStatusStrings();
         InitializeAdditionalStrings();
+        TranslationsByText = BuildTranslationLookup();
+    }
+
+    private static Dictionary<string, IReadOnlyList<string>> BuildTranslationLookup()
+    {
+        var keysByText = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (string language in SupportedLanguages)
+        {
+            foreach (var (key, value) in _strings[language])
+            {
+                if (string.IsNullOrWhiteSpace(value)) continue;
+
+                if (!keysByText.TryGetValue(value, out var keys))
+                {
+                    keys = new HashSet<string>(StringComparer.Ordinal);
+                    keysByText[value] = keys;
+                }
+
+                keys.Add(key);
+            }
+        }
+
+        var lookup = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (sourceText, matchingKeys) in keysByText)
+        {
+            var translations = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string key in matchingKeys.OrderBy(key => key, StringComparer.Ordinal))
+            {
+                foreach (string language in SupportedLanguages)
+                {
+                    if (_strings[language].TryGetValue(key, out string? translation)
+                        && !string.IsNullOrWhiteSpace(translation)
+                        && seen.Add(translation))
+                    {
+                        translations.Add(translation);
+                    }
+                }
+            }
+
+            lookup[sourceText] = translations;
+        }
+
+        return lookup;
     }
 
     private static void InitializeWeatherStatusStrings()
