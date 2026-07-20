@@ -4,6 +4,9 @@ param(
     [switch]$Clean
 )
 
+# Set execution policy for the current process scope to Bypass to prevent script execution block
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+
 $ErrorActionPreference = "Continue"
 
 # --- Configuration ---------------------------------------------------------

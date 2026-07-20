@@ -3,77 +3,190 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Connect Spotify"
-        Width="520"
-        Height="700"
-        MinWidth="460"
-        MinHeight="560"
+        Width="540"
+        Height="720"
+        MinWidth="480"
+        MinHeight="580"
         WindowStartupLocation="CenterOwner"
-        Background="#080808"
-        Foreground="White"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
         Closed="Window_Closed">
     <Window.Resources>
-        <FontFamily x:Key="SpotifyLoginFont">pack://application:,,,/Fonts/#SF Pro Display, Nirmala UI, Segoe UI</FontFamily>
+        <FontFamily x:Key="SettingsFont">pack://application:,,,/Fonts/#SF Pro Display, Nirmala UI, Segoe UI</FontFamily>
+        <SolidColorBrush x:Key="PanelBg" Color="#F4020202"/>
+        <SolidColorBrush x:Key="CardBg" Color="#F0080808"/>
+        <SolidColorBrush x:Key="CardBorder" Color="#14FFFFFF"/>
+        <SolidColorBrush x:Key="MutedText" Color="#8C959E"/>
+        <SolidColorBrush x:Key="SoftText" Color="#D8DEE5"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#F2F2F2"/>
+        <SolidColorBrush x:Key="AccentBrushStrong" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="TrackBg" Color="#262626"/>
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#141414"/>
+        <SolidColorBrush x:Key="SurfaceBrushHover" Color="#1B1B1B"/>
+
+        <LinearGradientBrush x:Key="WindowGlow" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#090909" Offset="0"/>
+            <GradientStop Color="#030303" Offset="0.55"/>
+            <GradientStop Color="#000000" Offset="1"/>
+        </LinearGradientBrush>
+
         <Style TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="{StaticResource SpotifyLoginFont}"/>
             <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="{StaticResource SettingsFont}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
         </Style>
+
         <Style TargetType="Button">
-            <Setter Property="Height" Value="38"/>
-            <Setter Property="MinWidth" Value="96"/>
-            <Setter Property="Padding" Value="18,8"/>
-            <Setter Property="FontFamily" Value="{StaticResource SpotifyLoginFont}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Background" Value="#202020"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#363636"/>
+            <Setter Property="Height" Value="46"/>
+            <Setter Property="MinWidth" Value="84"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Foreground" Value="#F7FAFD"/>
+            <Setter Property="BorderBrush" Value="#2B2B2B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="{StaticResource SettingsFont}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="13"
+                                Padding="{TemplateBinding Padding}"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                    <TranslateTransform Y="0"/>
+                                </TransformGroup>
+                            </Border.RenderTransform>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource SurfaceBrushHover}"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#484848"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#202020"/>
+                                <Setter TargetName="ButtonBorder" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TransformGroup>
+                                            <ScaleTransform ScaleX="0.988" ScaleY="0.988"/>
+                                            <TranslateTransform Y="0"/>
+                                        </TransformGroup>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="18">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Border x:Name="MainShell"
+            Margin="18"
+            CornerRadius="24"
+            Background="{StaticResource WindowGlow}"
+            BorderBrush="#18FFFFFF"
+            BorderThickness="1"
+            SnapsToDevicePixels="True"
+            Opacity="0"
+            RenderTransformOrigin="0.5,0.5"
+            PreviewMouseLeftButtonDown="WindowSurface_PreviewMouseLeftButtonDown">
+        <Border.RenderTransform>
+            <TransformGroup>
+                <ScaleTransform x:Name="ShellScale" ScaleX="0.95" ScaleY="0.95"/>
+                <TranslateTransform x:Name="ShellTranslate" Y="8"/>
+            </TransformGroup>
+        </Border.RenderTransform>
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <TextBlock x:Name="HeadingText"
-                   Text="Connect Spotify"
-                   FontSize="20"
-                   FontWeight="Bold"/>
-        <TextBlock x:Name="HintText"
-                   Grid.Row="1"
-                   Text="Sign in once. V-Notch will detect the Spotify session automatically."
-                   Foreground="#9CA3AF"
-                   FontSize="12"
-                   TextWrapping="Wrap"
-                   Margin="0,5,0,12"/>
+            <!-- Custom Title Bar -->
+            <Grid Grid.Row="0" Margin="0,0,0,12" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock x:Name="HeadingText"
+                           Text="Connect Spotify"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           Foreground="#F8FBFF"
+                           VerticalAlignment="Center"/>
+                
+                <Button x:Name="CloseButton"
+                        Grid.Column="1"
+                        Width="42"
+                        Height="42"
+                        MinWidth="0"
+                        BorderThickness="0"
+                        Background="#121212"
+                        Foreground="#F3F7FB"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="11"
+                        Content="&#xE711;"
+                        Click="CancelButton_Click"/>
+            </Grid>
 
-        <Border Grid.Row="2"
-                Background="#111111"
-                BorderBrush="#2A2A2A"
-                BorderThickness="1"
-                CornerRadius="10"
-                ClipToBounds="True">
-            <wv2:WebView2 x:Name="SpotifyWebView"/>
-        </Border>
-
-        <Grid Grid.Row="3" Margin="0,12,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock x:Name="StatusText"
-                       Text="Opening Spotify…"
-                       Foreground="#9CA3AF"
-                       FontSize="11"
-                       VerticalAlignment="Center"
+            <!-- Hint Text -->
+            <TextBlock x:Name="HintText"
+                       Grid.Row="1"
+                       Text="Sign in once. V-Notch will detect the Spotify session automatically."
+                       Foreground="{StaticResource MutedText}"
+                       FontSize="11.5"
+                       FontWeight="Bold"
                        TextWrapping="Wrap"
-                       Margin="0,0,12,0"/>
-            <Button x:Name="CancelButton"
-                    Grid.Column="1"
-                    Content="Cancel"
-                    Click="CancelButton_Click"/>
+                       Margin="0,0,0,12"/>
+
+            <!-- WebView2 Container -->
+            <Border Grid.Row="2"
+                    Background="{StaticResource CardBg}"
+                    BorderBrush="#0AFFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="18"
+                    ClipToBounds="True">
+                <wv2:WebView2 x:Name="SpotifyWebView"/>
+            </Border>
+
+            <!-- Footer status and button -->
+            <Grid Grid.Row="3" Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusText"
+                           Text="Opening Spotify…"
+                           Foreground="{StaticResource MutedText}"
+                           FontSize="11.5"
+                           FontWeight="Bold"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,0,12,0"/>
+                <Button x:Name="CancelButton"
+                        Grid.Column="1"
+                        Content="Cancel"
+                        Click="CancelButton_Click"/>
+            </Grid>
         </Grid>
-    </Grid>
+    </Border>
 </Window>
