@@ -47,6 +47,36 @@ public sealed class LiquidGlassCaptureTests
         Assert.Equal(0, grown % 64);
     }
 
+    [Fact]
+    public void FrameCadence_UsesConfiguredTargetDuringGeometryMotion()
+    {
+        double interval = LiquidGlassController.ChooseFrameIntervalMs(
+            activeIntervalMs: 1000.0 / 120.0,
+            idleIntervalMs: 1000.0 / 30.0,
+            geometryAnimating: true,
+            consecutiveUnchangedFrames: 100);
+
+        Assert.Equal(1000.0 / 120.0, interval, 8);
+    }
+
+    [Theory]
+    [InlineData(0, 120)]
+    [InlineData(3, 120)]
+    [InlineData(4, 30)]
+    [InlineData(30, 30)]
+    public void FrameCadence_StaysFastAfterBackdropChangesThenUsesIdleProbe(
+        int consecutiveUnchangedFrames,
+        int expectedFps)
+    {
+        double interval = LiquidGlassController.ChooseFrameIntervalMs(
+            activeIntervalMs: 1000.0 / 120.0,
+            idleIntervalMs: 1000.0 / 30.0,
+            geometryAnimating: false,
+            consecutiveUnchangedFrames: consecutiveUnchangedFrames);
+
+        Assert.Equal(1000.0 / expectedFps, interval, 8);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -71,8 +101,8 @@ public sealed class LiquidGlassCaptureTests
         double amplitude = LiquidGlassController.RefractionAmplitude(rim, 1.0);
 
         Assert.Equal(23.0, rim, 6);
-        Assert.Equal(rim * 0.38, amplitude, 6);
-        Assert.True(amplitude < rim * 0.45);
+        Assert.Equal(rim * 0.58, amplitude, 6);
+        Assert.InRange(amplitude, rim * 0.55, rim * 0.65);
     }
 
     [Fact]
@@ -89,17 +119,73 @@ public sealed class LiquidGlassCaptureTests
     public void CurrentNarrowRimSettingsStillCreateVisibleBend()
     {
         double amplitude = LiquidGlassController.RefractionAmplitude(
-            rimWidth: 8.0, refraction: 0.6, edgeBend: 1.9);
+            rimWidth: 8.0, refraction: 0.6, edgeBend: 3.0);
 
-        Assert.True(amplitude > 5.0);
+        Assert.True(amplitude > 8.0);
+    }
+
+    [Fact]
+    public void RefractionAmplitude_ExtremeBendCanTravelBeyondOpticalRim()
+    {
+        const double rim = 20.0;
+        double amplitude = LiquidGlassController.RefractionAmplitude(
+            rim, refraction: 3.0, bevelMode: 1, edgeBend: 3.0);
+
+        Assert.True(amplitude > rim * 5.0);
+    }
+
+    [Fact]
+    public void EdgeBend_AboveFormerLimitKeepsScaling()
+    {
+        const double rim = 20.0;
+        double formerMaximum = LiquidGlassController.RefractionAmplitude(
+            rim, refraction: 1.0, edgeBend: 3.0);
+        double extreme = LiquidGlassController.RefractionAmplitude(
+            rim, refraction: 1.0, edgeBend: 6.0);
+
+        Assert.True(extreme > formerMaximum * 2.8);
+    }
+
+    [Fact]
+    public void DirectionalLensWidth_TapersAndElongatesCapsuleEnds()
+    {
+        const double rim = 20.0;
+        double verticalEdge = LiquidGlassController.DirectionalLensWidth(
+            rim, inwardNormalX: 0.0, edgeBend: 3.0);
+        double roundedCorner = LiquidGlassController.DirectionalLensWidth(
+            rim, inwardNormalX: Math.Sqrt(0.5), edgeBend: 3.0);
+        double sideTip = LiquidGlassController.DirectionalLensWidth(
+            rim, inwardNormalX: 1.0, edgeBend: 3.0);
+
+        Assert.Equal(rim, verticalEdge, 8);
+        Assert.InRange(roundedCorner, rim, sideTip);
+        Assert.Equal(rim * 2.5, sideTip, 8);
+    }
+
+    [Fact]
+    public void GaussianBoxRadii_ApproximateRequestedSigmaAcrossThreePasses()
+    {
+        int[] radii = LiquidGlassController.GaussianBoxRadii(12.0);
+
+        Assert.Equal(3, radii.Length);
+        Assert.True(radii[0] <= radii[1] && radii[1] <= radii[2]);
+
+        double variance = 0.0;
+        foreach (int radius in radii)
+            variance += radius * (radius + 1.0) / 3.0;
+
+        Assert.InRange(Math.Sqrt(variance), 11.0, 13.0);
+        Assert.All(LiquidGlassController.GaussianBoxRadii(0.0),
+            radius => Assert.Equal(0, radius));
     }
 
     [Theory]
     [InlineData(320.0, 80.0, 320.0, 80.0, true)]
     [InlineData(320.0, 80.0, 321.0, 80.0, true)]
-    [InlineData(320.0, 80.0, 352.0, 80.0, false)]
-    [InlineData(320.0, 80.0, 320.0, 112.0, false)]
-    public void GpuGeometry_RequiresExactSizeTexture(
+    [InlineData(352.0, 112.0, 320.0, 80.0, true)]
+    [InlineData(300.0, 80.0, 320.0, 80.0, false)]
+    [InlineData(320.0, 70.0, 320.0, 80.0, false)]
+    public void GpuGeometry_AllowsOverscannedTexture(
         double srcW, double srcH, double notchW, double notchH, bool expected)
     {
         Assert.Equal(expected, LiquidGlassController.IsGpuGeometryValid(srcW, srcH, notchW, notchH));

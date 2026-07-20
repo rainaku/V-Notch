@@ -462,12 +462,35 @@
                             </Border.BorderBrush>
                         </Border>
 
+                        <Border x:Name="GlassFresnelBloomBorder"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                Opacity="0"
+                                BorderThickness="3.2"
+                                CornerRadius="0,0,20,20"
+                                BorderBrush="Transparent">
+                            <Border.Effect>
+                                <BlurEffect Radius="3.2"
+                                            KernelType="Gaussian"
+                                            RenderingBias="Quality"/>
+                            </Border.Effect>
+                        </Border>
+
                         <Border x:Name="GlassFresnelBorder"
                                 IsHitTestVisible="False"
                                 Visibility="Collapsed"
                                 Opacity="0"
-                                BorderThickness="2.2"
+                                BorderThickness="1.15"
                                 CornerRadius="0,0,20,20"
+                                BorderBrush="Transparent"/>
+
+                        <Border x:Name="GlassInnerFresnelBorder"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                Opacity="0"
+                                Margin="1.15"
+                                BorderThickness="0.8"
+                                CornerRadius="0,0,19,19"
                                 BorderBrush="Transparent"/>
 
                         <Border x:Name="GlassDarkOverlay"

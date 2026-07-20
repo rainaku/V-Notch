@@ -124,6 +124,12 @@ public partial class SettingsWindow : Window
         AnimationFpsSlider.Value = _settings.AnimationFps;
         EnableBlurEffectsCheck.IsChecked = _settings.EnableBlurEffects;
         MediaArtBackgroundCheck.IsChecked = _settings.ShowMediaArtBackground;
+
+        // Liquid Glass availability depends on this checkbox. Initialize the mode
+        // first so selecting the saved skin cannot briefly enter the invalid
+        // "glass + notch mode" state and tear down/recreate its renderer.
+        DynamicIslandModeCheck.IsChecked = _settings.EnableDynamicIslandMode;
+        UpdateDynamicIslandDependentControls(_settings.EnableDynamicIslandMode);
         LoadLiquidGlassUi();
         EnableSubjectBlurCheck.IsChecked = _settings.EnableSubjectBlur;
         EnableSmartCropCheck.IsChecked = _settings.EnableSmartCrop;
@@ -137,9 +143,6 @@ public partial class SettingsWindow : Window
         UpdateYouTubeSubtitlesDependentControls(_settings.EnableYouTubeSubtitles);
 
         LoadSubtitlePriority();
-
-        DynamicIslandModeCheck.IsChecked = _settings.EnableDynamicIslandMode;
-        UpdateDynamicIslandDependentControls(_settings.EnableDynamicIslandMode);
 
         HoverExpandCheck.IsChecked = _settings.EnableHoverExpand;
         HoverDelaySlider.Value = _settings.HoverExpandDelay;
@@ -843,13 +846,16 @@ public partial class SettingsWindow : Window
 
     private void UpdateDynamicIslandDependentControls(bool islandEnabled)
     {
-        if (DynamicIslandWidthSlider == null || DynamicIslandHeightSlider == null) return;
+        if (DynamicIslandWidthSlider != null && DynamicIslandHeightSlider != null)
+        {
+            double targetOpacity = islandEnabled ? 1.0 : 0.4;
+            DynamicIslandWidthSlider.IsEnabled = islandEnabled;
+            DynamicIslandWidthSlider.Opacity = targetOpacity;
+            DynamicIslandHeightSlider.IsEnabled = islandEnabled;
+            DynamicIslandHeightSlider.Opacity = targetOpacity;
+        }
 
-        double targetOpacity = islandEnabled ? 1.0 : 0.4;
-        DynamicIslandWidthSlider.IsEnabled = islandEnabled;
-        DynamicIslandWidthSlider.Opacity = targetOpacity;
-        DynamicIslandHeightSlider.IsEnabled = islandEnabled;
-        DynamicIslandHeightSlider.Opacity = targetOpacity;
+        UpdateLiquidGlassAvailability(islandEnabled);
     }
 
     private void UpdateLyricsDependentControls(bool lyricsEnabled)
@@ -1235,7 +1241,8 @@ public partial class SettingsWindow : Window
 
             EnsureGlassPresetItems();
 
-            bool glass = string.Equals(_settings.NotchStyle, "liquidglass", StringComparison.OrdinalIgnoreCase);
+            bool glass = _settings.EnableDynamicIslandMode &&
+                         string.Equals(_settings.NotchStyle, "liquidglass", StringComparison.OrdinalIgnoreCase);
             SkinCombo.SelectedIndex = glass ? 1 : 0;
 
             var c = _settings.LiquidGlass ?? new Models.LiquidGlassConfig();
@@ -1262,7 +1269,13 @@ public partial class SettingsWindow : Window
 
     private void SaveLiquidGlassUi()
     {
-        _settings.NotchStyle = (SkinCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "default";
+        string requestedStyle =
+            (SkinCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "default";
+        bool islandEnabled = DynamicIslandModeCheck?.IsChecked ?? false;
+        _settings.NotchStyle = islandEnabled &&
+                               string.Equals(requestedStyle, "liquidglass", StringComparison.OrdinalIgnoreCase)
+            ? "liquidglass"
+            : "default";
 
         var c = _settings.LiquidGlass ??= new Models.LiquidGlassConfig();
         var ui = ReadGlassConfigFromSliders();
@@ -1334,11 +1347,7 @@ public partial class SettingsWindow : Window
 
     private void SkinCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (LiquidGlassConfigPanel != null && SkinCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item)
-        {
-            bool glass = (item.Tag as string) == "liquidglass";
-            LiquidGlassConfigPanel.Visibility = glass ? Visibility.Visible : Visibility.Collapsed;
-        }
+        UpdateLiquidGlassAvailability(DynamicIslandModeCheck?.IsChecked ?? _settings.EnableDynamicIslandMode);
 
         if (_isLoadingSettings) return;
         PushLivePreview();
@@ -1350,7 +1359,56 @@ public partial class SettingsWindow : Window
     private void PopulateSkinItems()
     {
         SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.default"), Tag = "default" });
-        SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.skin.liquidglass"), Tag = "liquidglass" });
+        SkinCombo.Items.Add(new System.Windows.Controls.ComboBoxItem
+        {
+            Content = Loc.Get("settings.skin.liquidglass"),
+            Tag = "liquidglass",
+            IsEnabled = _settings.EnableDynamicIslandMode
+        });
+    }
+
+    private void UpdateLiquidGlassAvailability(bool islandEnabled)
+    {
+        if (SkinCombo == null) return;
+
+        System.Windows.Controls.ComboBoxItem? defaultItem = null;
+        System.Windows.Controls.ComboBoxItem? glassItem = null;
+        foreach (object entry in SkinCombo.Items)
+        {
+            if (entry is not System.Windows.Controls.ComboBoxItem item) continue;
+            if ((item.Tag as string) == "default") defaultItem = item;
+            if ((item.Tag as string) == "liquidglass") glassItem = item;
+        }
+
+        if (glassItem != null)
+            glassItem.IsEnabled = islandEnabled;
+
+        bool glassSelected = SkinCombo.SelectedItem is System.Windows.Controls.ComboBoxItem selected &&
+                             (selected.Tag as string) == "liquidglass";
+        if (!islandEnabled && glassSelected && defaultItem != null)
+        {
+            bool previousLoadingState = _isLoadingSettings;
+            _isLoadingSettings = true;
+            try
+            {
+                SkinCombo.SelectedItem = defaultItem;
+            }
+            finally
+            {
+                _isLoadingSettings = previousLoadingState;
+            }
+            glassSelected = false;
+        }
+
+        if (LiquidGlassConfigPanel != null)
+            LiquidGlassConfigPanel.Visibility = islandEnabled && glassSelected
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+        // Do not combine a mode transition with destruction of the active glass
+        // surface. Select Default first, then Dynamic Island can be turned off.
+        if (DynamicIslandModeCheck != null)
+            DynamicIslandModeCheck.IsEnabled = !glassSelected;
     }
 
     private void GlassConfigSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -1392,6 +1450,7 @@ public partial class SettingsWindow : Window
         SkinCombo.Items.Clear();
         PopulateSkinItems();
         SkinCombo.SelectedIndex = idx < 0 ? 0 : idx;
+        UpdateLiquidGlassAvailability(DynamicIslandModeCheck?.IsChecked ?? _settings.EnableDynamicIslandMode);
         _isLoadingSettings = prev;
 
         if (GlassPresetLabel != null) GlassPresetLabel.Text = Loc.Get("settings.glass.preset");

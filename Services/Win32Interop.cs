@@ -144,6 +144,16 @@ internal static class Win32Interop
 
     #endregion
 
+    #region winmm.dll
+
+    [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+    public static extern uint TimeBeginPeriod(uint period);
+
+    [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+    public static extern uint TimeEndPeriod(uint period);
+
+    #endregion
+
     #region gdi32.dll (screen capture for Liquid Glass backdrop)
 
     public const int SRCCOPY = 0x00CC0020;

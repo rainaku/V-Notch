@@ -71,7 +71,7 @@ float refractionAmplitude(float rimWidth, float refraction, float mode)
 {
     float r = max(refraction, 0.0);
     float response = r / max(0.65 + 0.35 * r, 0.001);
-    return rimWidth * 0.38 * response * (mode >= 0.5 ? 1.08 : 1.0);
+    return rimWidth * 0.58 * response * (mode >= 0.5 ? 1.08 : 1.0);
 }
 
 float3 filteredSample(float2 sourcePixel, float filterMix)
@@ -100,14 +100,14 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     float halfX = notchW * 0.5;
     float halfY = notchH * 0.5;
 
-    // WPF gives ShaderEffect the Image after layout. The controller consequently
-    // uploads an exact-size notch texture, making uv-to-uv the only true identity
-    // mapping. Applying source offsets here would crop that laid-out texture again.
+    // The input contains an overscanned desktop region, while the effect output is
+    // only the visible notch. Map output UV through notch pixels into that source
+    // region so the side-cap lens can safely sample beyond both rounded edges.
     float npx = uv.x * notchW;
     float npy = uv.y * notchH;
     float lx = npx - (notchW - 1.0) * 0.5;
     float ly = npy - (notchH - 1.0) * 0.5;
-    float2 basePixel = uv * float2(srcW, srcH);
+    float2 basePixel = float2(npx + offX, npy + offY);
 
     float inside = -roundedRectSdf(lx, ly, halfX, halfY, topCornerR, bottomCornerR);
     float2 displacement = 0.0;
@@ -125,16 +125,30 @@ float4 main(float2 uv : TEXCOORD) : COLOR
         float normalLength = length(inwardNormal);
         inwardNormal = normalLength > 0.0001 ? inwardNormal / normalLength : 0.0;
 
-        float t = saturate(inside / max(zR, 0.001));
+        // Extreme mode: do not flatten values above the former 300% ceiling.
+        float bend = max(edgeBend, 0.0);
+        float sideAxis = pow(saturate(abs(inwardNormal.x)), 2.6);
+        float directionalZR = zR * (1.0 + 0.5 * bend * sideAxis);
+        float t = saturate(inside / max(directionalZR, 0.001));
         float profile = lensProfile(t);
         if (bevelMode >= 0.5)
             profile = sqrt(profile); // wider, still C1-flat at both ends
+        else
+        {
+            // Broaden the readable shoulder of the fold without disturbing the
+            // flat centre. This keeps normal mode visibly refractive rather than
+            // looking like a thin highlight painted on the border.
+            float shoulder = saturate((bend - 0.8) / 2.2) * 0.28;
+            profile = lerp(profile, sqrt(max(profile, 0.0)), shoulder);
+        }
 
-        float bend = saturate(edgeBend / 3.0) * 3.0;
-        float amplitude = refractionAmplitude(zR, uRefr, bevelMode) * pow(bend, 1.5);
+        // Deliberately uncapped. Large Edge Bend values may pull samples beyond
+        // the optical rim, producing the pronounced fold requested by the user.
+        float amplitude =
+            refractionAmplitude(zR, uRefr, bevelMode) * pow(bend, 1.5);
         float aspect = saturate((notchH / max(notchW, 1.0)) * 2.5);
         float verticalBalance = lerp(0.68, 1.0, aspect);
-        displacement = inwardNormal * float2(1.0, verticalBalance) * amplitude * profile;
+        displacement = -inwardNormal * float2(1.0, verticalBalance) * amplitude * profile;
 
         if (uDistort > 0.0001)
         {
@@ -154,7 +168,7 @@ float4 main(float2 uv : TEXCOORD) : COLOR
 
         // Estimate the local change in displacement over one source pixel. This
         // drives the adaptive footprint used only in the high-curvature band.
-        float dt = 1.0 / max(zR, 1.0);
+        float dt = 1.0 / max(directionalZR, 1.0);
         float p0 = lensProfile(saturate(t - dt));
         float p1 = lensProfile(saturate(t + dt));
         if (bevelMode >= 0.5)
@@ -168,7 +182,7 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     // Invalid/stale geometry must degrade to a 1:1 backdrop rather than magnifying
     // a tiny source slice across the entire pill.
     float geometryValid = step(1.0, srcW) * step(1.0, srcH)
-        * step(abs(srcW - notchW), 1.5) * step(abs(srcH - notchH), 1.5);
+        * step(1.0, notchW) * step(1.0, notchH);
     float2 sourcePixel = basePixel + displacement * geometryValid;
     float filterMix = saturate((mappingRate - 0.28) * 0.9) * geometryValid;
     float3 col = filteredSample(sourcePixel, filterMix);

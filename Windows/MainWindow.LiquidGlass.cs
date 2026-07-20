@@ -12,14 +12,14 @@ public partial class MainWindow
     private const string LiquidGlassStyleId = "liquidglass";
 
     private LiquidGlassRefractionEffect? _glassRefractionEffect;
+    private bool _gpuRefractionConfigured;
 
-    // GPU ShaderEffect mapping is temporarily disabled: WPF applies the effect to the
-    // laid-out Image rather than the source bitmap, which is producing severe backdrop
-    // stretching on real notch geometries. The CPU path uses explicit pixel maps and is
-    // the safe renderer until the GPU path is moved to a composition surface.
-    private bool UseGpuRefraction => false;
+    private bool UseGpuRefraction =>
+        (_settings.LiquidGlass?.UseGpuRefraction ?? true) &&
+        LiquidGlassRefractionEffect.IsAvailable;
 
     private bool IsLiquidGlassEnabled =>
+        _settings.EnableDynamicIslandMode &&
         string.Equals(_settings.NotchStyle, LiquidGlassStyleId, StringComparison.OrdinalIgnoreCase);
 
     private void ApplyLiquidGlassSkin()
@@ -50,6 +50,7 @@ public partial class MainWindow
                 if (GlassDarkOverlay != null) GlassDarkOverlay.Visibility = Visibility.Collapsed;
 
                 _liquidGlass?.Stop();
+                DetachGpuRefraction();
                 return;
             }
 
@@ -65,11 +66,11 @@ public partial class MainWindow
                 GlassBackdropImage,
                 () => _hwnd,
                 GetGlassCaptureRegion,
-                // Menu transitions animate several large visual trees at once.
-                // Capping the backdrop at 60 FPS preserves smooth motion while
-                // leaving enough UI/GPU time for Clock and Mixer composition.
+                // The configured value is the actual moving-backdrop target. A
+                // separate 30 Hz idle probe detects new backdrop motion quickly
+                // without continuously uploading identical frames.
                 activeFps: Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, 120),
-                idleFps: 10);
+                idleFps: 30);
 
             // Magnifier capture excludes the notch internally while the user-facing
             // overlay remains visible in screenshots and recordings.
@@ -125,9 +126,9 @@ public partial class MainWindow
         var cfg = _settings.LiquidGlass ?? new Models.LiquidGlassConfig();
 
         double dipRadius = Math.Clamp(cfg.BlurAmount, 0, 1) * 28.0;
-        double boxScale = GetGlassDpiScale();
-        int boxRadius = (int)Math.Round(dipRadius * boxScale / 3.0);
-        _liquidGlass?.SetBlur(boxRadius);
+        double dpiScale = GetGlassDpiScale();
+        int gaussianSigma = (int)Math.Round(dipRadius * dpiScale);
+        _liquidGlass?.SetBlur(gaussianSigma);
         _liquidGlass?.UpdateFps(Math.Clamp(cfg.TargetFps, 30, 120));
 
         // GPU mode blurs on the host element instead of the CPU box blur.
@@ -174,16 +175,36 @@ public partial class MainWindow
 
         if (!UseGpuRefraction)
         {
-            DetachGpuRefraction();
-            _liquidGlass.SetGpuMode(false, null);
+            if (_gpuRefractionConfigured || GlassBackdropImage.Effect != null)
+            {
+                DetachGpuRefraction();
+                _liquidGlass.SetGpuMode(false, null);
+            }
             return;
         }
+
+        // Settings live preview calls ApplyLiquidGlassSkin repeatedly. Reattaching
+        // an already-active D3DImage resets geometry tracking and can make DWM
+        // composite an empty/black back buffer for one frame.
+        if (_gpuRefractionConfigured &&
+            ReferenceEquals(GlassBackdropImage.Effect, _glassRefractionEffect))
+            return;
 
         try
         {
             _glassRefractionEffect ??= new LiquidGlassRefractionEffect();
             GlassBackdropImage.Effect = _glassRefractionEffect;
-            _liquidGlass.SetGpuMode(true, ApplyGpuGeometry, OnGpuRefractionFailure);
+            if (!_liquidGlass.SetGpuMode(true, ApplyGpuGeometry, OnGpuRefractionFailure))
+            {
+                DetachGpuRefraction();
+                _liquidGlass.SetGpuMode(false, null);
+                ApplyGpuBlur(0.0);
+                return;
+            }
+
+            VNotch.Services.RuntimeLog.Log("LIQUIDGLASS",
+                $"GPU refraction enabled; target={Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, 120)} FPS");
+            _gpuRefractionConfigured = true;
         }
         catch (Exception ex)
         {
@@ -203,6 +224,7 @@ public partial class MainWindow
 
     private void DetachGpuRefraction()
     {
+        _gpuRefractionConfigured = false;
         if (GlassBackdropImage != null)
         {
             GlassBackdropImage.Effect = null;
@@ -240,8 +262,8 @@ public partial class MainWindow
         fx.BrightAdd = g.BrightAdd;
     }
 
-    /// <summary>Applies the GPU-mode Gaussian blur (host element) from BlurAmount,
-    /// matching the CPU "refract then blur" order. No-op when not in GPU mode.</summary>
+    /// <summary>Applies the legacy GPU-mode host blur. CPU Liquid Glass blurs the
+    /// captured source before refraction for a cleaner material result.</summary>
     private void ApplyGpuBlur(double blurAmount)
     {
         if (!UseGpuRefraction || GlassBackdropHost == null) return;
@@ -266,8 +288,8 @@ public partial class MainWindow
         _glassHostBlur.Radius = radius;
     }
 
-    // Dark base shown behind the live glass image to avoid a black flash if a
-    // frame is dropped during a heavy composite (e.g. view switches).
+    // Dark base shown behind the live glass image if a frame is unavailable
+    // during a heavy composite (for example, while switching views).
     private static readonly SolidColorBrush _glassBaseFill = Frozen(0xFF, 0x0B, 0x0E, 0x12);
 
     private void SetOpticalRimVisibility(Visibility visibility)
@@ -275,7 +297,9 @@ public partial class MainWindow
         GlassDepthRimBorder.Visibility = visibility;
         GlassCoolRimBorder.Visibility = visibility;
         GlassWarmRimBorder.Visibility = visibility;
+        GlassFresnelBloomBorder.Visibility = visibility;
         GlassFresnelBorder.Visibility = visibility;
+        GlassInnerFresnelBorder.Visibility = visibility;
         GlassRimBorder.Visibility = visibility;
         GlassSpecularBorder.Visibility = visibility;
     }
@@ -295,12 +319,16 @@ public partial class MainWindow
         double spec = Math.Clamp(specular, 0, 1);
         double fres = Math.Clamp(fresnel, 0, 1);
         double spectral = Math.Clamp(chroma, 0, 2);
+        _activeFresnelLevel = fres;
 
         // A square-root response preserves a delicate rim at low slider values
         // without making the high end look like a painted white stroke.
         GlassRimBorder.Opacity = Math.Sqrt(edge) * 0.82;
         GlassDepthRimBorder.Opacity = Math.Clamp(edge * 0.34 + fres * 0.24, 0, 0.46);
-        GlassFresnelBorder.Opacity = fres * 0.72;
+        double fresnelEnergy = Math.Sqrt(fres);
+        GlassFresnelBloomBorder.Opacity = fresnelEnergy * 0.30;
+        GlassFresnelBorder.Opacity = fresnelEnergy * 0.94;
+        GlassInnerFresnelBorder.Opacity = fresnelEnergy * 0.64;
         GlassSpecularBorder.Opacity = spec * 0.92;
 
         double spectralOpacity = Math.Clamp(spectral * 0.30 + edge * 0.10, 0, 0.52);
@@ -309,8 +337,11 @@ public partial class MainWindow
     }
 
     private RadialGradientBrush? _dynamicFresnelBrush;
-    private double _dynamicFresnelX = 0.5;
-    private double _dynamicFresnelY = 0.5;
+    private LinearGradientBrush? _dynamicInnerFresnelBrush;
+    private double _activeFresnelLevel;
+    private double _dynamicFresnelX = 0.42;
+    private double _dynamicFresnelY = 0.34;
+    private double _dynamicFresnelContrast;
     private Color _dynamicFresnelTint = Color.FromRgb(126, 154, 180);
     private long _lastDynamicFresnelTicks;
 
@@ -328,50 +359,95 @@ public partial class MainWindow
             SpreadMethod = GradientSpreadMethod.Pad
         };
         _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Colors.White, 0.0));
-        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(200, 210, 230, 244), 0.22));
-        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(68, 126, 154, 180), 0.56));
-        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(8, 126, 154, 180), 0.82));
+        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(232, 210, 230, 244), 0.18));
+        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(104, 126, 154, 180), 0.48));
+        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(14, 126, 154, 180), 0.78));
         _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 126, 154, 180), 1.0));
+
+        _dynamicInnerFresnelBrush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0.14, 0.08),
+            EndPoint = new Point(0.86, 0.92),
+            MappingMode = BrushMappingMode.RelativeToBoundingBox,
+            SpreadMethod = GradientSpreadMethod.Pad
+        };
+        _dynamicInnerFresnelBrush.GradientStops.Add(new GradientStop(Colors.White, 0.0));
+        _dynamicInnerFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(136, 160, 184, 204), 0.2));
+        _dynamicInnerFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(16, 126, 154, 180), 0.48));
+        _dynamicInnerFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(112, 0, 0, 0), 0.74));
+        _dynamicInnerFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(168, 210, 230, 244), 1.0));
+
+        GlassFresnelBloomBorder.BorderBrush = _dynamicFresnelBrush;
         GlassFresnelBorder.BorderBrush = _dynamicFresnelBrush;
+        GlassInnerFresnelBorder.BorderBrush = _dynamicInnerFresnelBrush;
     }
 
     private void UpdateDynamicFresnel(LiquidGlassController.BackdropOptics optics)
     {
         EnsureDynamicFresnelBrush();
         var brush = _dynamicFresnelBrush!;
+        var innerBrush = _dynamicInnerFresnelBrush!;
 
         long now = Environment.TickCount64;
         double elapsedSeconds = _lastDynamicFresnelTicks == 0
             ? 1.0
             : Math.Clamp((now - _lastDynamicFresnelTicks) / 1000.0, 0.0, 0.25);
         _lastDynamicFresnelTicks = now;
-        double response = 1.0 - Math.Exp(-elapsedSeconds * 9.0);
+        // Fresnel should read as a stable material reflection, not a highlight
+        // chasing every sampled desktop frame. Use a slow response and a narrow
+        // travel range; colour/contrast retain some environmental reaction without
+        // making the rim visibly wander or pulse.
+        double response = 1.0 - Math.Exp(-elapsedSeconds * 1.1);
 
-        double targetX = Math.Clamp(0.5 + optics.LightX * 0.43, 0.07, 0.93);
-        double targetY = Math.Clamp(0.5 + optics.LightY * 0.43, 0.07, 0.93);
+        double targetX = Math.Clamp(0.42 + optics.LightX * 0.08, 0.34, 0.50);
+        double targetY = Math.Clamp(0.34 + optics.LightY * 0.07, 0.27, 0.41);
         _dynamicFresnelX += (targetX - _dynamicFresnelX) * response;
         _dynamicFresnelY += (targetY - _dynamicFresnelY) * response;
+        _dynamicFresnelContrast +=
+            (Math.Clamp(optics.Contrast, 0.0, 1.0) - _dynamicFresnelContrast) * response;
 
         Color targetTint = BuildContentFresnelTint(optics.Red, optics.Green, optics.Blue);
         _dynamicFresnelTint = InterpolateColor(_dynamicFresnelTint, targetTint, response);
 
         brush.Center = new Point(_dynamicFresnelX, _dynamicFresnelY);
         brush.GradientOrigin = new Point(
-            Math.Clamp(0.5 + (_dynamicFresnelX - 0.5) * 1.12, 0.03, 0.97),
-            Math.Clamp(0.5 + (_dynamicFresnelY - 0.5) * 1.12, 0.03, 0.97));
-        brush.RadiusX = 0.84 - optics.Contrast * 0.16;
-        brush.RadiusY = 0.90 - optics.Contrast * 0.12;
+            Math.Clamp(0.5 + (_dynamicFresnelX - 0.5) * 0.72, 0.30, 0.62),
+            Math.Clamp(0.5 + (_dynamicFresnelY - 0.5) * 0.72, 0.26, 0.58));
+        brush.RadiusX = 0.84 - _dynamicFresnelContrast * 0.08;
+        brush.RadiusY = 0.90 - _dynamicFresnelContrast * 0.06;
+
+        // Keep the inner reflection axis fixed. Normalizing the tiny per-frame
+        // light vector made this linear gradient rotate noticeably even when the
+        // sampled backdrop changed by only a few pixels.
 
         Color bright = InterpolateColor(_dynamicFresnelTint, Colors.White, 0.68);
         Color mid = InterpolateColor(_dynamicFresnelTint, Colors.White, 0.42);
         brush.GradientStops[0].Color = Color.FromArgb(255, bright.R, bright.G, bright.B);
         brush.GradientStops[1].Color = Color.FromArgb(200, mid.R, mid.G, mid.B);
         brush.GradientStops[2].Color = Color.FromArgb(
-            76, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
+            112, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
         brush.GradientStops[3].Color = Color.FromArgb(
-            12, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
+            18, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
         brush.GradientStops[4].Color = Color.FromArgb(
             0, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
+
+        innerBrush.GradientStops[0].Color = Color.FromArgb(255, bright.R, bright.G, bright.B);
+        innerBrush.GradientStops[1].Color = Color.FromArgb(
+            150, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
+        innerBrush.GradientStops[2].Color = Color.FromArgb(
+            18, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
+        innerBrush.GradientStops[3].Color = Color.FromArgb(
+            (byte)Math.Round(82 + _dynamicFresnelContrast * 48), 0, 0, 0);
+        innerBrush.GradientStops[4].Color = Color.FromArgb(184, mid.R, mid.G, mid.B);
+
+        double fresnelEnergy = Math.Sqrt(Math.Clamp(_activeFresnelLevel, 0.0, 1.0));
+        double contrastResponse = 0.94 + _dynamicFresnelContrast * 0.12;
+        GlassFresnelBloomBorder.Opacity = Math.Clamp(
+            fresnelEnergy * (0.24 + _dynamicFresnelContrast * 0.08), 0.0, 0.42);
+        GlassFresnelBorder.Opacity = Math.Clamp(
+            fresnelEnergy * 0.98 * contrastResponse, 0.0, 1.0);
+        GlassInnerFresnelBorder.Opacity = Math.Clamp(
+            fresnelEnergy * (0.58 + _dynamicFresnelContrast * 0.10), 0.0, 0.76);
     }
 
     private static Color BuildContentFresnelTint(byte red, byte green, byte blue)
@@ -535,7 +611,9 @@ public partial class MainWindow
         GlassDepthRimBorder.CornerRadius = cr;
         GlassCoolRimBorder.CornerRadius = cr;
         GlassWarmRimBorder.CornerRadius = cr;
+        GlassFresnelBloomBorder.CornerRadius = cr;
         GlassFresnelBorder.CornerRadius = cr;
+        GlassInnerFresnelBorder.CornerRadius = cr;
         GlassRimBorder.CornerRadius = cr;
         GlassSpecularBorder.CornerRadius = cr;
         if (GlassDarkOverlay != null) GlassDarkOverlay.CornerRadius = cr;

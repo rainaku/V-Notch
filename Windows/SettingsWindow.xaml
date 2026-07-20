@@ -1178,7 +1178,7 @@
                                             </Border>
                                             <Border Style="{StaticResource SettingRowBorder}">
                                                 <controls:ElasticSlider x:Name="GlassEdgeBendSlider" Label="Edge Bend" Unit="%"
-                                                        Minimum="0" Maximum="300" Value="165" TickFrequency="5" IsSnapToTickEnabled="True"
+                                                        Minimum="0" Maximum="1000" Value="165" TickFrequency="10" IsSnapToTickEnabled="True"
                                                         ValueChanged="GlassConfigSlider_Changed"/>
                                             </Border>
                                             <Border Style="{StaticResource SettingRowBorder}">

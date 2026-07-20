@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -50,11 +51,12 @@ public sealed class LiquidGlassController
 
     private const int MaxWidth = 1600;
     private const int MaxHeight = 600;
+    private const int GpuSamplingMarginLimit = 64;
 
     private const double ProcessScale = 0.72;
     private const double MagProcessScale = 0.85;
     private const int GpuTextureSizeQuantum = 32;
-    private const double GpuActiveIntervalMs = 1000.0 / 60.0;
+    private const int IdleAfterUnchangedFrames = 4;
 
     private readonly Image _host;
     private readonly Dispatcher _dispatcher;
@@ -63,16 +65,20 @@ public sealed class LiquidGlassController
 
     private double _activeIntervalMs;
     private double _idleIntervalMs;
+    private readonly int _idleFpsLimit;
     private volatile bool _animating;
 
     private readonly object _sync = new();
     private GlassParams _params = GlassParams.Default;
-    private int _blurBoxRadius;
+    private int _blurSigma;
+    private int[] _blurPassRadii = [0, 0, 0];
     private volatile bool _mapsDirty;
 
     private Thread? _worker;
     private volatile bool _isActive;
     private volatile bool _presentInFlight;
+    private const uint RenderTimerPeriodMs = 1;
+    private int _renderTimerPeriodRequested;
 
     // Owned exclusively by the worker thread once Start() runs.
     private WriteableBitmap? _bitmap;
@@ -80,6 +86,8 @@ public sealed class LiquidGlassController
     private double _presentSubX, _presentSubY;
     private byte[] _outBuffer = Array.Empty<byte>();
     private byte[] _blurTmp = Array.Empty<byte>();
+    private byte[] _sourceBlurBuffer = Array.Empty<byte>();
+    private byte[] _sourceBlurTmp = Array.Empty<byte>();
 
     private IntPtr _memDc;
     private IntPtr _dibBmp;
@@ -138,8 +146,6 @@ public sealed class LiquidGlassController
     private ulong _lastFrameHash;
     private ulong _lastOutputHash;
     private int _consecutiveSkips;
-    private const int DeepIdleThreshold = 30;
-    private const double DeepIdleIntervalMs = 300.0;
     private IntPtr _fgProbeHwnd;
     private bool _fgProbeResult;
 
@@ -176,19 +182,210 @@ public sealed class LiquidGlassController
     private Action<Exception>? _onGpuFailure;
     private GpuGeometry _lastPresentedGpuGeometry;
     private bool _hasPresentedGpuGeometry;
+    private readonly object _gpuGeometrySync = new();
+    private GpuGeometry _pendingGpuGeometry;
+    private bool _hasPendingGpuGeometry;
+    private D3DImageFramePresenter? _d3dPresenter;
+    private int _gpuFailureSignaled;
 
-    public void SetGpuMode(bool enabled, Action<GpuGeometry>? onGeometry, Action<Exception>? onFailure = null)
+    public bool SetGpuMode(bool enabled, Action<GpuGeometry>? onGeometry, Action<Exception>? onFailure = null)
     {
         _onGpuGeometry = onGeometry;
         _onGpuFailure = onFailure;
-        _gpuMode = enabled;
-        _hasPresentedGpuGeometry = false;
         if (!enabled)
-            _gpuBitmap = null;
+        {
+            _gpuMode = false;
+            Interlocked.Exchange(ref _gpuFailureSignaled, 0);
+            ResetGpuGeometryTracking();
+            DisposeGpuPresenter();
+            _mapsDirty = true;
+            return true;
+        }
+
+        Interlocked.Exchange(ref _gpuFailureSignaled, 0);
+        ResetGpuGeometryTracking();
+        if (!TryEnableGpuPresenter(out Exception? error))
+        {
+            _gpuMode = false;
+            _mapsDirty = true;
+            RuntimeLog.Log("LIQUIDGLASS", $"D3DImage presenter unavailable; using CPU fallback: {error?.Message}");
+            return false;
+        }
+
+        _gpuMode = true;
         _mapsDirty = true;
+        return true;
+    }
+
+    private bool TryEnableGpuPresenter(out Exception? error)
+    {
+        try
+        {
+            if (_dispatcher.CheckAccess())
+                EnsureGpuPresenterOnDispatcher();
+            else
+                _dispatcher.Invoke(EnsureGpuPresenterOnDispatcher, DispatcherPriority.Send);
+            error = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex;
+            DisposeGpuPresenter();
+            return false;
+        }
+    }
+
+    private void EnsureGpuPresenterOnDispatcher()
+    {
+        if (_d3dPresenter == null)
+        {
+            IntPtr hwnd = _getHwnd();
+            if (hwnd == IntPtr.Zero)
+                throw new InvalidOperationException("A window handle is required for the D3DImage presenter.");
+
+            // Use one fixed presentation surface for the full supported notch
+            // envelope. Captured frames are scaled into it, so animated geometry
+            // never forces D3DImage to replace its back buffer mid-transition.
+            _d3dPresenter = new D3DImageFramePresenter(
+                _dispatcher,
+                hwnd,
+                MaxWidth + GpuSamplingMarginLimit * 2,
+                MaxHeight + GpuSamplingMarginLimit * 2);
+            _d3dPresenter.FramePresented += OnD3DFramePresented;
+            _d3dPresenter.Failed += OnD3DPresenterFailed;
+        }
+
+        _host.Stretch = Stretch.Fill;
+        _host.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _host.VerticalAlignment = VerticalAlignment.Stretch;
+        _host.Width = double.NaN;
+        _host.Height = double.NaN;
+        _host.RenderTransform = null;
+        RenderOptions.SetBitmapScalingMode(_host, BitmapScalingMode.HighQuality);
+        // Do not expose the D3DImage until its first captured frame has been
+        // uploaded. An empty D3DImage/back buffer is rendered as black by WPF.
+        // OnD3DFramePresented performs the source handoff after initialization.
+    }
+
+    private void DisposeGpuPresenter()
+    {
+        if (_d3dPresenter == null)
+            return;
+
+        try
+        {
+            if (_dispatcher.CheckAccess())
+                DisposeGpuPresenterOnDispatcher();
+            else
+                _dispatcher.Invoke(DisposeGpuPresenterOnDispatcher, DispatcherPriority.Send);
+        }
+        catch
+        {
+            _d3dPresenter = null;
+        }
+    }
+
+    private void DisposeGpuPresenterOnDispatcher()
+    {
+        var presenter = _d3dPresenter;
+        if (presenter == null)
+            return;
+
+        _d3dPresenter = null;
+        presenter.FramePresented -= OnD3DFramePresented;
+        presenter.Failed -= OnD3DPresenterFailed;
+        if (ReferenceEquals(_host.Source, presenter.ImageSource))
+            _host.Source = null;
+        presenter.Dispose();
+        ResetGpuGeometryTracking();
+    }
+
+    private void ResetGpuGeometryTracking()
+    {
+        lock (_gpuGeometrySync)
+        {
+            _hasPendingGpuGeometry = false;
+            _pendingGpuGeometry = default;
+        }
+        _lastPresentedGpuGeometry = default;
+        _hasPresentedGpuGeometry = false;
+    }
+
+    private void QueueGpuGeometry(GpuGeometry geom)
+    {
+        lock (_gpuGeometrySync)
+        {
+            _pendingGpuGeometry = geom;
+            _hasPendingGpuGeometry = true;
+        }
+    }
+
+    private void OnD3DFramePresented()
+    {
+        Interlocked.Increment(ref _dbgPresentCount);
+
+        GpuGeometry geom = default;
+        bool hasGeometry;
+        lock (_gpuGeometrySync)
+        {
+            hasGeometry = _hasPendingGpuGeometry;
+            if (hasGeometry)
+            {
+                geom = _pendingGpuGeometry;
+                _hasPendingGpuGeometry = false;
+            }
+        }
+
+        if (hasGeometry &&
+            (!_hasPresentedGpuGeometry || !_lastPresentedGpuGeometry.Equals(geom)))
+        {
+            _onGpuGeometry?.Invoke(geom);
+            _lastPresentedGpuGeometry = geom;
+            _hasPresentedGpuGeometry = true;
+        }
+
+        // Geometry is applied before the initialized source becomes visible so
+        // the first composed GPU frame cannot use stale shader dimensions.
+        var presenter = _d3dPresenter;
+        if (_gpuMode && presenter != null &&
+            !ReferenceEquals(_host.Source, presenter.ImageSource))
+        {
+            _host.Source = presenter.ImageSource;
+        }
+    }
+
+    private void OnD3DPresenterFailed(Exception ex)
+    {
+        if (Interlocked.Exchange(ref _gpuFailureSignaled, 1) != 0)
+            return;
+
+        _gpuMode = false;
+        _mapsDirty = true;
+
+        void NotifyFailure()
+        {
+            try { _onGpuFailure?.Invoke(ex); }
+            catch { /* fallback must not take down the UI thread */ }
+            if (_onGpuFailure == null)
+                DisposeGpuPresenter();
+        }
+
+        try
+        {
+            if (_dispatcher.CheckAccess())
+                NotifyFailure();
+            else
+                _dispatcher.BeginInvoke(DispatcherPriority.Send, (Action)NotifyFailure);
+        }
+        catch
+        {
+            DisposeGpuPresenter();
+        }
     }
 
     private int _dbgFrameCount;
+    private int _dbgPresentCount;
     private int _dbgSkipCount;
     private double _dbgLastLogMs;
 
@@ -201,16 +398,30 @@ public sealed class LiquidGlassController
         _dispatcher = host.Dispatcher;
 
         int active = Math.Clamp(activeFps, 5, 120);
+        _idleFpsLimit = Math.Clamp(idleFps, 1, 120);
         _activeIntervalMs = 1000.0 / active;
-        _idleIntervalMs = 1000.0 / Math.Clamp(idleFps, 1, active);
+        _idleIntervalMs = 1000.0 / Math.Min(_idleFpsLimit, active);
     }
 
     public void UpdateFps(int activeFps)
     {
         int active = Math.Clamp(activeFps, 5, 120);
         _activeIntervalMs = 1000.0 / active;
-        // Keep idle fps at 10 (or whatever it was initialized to), but don't let it exceed active
-        _idleIntervalMs = 1000.0 / Math.Clamp(10, 1, active);
+        _idleIntervalMs = 1000.0 / Math.Min(_idleFpsLimit, active);
+    }
+
+    internal static double ChooseFrameIntervalMs(
+        double activeIntervalMs,
+        double idleIntervalMs,
+        bool geometryAnimating,
+        int consecutiveUnchangedFrames)
+    {
+        // A changed backdrop resets the unchanged counter, keeping subsequent
+        // frames at the configured target. Once several captures are identical,
+        // drop to the idle probe rate until motion is observed again.
+        return geometryAnimating || consecutiveUnchangedFrames < IdleAfterUnchangedFrames
+            ? activeIntervalMs
+            : idleIntervalMs;
     }
 
     public bool IsActive => _isActive;
@@ -236,9 +447,16 @@ public sealed class LiquidGlassController
         }
     }
 
-    public void SetBlur(int boxRadius)
+    public void SetBlur(int gaussianSigma)
     {
-        lock (_sync) _blurBoxRadius = Math.Clamp(boxRadius, 0, 60);
+        int sigma = Math.Clamp(gaussianSigma, 0, 60);
+        lock (_sync)
+        {
+            if (sigma == _blurSigma) return;
+            _blurSigma = sigma;
+            _blurPassRadii = GaussianBoxRadii(sigma);
+            _mapsDirty = true;
+        }
     }
 
     public void SetCaptureExclusion(bool exclude) { /* no-op */ }
@@ -248,6 +466,7 @@ public sealed class LiquidGlassController
         if (_isActive) return;
         _isActive = true;
         _presentInFlight = false;
+        RequestRenderTimerPeriod();
 
         if (_mag == null)
         {
@@ -285,6 +504,7 @@ public sealed class LiquidGlassController
         if (!_isActive) return;
         _isActive = false;
         _exactBitBltCapture = false;
+        ReleaseRenderTimerPeriod();
 
         // Safety: clear any display affinity a previous build may have set.
         SetWindowDisplayAffinitySafe(WDA_NONE);
@@ -295,12 +515,42 @@ public sealed class LiquidGlassController
 
         try
         {
+            DisposeGpuPresenter();
             _host.Source = null;
             _bitmap = null;
-            _gpuBitmap = null;
-            _hasPresentedGpuGeometry = false;
+            ResetGpuGeometryTracking();
         }
         catch { /* shutting down */ }
+    }
+
+    private void RequestRenderTimerPeriod()
+    {
+        if (Interlocked.Exchange(ref _renderTimerPeriodRequested, 1) != 0)
+            return;
+
+        try
+        {
+            uint result = TimeBeginPeriod(RenderTimerPeriodMs);
+            if (result != 0)
+            {
+                Interlocked.Exchange(ref _renderTimerPeriodRequested, 0);
+                RuntimeLog.Log("LIQUIDGLASS", $"High-resolution timer request failed: {result}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Interlocked.Exchange(ref _renderTimerPeriodRequested, 0);
+            RuntimeLog.Log("LIQUIDGLASS", $"High-resolution timer unavailable: {ex.Message}");
+        }
+    }
+
+    private void ReleaseRenderTimerPeriod()
+    {
+        if (Interlocked.Exchange(ref _renderTimerPeriodRequested, 0) == 0)
+            return;
+
+        try { TimeEndPeriod(RenderTimerPeriodMs); }
+        catch { /* best-effort cleanup during shutdown */ }
     }
 
     private bool SetWindowDisplayAffinitySafe(uint affinity)
@@ -324,7 +574,7 @@ public sealed class LiquidGlassController
 
     private void WorkerLoop()
     {
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var clock = Stopwatch.StartNew();
         try
         {
             while (_isActive)
@@ -332,18 +582,15 @@ public sealed class LiquidGlassController
                 double frameStart = clock.Elapsed.TotalMilliseconds;
 
                 bool animating = _animating;
-                double frameIntervalMs;
+                double frameIntervalMs = ChooseFrameIntervalMs(
+                    _activeIntervalMs,
+                    _idleIntervalMs,
+                    animating,
+                    _consecutiveSkips);
                 if (animating)
                 {
-                    frameIntervalMs = _gpuMode
-                        ? Math.Max(_activeIntervalMs, GpuActiveIntervalMs)
-                        : _activeIntervalMs;
                     _consecutiveSkips = 0;
                 }
-                else if (_consecutiveSkips >= DeepIdleThreshold)
-                    frameIntervalMs = DeepIdleIntervalMs;
-                else
-                    frameIntervalMs = _idleIntervalMs;
 
                 if (IsCaptureOverlayActive())
                 {
@@ -361,7 +608,7 @@ public sealed class LiquidGlassController
                     SetWindowDisplayAffinitySafe(WDA_NONE);
                 }
 
-                if (_presentInFlight)
+                if (!_gpuMode && _presentInFlight)
                 {
                     Thread.Sleep(2);
                     continue;
@@ -395,16 +642,21 @@ public sealed class LiquidGlassController
                 double sinceLastLog = frameStart - _dbgLastLogMs;
                 if (sinceLastLog >= 5000.0)
                 {
+                    int presented = Interlocked.Exchange(ref _dbgPresentCount, 0);
+                    double loopFps = _dbgFrameCount * 1000.0 / sinceLastLog;
+                    double targetFps = 1000.0 / _activeIntervalMs;
                     RuntimeLog.Log("LIQUIDGLASS",
-                        $"frames={_dbgFrameCount} skipped={_dbgSkipCount} ({(_dbgFrameCount > 0 ? 100.0 * _dbgSkipCount / _dbgFrameCount : 0):F1}%)");
+                        $"fps={loopFps:F1}/{targetFps:F0} presented={presented} " +
+                        $"skipped={_dbgSkipCount} ({(_dbgFrameCount > 0 ? 100.0 * _dbgSkipCount / _dbgFrameCount : 0):F1}%) " +
+                        $"renderer={(_gpuMode ? "GPU" : "CPU")}");
                     _dbgFrameCount = 0;
                     _dbgSkipCount = 0;
                     _dbgLastLogMs = frameStart;
                 }
 
                 double elapsed = clock.Elapsed.TotalMilliseconds - frameStart;
-                int sleep = (int)Math.Round(frameIntervalMs - elapsed);
-                SleepWithCapturePolling(sleep > 1 ? sleep : 1);
+                double sleep = frameIntervalMs - elapsed;
+                SleepWithCapturePolling(sleep > 0.25 ? sleep : 0.25);
             }
         }
         finally
@@ -418,6 +670,7 @@ public sealed class LiquidGlassController
             _lastFrameHash = 0;
             _lastOutputHash = 0;
             _presentInFlight = false;
+            ReleaseRenderTimerPeriod();
             _worker = null;
         }
     }
@@ -501,15 +754,22 @@ public sealed class LiquidGlassController
         return true;
     }
 
-    private void SleepWithCapturePolling(int milliseconds)
+    private void SleepWithCapturePolling(double milliseconds)
     {
-        long wakeAt = Environment.TickCount64 + Math.Max(1, milliseconds);
+        long wakeAt = Stopwatch.GetTimestamp() + StopwatchTicksFromMilliseconds(Math.Max(0.25, milliseconds));
         while (_isActive)
         {
-            long remaining = wakeAt - Environment.TickCount64;
-            if (remaining <= 0) return;
+            long remainingTicks = wakeAt - Stopwatch.GetTimestamp();
+            if (remainingTicks <= 0) return;
 
-            Thread.Sleep((int)Math.Min(remaining, 8));
+            double remainingMs = remainingTicks * 1000.0 / Stopwatch.Frequency;
+            if (remainingMs > 3.0)
+                Thread.Sleep((int)Math.Min(Math.Max(1.0, Math.Floor(remainingMs - 2.0)), 8.0));
+            else if (remainingMs > 0.75)
+                Thread.Sleep(0);
+            else
+                Thread.SpinWait(96);
+
             if (_exactBitBltCapture && CaptureHotkeyRequested(Environment.TickCount64))
             {
                 // Keep the most recent correctly refracted frame on screen, but make
@@ -520,6 +780,9 @@ public sealed class LiquidGlassController
             }
         }
     }
+
+    private static long StopwatchTicksFromMilliseconds(double milliseconds) =>
+        Math.Max(1, (long)Math.Round(milliseconds * Stopwatch.Frequency / 1000.0));
 
     private bool IsCaptureOverlayActive()
     {
@@ -668,11 +931,13 @@ public sealed class LiquidGlassController
     private bool ProcessFrame(CaptureRegion region, bool animating)
     {
         GlassParams p;
-        int blurRadius;
+        int blurSigma;
+        int[] blurPassRadii;
         lock (_sync)
         {
             p = _params;
-            blurRadius = _blurBoxRadius;
+            blurSigma = _blurSigma;
+            blurPassRadii = _blurPassRadii;
         }
 
         p.TopCornerRadius = Math.Max(0.0, region.TopCornerRadiusDip);
@@ -715,11 +980,12 @@ public sealed class LiquidGlassController
 
         double minHalf = Math.Min(outW, outH) * 0.5;
         double rimWidth = ComputeRimWidth(p.ZRadius, _outScale, minHalf);
+        int requiredMargin = ComputeSamplingMargin(
+            rimWidth, p.Refraction, p.ChromaticAberration, p.Distortion,
+            p.BevelMode, p.EdgeBend);
         int margin = gpuMode
-            ? 0
-            : ComputeSamplingMargin(
-                rimWidth, p.Refraction, p.ChromaticAberration, p.Distortion,
-                p.BevelMode, p.EdgeBend);
+            ? Math.Min(requiredMargin, GpuSamplingMarginLimit)
+            : requiredMargin;
         int srcW = bufW + margin * 2;
         int srcH = bufH + margin * 2;
 
@@ -811,10 +1077,14 @@ public sealed class LiquidGlassController
                 double topR = Math.Clamp(p.TopCornerRadius * _outScale, 0.0, minHalf);
                 double bottomR = Math.Clamp(p.BottomCornerRadius * _outScale, 0.0, minHalf);
 
-                // The GPU texture is now exactly the notch. Pass-through sampling is
-                // uv-to-uv; subpixel placement belongs to WPF layout, not texture UV.
-                double offX = 0.0;
-                double offY = 0.0;
+                // Preserve real desktop pixels around the visible notch. Refraction
+                // at the side caps samples outward; without this margin it hits the
+                // edge of the D3D texture and produces the black/green crescent seen
+                // during hover scaling.
+                double offX = Math.Clamp(
+                    margin - captureShiftX, 0, Math.Max(0, srcW - outW));
+                double offY = Math.Clamp(
+                    margin - mapCaptureShiftY, 0, Math.Max(0, srcH - outH));
 
                 var geom = new GpuGeometry(
                     srcW, srcH, outW, outH, offX, offY,
@@ -823,18 +1093,17 @@ public sealed class LiquidGlassController
                     Math.Clamp(p.ChromaticAberration, 0.0, 2.0),
                     Math.Clamp(p.Distortion, 0.0, 2.0),
                     p.BevelMode >= 1 ? 1.0 : 0.0,
-                    Math.Clamp(p.EdgeBend, 0.0, 3.0),
+                    double.IsFinite(p.EdgeBend) ? Math.Max(0.0, p.EdgeBend) : 0.0,
                     1.0 + p.Saturation, p.Brightness);
 
                 PresentRawGpu(srcW, srcH, geom);
                 return false;
             }
 
-            Refract(p);
-
-            int effBlur = (int)Math.Round(blurRadius * scale);
-            if (effBlur > 0)
-                BlurOutput(effBlur);
+            byte[]? blurredSource = blurSigma > 0
+                ? BlurCapturedSource(srcW, srcH, blurPassRadii)
+                : null;
+            Refract(p, blurredSource);
 
             if (!animating)
             {
@@ -894,22 +1163,38 @@ public sealed class LiquidGlassController
     {
         double r = Math.Max(refraction, 0.0);
         double response = r / Math.Max(0.65 + 0.35 * r, 0.001);
-        return rimWidth * EdgeBendGain(edgeBend) * response *
+        double travelRatio = EdgeBendGain(edgeBend) * response *
             (bevelMode >= 1 ? 1.08 : 1.0);
+
+        // Extreme mode intentionally allows the ray to travel beyond the optical
+        // rim. The user-facing Edge Bend control is expected to produce an obvious,
+        // exaggerated fold instead of being compressed by a cosmetic safety cap.
+        return rimWidth * travelRatio;
     }
 
     internal static double EdgeBendGain(double edgeBend)
     {
-        // 100% is already a clearly visible glass fold; higher slider values grow
-        // super-linearly so narrow rims (for example Z-Radius 8%) do not look
-        // identical to the old weak mapping. Zero remains a true pass-through.
-        double bend = Math.Clamp(edgeBend, 0.0, 3.0);
-        return 0.38 * Math.Pow(bend, 1.5);
+        // Super-linear and intentionally uncapped: values above the former 300%
+        // ceiling continue increasing instead of flattening out. Non-finite input
+        // still degrades to zero so a damaged settings file cannot poison maps.
+        double bend = double.IsFinite(edgeBend) ? Math.Max(edgeBend, 0.0) : 0.0;
+        return 0.58 * Math.Pow(bend, 1.5);
+    }
+
+    internal static double DirectionalLensWidth(
+        double rimWidth, double inwardNormalX, double edgeBend)
+    {
+        double bend = double.IsFinite(edgeBend) ? Math.Max(edgeBend, 0.0) : 0.0;
+        // A capsule's side caps need a longer optical run than its flat top and
+        // bottom. Raising the horizontal normal creates a tapered tongue: longest
+        // on the centreline of each cap, then rapidly narrowing into the corners.
+        double sideAxis = Math.Pow(Math.Clamp(Math.Abs(inwardNormalX), 0.0, 1.0), 2.6);
+        return rimWidth * (1.0 + 0.5 * bend * sideAxis);
     }
 
     internal static bool IsGpuGeometryValid(double srcW, double srcH, double notchW, double notchH) =>
-        srcW >= 1.0 && srcH >= 1.0 &&
-        Math.Abs(srcW - notchW) <= 1.5 && Math.Abs(srcH - notchH) <= 1.5;
+        srcW >= 1.0 && srcH >= 1.0 && notchW >= 1.0 && notchH >= 1.0 &&
+        srcW + 1.5 >= notchW && srcH + 1.5 >= notchH;
 
     internal static int ComputeFallbackSourceY(int regionY, int displayHeight) =>
         checked(regionY + Math.Max(0, displayHeight) + 2);
@@ -973,6 +1258,15 @@ public sealed class LiquidGlassController
                         var bitmap = _bitmap!;
                         int frameX = (bitmap.PixelWidth - w) / 2;
                         bitmap.WritePixels(new Int32Rect(frameX, 0, w, h), buffer, w * 4, 0);
+                        if (!ReferenceEquals(_host.Source, bitmap))
+                        {
+                            _host.Stretch = Stretch.None;
+                            _host.HorizontalAlignment = HorizontalAlignment.Center;
+                            _host.VerticalAlignment = VerticalAlignment.Top;
+                            RenderOptions.SetBitmapScalingMode(_host, BitmapScalingMode.Linear);
+                            _hostTransform ??= new TranslateTransform();
+                            _host.RenderTransform = _hostTransform;
+                        }
                     }
                     if (_hostTransform != null)
                     {
@@ -981,6 +1275,7 @@ public sealed class LiquidGlassController
                     }
                     if (!ReferenceEquals(_host.Source, _bitmap))
                         _host.Source = _bitmap;
+                    Interlocked.Increment(ref _dbgPresentCount);
                 }
                 finally
                 {
@@ -1006,66 +1301,21 @@ public sealed class LiquidGlassController
         return checked(((target + quantum - 1) / quantum) * quantum);
     }
 
-    // GPU-mode bitmap holding the raw (un-refracted) captured desktop.
-    private WriteableBitmap? _gpuBitmap;
-
     private void PresentRawGpu(int srcW, int srcH, GpuGeometry geom)
     {
         if (!_isActive || _dibBits == IntPtr.Zero) return;
 
-        IntPtr dib = _dibBits;
-        int stride = srcW * 4;
-        int bufBytes = stride * srcH;
-
-        _presentInFlight = true;
-        try
+        var presenter = _d3dPresenter;
+        if (presenter == null)
         {
-            _dispatcher.BeginInvoke(DispatcherPriority.Render, (Action)(() =>
-            {
-                try
-                {
-                    if (!_isActive) return;
-
-                    if (_gpuBitmap == null || _gpuBitmap.PixelWidth != srcW || _gpuBitmap.PixelHeight != srcH)
-                    {
-                        _gpuBitmap = new WriteableBitmap(srcW, srcH, 96, 96, PixelFormats.Bgr32, null);
-                        _host.Stretch = Stretch.Fill;
-                        _host.HorizontalAlignment = HorizontalAlignment.Stretch;
-                        _host.VerticalAlignment = VerticalAlignment.Stretch;
-                        _host.Width = double.NaN;
-                        _host.Height = double.NaN;
-                        _host.RenderTransform = null;
-                        RenderOptions.SetBitmapScalingMode(_host, BitmapScalingMode.HighQuality);
-                        _host.Source = _gpuBitmap;
-                    }
-
-                    _gpuBitmap.WritePixels(new Int32Rect(0, 0, srcW, srcH), dib, bufBytes, stride);
-                    if (!ReferenceEquals(_host.Source, _gpuBitmap))
-                        _host.Source = _gpuBitmap;
-
-                    if (!_hasPresentedGpuGeometry || !_lastPresentedGpuGeometry.Equals(geom))
-                    {
-                        _onGpuGeometry?.Invoke(geom);
-                        _lastPresentedGpuGeometry = geom;
-                        _hasPresentedGpuGeometry = true;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _gpuMode = false;
-                    _mapsDirty = true;
-                    try { _onGpuFailure?.Invoke(ex); } catch { /* fallback must not take down the UI thread */ }
-                }
-                finally
-                {
-                    _presentInFlight = false;
-                }
-            }));
+            OnD3DPresenterFailed(new InvalidOperationException("GPU presenter is not initialized."));
+            return;
         }
-        catch (Exception)
+
+        QueueGpuGeometry(geom);
+        if (!presenter.UploadFrame(_dibBits, srcW, srcH, srcW * 4))
         {
-            _presentInFlight = false;
-            // Dispatcher shutting down.
+            OnD3DPresenterFailed(new InvalidOperationException("GPU frame upload failed."));
         }
     }
 
@@ -1314,11 +1564,22 @@ public sealed class LiquidGlassController
         MaxDegreeOfParallelism = Math.Max(1, Math.Min(Environment.ProcessorCount - 1, 8))
     };
 
-    private unsafe void Refract(GlassParams p)
+    private unsafe void Refract(GlassParams p, byte[]? sourceOverride)
+    {
+        if (sourceOverride == null)
+        {
+            RefractFromSource((byte*)_dibBits, p);
+            return;
+        }
+
+        fixed (byte* source = sourceOverride)
+            RefractFromSource(source, p);
+    }
+
+    private unsafe void RefractFromSource(byte* src, GlassParams p)
     {
         int count = _outW * _outH;
         int stride = _srcW * 4;
-        byte* src = (byte*)_dibBits;
 
         double sat = p.Saturation;
         double bright = p.Brightness;
@@ -1451,19 +1712,56 @@ public sealed class LiquidGlassController
         });
     }
 
-    private void BlurOutput(int radius)
+    internal static int[] GaussianBoxRadii(double sigma, int passes = 3)
     {
-        int w = _outW, h = _outH;
-        if (w < 2 || h < 2) return;
-        int r = Math.Min(radius, Math.Min(w, h) / 2);
-        if (r < 1) return;
+        int count = Math.Max(1, passes);
+        var radii = new int[count];
+        if (sigma <= 0.0) return radii;
 
-        byte[] a = _outBuffer, b = _blurTmp;
-        for (int pass = 0; pass < 2; pass++)
+        double idealWidth = Math.Sqrt((12.0 * sigma * sigma / count) + 1.0);
+        int lowerWidth = (int)Math.Floor(idealWidth);
+        if ((lowerWidth & 1) == 0) lowerWidth--;
+        lowerWidth = Math.Max(1, lowerWidth);
+        int upperWidth = lowerWidth + 2;
+
+        double numerator = 12.0 * sigma * sigma
+            - count * lowerWidth * lowerWidth
+            - 4.0 * count * lowerWidth
+            - 3.0 * count;
+        int lowerCount = (int)Math.Round(
+            numerator / (-4.0 * lowerWidth - 4.0));
+        lowerCount = Math.Clamp(lowerCount, 0, count);
+
+        for (int i = 0; i < count; i++)
         {
+            int width = i < lowerCount ? lowerWidth : upperWidth;
+            radii[i] = (width - 1) / 2;
+        }
+        return radii;
+    }
+
+    private byte[] BlurCapturedSource(int w, int h, int[] passRadii)
+    {
+        int bytes = checked(w * h * 4);
+        if (_sourceBlurBuffer.Length < bytes)
+            _sourceBlurBuffer = new byte[bytes];
+        if (_sourceBlurTmp.Length < bytes)
+            _sourceBlurTmp = new byte[bytes];
+
+        System.Runtime.InteropServices.Marshal.Copy(
+            _dibBits, _sourceBlurBuffer, 0, bytes);
+
+        byte[] a = _sourceBlurBuffer, b = _sourceBlurTmp;
+        int maximumRadius = Math.Max(1, Math.Min(w, h) / 2);
+        for (int pass = 0; pass < passRadii.Length; pass++)
+        {
+            int r = Math.Clamp(passRadii[pass], 0, maximumRadius);
+            if (r < 1) continue;
             ParallelRange(h, (y0, y1) => BoxBlurHorizontal(a, b, w, h, r, y0, y1));
             ParallelRange(w, (x0, x1) => BoxBlurVertical(b, a, w, h, r, x0, x1));
         }
+
+        return a;
     }
 
     private static void ParallelRange(int length, Action<int, int> body)
@@ -1643,9 +1941,20 @@ public sealed class LiquidGlassController
                     if (nLen > 1e-6) { nx /= nLen; ny /= nLen; }
                     else { nx = 0.0; ny = 0.0; }
 
-                    double profile = LensProfile(inside / Math.Max(zR, 0.001), broad);
-                    double dispX = nx * amplitude * profile;
-                    double dispY = ny * verticalBalance * amplitude * profile;
+                    double directionalZR = DirectionalLensWidth(zR, nx, p.EdgeBend);
+                    double profile = LensProfile(inside / Math.Max(directionalZR, 0.001), broad);
+                    if (!broad)
+                    {
+                        // A restrained shoulder makes the fold readable across more
+                        // than a razor-thin edge band while preserving the flat centre.
+                        double shoulder = Math.Clamp((p.EdgeBend - 0.8) / 2.2, 0.0, 1.0) * 0.28;
+                        profile += (Math.Sqrt(Math.Max(profile, 0.0)) - profile) * shoulder;
+                    }
+                    // Trace through the rounded surface toward the outside of the
+                    // pill. Sampling inward magnified content from the centre into
+                    // the edge and made the glass show the wrong underlying row.
+                    double dispX = -nx * amplitude * profile;
+                    double dispY = -ny * verticalBalance * amplitude * profile;
 
                     if (distort > 0.0)
                     {

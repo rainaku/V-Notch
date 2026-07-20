@@ -258,6 +258,13 @@ public class SettingsService : ISettingsService
             changed = true;
         }
 
+        if (!settings.EnableDynamicIslandMode &&
+            string.Equals(settings.NotchStyle, "liquidglass", StringComparison.OrdinalIgnoreCase))
+        {
+            settings.NotchStyle = "default";
+            changed = true;
+        }
+
         double canvasBrightness = Math.Clamp(settings.SpotifyCanvasBrightness, 0.2, 1.0);
         if (Math.Abs(canvasBrightness - settings.SpotifyCanvasBrightness) > double.Epsilon)
         {
