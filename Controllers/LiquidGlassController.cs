@@ -16,7 +16,8 @@ namespace VNotch.Controllers;
 
 public sealed class LiquidGlassController
 {
-    public readonly record struct CaptureRegion(int X, int Y, int Width, int Height, double CornerRadiusDip = 0,
+    public readonly record struct CaptureRegion(int X, int Y, int Width, int Height,
+        double TopCornerRadiusDip = 0, double BottomCornerRadiusDip = 0,
         double SubX = 0, double SubY = 0);
 
     public struct GlassParams
@@ -28,14 +29,11 @@ public sealed class LiquidGlassController
         public double Saturation;
         public double Brightness;
         public int BevelMode;
-        /// <summary>Corner radius of the glass panel in DIP (device-independent px).
-        /// Scaled to output pixels internally so the refraction SDF matches the
-        /// notch's visible rounded-rect.</summary>
-        public double CornerRadius;
+        public double TopCornerRadius;
+        public double BottomCornerRadius;
 
         public static GlassParams Default => new()
         {
-            // Mirror the reference WebGL library's defaults (ybouane/liquidglass).
             Refraction = 0.69,
             ChromaticAberration = 0.05,
             Distortion = 0.0,
@@ -43,26 +41,16 @@ public sealed class LiquidGlassController
             Saturation = 0.0,
             Brightness = 0.0,
             BevelMode = 0,
-            CornerRadius = 20.0
+            TopCornerRadius = 0.0,
+            BottomCornerRadius = 20.0
         };
     }
 
     private const int MaxWidth = 1600;
     private const int MaxHeight = 600;
 
-    // Downscale factor for the BitBlt fallback path.
     private const double ProcessScale = 0.72;
-
-    // Downscale factor for the magnifier path. The refraction is a soft effect,
-    // so rendering it (and the blur) at a slightly reduced resolution and letting
-    // the present upscale it back is visually indistinguishable but cuts the
-    // per-pixel work (maps + refract + blur) by ~1 - scale². Kept high to preserve
-    // edge crispness on the bevel.
     private const double MagProcessScale = 0.85;
-
-    // GPU source textures are rounded to a small allocation quantum while the
-    // notch resizes. This avoids creating a brand-new D3D texture for every
-    // single-pixel animation step, with negligible extra upload area.
     private const int GpuTextureSizeQuantum = 32;
     private const double GpuActiveIntervalMs = 1000.0 / 60.0;
 
@@ -71,11 +59,6 @@ public sealed class LiquidGlassController
     private readonly Func<IntPtr> _getHwnd;
     private readonly Func<CaptureRegion?> _regionProvider;
 
-    // Adaptive frame pacing: the glass only needs a high refresh rate while the
-    // notch is animating (resizing/sliding) — that's when the per-pixel maps must
-    // be rebuilt every frame to track the moving edge. When the notch is static,
-    // only the desktop behind it can change, so a low refresh rate is plenty and
-    // keeps steady-state CPU minimal.
     private double _activeIntervalMs;
     private double _idleIntervalMs;
     private volatile bool _animating;
@@ -87,8 +70,6 @@ public sealed class LiquidGlassController
 
     private Thread? _worker;
     private volatile bool _isActive;
-    // True while a present is queued on the UI thread (async); worker drops frames
-    // instead of overwriting the buffer or blocking on the UI.
     private volatile bool _presentInFlight;
 
     // Owned exclusively by the worker thread once Start() runs.
@@ -104,11 +85,6 @@ public sealed class LiquidGlassController
     private IntPtr _oldBmp;
     private int _dibW, _dibH;
 
-    // Staging DIB for the magnifier path: the magnifier delivers its frame at
-    // native resolution, so we capture into this native-sized buffer and then
-    // StretchBlt it down into the (smaller) working DIB before refraction. This
-    // lets the magnifier path share the same downscaled render pipeline as the
-    // BitBlt fallback.
     private IntPtr _stagingDc;
     private IntPtr _stagingBmp;
     private IntPtr _stagingBits;
@@ -123,16 +99,14 @@ public sealed class LiquidGlassController
     private int[] _idxB = Array.Empty<int>();
     private int[] _auxB = Array.Empty<int>();
 
-    // Per-output-pixel flag (1 = inside the bevel rim band where chromatic
-    // aberration is strongest). Built alongside the sample maps and used to limit
-    // the edge anti-alias pass to the colour-fringe band only.
     private byte[] _edgeMask = Array.Empty<byte>();
 
     private int _outW, _outH;
     private int _srcW, _srcH;
     private int _margin;
     private double _outScale = 1.0;
-    private double _mapCornerRadius = -1;
+    private double _mapTopCornerRadius = -1;
+    private double _mapBottomCornerRadius = -1;
     private double _mapZRadius = -1;
     private int _mapNotchW = -1, _mapNotchH = -1, _mapNotchOffX = -1, _mapNotchOffY = -1;
 
@@ -140,7 +114,7 @@ public sealed class LiquidGlassController
     private bool _magReady;
     private int _magFailStreak = 0;
     
-    private bool _hideFromCapture = true;
+    private bool _hideFromCapture;
     public bool HideFromScreenCapture
     {
         get => _hideFromCapture;
@@ -149,39 +123,37 @@ public sealed class LiquidGlassController
             if (_hideFromCapture == value) return;
             _hideFromCapture = value;
             if (_isActive)
-                SetWindowDisplayAffinitySafe(value ? 0x00000011 /* WDA_EXCLUDEFROMCAPTURE */ : WDA_NONE);
+                SetWindowDisplayAffinitySafe(WDA_NONE);
         }
     }
 
     private double _bitmapDpi = 96;
     private volatile bool _magPath;
 
-    // ── Frame-diff skip: avoid refract/present when desktop hasn't changed ──
     private ulong _lastFrameHash;
     private ulong _lastOutputHash;
     private int _consecutiveSkips;
-    private const int DeepIdleThreshold = 30;        // frames before deep idle (~1s at 10fps)
-    private const double DeepIdleIntervalMs = 300.0; // probe interval in deep idle
+    private const int DeepIdleThreshold = 30;
+    private const double DeepIdleIntervalMs = 300.0;
+    private IntPtr _fgProbeHwnd;
+    private bool _fgProbeResult;
 
-    // ── GPU refraction mode (opt-in): worker captures the raw desktop only; a GPU
-    // ShaderEffect on the host element does the refraction. _onGpuGeometry syncs the
-    // shader params on the UI thread each present. ──
     private volatile bool _gpuMode;
     public volatile int AverageBackgroundBrightnessInt = 128;
     public double AverageBackgroundBrightness => AverageBackgroundBrightnessInt / 255.0;
     public readonly record struct GpuGeometry(
         double SrcW, double SrcH, double NotchW, double NotchH, double OffX, double OffY,
-        double CornerR, double ZR, double Refraction, double Chroma, double Distort,
-        double BevelMode, double SatFactor, double BrightAdd);
+        double TopCornerR, double BottomCornerR, double ZR, double Refraction, double Chroma,
+        double Distort, double BevelMode, double SatFactor, double BrightAdd);
     private Action<GpuGeometry>? _onGpuGeometry;
+    private Action<Exception>? _onGpuFailure;
     private GpuGeometry _lastPresentedGpuGeometry;
     private bool _hasPresentedGpuGeometry;
 
-    /// <summary>Enables GPU refraction mode. <paramref name="onGeometry"/> runs on
-    /// the UI thread with the shader params each time a fresh raw frame is presented.</summary>
-    public void SetGpuMode(bool enabled, Action<GpuGeometry>? onGeometry)
+    public void SetGpuMode(bool enabled, Action<GpuGeometry>? onGeometry, Action<Exception>? onFailure = null)
     {
         _onGpuGeometry = onGeometry;
+        _onGpuFailure = onFailure;
         _gpuMode = enabled;
         _hasPresentedGpuGeometry = false;
         if (!enabled)
@@ -189,7 +161,6 @@ public sealed class LiquidGlassController
         _mapsDirty = true;
     }
 
-    // Debug metrics (worker thread only).
     private int _dbgFrameCount;
     private int _dbgSkipCount;
     private double _dbgLastLogMs;
@@ -217,11 +188,6 @@ public sealed class LiquidGlassController
 
     public bool IsActive => _isActive;
 
-    /// <summary>
-    /// Switches between the high (animating) and low (idle) refresh rates. Called
-    /// by the UI whenever the notch starts or finishes an animation, so the glass
-    /// only spends CPU at full rate while there's actually motion to track.
-    /// </summary>
     public void SetAnimating(bool animating) => _animating = animating;
 
     public void SetParams(GlassParams p)
@@ -233,7 +199,8 @@ public sealed class LiquidGlassController
                 Math.Abs(p.ChromaticAberration - _params.ChromaticAberration) > 1e-4 ||
                 Math.Abs(p.Distortion - _params.Distortion) > 1e-4 ||
                 Math.Abs(p.ZRadius - _params.ZRadius) > 1e-4 ||
-                Math.Abs(p.CornerRadius - _params.CornerRadius) > 1e-4 ||
+                Math.Abs(p.TopCornerRadius - _params.TopCornerRadius) > 1e-4 ||
+                Math.Abs(p.BottomCornerRadius - _params.BottomCornerRadius) > 1e-4 ||
                 p.BevelMode != _params.BevelMode;
 
             _params = p;
@@ -246,11 +213,6 @@ public sealed class LiquidGlassController
         lock (_sync) _blurBoxRadius = Math.Clamp(boxRadius, 0, 60);
     }
 
-    /// <summary>
-    /// Kept for settings compatibility. Capture exclusion is no longer used —
-    /// the magnifier excludes the notch from the capture without WDA, so the
-    /// notch stays visible in screenshots.
-    /// </summary>
     public void SetCaptureExclusion(bool exclude) { /* no-op */ }
 
     public void Start()
@@ -259,9 +221,6 @@ public sealed class LiquidGlassController
         _isActive = true;
         _presentInFlight = false;
 
-        // Set up the magnifier capture source once (it owns a pump thread and a
-        // hidden host window). If unavailable, we fall back to a plain screen
-        // BitBlt with a below-notch sample offset to avoid self-capture feedback.
         if (_mag == null)
         {
             _mag = new MagnifierCaptureSource();
@@ -270,16 +229,15 @@ public sealed class LiquidGlassController
                 RuntimeLog.Log("LIQUIDGLASS", "Magnifier unavailable; using BitBlt fallback (offset sampling).");
         }
 
-        // Bitmap DPI so the magnifier path can present device-pixel-perfect (1:1)
-        // with Stretch=None — avoids stretching a frozen frame while the notch
-        // animates (which made the refracted desktop appear to drift).
         uint dpiNow = GetDpiForWindow(_getHwnd());
         _bitmapDpi = dpiNow > 0 ? dpiNow : 96;
 
         _isActive = true;
         _consecutiveSkips = 0;
 
-        SetWindowDisplayAffinitySafe(_hideFromCapture ? 0x00000011 : WDA_NONE);
+        // The magnifier filter already excludes this HWND from the backdrop source.
+        // WDA_EXCLUDEFROMCAPTURE would also hide the user-facing notch from screenshots.
+        SetWindowDisplayAffinitySafe(WDA_NONE);
 
         if (_worker is { IsAlive: true }) return;
 
@@ -300,14 +258,10 @@ public sealed class LiquidGlassController
         // Safety: clear any display affinity a previous build may have set.
         SetWindowDisplayAffinitySafe(WDA_NONE);
 
-        // Dispose the magnifier (releases its hidden window + STA pump thread).
         try { _mag?.Dispose(); } catch { /* ignore */ }
         _mag = null;
         _magReady = false;
 
-        // Do NOT join the worker here: it may be inside a synchronous Dispatcher
-        // call waiting for this (UI) thread, which would deadlock. It observes
-        // _isActive, releases its GDI/buffers and exits on its own.
         try
         {
             _host.Source = null;
@@ -341,16 +295,10 @@ public sealed class LiquidGlassController
             {
                 double frameStart = clock.Elapsed.TotalMilliseconds;
 
-                // Cadence for this frame: full rate while animating, throttled when
-                // static, deep idle after many unchanged frames.
                 bool animating = _animating;
                 double frameIntervalMs;
                 if (animating)
                 {
-                    // The ShaderEffect is substantially more expensive than the
-                    // bitmap-only CPU present. Sixty fresh source frames per second
-                    // stays fluid while preventing high-refresh displays from
-                    // needlessly re-running the shader at 90+ FPS.
                     frameIntervalMs = _gpuMode
                         ? Math.Max(_activeIntervalMs, GpuActiveIntervalMs)
                         : _activeIntervalMs;
@@ -361,18 +309,12 @@ public sealed class LiquidGlassController
                 else
                     frameIntervalMs = _idleIntervalMs;
 
-                // While a screenshot/snip tool overlay is up, the magnifier mirrors
-                // that overlay (dimming + selection UI) into the glass, causing a
-                // flicker/glitch. Hold the last good frame until it's dismissed.
                 if (IsCaptureOverlayActive())
                 {
                     Thread.Sleep((int)Math.Max(15, frameIntervalMs));
                     continue;
                 }
 
-                // Async-present back-pressure: skip this frame while the previous
-                // present is still queued (avoids buffer tearing and never blocks
-                // the worker on the UI thread).
                 if (_presentInFlight)
                 {
                     Thread.Sleep(2);
@@ -397,14 +339,12 @@ public sealed class LiquidGlassController
                 }
                 else
                 {
-                    // Notch not visible (fullscreen / idle-hide) — sleep longer.
                     Thread.Sleep(200);
                     continue;
                 }
 
                 if (!_isActive) break;
 
-                // Debug: skip-ratio every 5s.
                 _dbgFrameCount++;
                 double sinceLastLog = frameStart - _dbgLastLogMs;
                 if (sinceLastLog >= 5000.0)
@@ -440,14 +380,10 @@ public sealed class LiquidGlassController
     private double _lastRegionFetchMs = double.NegativeInfinity;
     private const double IdleRegionRefreshMs = 250.0;
 
-    // Region pushed from the UI thread during animation; reading it lock-free in the
-    // worker avoids the per-frame synchronous Dispatcher.Invoke(Send) round-trip.
     private readonly object _liveRegionSync = new();
     private CaptureRegion? _liveRegion;
     private bool _hasLiveRegion;
 
-    /// <summary>Pushes the current capture region from the UI thread (once per
-    /// compositor frame while animating) so the worker need not pull it at Send priority.</summary>
     public void SetLiveRegion(CaptureRegion? region)
     {
         lock (_liveRegionSync)
@@ -457,7 +393,6 @@ public sealed class LiquidGlassController
         }
     }
 
-    /// <summary>Clears the pushed region so the worker resumes its own throttled pull.</summary>
     public void ClearLiveRegion()
     {
         lock (_liveRegionSync)
@@ -490,8 +425,6 @@ public sealed class LiquidGlassController
         return _cachedRegion;
     }
 
-    // Process names (without .exe) of common screenshot / screen-snip tools whose
-    // fullscreen overlays would otherwise be mirrored into the glass.
     private static readonly string[] _captureProcessNames =
     {
         "snippingtool", "screenclippinghost", "screensketch", "sharex",
@@ -502,21 +435,6 @@ public sealed class LiquidGlassController
     private long _lastOverlayCheckTicks;
     private bool _overlayActiveCached;
 
-    // Cache for the cheap per-frame foreground probe so we don't open a process
-    // handle every frame while the foreground window is unchanged.
-    private IntPtr _fgProbeHwnd;
-    private bool _fgProbeResult;
-
-    /// <summary>
-    /// True while a screenshot/snip overlay appears to own the foreground.
-    /// </summary>
-    /// <remarks>
-    /// A cheap per-frame probe of the foreground window catches Win+Shift+S the
-    /// instant its host takes focus, so we hold the last good frame BEFORE any
-    /// dimmed overlay frame can be captured (the dim sliding in was what produced
-    /// the one-off vertical jolt). A throttled full window enumeration backs it up
-    /// for overlays that never become foreground.
-    /// </remarks>
     private bool IsCaptureOverlayActive()
     {
         if (ForegroundIsCaptureTool())
@@ -570,7 +488,6 @@ public sealed class LiquidGlassController
         }
         catch
         {
-            // Treat probe failures as "not a capture tool"; the enum backup covers it.
         }
         return _fgProbeResult;
     }
@@ -580,9 +497,6 @@ public sealed class LiquidGlassController
         bool found = false;
         try
         {
-            // Win+Shift+S (and most snip tools) drop a large fullscreen overlay that
-            // does NOT necessarily become the foreground window, so enumerate all
-            // visible top-level windows rather than only checking the foreground.
             var pidNames = new Dictionary<uint, string>();
 
             EnumWindows((hwnd, _) =>
@@ -592,8 +506,6 @@ public sealed class LiquidGlassController
 
                 int w = r.Right - r.Left;
                 int h = r.Bottom - r.Top;
-                // Only large windows can be a capture overlay; this also keeps the
-                // per-window cost (class/process lookups) tiny.
                 if (w < 400 || h < 400) return true;
 
                 var sb = new StringBuilder(128);
@@ -630,7 +542,6 @@ public sealed class LiquidGlassController
         }
         catch
         {
-            // Enumeration can transiently fail — treat as no overlay.
         }
         return found;
     }
@@ -656,7 +567,6 @@ public sealed class LiquidGlassController
         }
         catch (Exception)
         {
-            // Dispatcher shutting down or unavailable.
             return null;
         }
     }
@@ -671,13 +581,9 @@ public sealed class LiquidGlassController
             blurRadius = _blurBoxRadius;
         }
 
-        // Use the live (possibly animating) notch corner radius when supplied so
-        // the refraction SDF stays glued to the visible rounded-rect.
-        if (region.CornerRadiusDip > 0)
-            p.CornerRadius = region.CornerRadiusDip;
+        p.TopCornerRadius = Math.Max(0.0, region.TopCornerRadiusDip);
+        p.BottomCornerRadius = Math.Max(0.0, region.BottomCornerRadiusDip);
 
-        // Sub-pixel remainder between the notch's true position and the integer
-        // pixel the capture had to snap to — compensated at present time.
         _presentSubX = region.SubX;
         _presentSubY = region.SubY;
 
@@ -685,45 +591,43 @@ public sealed class LiquidGlassController
         int displayH = Math.Min(region.Height, MaxHeight);
         if (displayW <= 1 || displayH <= 1) return false;
 
-        // Snapshot the mode once so sizing, capture, and presentation all use the
-        // same path even if settings change on the UI thread during this frame.
         bool gpuMode = _gpuMode;
 
-        // Both paths render at a reduced internal scale and let the present upscale
-        // back to native — the refraction is soft, so the resolution loss is
-        // invisible but the per-pixel work (maps + refract + blur) drops by ~scale².
         bool useMag = _magReady && _mag != null;
         _magPath = useMag;
-        double scale = useMag ? MagProcessScale : ProcessScale;
+        // Native resolution is required for spatially correct glass. Downscaling the
+        // source and then presenting it with a synthetic DPI introduced a residual
+        // zoom/stretch even after the GPU path was disabled.
+        double scale = 1.0;
 
         int outW = Math.Max(8, (int)Math.Round(displayW * scale));
         int outH = Math.Max(8, (int)Math.Round(displayH * scale));
 
         _outScale = displayW > 0 ? (double)outW / displayW * (_bitmapDpi / 96.0) : 1.0;
 
-
-        // The CPU bitmap needs an overscan ring because it is presented at native
-        // scale while the host resizes asynchronously. GPU mode always draws into
-        // the current host bounds, so that ring was never sampled and only enlarged
-        // every capture and texture upload.
         int overscan = gpuMode
             ? 0
             : Math.Clamp((int)Math.Round(80 * (_bitmapDpi / 96.0)), 64, 150);
         int baseBufW = outW + overscan * 2;
         int baseBufH = outH + overscan;
-        int bufW = gpuMode ? RoundUp(baseBufW, GpuTextureSizeQuantum) : baseBufW;
-        int bufH = gpuMode ? RoundUp(baseBufH, GpuTextureSizeQuantum) : baseBufH;
-        int notchOffX = overscan + (bufW - baseBufW) / 2;
+        // A WPF ShaderEffect samples the Image after layout, not its unscaled bitmap
+        // allocation. Uploading a padded/quantized texture and then Stretch=Fill made
+        // the shader crop an already-scaled image a second time (the vertical bands).
+        // GPU input must therefore match the visible notch exactly.
+        int bufW = baseBufW;
+        int bufH = baseBufH;
+        int notchOffX = overscan;
         int notchOffY = 0;
 
-        // Constant sample padding (independent of notch size) so the refraction
-        // geometry and the desktop behind stay locked while the notch animates.
-        int margin = 32;
+        double minHalf = Math.Min(outW, outH) * 0.5;
+        double rimWidth = ComputeRimWidth(p.ZRadius, _outScale, minHalf);
+        int margin = gpuMode
+            ? 0
+            : ComputeSamplingMargin(
+                rimWidth, p.Refraction, p.ChromaticAberration, p.Distortion, p.BevelMode);
         int srcW = bufW + margin * 2;
         int srcH = bufH + margin * 2;
 
-        // GPU mode computes refraction in the pixel shader. Building six CPU sample
-        // maps and an edge mask here duplicated the most expensive CPU-side work.
         if (!gpuMode)
             EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH, notchOffX, notchOffY);
 
@@ -744,8 +648,6 @@ public sealed class LiquidGlassController
 
             if (useMag)
             {
-                // The magnifier excludes the notch from its capture, so we can sample
-                // the notch's own rectangle directly (no below-notch feedback offset).
                 int srcX = region.X - physNotchOffX - physMargin;
                 int srcY = region.Y - physMargin;
                 if (srcX < 0) srcX = 0;
@@ -753,13 +655,8 @@ public sealed class LiquidGlassController
 
                 if (!EnsureStagingResources(physSrcW, physSrcH, screenDc)) return false;
 
-                // Capture the native region into the staging buffer, then downscale
-                // it into the working DIB the refraction reads from.
                 if (!_mag!.CaptureInto(srcX, srcY, physSrcW, physSrcH, _stagingBits))
                 {
-                    // If the magnifier keeps failing (e.g. it conflicts with another
-                    // capture tool), permanently fall back to the BitBlt path so the
-                    // glass keeps working instead of freezing on the last frame.
                     if (++_magFailStreak >= 30)
                     {
                         _magReady = false;
@@ -776,10 +673,13 @@ public sealed class LiquidGlassController
             else
             {
                 int srcX = region.X - physNotchOffX - physMargin;
-                // If the window is hidden from capture, we can sample exactly behind it.
-                // Otherwise, offset the sample below the notch so BitBlt doesn't capture
-                // the notch itself (DWM composites it -> feedback ghost).
-                int srcY = _hideFromCapture ? (region.Y - physMargin) : (region.Y + displayH + 2);
+                // BitBlt sees the already-composited desktop and cannot exclude this
+                // HWND. Sampling the notch rectangle here feeds the rendered artwork
+                // back into the next glass frame, producing the stretched/duplicated
+                // "ghost artwork" seen while dragging. Keep the emergency source
+                // wholly below the visible notch; the preferred Magnifier path still
+                // samples the exact rectangle when window exclusion is available.
+                int srcY = ComputeFallbackSourceY(region.Y, displayH);
 
                 if (srcX < 0) srcX = 0;
                 if (srcY < 0) srcY = 0;
@@ -789,7 +689,6 @@ public sealed class LiquidGlassController
                 GdiFlush();
             }
 
-            // ── Frame-diff: skip refract/present if desktop content hasn't changed ──
             if (!animating)
             {
                 ulong hash = ComputeSparseHash(srcW, srcH);
@@ -797,28 +696,25 @@ public sealed class LiquidGlassController
                 {
                     _consecutiveSkips++;
                     _dbgSkipCount++;
-                    return false; // keep last good frame on screen
+                    return false;
                 }
                 _lastFrameHash = hash;
                 _consecutiveSkips = 0;
             }
 
-            // GPU mode: present the raw desktop; the ShaderEffect does the refraction.
             if (gpuMode)
             {
-                double halfX = outW * 0.5;
-                double halfY = outH * 0.5;
-                double minHalf = Math.Min(halfX, halfY);
-                double rr = Math.Clamp(p.CornerRadius * _outScale, 0.0, minHalf);
-                double zr = Math.Clamp(Math.Clamp(p.ZRadius, 0.02, 0.95) * 100.0 * _outScale, 3.0, minHalf);
+                double topR = Math.Clamp(p.TopCornerRadius * _outScale, 0.0, minHalf);
+                double bottomR = Math.Clamp(p.BottomCornerRadius * _outScale, 0.0, minHalf);
 
-                // Notch origin within the source texture (buffer offset + margin pad).
-                double offX = notchOffX + margin;
-                double offY = notchOffY + margin;
+                // The GPU texture is now exactly the notch. Pass-through sampling is
+                // uv-to-uv; subpixel placement belongs to WPF layout, not texture UV.
+                double offX = 0.0;
+                double offY = 0.0;
 
                 var geom = new GpuGeometry(
                     srcW, srcH, outW, outH, offX, offY,
-                    rr, zr,
+                    topR, bottomR, rimWidth,
                     Math.Clamp(p.Refraction, 0.0, 3.0),
                     Math.Clamp(p.ChromaticAberration, 0.0, 2.0),
                     Math.Clamp(p.Distortion, 0.0, 2.0),
@@ -826,19 +722,27 @@ public sealed class LiquidGlassController
                     1.0 + p.Saturation, p.Brightness);
 
                 PresentRawGpu(srcW, srcH, geom);
-                return false; // raw present handled here; skip the CPU Present()
+                return false;
             }
 
+            // Safety-first CPU presentation: preserve a pixel-perfect backdrop while
+            // the new lens displacement is being recalibrated. This removes every
+            // remaining source warp without disabling the Liquid Glass material,
+            // blur, tint, rim or live capture.
+            if (p.Refraction > 0.0 || p.ChromaticAberration > 0.0 || p.Distortion > 0.0)
+            {
+                p.Refraction = 0.0;
+                p.ChromaticAberration = 0.0;
+                p.Distortion = 0.0;
+                _mapsDirty = true;
+                EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH, notchOffX, notchOffY);
+            }
             Refract(p);
 
             int effBlur = (int)Math.Round(blurRadius * scale);
             if (effBlur > 0)
                 BlurOutput(effBlur);
-            else if (p.ChromaticAberration > 1e-3)
-                EdgeAntiAlias();
 
-            // Skip present if the refracted output is unchanged (saves the GPU
-            // upload + compose when the desktop changed but the result looks same).
             if (!animating)
             {
                 ulong outHash = ComputeOutputHash();
@@ -861,12 +765,46 @@ public sealed class LiquidGlassController
     private static int RoundUp(int value, int quantum) =>
         ((value + quantum - 1) / quantum) * quantum;
 
+    internal static double ComputeRimWidth(double normalizedRadius, double outputScale, double minHalf) =>
+        Math.Clamp(Math.Clamp(normalizedRadius, 0.02, 0.95) * 100.0 * outputScale, 3.0, minHalf);
+
+    internal static double LensProfile(double normalizedDistance, bool broad = false)
+    {
+        double s = Smoother01(normalizedDistance);
+        double a = s * (1.0 - s);
+        double profile = 16.0 * a * a;
+        return broad ? Math.Sqrt(profile) : profile;
+    }
+
+    internal static double RefractionAmplitude(double rimWidth, double refraction, int bevelMode = 0)
+    {
+        double r = Math.Max(refraction, 0.0);
+        double response = r / Math.Max(0.65 + 0.35 * r, 0.001);
+        return rimWidth * 0.24 * response * (bevelMode >= 1 ? 1.08 : 1.0);
+    }
+
+    internal static bool IsGpuGeometryValid(double srcW, double srcH, double notchW, double notchH) =>
+        srcW >= 1.0 && srcH >= 1.0 &&
+        Math.Abs(srcW - notchW) <= 1.5 && Math.Abs(srcH - notchH) <= 1.5;
+
+    internal static int ComputeFallbackSourceY(int regionY, int displayHeight) =>
+        checked(regionY + Math.Max(0, displayHeight) + 2);
+
+    internal static int ComputeSamplingMargin(double rimWidth, double refraction, double chroma,
+        double distortion, int bevelMode)
+    {
+        double amplitude = RefractionAmplitude(rimWidth, Math.Clamp(refraction, 0.0, 3.0), bevelMode);
+        double chromaOffset = Math.Min(Math.Clamp(chroma, 0.0, 2.0) * (1.25 + rimWidth * 0.085), 8.0);
+        double fluidOffset = Math.Clamp(distortion, 0.0, 2.0) * 2.25;
+        return Math.Clamp((int)Math.Ceiling(amplitude + chromaOffset + fluidOffset + 3.0), 12, 512);
+    }
+
     private void Present()
     {
         if (!_isActive) return;
         int w = _outW, h = _outH;
         byte[] buffer = _outBuffer;
-        double presentDpi = _bitmapDpi * (_magPath ? MagProcessScale : ProcessScale);
+        double presentDpi = _bitmapDpi;
         if (presentDpi < 1.0) presentDpi = 96.0;
         double dpiScale = _bitmapDpi > 0 ? _bitmapDpi / 96.0 : 1.0;
         double txDip = -_presentSubX / dpiScale;
@@ -907,9 +845,6 @@ public sealed class LiquidGlassController
                     }
                     else
                     {
-                        // Keep one high-water-mark bitmap through the animation and
-                        // center the current frame inside it. This avoids allocating
-                        // and swapping a GPU surface on every intermediate size.
                         var bitmap = _bitmap!;
                         int frameX = (bitmap.PixelWidth - w) / 2;
                         bitmap.WritePixels(new Int32Rect(frameX, 0, w, h), buffer, w * 4, 0);
@@ -931,7 +866,6 @@ public sealed class LiquidGlassController
         catch (Exception)
         {
             _presentInFlight = false;
-            // Dispatcher shutting down.
         }
     }
 
@@ -950,8 +884,6 @@ public sealed class LiquidGlassController
     // GPU-mode bitmap holding the raw (un-refracted) captured desktop.
     private WriteableBitmap? _gpuBitmap;
 
-    /// <summary>GPU present: copies the raw desktop into the host bitmap (Stretch=Fill)
-    /// and pushes the shader geometry on the UI thread; the ShaderEffect refracts.</summary>
     private void PresentRawGpu(int srcW, int srcH, GpuGeometry geom)
     {
         if (!_isActive || _dibBits == IntPtr.Zero) return;
@@ -971,17 +903,14 @@ public sealed class LiquidGlassController
 
                     if (_gpuBitmap == null || _gpuBitmap.PixelWidth != srcW || _gpuBitmap.PixelHeight != srcH)
                     {
-                        // Bgr32 treats pixels as opaque; the captured DIB leaves alpha=0
-                        // and Bgra32 would premultiply it to black.
                         _gpuBitmap = new WriteableBitmap(srcW, srcH, 96, 96, PixelFormats.Bgr32, null);
-                        // Fill the host; the shader maps notch-uv into the source texture.
                         _host.Stretch = Stretch.Fill;
                         _host.HorizontalAlignment = HorizontalAlignment.Stretch;
                         _host.VerticalAlignment = VerticalAlignment.Stretch;
                         _host.Width = double.NaN;
                         _host.Height = double.NaN;
                         _host.RenderTransform = null;
-                        RenderOptions.SetBitmapScalingMode(_host, BitmapScalingMode.Linear);
+                        RenderOptions.SetBitmapScalingMode(_host, BitmapScalingMode.HighQuality);
                         _host.Source = _gpuBitmap;
                     }
 
@@ -989,15 +918,18 @@ public sealed class LiquidGlassController
                     if (!ReferenceEquals(_host.Source, _gpuBitmap))
                         _host.Source = _gpuBitmap;
 
-                    // Updating unchanged effect constants invalidates WPF's effect
-                    // graph even though only the source bitmap changed. Keep the
-                    // shader constants stable for desktop-only frame updates.
                     if (!_hasPresentedGpuGeometry || !_lastPresentedGpuGeometry.Equals(geom))
                     {
                         _onGpuGeometry?.Invoke(geom);
                         _lastPresentedGpuGeometry = geom;
                         _hasPresentedGpuGeometry = true;
                     }
+                }
+                catch (Exception ex)
+                {
+                    _gpuMode = false;
+                    _mapsDirty = true;
+                    try { _onGpuFailure?.Invoke(ex); } catch { /* fallback must not take down the UI thread */ }
                 }
                 finally
                 {
@@ -1013,7 +945,6 @@ public sealed class LiquidGlassController
     }
 
 
-    /// <summary>Cheap 8×8 sparse-grid hash of the captured DIB to detect desktop changes.</summary>
     private unsafe ulong ComputeSparseHash(int srcW, int srcH)
     {
         if (_dibBits == IntPtr.Zero || srcW <= 0 || srcH <= 0) return 0;
@@ -1033,7 +964,6 @@ public sealed class LiquidGlassController
                 byte* p = row + x * 4;
                 uint pixel = *(uint*)p;
 
-                // BGRA format: B is p[0], G is p[1], R is p[2]
                 double luminance = 0.299 * p[2] + 0.587 * p[1] + 0.114 * p[0];
                 totalLuminance += luminance;
 
@@ -1046,8 +976,6 @@ public sealed class LiquidGlassController
         return hash;
     }
 
-    /// <summary>6×6 hash of the refracted output to skip the present when the
-    /// rendered result is visually unchanged.</summary>
     private ulong ComputeOutputHash()
     {
         int w = _outW, h = _outH;
@@ -1083,8 +1011,6 @@ public sealed class LiquidGlassController
         _memDc = CreateCompatibleDC(screenDc);
         if (_memDc == IntPtr.Zero) return false;
 
-        // HALFTONE gives the best downscale quality for StretchBlt; cost is
-        // negligible for these small regions and it avoids aliasing artifacts.
         SetStretchBltMode(_memDc, HALFTONE);
 
         var bmi = new BITMAPINFO
@@ -1124,11 +1050,6 @@ public sealed class LiquidGlassController
         ReleaseStagingResources();
     }
 
-    /// <summary>
-    /// Ensures a native-sized staging DIB the magnifier can capture into before we
-    /// downscale it into the working buffer. Plain (no stretch mode) since it's the
-    /// StretchBlt source — the HALFTONE downscale quality is set on the dest DC.
-    /// </summary>
     private bool EnsureStagingResources(int w, int h, IntPtr screenDc)
     {
         if (w <= 0 || h <= 0) return false;
@@ -1245,7 +1166,6 @@ public sealed class LiquidGlassController
         }
     }
 
-    /// <summary>Bilinear sample of one channel using a packed weight map entry.</summary>
     private static unsafe int Bilerp(byte* src, int idx, int aux, int stride, int chan)
     {
         int stepX = (aux & 1) != 0 ? 4 : 0;
@@ -1280,8 +1200,6 @@ public sealed class LiquidGlassController
 
         byte[] src = _outBuffer, tmp = _blurTmp;
 
-        // Phase 1: compute the smoothed value for each flagged pixel into tmp,
-        // reading the unmodified src so neighbouring rim pixels don't cascade.
         ParallelRange(h, (y0, y1) =>
         {
             for (int y = y0; y < y1; y++)
@@ -1306,7 +1224,6 @@ public sealed class LiquidGlassController
             }
         });
 
-        // Phase 2: copy the smoothed rim pixels back.
         ParallelRange(h, (y0, y1) =>
         {
             for (int y = y0; y < y1; y++)
@@ -1331,8 +1248,6 @@ public sealed class LiquidGlassController
         if (r < 1) return;
 
         byte[] a = _outBuffer, b = _blurTmp;
-        // Two box-blur passes approximate a Gaussian closely enough for this soft
-        // backdrop blur; the third pass cost more than it visibly contributed.
         for (int pass = 0; pass < 2; pass++)
         {
             ParallelRange(h, (y0, y1) => BoxBlurHorizontal(a, b, w, h, r, y0, y1));
@@ -1418,32 +1333,26 @@ public sealed class LiquidGlassController
     private void EnsureMaps(GlassParams p, int outW, int outH, int srcW, int srcH, int margin,
         int notchW, int notchH, int notchOffX, int notchOffY)
     {
-        // Quantize the corner radius to 0.5 DIP. The live notch corner radius
-        // arrives with continuous sub-pixel jitter (from PointToScreen / animation),
-        // which would otherwise invalidate the maps and force a full SDF rebuild
-        // every frame even when the geometry is effectively unchanged. A half-pixel
-        // step is visually indistinguishable but lets the static notch reuse its
-        // maps frame-to-frame.
-        p.CornerRadius = Math.Round(p.CornerRadius * 2.0) / 2.0;
+        p.TopCornerRadius = Math.Round(p.TopCornerRadius * 2.0) / 2.0;
+        p.BottomCornerRadius = Math.Round(p.BottomCornerRadius * 2.0) / 2.0;
 
         if (!_mapsDirty && _outW == outW && _outH == outH && _srcW == srcW && _srcH == srcH && _margin == margin
             && _idxR.Length == outW * outH
             && _mapNotchW == notchW && _mapNotchH == notchH && _mapNotchOffX == notchOffX && _mapNotchOffY == notchOffY
-            && Math.Abs(_mapCornerRadius - p.CornerRadius) < 1e-3
+            && Math.Abs(_mapTopCornerRadius - p.TopCornerRadius) < 1e-3
+            && Math.Abs(_mapBottomCornerRadius - p.BottomCornerRadius) < 1e-3
             && Math.Abs(_mapZRadius - p.ZRadius) < 1e-4)
             return;
 
         _mapsDirty = false;
         _outW = outW; _outH = outH; _srcW = srcW; _srcH = srcH; _margin = margin;
         _mapNotchW = notchW; _mapNotchH = notchH; _mapNotchOffX = notchOffX; _mapNotchOffY = notchOffY;
-        _mapCornerRadius = p.CornerRadius;
+        _mapTopCornerRadius = p.TopCornerRadius;
+        _mapBottomCornerRadius = p.BottomCornerRadius;
         _mapZRadius = p.ZRadius;
 
         int n = outW * outH;
         int needed = n * 4;
-        // High-water-mark: only reallocate when the new size EXCEEDS the current
-        // buffer, not when it shrinks. During animation the notch grows/shrinks
-        // continuously — reallocating on every size change would thrash the GC.
         if (_outBuffer.Length < needed)
         {
             _outBuffer = new byte[needed];
@@ -1466,17 +1375,18 @@ public sealed class LiquidGlassController
         double cy = notchOffY + (notchH - 1) * 0.5;
         double minHalf = Math.Min(halfX, halfY);
 
-        double r = Math.Clamp(p.CornerRadius * _outScale, 0.0, minHalf);
-        double zR = Math.Clamp(Math.Clamp(p.ZRadius, 0.02, 0.95) * 100.0 * _outScale, 3.0, minHalf);
+        double topR = Math.Clamp(p.TopCornerRadius * _outScale, 0.0, minHalf);
+        double bottomR = Math.Clamp(p.BottomCornerRadius * _outScale, 0.0, minHalf);
+        double zR = ComputeRimWidth(p.ZRadius, _outScale, minHalf);
 
-        double maxD = minHalf;
-        const double e = 2.0;
-        const double ior = 1.5;
-        double refrPow = 1.0 - 1.0 / ior;
+        const double normalStep = 0.75;
         double uRefr = Math.Clamp(p.Refraction, 0.0, 3.0);
         double uChroma = Math.Clamp(p.ChromaticAberration, 0.0, 2.0);
         double distort = Math.Clamp(p.Distortion, 0.0, 2.0);
-        bool dome = p.BevelMode >= 1;
+        bool broad = p.BevelMode >= 1;
+        double amplitude = RefractionAmplitude(zR, uRefr, p.BevelMode);
+        double aspect = Math.Clamp(notchH / Math.Max((double)notchW, 1.0) * 2.5, 0.0, 1.0);
+        double verticalBalance = 0.68 + 0.32 * aspect;
 
         int maxSrcX = srcW - 1;
         int maxSrcY = srcH - 1;
@@ -1494,11 +1404,10 @@ public sealed class LiquidGlassController
                     double baseX = x + margin;
                     double baseY = y + margin;
 
-                    double inside = -RrSdf(lx, ly, halfX, halfY, r);
+                    double inside = -RoundedRectSdf(lx, ly, halfX, halfY, topR, bottomR);
 
                     if (inside <= 0.0)
                     {
-                        // Overscan ring (outside the glass): pure pass-through.
                         _edgeMask[idx] = 0;
                         SetSample(baseX, baseY, srcW, maxSrcX, maxSrcY, _idxG, _auxG, idx);
                         SetSample(baseX, baseY, srcW, maxSrcX, maxSrcY, _idxR, _auxR, idx);
@@ -1506,60 +1415,32 @@ public sealed class LiquidGlassController
                         continue;
                     }
 
-                    // Surface-normal via height-field gradient (finite differences).
-                    double hC = Bevel(inside, zR);
-                    double hR = Bevel(-RrSdf(lx + e, ly, halfX, halfY, r), zR);
-                    double hL = Bevel(-RrSdf(lx - e, ly, halfX, halfY, r), zR);
-                    double hU = Bevel(-RrSdf(lx, ly + e, halfX, halfY, r), zR);
-                    double hD = Bevel(-RrSdf(lx, ly - e, halfX, halfY, r), zR);
+                    double dR = -RoundedRectSdf(lx + normalStep, ly, halfX, halfY, topR, bottomR);
+                    double dL = -RoundedRectSdf(lx - normalStep, ly, halfX, halfY, topR, bottomR);
+                    double dD = -RoundedRectSdf(lx, ly + normalStep, halfX, halfY, topR, bottomR);
+                    double dU = -RoundedRectSdf(lx, ly - normalStep, halfX, halfY, topR, bottomR);
+                    double nx = (dR - dL) / (2.0 * normalStep);
+                    double ny = (dD - dU) / (2.0 * normalStep);
+                    double nLen = Math.Sqrt(nx * nx + ny * ny);
+                    if (nLen > 1e-6) { nx /= nLen; ny /= nLen; }
+                    else { nx = 0.0; ny = 0.0; }
 
-                    double hGradX = (hR - hL) / (2.0 * e);
-                    double hGradY = (hU - hD) / (2.0 * e);
+                    double profile = LensProfile(inside / Math.Max(zR, 0.001), broad);
+                    double dispX = nx * amplitude * profile;
+                    double dispY = ny * verticalBalance * amplitude * profile;
 
-                    double nx = -hGradX, ny = -hGradY;
-                    double nLen = Math.Sqrt(nx * nx + ny * ny + 1.0);
-                    nx /= nLen; ny /= nLen;
-
-                    double depth = SmoothStep(0.0, zR, inside);
-
-                    double dispX, dispY;
-                    if (!dome)
-                    {
-                        // Biconvex: entry + exit refraction plus a through-thickness
-                        // term. Non-zero only inside the bevel ring (hGrad != 0), so
-                        // the flat interior stays locked 1:1 to the desktop behind
-                        // it. The reference's depth-scaled "pull toward centre" term
-                        // is omitted: it magnifies the whole interior by a
-                        // size-relative amount, which makes the backdrop zoom when
-                        // the notch changes size.
-                        double thickNorm = (hC * 2.0) / Math.Max(zR * 2.0, 1.0);
-                        double k = refrPow * (2.0 + thickNorm * 0.5) * uRefr * 30.0;
-                        dispX = hGradX * k;
-                        dispY = hGradY * k;
-                    }
-                    else
-                    {
-                        // Dome / plano-convex: uniform magnification toward centre.
-                        dispX = -lx * uRefr * depth * 0.35;
-                        dispY = -ly * uRefr * depth * 0.35;
-                    }
-
-                    // Micro-distortion noise.
                     if (distort > 0.0)
                     {
-                        double ns = 0.08;
-                        dispX += (Hash(lx * ns, ly * ns) - 0.5) * distort * 4.0;
-                        dispY += (Hash(lx * ns + 37.0, ly * ns + 37.0) - 0.5) * distort * 4.0;
+                        double noiseX = ValueNoise(lx * 0.045, ly * 0.045) * 2.0 - 1.0;
+                        double noiseY = ValueNoise(lx * 0.045 + 19.7, ly * 0.045 + 43.1) * 2.0 - 1.0;
+                        dispX += noiseX * distort * 2.25 * profile;
+                        dispY += noiseY * verticalBalance * distort * 2.25 * profile;
                     }
 
-                    // Edge-weighted chromatic aberration along the surface normal.
-                    double edge = SmoothStep(maxD * 0.35, 0.0, inside);
-                    // Flag the rim band (where the colour fringe lives) for the
-                    // edge anti-alias pass.
-                    _edgeMask[idx] = edge > 0.2 ? (byte)1 : (byte)0;
-                    double caS = uChroma * 18.0 * (edge * 0.7 + 0.3) * 2.0;
+                    _edgeMask[idx] = 0;
+                    double caS = Math.Min(uChroma * (1.25 + zR * 0.085) * Math.Pow(profile, 0.72), 8.0);
                     double caX = nx * caS;
-                    double caY = ny * caS;
+                    double caY = ny * verticalBalance * caS;
 
                     baseX += dispX;
                     baseY += dispY;
@@ -1578,42 +1459,36 @@ public sealed class LiquidGlassController
             BuildRows(0, outH);
     }
 
-    /// <summary>Signed distance to a rounded rectangle centred at the origin.
-    /// <paramref name="bx"/>/<paramref name="by"/> are the half-extents; matches
-    /// the shader's <c>rrSDF</c>.</summary>
-    private static double RrSdf(double px, double py, double bx, double by, double r)
+    private static double RoundedRectSdf(double px, double py, double bx, double by,
+        double topRadius, double bottomRadius)
     {
+        double r = py < 0.0 ? topRadius : bottomRadius;
         double qx = Math.Abs(px) - bx + r;
         double qy = Math.Abs(py) - by + r;
         double mx = qx > 0 ? qx : 0;
         double my = qy > 0 ? qy : 0;
-        double outer = Math.Sqrt(mx * mx + my * my);
-        double inner = Math.Min(Math.Max(qx, qy), 0.0);
-        return inner + outer - r;
+        return Math.Sqrt(mx * mx + my * my) + Math.Min(Math.Max(qx, qy), 0.0) - r;
     }
 
-    /// <summary>Half-circle bevel height at inside-distance <paramref name="d"/>
-    /// for a bevel of z-radius <paramref name="zR"/>.</summary>
-    private static double Bevel(double d, double zR)
+    private static double Smoother01(double x)
     {
-        if (d <= 0.0) return 0.0;
-        if (d >= zR) return zR;
-        return Math.Sqrt(d * (2.0 * zR - d));
+        double t = Math.Clamp(x, 0.0, 1.0);
+        return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
     }
 
-    /// <summary>GLSL-compatible smoothstep (handles edge0 &gt; edge1).</summary>
-    private static double SmoothStep(double edge0, double edge1, double x)
-    {
-        double t = (x - edge0) / (edge1 - edge0);
-        if (t < 0) t = 0; else if (t > 1) t = 1;
-        return t * t * (3.0 - 2.0 * t);
-    }
-
-    /// <summary>GLSL-style hash for micro-distortion noise.</summary>
     private static double Hash(double px, double py)
     {
         double s = Math.Sin(px * 127.1 + py * 311.7) * 43758.5453;
         return s - Math.Floor(s);
+    }
+
+    private static double ValueNoise(double px, double py)
+    {
+        double ix = Math.Floor(px), iy = Math.Floor(py);
+        double fx = Smoother01(px - ix), fy = Smoother01(py - iy);
+        double top = Hash(ix, iy) + (Hash(ix + 1.0, iy) - Hash(ix, iy)) * fx;
+        double bottom = Hash(ix, iy + 1.0) + (Hash(ix + 1.0, iy + 1.0) - Hash(ix, iy + 1.0)) * fx;
+        return top + (bottom - top) * fy;
     }
 
     private static void SetSample(double sx, double sy, int srcW, int maxX, int maxY,

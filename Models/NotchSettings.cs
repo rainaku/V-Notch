@@ -114,6 +114,9 @@ public class NotchSettings
 
     public string ExpandedWidget { get; set; } = "clock";
 
+    public string ProcessPriority { get; set; } = "Normal";
+    public int GpuPreference { get; set; } = 0;
+
     public bool HasSeenLiquidGlassIntro { get; set; } = false;
 
     [JsonIgnore]
@@ -161,14 +164,13 @@ public class LiquidGlassConfig
     public int TargetFps { get; set; } = 60;
     public int Variant { get; set; } = 0; // 0 = Regular (Adaptive), 1 = Clear (highly transparent, non-adaptive)
 
-    // When true the notch is excluded from screen capture (WDA_EXCLUDEFROMCAPTURE),
-    // letting the glass sample exactly what's behind it with no self-feedback — at
-    // the cost of the notch being invisible in screenshots/recordings.
-    public bool HideFromScreenCapture { get; set; } = true;
+    // Legacy compatibility only. The magnifier filter now excludes the notch from
+    // its private backdrop source without hiding the visible overlay in screenshots.
+    public bool HideFromScreenCapture { get; set; } = false;
 
-    // Opt-in: run the refraction on the GPU (ps_3_0 ShaderEffect) instead of the CPU
-    // pixel pipeline. Default false so the tuned CPU look stays until verified.
-    public bool UseGpuRefraction { get; set; } = false;
+    // New installations use the native-resolution GPU lens. Existing settings keep
+    // their serialized value, including an explicit false from the old opt-in UI.
+    public bool UseGpuRefraction { get; set; } = true;
 
     public LiquidGlassConfig Clone() => (LiquidGlassConfig)MemberwiseClone();
 }

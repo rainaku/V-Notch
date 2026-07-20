@@ -32,6 +32,7 @@ public partial class App : Application
         var loadedSettings = earlySettings.Load();
         Loc.SetLanguage(loadedSettings.Language);
         AnimationConfig.Configure(loadedSettings.AnimationFps);
+        ApplyProcessPriority(loadedSettings.ProcessPriority);
 
         if (e.Args.Contains("--uninstall"))
         {
@@ -272,5 +273,23 @@ public partial class App : Application
         }
 
         return null;
+    }
+
+    private void ApplyProcessPriority(string priority)
+    {
+        try
+        {
+            var p = System.Diagnostics.Process.GetCurrentProcess();
+            p.PriorityClass = priority switch
+            {
+                "High" => System.Diagnostics.ProcessPriorityClass.High,
+                "RealTime" => System.Diagnostics.ProcessPriorityClass.RealTime,
+                _ => System.Diagnostics.ProcessPriorityClass.Normal
+            };
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Log("SYSTEM", $"Failed to set process priority to {priority}: {ex.Message}");
+        }
     }
 }

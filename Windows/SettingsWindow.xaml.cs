@@ -196,6 +196,9 @@ public partial class SettingsWindow : Window
         ManualCityTextBox.Text = _settings.ManualCity;
         UpdateWeatherDependentControls(_settings.EnableWeather);
 
+        ProcessPriorityCombo.SelectedItem = ProcessPriorityCombo.Items.OfType<System.Windows.Controls.ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _settings.ProcessPriority) ?? ProcessPriorityCombo.Items[0];
+        GpuPreferenceCombo.SelectedItem = GpuPreferenceCombo.Items.OfType<System.Windows.Controls.ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _settings.GpuPreference.ToString()) ?? GpuPreferenceCombo.Items[0];
+
         _isLoadingSettings = false;
         ApplyLocalization();
     }
@@ -1267,6 +1270,7 @@ public partial class SettingsWindow : Window
         c.ShadowOpacity = ui.ShadowOpacity;
         c.ShadowSpread = ui.ShadowSpread;
         c.BevelMode = ui.BevelMode;
+        c.TargetFps = ui.TargetFps;
 
         string activePreset = (GlassPresetCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "custom";
         if (activePreset == "clear") c.Variant = 1;
@@ -1306,8 +1310,12 @@ public partial class SettingsWindow : Window
 
         if (preset != null)
         {
+            var currentFps = _settings.LiquidGlass?.TargetFps ?? 60;
+            var currentGpu = _settings.LiquidGlass?.UseGpuRefraction ?? true;
             _settings.LiquidGlass = preset.Clone();
-            ApplyGlassConfigToSliders(preset);
+            _settings.LiquidGlass.TargetFps = currentFps;
+            _settings.LiquidGlass.UseGpuRefraction = currentGpu;
+            ApplyGlassConfigToSliders(_settings.LiquidGlass);
         }
 
         PushLivePreview();
@@ -1444,6 +1452,70 @@ public partial class SettingsWindow : Window
         if (YouTubeApiKeyTextBox.Visibility == Visibility.Visible)
             YouTubeApiKeyPasswordBox.Password = YouTubeApiKeyTextBox.Text;
         UpdateYouTubeApiKeyStatus();
+    }
+
+    private void ProcessPriorityCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        if (ProcessPriorityCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is string tag)
+        {
+            _settings.ProcessPriority = tag;
+            ApplyProcessPriority(tag);
+        }
+    }
+
+    private void GpuPreferenceCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isLoadingSettings) return;
+        if (GpuPreferenceCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is string tag && int.TryParse(tag, out int val))
+        {
+            _settings.GpuPreference = val;
+            ApplyGpuPreference(val);
+        }
+    }
+
+    private void ApplyProcessPriority(string priority)
+    {
+        try
+        {
+            var p = System.Diagnostics.Process.GetCurrentProcess();
+            p.PriorityClass = priority switch
+            {
+                "High" => System.Diagnostics.ProcessPriorityClass.High,
+                "RealTime" => System.Diagnostics.ProcessPriorityClass.RealTime,
+                _ => System.Diagnostics.ProcessPriorityClass.Normal
+            };
+        }
+        catch (Exception ex)
+        {
+            VNotch.Services.RuntimeLog.Log("SETTINGS", $"Failed to set process priority: {ex.Message}");
+        }
+    }
+
+    private void ApplyGpuPreference(int preference)
+    {
+        try
+        {
+            var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrEmpty(exePath)) return;
+
+            using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\DirectX\UserGpuPreferences");
+            if (key != null)
+            {
+                if (preference == 0)
+                {
+                    key.DeleteValue(exePath, false);
+                }
+                else
+                {
+                    key.SetValue(exePath, $"GpuPreference={preference};");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            VNotch.Services.RuntimeLog.Log("SETTINGS", $"Failed to set GPU preference: {ex.Message}");
+        }
     }
 
     private bool _isKeyVisible = false;

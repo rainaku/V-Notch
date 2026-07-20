@@ -64,6 +64,33 @@ public class SettingsMigratorTests
     }
 
     [Fact]
+    public void NewDefaults_EnableGpuGlassWithoutHidingNotchFromCapture()
+    {
+        var settings = new NotchSettings();
+
+        Assert.True(settings.LiquidGlass.UseGpuRefraction);
+        Assert.False(settings.LiquidGlass.HideFromScreenCapture);
+    }
+
+    [Fact]
+    public void CurrentSettings_PreserveExplicitGpuOptOut()
+    {
+        string rawJson = $$"""
+            {
+              "SettingsVersion": {{SettingsMigrator.CurrentVersion}},
+              "LiquidGlass": {
+                "UseGpuRefraction": false
+              }
+            }
+            """;
+
+        var (settings, migrated) = SettingsMigrator.Migrate(rawJson);
+
+        Assert.False(migrated);
+        Assert.False(settings.LiquidGlass.UseGpuRefraction);
+    }
+
+    [Fact]
     public void Migrate_Version4_AddsPerformanceDefaults()
     {
         const string rawJson = """

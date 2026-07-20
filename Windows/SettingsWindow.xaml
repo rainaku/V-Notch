@@ -1158,11 +1158,11 @@
                                             <Border Style="{StaticResource SettingRowBorder}">
                                                 <StackPanel>
                                                     <CheckBox x:Name="GpuRefractionCheck"
-                                                              Content="GPU refraction (experimental)"
+                                                              Content="High-quality GPU refraction"
                                                               Checked="GpuRefractionCheck_Changed"
                                                               Unchecked="GpuRefractionCheck_Changed"/>
                                                     <TextBlock x:Name="GpuRefractionHint"
-                                                               Text="Render the glass refraction on the GPU instead of the CPU. Much lower CPU usage. If the look differs or it doesn't work on your GPU, turn it off."
+                                                               Text="Render the SwiftUI-style lens at native resolution. Enabled by default on new installations; disable it to use the CPU fallback."
                                                                Style="{StaticResource SettingHintText}"/>
                                                 </StackPanel>
                                             </Border>
@@ -1688,6 +1688,34 @@
                                                            FontSize="11"
                                                            Foreground="#6B7280"
                                                            Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                         </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}">
+                                            <StackPanel>
+                                                <TextBlock x:Name="ProcessPriorityLabel" Text="Process Priority" Style="{StaticResource SettingTitleText}"/>
+                                                <TextBlock x:Name="ProcessPriorityHint" Text="Adjust the priority of V-Notch in Windows to ensure smooth animations under heavy system load."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,6,0,8"/>
+                                                <ComboBox x:Name="ProcessPriorityCombo" Width="200" HorizontalAlignment="Left" SelectionChanged="ProcessPriorityCombo_SelectionChanged">
+                                                    <ComboBoxItem Content="Normal (Default)" Tag="Normal"/>
+                                                    <ComboBoxItem Content="High" Tag="High"/>
+                                                    <ComboBoxItem Content="Realtime" Tag="RealTime"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SettingRowBorder}" Margin="0,0,0,4" BorderThickness="0">
+                                            <StackPanel>
+                                                <TextBlock x:Name="GpuPreferenceLabel" Text="GPU Render App" Style="{StaticResource SettingTitleText}"/>
+                                                <TextBlock x:Name="GpuPreferenceHint" Text="Select which GPU Windows should use to render V-Notch. Requires a restart."
+                                                           Style="{StaticResource SettingHintText}"
+                                                           Margin="0,6,0,8"/>
+                                                <ComboBox x:Name="GpuPreferenceCombo" Width="200" HorizontalAlignment="Left" SelectionChanged="GpuPreferenceCombo_SelectionChanged">
+                                                    <ComboBoxItem Content="Let Windows Decide" Tag="0"/>
+                                                    <ComboBoxItem Content="Power Saving (iGPU)" Tag="1"/>
+                                                    <ComboBoxItem Content="High Performance (dGPU)" Tag="2"/>
+                                                </ComboBox>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>

@@ -406,21 +406,81 @@
                             </Border.Background>
                         </Border>
 
-                        <Border x:Name="GlassFresnelBorder"
+                        <!-- Optical rim stack: depth, spectral split, Fresnel,
+                             broken edge reflection and a focused specular glint. -->
+                        <Border x:Name="GlassDepthRimBorder"
                                 IsHitTestVisible="False"
                                 Visibility="Collapsed"
                                 Opacity="0"
-                                BorderThickness="1.4"
+                                BorderThickness="1.2"
                                 CornerRadius="0,0,20,20">
                             <Border.BorderBrush>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1" po:Freeze="True">
-                                    <GradientStop Color="#BFFFFFFF" Offset="0"/>
-                                    <GradientStop Color="#40FFFFFF" Offset="0.5"/>
-                                    <GradientStop Color="#10FFFFFF" Offset="1"/>
+                                    <GradientStop Color="#00000000" Offset="0"/>
+                                    <GradientStop Color="#08000000" Offset="0.42"/>
+                                    <GradientStop Color="#B8000000" Offset="0.78"/>
+                                    <GradientStop Color="#54000000" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.BorderBrush>
                         </Border>
 
+                        <Border x:Name="GlassCoolRimBorder"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                Opacity="0"
+                                BorderThickness="1.8"
+                                CornerRadius="0,0,20,20">
+                            <Border.BorderBrush>
+                                <RadialGradientBrush Center="0.14,0.72"
+                                                       GradientOrigin="0.14,0.72"
+                                                       RadiusX="0.68" RadiusY="0.82"
+                                                       po:Freeze="True">
+                                    <GradientStop Color="#E57D92FF" Offset="0"/>
+                                    <GradientStop Color="#8871C8FF" Offset="0.26"/>
+                                    <GradientStop Color="#247BDFFF" Offset="0.58"/>
+                                    <GradientStop Color="#007BDFFF" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Border.BorderBrush>
+                        </Border>
+
+                        <Border x:Name="GlassWarmRimBorder"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                Opacity="0"
+                                BorderThickness="1.65"
+                                CornerRadius="0,0,20,20">
+                            <Border.BorderBrush>
+                                <RadialGradientBrush Center="0.9,0.2"
+                                                       GradientOrigin="0.9,0.2"
+                                                       RadiusX="0.58" RadiusY="0.76"
+                                                       po:Freeze="True">
+                                    <GradientStop Color="#E5FFD27A" Offset="0"/>
+                                    <GradientStop Color="#7CFFAB5C" Offset="0.3"/>
+                                    <GradientStop Color="#18FF9348" Offset="0.64"/>
+                                    <GradientStop Color="#00FF9348" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Border.BorderBrush>
+                        </Border>
+
+                        <Border x:Name="GlassFresnelBorder"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                Opacity="0"
+                                BorderThickness="2.2"
+                                CornerRadius="0,0,20,20">
+                            <Border.BorderBrush>
+                                <RadialGradientBrush Center="0.18,0.08"
+                                                       GradientOrigin="0.13,0.03"
+                                                       RadiusX="0.86" RadiusY="0.92"
+                                                       po:Freeze="True">
+                                    <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                    <GradientStop Color="#C8EEF8FF" Offset="0.2"/>
+                                    <GradientStop Color="#447CB6E8" Offset="0.52"/>
+                                    <GradientStop Color="#087CB6E8" Offset="0.78"/>
+                                    <GradientStop Color="#007CB6E8" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Border.BorderBrush>
+                        </Border>
 
                         <Border x:Name="GlassDarkOverlay"
                                 IsHitTestVisible="False"
@@ -432,9 +492,41 @@
                         <Border x:Name="GlassRimBorder"
                                 IsHitTestVisible="False"
                                 Visibility="Collapsed"
-                                BorderThickness="0.7"
-                                BorderBrush="#1FFFFFFF"
-                                CornerRadius="0,0,20,20"/>
+                                Opacity="0"
+                                BorderThickness="0.75"
+                                CornerRadius="0,0,20,20">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0.04,0" EndPoint="0.96,1" po:Freeze="True">
+                                    <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                    <GradientStop Color="#B8E9F7FF" Offset="0.16"/>
+                                    <GradientStop Color="#30FFFFFF" Offset="0.38"/>
+                                    <GradientStop Color="#18000000" Offset="0.57"/>
+                                    <GradientStop Color="#A6000000" Offset="0.76"/>
+                                    <GradientStop Color="#48FFFFFF" Offset="0.91"/>
+                                    <GradientStop Color="#D8FFFFFF" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                        </Border>
+
+                        <Border x:Name="GlassSpecularBorder"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed"
+                                Opacity="0"
+                                BorderThickness="1.15"
+                                CornerRadius="0,0,20,20">
+                            <Border.BorderBrush>
+                                <RadialGradientBrush Center="0.22,0.08"
+                                                       GradientOrigin="0.18,0.02"
+                                                       RadiusX="0.38" RadiusY="0.62"
+                                                       po:Freeze="True">
+                                    <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                    <GradientStop Color="#FFFFFFFF" Offset="0.13"/>
+                                    <GradientStop Color="#8CFFFFFF" Offset="0.34"/>
+                                    <GradientStop Color="#10FFFFFF" Offset="0.68"/>
+                                    <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Border.BorderBrush>
+                        </Border>
 
                         <Border x:Name="VolumeIndicatorContainer"
                                 VerticalAlignment="Center"
@@ -3239,8 +3331,41 @@
                             <TextBlock x:Name="AudioLoadingText"
                                        Text="Loading sound mixer..."
                                        FontSize="12"
-                                       Foreground="#8FFFFFFF"
-                                       HorizontalAlignment="Center"/>
+                                       HorizontalAlignment="Center"
+                                       FontWeight="Medium"
+                                       FontFamily="{StaticResource MainSystemFont}"
+                                       TextOptions.TextFormattingMode="Ideal">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <Trigger Property="IsVisible" Value="True">
+                                                <Trigger.EnterActions>
+                                                    <BeginStoryboard Name="TextShimmerAnim">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(TextBlock.Foreground).(GradientBrush.GradientStops)[0].(GradientStop.Offset)"
+                                                                             From="-0.45" To="1.05" Duration="0:0:1.6" />
+                                                            <DoubleAnimation Storyboard.TargetProperty="(TextBlock.Foreground).(GradientBrush.GradientStops)[1].(GradientStop.Offset)"
+                                                                             From="-0.20" To="1.30" Duration="0:0:1.6" />
+                                                            <DoubleAnimation Storyboard.TargetProperty="(TextBlock.Foreground).(GradientBrush.GradientStops)[2].(GradientStop.Offset)"
+                                                                             From="0.05" To="1.55" Duration="0:0:1.6" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </Trigger.EnterActions>
+                                                <Trigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="TextShimmerAnim" />
+                                                </Trigger.ExitActions>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                                <TextBlock.Foreground>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#69FFFFFF" Offset="-0.45"/>
+                                        <GradientStop Color="#F5FFFFFF" Offset="-0.20"/>
+                                        <GradientStop Color="#69FFFFFF" Offset="0.05"/>
+                                    </LinearGradientBrush>
+                                </TextBlock.Foreground>
+                            </TextBlock>
                         </StackPanel>
 
                         <Grid x:Name="AudioOverlay"

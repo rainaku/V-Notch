@@ -13,8 +13,11 @@ public partial class MainWindow
 
     private LiquidGlassRefractionEffect? _glassRefractionEffect;
 
-    private bool UseGpuRefraction =>
-        (_settings.LiquidGlass?.UseGpuRefraction ?? false) && LiquidGlassRefractionEffect.IsAvailable;
+    // GPU ShaderEffect mapping is temporarily disabled: WPF applies the effect to the
+    // laid-out Image rather than the source bitmap, which is producing severe backdrop
+    // stretching on real notch geometries. The CPU path uses explicit pixel maps and is
+    // the safe renderer until the GPU path is moved to a composition surface.
+    private bool UseGpuRefraction => false;
 
     private bool IsLiquidGlassEnabled =>
         string.Equals(_settings.NotchStyle, LiquidGlassStyleId, StringComparison.OrdinalIgnoreCase);
@@ -43,8 +46,7 @@ public partial class MainWindow
 
                 GlassBackdropHost.Visibility = Visibility.Collapsed;
                 GlassTintOverlay.Visibility = Visibility.Collapsed;
-                GlassFresnelBorder.Visibility = Visibility.Collapsed;
-                GlassRimBorder.Visibility = Visibility.Collapsed;
+                SetOpticalRimVisibility(Visibility.Collapsed);
                 if (GlassDarkOverlay != null) GlassDarkOverlay.Visibility = Visibility.Collapsed;
 
                 _liquidGlass?.Stop();
@@ -53,8 +55,7 @@ public partial class MainWindow
 
             GlassBackdropHost.Visibility = Visibility.Visible;
             GlassTintOverlay.Visibility = Visibility.Visible;
-            GlassFresnelBorder.Visibility = Visibility.Visible;
-            GlassRimBorder.Visibility = Visibility.Visible;
+            SetOpticalRimVisibility(Visibility.Visible);
             if (GlassDarkOverlay != null) GlassDarkOverlay.Visibility = Visibility.Visible;
 
             CompositionTarget.Rendering -= OnLiquidGlassFrameUpdate;
@@ -70,7 +71,9 @@ public partial class MainWindow
                 activeFps: Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, 120),
                 idleFps: 10);
 
-            _liquidGlass.HideFromScreenCapture = _settings.LiquidGlass?.HideFromScreenCapture ?? true;
+            // Magnifier capture excludes the notch internally while the user-facing
+            // overlay remains visible in screenshots and recordings.
+            _liquidGlass.HideFromScreenCapture = false;
 
             // Match the controller to the notch's current motion state so it starts
             // at the right cadence (e.g. enabled mid-animation).
@@ -103,8 +106,7 @@ public partial class MainWindow
             GlassBackdropHost.Visibility = Visibility.Collapsed;
             GlassBackdropHost.Background = null;
             GlassTintOverlay.Visibility = Visibility.Collapsed;
-            GlassFresnelBorder.Visibility = Visibility.Collapsed;
-            GlassRimBorder.Visibility = Visibility.Collapsed;
+            SetOpticalRimVisibility(Visibility.Collapsed);
             if (GlassDarkOverlay != null)
             {
                 GlassDarkOverlay.Visibility = Visibility.Collapsed;
@@ -133,8 +135,7 @@ public partial class MainWindow
 
         GlassBackdropHost.Opacity = Math.Clamp(cfg.Opacity, 0, 1);
 
-        GlassRimBorder.BorderBrush = MakeWhite(Math.Clamp(cfg.EdgeHighlight, 0, 1) * 0.78);
-        GlassFresnelBorder.Opacity = Math.Clamp(cfg.Fresnel, 0, 1) * 0.6;
+        ApplyOpticalRimLevels(cfg.EdgeHighlight, cfg.Specular, cfg.Fresnel, cfg.ChromaticAberration);
 
         SyncGlassCornerRadius(NotchBorder.CornerRadius);
 
@@ -159,13 +160,10 @@ public partial class MainWindow
             Saturation = cfg.Saturation,
             Brightness = cfg.Brightness,
             BevelMode = cfg.BevelMode,
-            // Drive the refraction SDF off the notch's actual rounded-rect so the
-            // bent edges line up with the visible corners.
-            CornerRadius = NotchBorder.CornerRadius.TopLeft
+            TopCornerRadius = NotchBorder.CornerRadius.TopLeft,
+            BottomCornerRadius = NotchBorder.CornerRadius.BottomLeft
         });
     }
-
-    // ── GPU refraction wiring (opt-in) ──
 
     private System.Windows.Media.Effects.BlurEffect? _glassHostBlur;
 
@@ -173,17 +171,33 @@ public partial class MainWindow
     {
         if (_liquidGlass == null) return;
 
-        if (UseGpuRefraction)
-        {
-            _glassRefractionEffect ??= new LiquidGlassRefractionEffect();
-            GlassBackdropImage.Effect = _glassRefractionEffect;
-            _liquidGlass.SetGpuMode(true, ApplyGpuGeometry);
-        }
-        else
+        if (!UseGpuRefraction)
         {
             DetachGpuRefraction();
             _liquidGlass.SetGpuMode(false, null);
+            return;
         }
+
+        try
+        {
+            _glassRefractionEffect ??= new LiquidGlassRefractionEffect();
+            GlassBackdropImage.Effect = _glassRefractionEffect;
+            _liquidGlass.SetGpuMode(true, ApplyGpuGeometry, OnGpuRefractionFailure);
+        }
+        catch (Exception ex)
+        {
+            VNotch.Services.RuntimeLog.Log("LIQUIDGLASS", $"GPU effect attach failed; using CPU fallback: {ex.Message}");
+            DetachGpuRefraction();
+            _liquidGlass.SetGpuMode(false, null);
+        }
+    }
+
+    private void OnGpuRefractionFailure(Exception ex)
+    {
+        VNotch.Services.RuntimeLog.Log("LIQUIDGLASS", $"GPU render failed; switched to CPU fallback: {ex.Message}");
+        DetachGpuRefraction();
+        _liquidGlass?.SetGpuMode(false, null);
+        ApplyGpuBlur(0.0);
     }
 
     private void DetachGpuRefraction()
@@ -213,7 +227,8 @@ public partial class MainWindow
         fx.NotchH = g.NotchH;
         fx.OffX = g.OffX;
         fx.OffY = g.OffY;
-        fx.CornerR = g.CornerR;
+        fx.TopCornerR = g.TopCornerR;
+        fx.BottomCornerR = g.BottomCornerR;
         fx.ZR = g.ZR;
         fx.Refraction = g.Refraction;
         fx.Chroma = g.Chroma;
@@ -253,12 +268,40 @@ public partial class MainWindow
     // frame is dropped during a heavy composite (e.g. view switches).
     private static readonly SolidColorBrush _glassBaseFill = Frozen(0xFF, 0x0B, 0x0E, 0x12);
 
-    private static SolidColorBrush MakeWhite(double alpha)
+    private void SetOpticalRimVisibility(Visibility visibility)
     {
-        byte a = (byte)Math.Clamp(alpha * 255.0, 0, 255);
-        var b = new SolidColorBrush(Color.FromArgb(a, 255, 255, 255));
-        b.Freeze();
-        return b;
+        GlassDepthRimBorder.Visibility = visibility;
+        GlassCoolRimBorder.Visibility = visibility;
+        GlassWarmRimBorder.Visibility = visibility;
+        GlassFresnelBorder.Visibility = visibility;
+        GlassRimBorder.Visibility = visibility;
+        GlassSpecularBorder.Visibility = visibility;
+    }
+
+    /// <summary>
+    /// Maps the material controls to a layered optical edge. EdgeHighlight drives
+    /// the broken light/dark separator, Specular is a small local glint, Fresnel is
+    /// the broader grazing-angle reflection, and chroma contributes only a restrained
+    /// cool/warm colour split. Keeping these independent avoids the flat neon-outline
+    /// look produced by one uniformly translucent white Border.
+    /// </summary>
+    private void ApplyOpticalRimLevels(double edgeHighlight, double specular, double fresnel, double chroma)
+    {
+        double edge = Math.Clamp(edgeHighlight, 0, 1);
+        double spec = Math.Clamp(specular, 0, 1);
+        double fres = Math.Clamp(fresnel, 0, 1);
+        double spectral = Math.Clamp(chroma, 0, 2);
+
+        // A square-root response preserves a delicate rim at low slider values
+        // without making the high end look like a painted white stroke.
+        GlassRimBorder.Opacity = Math.Sqrt(edge) * 0.82;
+        GlassDepthRimBorder.Opacity = Math.Clamp(edge * 0.34 + fres * 0.24, 0, 0.46);
+        GlassFresnelBorder.Opacity = fres * 0.72;
+        GlassSpecularBorder.Opacity = spec * 0.92;
+
+        double spectralOpacity = Math.Clamp(spectral * 0.30 + edge * 0.10, 0, 0.52);
+        GlassCoolRimBorder.Opacity = spectralOpacity;
+        GlassWarmRimBorder.Opacity = spectralOpacity * 0.76;
     }
 
     // Liquid-glass "material" matching the audio redirect frame.
@@ -387,8 +430,12 @@ public partial class MainWindow
         if (GlassBackdropHost == null) return;
         GlassBackdropHost.CornerRadius = cr;
         GlassTintOverlay.CornerRadius = cr;
+        GlassDepthRimBorder.CornerRadius = cr;
+        GlassCoolRimBorder.CornerRadius = cr;
+        GlassWarmRimBorder.CornerRadius = cr;
         GlassFresnelBorder.CornerRadius = cr;
         GlassRimBorder.CornerRadius = cr;
+        GlassSpecularBorder.CornerRadius = cr;
         if (GlassDarkOverlay != null) GlassDarkOverlay.CornerRadius = cr;
     }
 
@@ -409,6 +456,8 @@ public partial class MainWindow
     // updates the backdrop position in coarse steps and it visibly jumps.
     private bool _glassHoverMotion;
     private int _glassHoverGen;
+    private bool _glassGestureSnapBackMotion;
+    private int _glassGestureSnapBackGen;
 
     /// <summary>
     /// Marks the glass as "in motion" for the lifetime of a hover scale animation,
@@ -431,11 +480,33 @@ public partial class MainWindow
         };
     }
 
+    /// <summary>
+    /// Keeps backdrop capture locked to the translated notch until the gesture
+    /// spring has actually returned to rest. Mouse capture ends before this visual
+    /// animation does, so gesture state alone is not long-lived enough.
+    /// </summary>
+    private void BeginGlassGestureSnapBack(System.Windows.Media.Animation.AnimationTimeline completionAnim)
+    {
+        if (_liquidGlass == null || !IsLiquidGlassEnabled || completionAnim == null) return;
+
+        int gen = ++_glassGestureSnapBackGen;
+        _glassGestureSnapBackMotion = true;
+        UpdateGlassMotionState();
+
+        completionAnim.Completed += (_, _) =>
+        {
+            if (gen != _glassGestureSnapBackGen) return;
+            _glassGestureSnapBackMotion = false;
+            UpdateGlassMotionState();
+        };
+    }
+
     private bool _glassRegionPushActive;
 
     private void UpdateGlassMotionState()
     {
-        bool motion = _isAnimating || _glassHoverMotion;
+        bool motion = _isAnimating || _glassHoverMotion ||
+                      _isGestureActive || _glassGestureSnapBackMotion;
         _liquidGlass?.SetAnimating(motion);
         SetGlassRegionPush(motion && _liquidGlass != null && IsLiquidGlassEnabled);
     }
@@ -658,7 +729,10 @@ public partial class MainWindow
         if (physW <= 1 || physH <= 1) return null;
 
         return new LiquidGlassController.CaptureRegion(
-            physLeft, physTop, physW, physH, NotchBorder.CornerRadius.TopLeft, subX, subY);
+            physLeft, physTop, physW, physH,
+            NotchBorder.CornerRadius.TopLeft,
+            NotchBorder.CornerRadius.BottomLeft,
+            subX, subY);
     }
 
     private static bool IsSystemTransparencyEnabled()
@@ -724,9 +798,10 @@ public partial class MainWindow
         // Accessibility: ReduceMotion locks the progress factor to 0.0 to eliminate dynamic bending/shadow motion
         double factor = VNotch.Services.AnimationConfig.ReduceMotion ? 0.0 : Math.Clamp((height - collapsedH) / 160.0, 0.0, 1.0);
 
-        // 1. Dynamic Bevel Thickness & Refraction
-        double activeZRadius = cfg.ZRadius * (1.0 + factor * 0.65);
-        double activeRefraction = cfg.Refraction * (1.0 + factor * 0.4);
+        // Preserve optical density as the notch grows. The previous 65%/40% boosts
+        // multiplied together and stretched the backdrop vertically in expanded views.
+        double activeZRadius = cfg.ZRadius * (1.0 + factor * 0.12);
+        double activeRefraction = cfg.Refraction * (1.0 + factor * 0.06);
 
         // 2. Dynamic Shadowing (larger elements float higher and cast wider, darker shadows)
         double activeShadowOpacity = cfg.ShadowOpacity + (1.0 - cfg.ShadowOpacity) * factor * 0.35;
@@ -742,8 +817,8 @@ public partial class MainWindow
         double activeSpecular = cfg.Specular + (1.0 - cfg.Specular) * factor * 0.15;
         double activeFresnel = cfg.Fresnel + (1.0 - cfg.Fresnel) * factor * 0.2;
 
-        GlassRimBorder.BorderBrush = MakeWhite(Math.Clamp(cfg.EdgeHighlight * (1.0 + factor * 0.5), 0, 1) * 0.78);
-        GlassFresnelBorder.Opacity = Math.Clamp(activeFresnel, 0, 1) * 0.6;
+        double activeEdge = Math.Clamp(cfg.EdgeHighlight * (1.0 + factor * 0.5), 0, 1);
+        ApplyOpticalRimLevels(activeEdge, activeSpecular, activeFresnel, cfg.ChromaticAberration);
 
         // Accessibility: ReduceMotion sets refraction distortion to a flat minimum
         double activeDistortion = VNotch.Services.AnimationConfig.ReduceMotion ? 0.0 : cfg.Distortion;
@@ -757,7 +832,8 @@ public partial class MainWindow
             Saturation = cfg.Saturation,
             Brightness = cfg.Brightness,
             BevelMode = cfg.BevelMode,
-            CornerRadius = NotchBorder.CornerRadius.TopLeft
+            TopCornerRadius = NotchBorder.CornerRadius.TopLeft,
+            BottomCornerRadius = NotchBorder.CornerRadius.BottomLeft
         });
     }
 
