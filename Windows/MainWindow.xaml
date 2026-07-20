@@ -467,20 +467,8 @@
                                 Visibility="Collapsed"
                                 Opacity="0"
                                 BorderThickness="2.2"
-                                CornerRadius="0,0,20,20">
-                            <Border.BorderBrush>
-                                <RadialGradientBrush Center="0.18,0.08"
-                                                       GradientOrigin="0.13,0.03"
-                                                       RadiusX="0.86" RadiusY="0.92"
-                                                       po:Freeze="True">
-                                    <GradientStop Color="#FFFFFFFF" Offset="0"/>
-                                    <GradientStop Color="#C8EEF8FF" Offset="0.2"/>
-                                    <GradientStop Color="#447CB6E8" Offset="0.52"/>
-                                    <GradientStop Color="#087CB6E8" Offset="0.78"/>
-                                    <GradientStop Color="#007CB6E8" Offset="1"/>
-                                </RadialGradientBrush>
-                            </Border.BorderBrush>
-                        </Border>
+                                CornerRadius="0,0,20,20"
+                                BorderBrush="Transparent"/>
 
                         <Border x:Name="GlassDarkOverlay"
                                 IsHitTestVisible="False"

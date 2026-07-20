@@ -109,12 +109,15 @@ public sealed class LiquidGlassController
     private double _mapBottomCornerRadius = -1;
     private double _mapZRadius = -1;
     private int _mapNotchW = -1, _mapNotchH = -1, _mapNotchOffX = -1, _mapNotchOffY = -1;
+    private int _mapCaptureShiftX = int.MinValue, _mapCaptureShiftY = int.MinValue;
 
     private MagnifierCaptureSource? _mag;
     private bool _magReady;
     private int _magFailStreak = 0;
     
     private bool _hideFromCapture;
+    private volatile bool _exactBitBltCapture;
+    private int _currentDisplayAffinity = -1;
     public bool HideFromScreenCapture
     {
         get => _hideFromCapture;
@@ -141,6 +144,28 @@ public sealed class LiquidGlassController
     private volatile bool _gpuMode;
     public volatile int AverageBackgroundBrightnessInt = 128;
     public double AverageBackgroundBrightness => AverageBackgroundBrightnessInt / 255.0;
+    private int _averageBackgroundColorRgb = 0x808080;
+    private int _backgroundLightX1000;
+    private int _backgroundLightY1000;
+    private int _backgroundContrast1000;
+
+    public readonly record struct BackdropOptics(
+        byte Red, byte Green, byte Blue,
+        double LightX, double LightY, double Contrast);
+
+    public BackdropOptics CurrentBackdropOptics
+    {
+        get
+        {
+            int rgb = Volatile.Read(ref _averageBackgroundColorRgb);
+            return new BackdropOptics(
+                (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb,
+                Volatile.Read(ref _backgroundLightX1000) / 1000.0,
+                Volatile.Read(ref _backgroundLightY1000) / 1000.0,
+                Volatile.Read(ref _backgroundContrast1000) / 1000.0);
+        }
+    }
+
     public readonly record struct GpuGeometry(
         double SrcW, double SrcH, double NotchW, double NotchH, double OffX, double OffY,
         double TopCornerR, double BottomCornerR, double ZR, double Refraction, double Chroma,
@@ -235,8 +260,10 @@ public sealed class LiquidGlassController
         _isActive = true;
         _consecutiveSkips = 0;
 
-        // The magnifier filter already excludes this HWND from the backdrop source.
-        // WDA_EXCLUDEFROMCAPTURE would also hide the user-facing notch from screenshots.
+        _exactBitBltCapture = false;
+        _captureVisibilityUntilTicks = 0;
+        _overlayActiveCached = false;
+        _lastOverlayCheckTicks = 0;
         SetWindowDisplayAffinitySafe(WDA_NONE);
 
         if (_worker is { IsAlive: true }) return;
@@ -254,6 +281,7 @@ public sealed class LiquidGlassController
     {
         if (!_isActive) return;
         _isActive = false;
+        _exactBitBltCapture = false;
 
         // Safety: clear any display affinity a previous build may have set.
         SetWindowDisplayAffinitySafe(WDA_NONE);
@@ -272,17 +300,22 @@ public sealed class LiquidGlassController
         catch { /* shutting down */ }
     }
 
-    private void SetWindowDisplayAffinitySafe(uint affinity)
+    private bool SetWindowDisplayAffinitySafe(uint affinity)
     {
+        if (Volatile.Read(ref _currentDisplayAffinity) == (int)affinity) return true;
         var hwnd = _getHwnd();
-        if (hwnd == IntPtr.Zero) return;
+        if (hwnd == IntPtr.Zero) return false;
         try
         {
-            SetWindowDisplayAffinity(hwnd, affinity);
+            if (!SetWindowDisplayAffinity(hwnd, affinity)) return false;
+            Volatile.Write(ref _currentDisplayAffinity, (int)affinity);
+            try { DwmFlush(); } catch { /* affinity still applied */ }
+            return true;
         }
         catch (Exception ex)
         {
             RuntimeLog.Log("LIQUIDGLASS", $"SetWindowDisplayAffinity({affinity}) failed: {ex.Message}");
+            return false;
         }
     }
 
@@ -311,8 +344,18 @@ public sealed class LiquidGlassController
 
                 if (IsCaptureOverlayActive())
                 {
+                    _exactBitBltCapture = false;
+                    SetWindowDisplayAffinitySafe(WDA_NONE);
                     Thread.Sleep((int)Math.Max(15, frameIntervalMs));
                     continue;
+                }
+
+                if (!_magReady)
+                    _exactBitBltCapture = SetWindowDisplayAffinitySafe(WDA_EXCLUDEFROMCAPTURE);
+                else
+                {
+                    _exactBitBltCapture = false;
+                    SetWindowDisplayAffinitySafe(WDA_NONE);
                 }
 
                 if (_presentInFlight)
@@ -339,7 +382,7 @@ public sealed class LiquidGlassController
                 }
                 else
                 {
-                    Thread.Sleep(200);
+                    SleepWithCapturePolling(200);
                     continue;
                 }
 
@@ -358,7 +401,7 @@ public sealed class LiquidGlassController
 
                 double elapsed = clock.Elapsed.TotalMilliseconds - frameStart;
                 int sleep = (int)Math.Round(frameIntervalMs - elapsed);
-                Thread.Sleep(sleep > 1 ? sleep : 1);
+                SleepWithCapturePolling(sleep > 1 ? sleep : 1);
             }
         }
         finally
@@ -434,20 +477,68 @@ public sealed class LiquidGlassController
 
     private long _lastOverlayCheckTicks;
     private bool _overlayActiveCached;
+    private long _captureVisibilityUntilTicks;
+
+    private const int VK_SNAPSHOT = 0x2C;
+    private const int VK_SHIFT = 0x10;
+    private const int VK_S = 0x53;
+    private const int VK_LWIN = 0x5B;
+    private const int VK_RWIN = 0x5C;
+
+    private bool CaptureHotkeyRequested(long now)
+    {
+        short snapshotState = GetAsyncKeyState(VK_SNAPSHOT);
+        bool snipChord = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 &&
+            (GetAsyncKeyState(VK_S) & 0x8000) != 0 &&
+            (((GetAsyncKeyState(VK_LWIN) | GetAsyncKeyState(VK_RWIN)) & 0x8000) != 0);
+        if ((snapshotState & 0x8001) == 0 && !snipChord) return false;
+
+        _captureVisibilityUntilTicks = now + 1400;
+        _overlayActiveCached = true;
+        return true;
+    }
+
+    private void SleepWithCapturePolling(int milliseconds)
+    {
+        long wakeAt = Environment.TickCount64 + Math.Max(1, milliseconds);
+        while (_isActive)
+        {
+            long remaining = wakeAt - Environment.TickCount64;
+            if (remaining <= 0) return;
+
+            Thread.Sleep((int)Math.Min(remaining, 8));
+            if (_exactBitBltCapture && CaptureHotkeyRequested(Environment.TickCount64))
+            {
+                // Keep the most recent correctly refracted frame on screen, but make
+                // the user-facing notch visible before Windows takes the screenshot.
+                _exactBitBltCapture = false;
+                SetWindowDisplayAffinitySafe(WDA_NONE);
+                return;
+            }
+        }
+    }
 
     private bool IsCaptureOverlayActive()
     {
+        long now = Environment.TickCount64;
+        if (CaptureHotkeyRequested(now))
+            return true;
+
+        if (now < _captureVisibilityUntilTicks) return true;
+
         if (ForegroundIsCaptureTool())
         {
             _overlayActiveCached = true;
-            _lastOverlayCheckTicks = Environment.TickCount64;
+            _lastOverlayCheckTicks = now;
+            _captureVisibilityUntilTicks = now + 800;
             return true;
         }
 
-        long now = Environment.TickCount64;
         if (now - _lastOverlayCheckTicks < 120) return _overlayActiveCached;
         _lastOverlayCheckTicks = now;
         _overlayActiveCached = DetectCaptureOverlay();
+        if (_overlayActiveCached)
+            _captureVisibilityUntilTicks = now + 800;
         return _overlayActiveCached;
     }
 
@@ -628,8 +719,24 @@ public sealed class LiquidGlassController
         int srcW = bufW + margin * 2;
         int srcH = bufH + margin * 2;
 
+        double inv = 1.0 / scale;
+        int physMargin = (int)Math.Round(margin * inv);
+        int physNotchOffX = (int)Math.Round(notchOffX * inv);
+        int physSrcW = (int)Math.Round(srcW * inv);
+        int physSrcH = (int)Math.Round(srcH * inv);
+
+        int requestedSrcX = region.X - physNotchOffX - physMargin;
+        int requestedSrcY = region.Y - physMargin;
+        int srcX = ClampCaptureOriginToVirtualDesktop(requestedSrcX, physSrcW, horizontal: true);
+        int srcY = ClampCaptureOriginToVirtualDesktop(requestedSrcY, physSrcH, horizontal: false);
+        int captureShiftX = srcX - requestedSrcX;
+        int captureShiftY = srcY - requestedSrcY;
+
+        bool spatiallyExactSource = useMag || _exactBitBltCapture;
+        int mapCaptureShiftY = spatiallyExactSource ? captureShiftY : 0;
         if (!gpuMode)
-            EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH, notchOffX, notchOffY);
+            EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH,
+                notchOffX, notchOffY, captureShiftX, mapCaptureShiftY);
 
         IntPtr screenDc = GetDC(IntPtr.Zero);
         if (screenDc == IntPtr.Zero) return false;
@@ -637,22 +744,8 @@ public sealed class LiquidGlassController
         {
             if (!EnsureGdiResources(srcW, srcH, screenDc)) return false;
 
-            double inv = 1.0 / scale;
-            double dispScale = _bitmapDpi / 96.0;
-            int physMargin = (int)Math.Round(margin * inv);
-            int physNotchOffX = (int)Math.Round(notchOffX * inv);
-            int physSrcW = (int)Math.Round(srcW * inv);
-            int physSrcH = (int)Math.Round(srcH * inv);
-            double txDip = -physNotchOffX * dispScale + _presentSubX;
-            double tyDip = _presentSubY;
-
             if (useMag)
             {
-                int srcX = region.X - physNotchOffX - physMargin;
-                int srcY = region.Y - physMargin;
-                if (srcX < 0) srcX = 0;
-                if (srcY < 0) srcY = 0;
-
                 if (!EnsureStagingResources(physSrcW, physSrcH, screenDc)) return false;
 
                 if (!_mag!.CaptureInto(srcX, srcY, physSrcW, physSrcH, _stagingBits))
@@ -672,22 +765,28 @@ public sealed class LiquidGlassController
             }
             else
             {
-                int srcX = region.X - physNotchOffX - physMargin;
-                // BitBlt sees the already-composited desktop and cannot exclude this
-                // HWND. Sampling the notch rectangle here feeds the rendered artwork
-                // back into the next glass frame, producing the stretched/duplicated
-                // "ghost artwork" seen while dragging. Keep the emergency source
-                // wholly below the visible notch; the preferred Magnifier path still
-                // samples the exact rectangle when window exclusion is available.
-                int srcY = ComputeFallbackSourceY(region.Y, displayH);
+                if (!_exactBitBltCapture)
+                {
+                    // BitBlt sees the already-composited desktop and cannot exclude this
+                    // HWND. Sampling the notch rectangle here feeds the rendered artwork
+                    // back into the next glass frame, producing the stretched/duplicated
+                    // "ghost artwork" seen while dragging. Keep the emergency source
+                    // wholly below the visible notch; the preferred Magnifier path still
+                    // samples the exact rectangle when window exclusion is available.
+                    srcY = ComputeFallbackSourceY(region.Y, displayH);
+                }
 
-                if (srcX < 0) srcX = 0;
-                if (srcY < 0) srcY = 0;
-
-                if (!StretchBlt(_memDc, 0, 0, srcW, srcH, screenDc, srcX, srcY, physSrcW, physSrcH, SRCCOPY))
+                if (!StretchBlt(_memDc, 0, 0, srcW, srcH, screenDc,
+                    srcX, srcY, physSrcW, physSrcH, SRCCOPY))
                     return false;
                 GdiFlush();
             }
+
+            UpdateBackdropOptics(
+                srcW, srcH,
+                margin + notchOffX - captureShiftX,
+                margin + notchOffY - mapCaptureShiftY,
+                outW, outH);
 
             if (!animating)
             {
@@ -725,18 +824,6 @@ public sealed class LiquidGlassController
                 return false;
             }
 
-            // Safety-first CPU presentation: preserve a pixel-perfect backdrop while
-            // the new lens displacement is being recalibrated. This removes every
-            // remaining source warp without disabling the Liquid Glass material,
-            // blur, tint, rim or live capture.
-            if (p.Refraction > 0.0 || p.ChromaticAberration > 0.0 || p.Distortion > 0.0)
-            {
-                p.Refraction = 0.0;
-                p.ChromaticAberration = 0.0;
-                p.Distortion = 0.0;
-                _mapsDirty = true;
-                EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH, notchOffX, notchOffY);
-            }
             Refract(p);
 
             int effBlur = (int)Math.Round(blurRadius * scale);
@@ -765,6 +852,23 @@ public sealed class LiquidGlassController
     private static int RoundUp(int value, int quantum) =>
         ((value + quantum - 1) / quantum) * quantum;
 
+    private static int ClampCaptureOriginToVirtualDesktop(int requested, int captureLength, bool horizontal)
+    {
+        int desktopOrigin = GetSystemMetrics(horizontal ? SM_XVIRTUALSCREEN : SM_YVIRTUALSCREEN);
+        int desktopLength = GetSystemMetrics(horizontal ? SM_CXVIRTUALSCREEN : SM_CYVIRTUALSCREEN);
+        return ClampCaptureOrigin(requested, captureLength, desktopOrigin, desktopLength);
+    }
+
+    internal static int ClampCaptureOrigin(
+        int requested, int captureLength, int desktopOrigin, int desktopLength)
+    {
+        if (captureLength <= 0 || desktopLength <= 0) return requested;
+        if (captureLength >= desktopLength) return desktopOrigin;
+
+        long max = (long)desktopOrigin + desktopLength - captureLength;
+        return (int)Math.Clamp((long)requested, desktopOrigin, max);
+    }
+
     internal static double ComputeRimWidth(double normalizedRadius, double outputScale, double minHalf) =>
         Math.Clamp(Math.Clamp(normalizedRadius, 0.02, 0.95) * 100.0 * outputScale, 3.0, minHalf);
 
@@ -772,7 +876,10 @@ public sealed class LiquidGlassController
     {
         double s = Smoother01(normalizedDistance);
         double a = s * (1.0 - s);
-        double profile = 16.0 * a * a;
+        // A single smooth bell spreads the bend across the whole optical rim.
+        // Squaring this bell made most of the glass look flat, followed by a
+        // narrow, abrupt fold halfway through the bevel.
+        double profile = 4.0 * a;
         return broad ? Math.Sqrt(profile) : profile;
     }
 
@@ -952,8 +1059,6 @@ public sealed class LiquidGlassController
         byte* src = (byte*)_dibBits;
         int stride = srcW * 4;
         ulong hash = 0;
-        double totalLuminance = 0;
-
         for (int gy = 0; gy < 8; gy++)
         {
             int y = (srcH - 1) * gy / 7;
@@ -964,16 +1069,104 @@ public sealed class LiquidGlassController
                 byte* p = row + x * 4;
                 uint pixel = *(uint*)p;
 
-                double luminance = 0.299 * p[2] + 0.587 * p[1] + 0.114 * p[0];
-                totalLuminance += luminance;
-
                 hash ^= (ulong)pixel << ((gy * 8 + gx) & 63);
                 hash = (hash << 7) | (hash >> 57); // rotate
             }
         }
 
-        AverageBackgroundBrightnessInt = (int)Math.Round(totalLuminance / 64.0);
         return hash;
+    }
+
+    private unsafe void UpdateBackdropOptics(
+        int srcW, int srcH, int sampleX, int sampleY, int sampleW, int sampleH)
+    {
+        if (_dibBits == IntPtr.Zero || srcW <= 0 || srcH <= 0 || sampleW <= 0 || sampleH <= 0)
+            return;
+
+        const int columns = 8;
+        const int rows = 8;
+        Span<int> samples = stackalloc int[columns * rows];
+        byte* src = (byte*)_dibBits;
+        int stride = srcW * 4;
+
+        for (int gy = 0; gy < rows; gy++)
+        {
+            int y = Math.Clamp(sampleY + (sampleH - 1) * gy / (rows - 1), 0, srcH - 1);
+            byte* row = src + (long)y * stride;
+            for (int gx = 0; gx < columns; gx++)
+            {
+                int x = Math.Clamp(sampleX + (sampleW - 1) * gx / (columns - 1), 0, srcW - 1);
+                byte* p = row + x * 4;
+                samples[gy * columns + gx] = (p[2] << 16) | (p[1] << 8) | p[0];
+            }
+        }
+
+        BackdropOptics optics = AnalyzeBackdropSamples(samples, columns, rows);
+        Volatile.Write(ref _averageBackgroundColorRgb,
+            (optics.Red << 16) | (optics.Green << 8) | optics.Blue);
+        Volatile.Write(ref _backgroundLightX1000, (int)Math.Round(optics.LightX * 1000.0));
+        Volatile.Write(ref _backgroundLightY1000, (int)Math.Round(optics.LightY * 1000.0));
+        Volatile.Write(ref _backgroundContrast1000, (int)Math.Round(optics.Contrast * 1000.0));
+        AverageBackgroundBrightnessInt = (int)Math.Round(
+            0.299 * optics.Red + 0.587 * optics.Green + 0.114 * optics.Blue);
+    }
+
+    internal static BackdropOptics AnalyzeBackdropSamples(
+        ReadOnlySpan<int> rgbSamples, int columns, int rows)
+    {
+        int count = columns * rows;
+        if (columns <= 0 || rows <= 0 || rgbSamples.Length < count)
+            return new BackdropOptics(128, 128, 128, 0, 0, 0);
+
+        Span<double> luminance = count <= 256
+            ? stackalloc double[count]
+            : new double[count];
+        double sumR = 0, sumG = 0, sumB = 0, sumL = 0;
+        double minL = 255, maxL = 0;
+
+        for (int i = 0; i < count; i++)
+        {
+            int rgb = rgbSamples[i];
+            int r = (rgb >> 16) & 0xFF;
+            int g = (rgb >> 8) & 0xFF;
+            int b = rgb & 0xFF;
+            double l = 0.299 * r + 0.587 * g + 0.114 * b;
+            luminance[i] = l;
+            sumR += r; sumG += g; sumB += b; sumL += l;
+            minL = Math.Min(minL, l);
+            maxL = Math.Max(maxL, l);
+        }
+
+        double meanL = sumL / count;
+        double weightedX = 0, weightedY = 0, totalWeight = 0;
+        for (int y = 0; y < rows; y++)
+        {
+            double ny = rows == 1 ? 0 : y * 2.0 / (rows - 1) - 1.0;
+            for (int x = 0; x < columns; x++)
+            {
+                double highlight = Math.Max(luminance[y * columns + x] - meanL, 0.0);
+                double weight = highlight * highlight;
+                if (weight <= 1e-6) continue;
+
+                double nx = columns == 1 ? 0 : x * 2.0 / (columns - 1) - 1.0;
+                weightedX += nx * weight;
+                weightedY += ny * weight;
+                totalWeight += weight;
+            }
+        }
+
+        double contrast = Math.Clamp((maxL - minL) / 255.0, 0.0, 1.0);
+        double directionalStrength = Math.Clamp(contrast * 2.2, 0.0, 1.0);
+        double lightX = totalWeight > 1e-6 ? weightedX / totalWeight * directionalStrength : 0.0;
+        double lightY = totalWeight > 1e-6 ? weightedY / totalWeight * directionalStrength : 0.0;
+
+        return new BackdropOptics(
+            (byte)Math.Clamp((int)Math.Round(sumR / count), 0, 255),
+            (byte)Math.Clamp((int)Math.Round(sumG / count), 0, 255),
+            (byte)Math.Clamp((int)Math.Round(sumB / count), 0, 255),
+            Math.Clamp(lightX, -1.0, 1.0),
+            Math.Clamp(lightY, -1.0, 1.0),
+            contrast);
     }
 
     private ulong ComputeOutputHash()
@@ -1331,7 +1524,8 @@ public sealed class LiquidGlassController
     }
 
     private void EnsureMaps(GlassParams p, int outW, int outH, int srcW, int srcH, int margin,
-        int notchW, int notchH, int notchOffX, int notchOffY)
+        int notchW, int notchH, int notchOffX, int notchOffY,
+        int captureShiftX, int captureShiftY)
     {
         p.TopCornerRadius = Math.Round(p.TopCornerRadius * 2.0) / 2.0;
         p.BottomCornerRadius = Math.Round(p.BottomCornerRadius * 2.0) / 2.0;
@@ -1339,6 +1533,7 @@ public sealed class LiquidGlassController
         if (!_mapsDirty && _outW == outW && _outH == outH && _srcW == srcW && _srcH == srcH && _margin == margin
             && _idxR.Length == outW * outH
             && _mapNotchW == notchW && _mapNotchH == notchH && _mapNotchOffX == notchOffX && _mapNotchOffY == notchOffY
+            && _mapCaptureShiftX == captureShiftX && _mapCaptureShiftY == captureShiftY
             && Math.Abs(_mapTopCornerRadius - p.TopCornerRadius) < 1e-3
             && Math.Abs(_mapBottomCornerRadius - p.BottomCornerRadius) < 1e-3
             && Math.Abs(_mapZRadius - p.ZRadius) < 1e-4)
@@ -1347,6 +1542,7 @@ public sealed class LiquidGlassController
         _mapsDirty = false;
         _outW = outW; _outH = outH; _srcW = srcW; _srcH = srcH; _margin = margin;
         _mapNotchW = notchW; _mapNotchH = notchH; _mapNotchOffX = notchOffX; _mapNotchOffY = notchOffY;
+        _mapCaptureShiftX = captureShiftX; _mapCaptureShiftY = captureShiftY;
         _mapTopCornerRadius = p.TopCornerRadius;
         _mapBottomCornerRadius = p.BottomCornerRadius;
         _mapZRadius = p.ZRadius;
@@ -1401,8 +1597,12 @@ public sealed class LiquidGlassController
                     double lx = x - cx;
                     int idx = y * outW + x;
 
-                    double baseX = x + margin;
-                    double baseY = y + margin;
+                    // If the requested source rectangle extended beyond the virtual
+                    // desktop, the actual capture had to move inward. Subtract that
+                    // movement here so a visible notch pixel still samples the same
+                    // absolute desktop coordinate instead of drifting right/down.
+                    double baseX = x + margin - captureShiftX;
+                    double baseY = y + margin - captureShiftY;
 
                     double inside = -RoundedRectSdf(lx, ly, halfX, halfY, topR, bottomR);
 

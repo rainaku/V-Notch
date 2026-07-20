@@ -60,6 +60,7 @@ public sealed class LiquidGlassCaptureTests
             LiquidGlassController.LensProfile(0.25, broad),
             LiquidGlassController.LensProfile(0.75, broad),
             10);
+        Assert.InRange(LiquidGlassController.LensProfile(0.25, broad), 0.35, 0.7);
         Assert.InRange(LiquidGlassController.LensProfile(epsilon, broad), 0.0, 1e-5);
         Assert.InRange(LiquidGlassController.LensProfile(1.0 - epsilon, broad), 0.0, 1e-5);
     }
@@ -97,6 +98,17 @@ public sealed class LiquidGlassCaptureTests
         Assert.True(sourceY > regionY + displayHeight);
     }
 
+    [Theory]
+    [InlineData(-46, 664, 0, 1920, 0)]
+    [InlineData(1500, 664, 0, 1920, 1256)]
+    [InlineData(-1700, 640, -1920, 3840, -1700)]
+    public void CaptureOrigin_ClampsWithoutLosingDesktopOffset(
+        int requested, int captureLength, int desktopOrigin, int desktopLength, int expected)
+    {
+        Assert.Equal(expected, LiquidGlassController.ClampCaptureOrigin(
+            requested, captureLength, desktopOrigin, desktopLength));
+    }
+
     [Fact]
     public void SamplingMargin_ContainsLensChromaAndFluidOffsets()
     {
@@ -106,5 +118,43 @@ public sealed class LiquidGlassCaptureTests
 
         Assert.True(margin >= Math.Ceiling(amplitude + 8.0 + 4.5 + 3.0));
         Assert.InRange(margin, 12, 512);
+    }
+
+    [Fact]
+    public void BackdropOptics_UsesTheActualContentTint()
+    {
+        int[] samples = Enumerable.Repeat(0x2040C0, 16).ToArray();
+
+        var optics = LiquidGlassController.AnalyzeBackdropSamples(samples, 4, 4);
+
+        Assert.Equal(0x20, optics.Red);
+        Assert.Equal(0x40, optics.Green);
+        Assert.Equal(0xC0, optics.Blue);
+        Assert.Equal(0.0, optics.LightX, 8);
+        Assert.Equal(0.0, optics.LightY, 8);
+        Assert.Equal(0.0, optics.Contrast, 8);
+    }
+
+    [Fact]
+    public void BackdropOptics_PointsFresnelTowardBrightContent()
+    {
+        int[] brightRight =
+        {
+            0x000000, 0x000000, 0xFFFFFF, 0xFFFFFF,
+            0x000000, 0x000000, 0xFFFFFF, 0xFFFFFF
+        };
+        int[] brightTop =
+        {
+            0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF,
+            0x000000, 0x000000, 0x000000, 0x000000
+        };
+
+        var right = LiquidGlassController.AnalyzeBackdropSamples(brightRight, 4, 2);
+        var top = LiquidGlassController.AnalyzeBackdropSamples(brightTop, 4, 2);
+
+        Assert.True(right.LightX > 0.5);
+        Assert.InRange(right.LightY, -1e-8, 1e-8);
+        Assert.True(top.LightY < -0.9);
+        Assert.InRange(top.LightX, -1e-8, 1e-8);
     }
 }

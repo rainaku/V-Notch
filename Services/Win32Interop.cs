@@ -121,6 +121,14 @@ internal static class Win32Interop
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hwnd);
 
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetrics(int nIndex);
+
+    public const int SM_XVIRTUALSCREEN = 76;
+    public const int SM_YVIRTUALSCREEN = 77;
+    public const int SM_CXVIRTUALSCREEN = 78;
+    public const int SM_CYVIRTUALSCREEN = 79;
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);

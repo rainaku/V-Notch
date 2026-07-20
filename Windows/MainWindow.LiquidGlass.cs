@@ -287,6 +287,8 @@ public partial class MainWindow
     /// </summary>
     private void ApplyOpticalRimLevels(double edgeHighlight, double specular, double fresnel, double chroma)
     {
+        EnsureDynamicFresnelBrush();
+
         double edge = Math.Clamp(edgeHighlight, 0, 1);
         double spec = Math.Clamp(specular, 0, 1);
         double fres = Math.Clamp(fresnel, 0, 1);
@@ -302,6 +304,104 @@ public partial class MainWindow
         double spectralOpacity = Math.Clamp(spectral * 0.30 + edge * 0.10, 0, 0.52);
         GlassCoolRimBorder.Opacity = spectralOpacity;
         GlassWarmRimBorder.Opacity = spectralOpacity * 0.76;
+    }
+
+    private RadialGradientBrush? _dynamicFresnelBrush;
+    private double _dynamicFresnelX = 0.5;
+    private double _dynamicFresnelY = 0.5;
+    private Color _dynamicFresnelTint = Color.FromRgb(126, 154, 180);
+    private long _lastDynamicFresnelTicks;
+
+    private void EnsureDynamicFresnelBrush()
+    {
+        if (_dynamicFresnelBrush != null) return;
+
+        _dynamicFresnelBrush = new RadialGradientBrush
+        {
+            Center = new Point(0.5, 0.5),
+            GradientOrigin = new Point(0.5, 0.5),
+            RadiusX = 0.82,
+            RadiusY = 0.88,
+            MappingMode = BrushMappingMode.RelativeToBoundingBox,
+            SpreadMethod = GradientSpreadMethod.Pad
+        };
+        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Colors.White, 0.0));
+        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(200, 210, 230, 244), 0.22));
+        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(68, 126, 154, 180), 0.56));
+        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(8, 126, 154, 180), 0.82));
+        _dynamicFresnelBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 126, 154, 180), 1.0));
+        GlassFresnelBorder.BorderBrush = _dynamicFresnelBrush;
+    }
+
+    private void UpdateDynamicFresnel(LiquidGlassController.BackdropOptics optics)
+    {
+        EnsureDynamicFresnelBrush();
+        var brush = _dynamicFresnelBrush!;
+
+        long now = Environment.TickCount64;
+        double elapsedSeconds = _lastDynamicFresnelTicks == 0
+            ? 1.0
+            : Math.Clamp((now - _lastDynamicFresnelTicks) / 1000.0, 0.0, 0.25);
+        _lastDynamicFresnelTicks = now;
+        double response = 1.0 - Math.Exp(-elapsedSeconds * 9.0);
+
+        double targetX = Math.Clamp(0.5 + optics.LightX * 0.43, 0.07, 0.93);
+        double targetY = Math.Clamp(0.5 + optics.LightY * 0.43, 0.07, 0.93);
+        _dynamicFresnelX += (targetX - _dynamicFresnelX) * response;
+        _dynamicFresnelY += (targetY - _dynamicFresnelY) * response;
+
+        Color targetTint = BuildContentFresnelTint(optics.Red, optics.Green, optics.Blue);
+        _dynamicFresnelTint = InterpolateColor(_dynamicFresnelTint, targetTint, response);
+
+        brush.Center = new Point(_dynamicFresnelX, _dynamicFresnelY);
+        brush.GradientOrigin = new Point(
+            Math.Clamp(0.5 + (_dynamicFresnelX - 0.5) * 1.12, 0.03, 0.97),
+            Math.Clamp(0.5 + (_dynamicFresnelY - 0.5) * 1.12, 0.03, 0.97));
+        brush.RadiusX = 0.84 - optics.Contrast * 0.16;
+        brush.RadiusY = 0.90 - optics.Contrast * 0.12;
+
+        Color bright = InterpolateColor(_dynamicFresnelTint, Colors.White, 0.68);
+        Color mid = InterpolateColor(_dynamicFresnelTint, Colors.White, 0.42);
+        brush.GradientStops[0].Color = Color.FromArgb(255, bright.R, bright.G, bright.B);
+        brush.GradientStops[1].Color = Color.FromArgb(200, mid.R, mid.G, mid.B);
+        brush.GradientStops[2].Color = Color.FromArgb(
+            76, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
+        brush.GradientStops[3].Color = Color.FromArgb(
+            12, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
+        brush.GradientStops[4].Color = Color.FromArgb(
+            0, _dynamicFresnelTint.R, _dynamicFresnelTint.G, _dynamicFresnelTint.B);
+    }
+
+    private static Color BuildContentFresnelTint(byte red, byte green, byte blue)
+    {
+        double luminance = 0.299 * red + 0.587 * green + 0.114 * blue;
+        double r = luminance + (red - luminance) * 1.30;
+        double g = luminance + (green - luminance) * 1.30;
+        double b = luminance + (blue - luminance) * 1.30;
+        double peak = Math.Max(r, Math.Max(g, b));
+
+        if (peak < 12.0)
+            return Color.FromRgb(104, 116, 130);
+
+        if (peak < 96.0)
+        {
+            double lift = 96.0 / peak;
+            r *= lift; g *= lift; b *= lift;
+        }
+
+        return Color.FromRgb(
+            (byte)Math.Clamp((int)Math.Round(r), 0, 255),
+            (byte)Math.Clamp((int)Math.Round(g), 0, 255),
+            (byte)Math.Clamp((int)Math.Round(b), 0, 255));
+    }
+
+    private static Color InterpolateColor(Color from, Color to, double amount)
+    {
+        double t = Math.Clamp(amount, 0.0, 1.0);
+        return Color.FromRgb(
+            (byte)Math.Round(from.R + (to.R - from.R) * t),
+            (byte)Math.Round(from.G + (to.G - from.G) * t),
+            (byte)Math.Round(from.B + (to.B - from.B) * t));
     }
 
     // Liquid-glass "material" matching the audio redirect frame.
@@ -782,6 +882,7 @@ public partial class MainWindow
             UpdateDynamicGlassParams();
         }
 
+        UpdateDynamicFresnel(_liquidGlass.CurrentBackdropOptics);
         UpdateDynamicGlassTint(_liquidGlass.AverageBackgroundBrightness);
     }
 

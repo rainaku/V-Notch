@@ -34,7 +34,9 @@ float lensProfile(float t)
 {
     float s = smoother01(t);
     float a = s * (1.0 - s);
-    return 16.0 * a * a;
+    // Spread the optical bend over the full rim. Squaring this bell compressed
+    // the visible refraction into a thin crease halfway through the bevel.
+    return 4.0 * a;
 }
 
 float roundedRectSdf(float px, float py, float bx, float by, float topR, float bottomR)
