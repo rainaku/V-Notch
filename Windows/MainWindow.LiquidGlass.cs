@@ -35,11 +35,30 @@ public partial class MainWindow
             // black flash users saw when changing views on the glass skin).
             GlassBackdropHost.Background = _glassBaseFill;
 
+            bool sysTrans = IsSystemTransparencyEnabled();
+            if (!sysTrans)
+            {
+                NotchBackground.Opacity = 1;
+                ExpandedContent.Background = (System.Windows.Media.Brush)FindResource("NotchGradient");
+
+                GlassBackdropHost.Visibility = Visibility.Collapsed;
+                GlassTintOverlay.Visibility = Visibility.Collapsed;
+                GlassFresnelBorder.Visibility = Visibility.Collapsed;
+                GlassRimBorder.Visibility = Visibility.Collapsed;
+                if (GlassDarkOverlay != null) GlassDarkOverlay.Visibility = Visibility.Collapsed;
+
+                _liquidGlass?.Stop();
+                return;
+            }
+
             GlassBackdropHost.Visibility = Visibility.Visible;
             GlassTintOverlay.Visibility = Visibility.Visible;
             GlassFresnelBorder.Visibility = Visibility.Visible;
-            GlassSpecularOverlay.Visibility = Visibility.Visible;
             GlassRimBorder.Visibility = Visibility.Visible;
+            if (GlassDarkOverlay != null) GlassDarkOverlay.Visibility = Visibility.Visible;
+
+            CompositionTarget.Rendering -= OnLiquidGlassFrameUpdate;
+            CompositionTarget.Rendering += OnLiquidGlassFrameUpdate;
 
             _liquidGlass ??= new LiquidGlassController(
                 GlassBackdropImage,
@@ -48,8 +67,10 @@ public partial class MainWindow
                 // Menu transitions animate several large visual trees at once.
                 // Capping the backdrop at 60 FPS preserves smooth motion while
                 // leaving enough UI/GPU time for Clock and Mixer composition.
-                activeFps: Math.Clamp(VNotch.Services.AnimationConfig.TargetFps, 30, 60),
+                activeFps: Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, 120),
                 idleFps: 10);
+
+            _liquidGlass.HideFromScreenCapture = _settings.LiquidGlass?.HideFromScreenCapture ?? true;
 
             // Match the controller to the notch's current motion state so it starts
             // at the right cadence (e.g. enabled mid-animation).
@@ -72,6 +93,8 @@ public partial class MainWindow
             _liquidGlass?.Stop();
             DetachGpuRefraction();
 
+            CompositionTarget.Rendering -= OnLiquidGlassFrameUpdate;
+
             ApplyGlassContentShadow(false);
             ApplyGlassToTimerBar(false);
             ApplyGlassToTimerFinishedView(false);
@@ -81,8 +104,12 @@ public partial class MainWindow
             GlassBackdropHost.Background = null;
             GlassTintOverlay.Visibility = Visibility.Collapsed;
             GlassFresnelBorder.Visibility = Visibility.Collapsed;
-            GlassSpecularOverlay.Visibility = Visibility.Collapsed;
             GlassRimBorder.Visibility = Visibility.Collapsed;
+            if (GlassDarkOverlay != null)
+            {
+                GlassDarkOverlay.Visibility = Visibility.Collapsed;
+                GlassDarkOverlay.Opacity = 0;
+            }
 
             NotchBackground.Opacity = 1;
             ExpandedContent.Background = (System.Windows.Media.Brush)FindResource("NotchGradient");
@@ -99,6 +126,7 @@ public partial class MainWindow
         double boxScale = GetGlassDpiScale();
         int boxRadius = (int)Math.Round(dipRadius * boxScale / 3.0);
         _liquidGlass?.SetBlur(boxRadius);
+        _liquidGlass?.UpdateFps(Math.Clamp(cfg.TargetFps, 30, 120));
 
         // GPU mode blurs on the host element instead of the CPU box blur.
         ApplyGpuBlur(cfg.BlurAmount);
@@ -106,7 +134,6 @@ public partial class MainWindow
         GlassBackdropHost.Opacity = Math.Clamp(cfg.Opacity, 0, 1);
 
         GlassRimBorder.BorderBrush = MakeWhite(Math.Clamp(cfg.EdgeHighlight, 0, 1) * 0.78);
-        GlassSpecularOverlay.Opacity = Math.Clamp(cfg.Specular, 0, 1);
         GlassFresnelBorder.Opacity = Math.Clamp(cfg.Fresnel, 0, 1) * 0.6;
 
         SyncGlassCornerRadius(NotchBorder.CornerRadius);
@@ -243,6 +270,7 @@ public partial class MainWindow
     // The idle camera box should read the same as the file tray (both #1A1A1A);
     // the camera-icon overlay therefore adds no extra dark wash.
     private static readonly SolidColorBrush _cameraOverlayDefault = Frozen(0x00, 0, 0, 0);
+    private static readonly SolidColorBrush _defaultAnimThumbnailBorder = Frozen(0xFF, 0x33, 0x33, 0x33);
 
     private static SolidColorBrush Frozen(byte a, byte r, byte g, byte b)
     {
@@ -258,38 +286,62 @@ public partial class MainWindow
     /// </summary>
     private void ApplyGlassPanelMaterial(bool glass)
     {
-        if (CameraSection == null) return;
-
         ApplyGlassToProgressBar(glass);
+
+        if (CompactThumbnailBorder != null)
+        {
+            CompactThumbnailBorder.Background = glass ? _glassPanelBg : _defaultPanelBg;
+            CompactThumbnailBorder.BorderBrush = glass ? _glassPanelBorder : System.Windows.Media.Brushes.Transparent;
+            CompactThumbnailBorder.BorderThickness = glass ? new Thickness(0.5) : new Thickness(0);
+        }
+
+        if (AnimationThumbnailBorder != null)
+        {
+            AnimationThumbnailBorder.Background = glass ? _glassPanelBg : _defaultPanelBg;
+            AnimationThumbnailBorder.BorderBrush = glass ? _glassPanelBorder : _defaultAnimThumbnailBorder;
+            AnimationThumbnailBorder.BorderThickness = new Thickness(0.5);
+        }
 
         if (glass)
         {
-            CameraSection.Background = _glassPanelBg;
-            CameraSection.BorderBrush = _glassPanelBorder;
-            CameraSection.BorderThickness = new Thickness(1);
-            // The camera icon overlay adds an extra dark wash on top of the glass
-            // background, making the box darker than the file tray — clear it.
-            if (CameraOverlay != null)
-                CameraOverlay.Background = System.Windows.Media.Brushes.Transparent;
+            if (CameraSection != null)
+            {
+                CameraSection.Background = _glassPanelBg;
+                CameraSection.BorderBrush = _glassPanelBorder;
+                CameraSection.BorderThickness = new Thickness(1);
+                // The camera icon overlay adds an extra dark wash on top of the glass
+                // background, making the box darker than the file tray — clear it.
+                if (CameraOverlay != null)
+                    CameraOverlay.Background = System.Windows.Media.Brushes.Transparent;
+            }
 
-            FileShelf.Background = _glassPanelBg;
-            FileShelf.BorderBrush = _glassPanelBorder;
-            FileShelf.BorderThickness = new Thickness(1);
+            if (FileShelf != null)
+            {
+                FileShelf.Background = _glassPanelBg;
+                FileShelf.BorderBrush = _glassPanelBorder;
+                FileShelf.BorderThickness = new Thickness(1);
+            }
 
             if (FileShelfDashedBorder != null)
                 FileShelfDashedBorder.Stroke = _glassDashStroke;
         }
         else
         {
-            CameraSection.Background = _defaultPanelBg;
-            CameraSection.BorderBrush = null;
-            CameraSection.BorderThickness = new Thickness(0);
-            if (CameraOverlay != null)
-                CameraOverlay.Background = _cameraOverlayDefault;
+            if (CameraSection != null)
+            {
+                CameraSection.Background = _defaultPanelBg;
+                CameraSection.BorderBrush = null;
+                CameraSection.BorderThickness = new Thickness(0);
+                if (CameraOverlay != null)
+                    CameraOverlay.Background = _cameraOverlayDefault;
+            }
 
-            FileShelf.Background = _defaultPanelBg;
-            FileShelf.BorderBrush = null;
-            FileShelf.BorderThickness = new Thickness(0);
+            if (FileShelf != null)
+            {
+                FileShelf.Background = _defaultPanelBg;
+                FileShelf.BorderBrush = null;
+                FileShelf.BorderThickness = new Thickness(0);
+            }
 
             if (FileShelfDashedBorder != null)
                 FileShelfDashedBorder.Stroke = _defaultDashStroke;
@@ -336,8 +388,8 @@ public partial class MainWindow
         GlassBackdropHost.CornerRadius = cr;
         GlassTintOverlay.CornerRadius = cr;
         GlassFresnelBorder.CornerRadius = cr;
-        GlassSpecularOverlay.CornerRadius = cr;
         GlassRimBorder.CornerRadius = cr;
+        if (GlassDarkOverlay != null) GlassDarkOverlay.CornerRadius = cr;
     }
 
     private double _glassDpiScale;
@@ -607,5 +659,122 @@ public partial class MainWindow
 
         return new LiquidGlassController.CaptureRegion(
             physLeft, physTop, physW, physH, NotchBorder.CornerRadius.TopLeft, subX, subY);
+    }
+
+    private static bool IsSystemTransparencyEnabled()
+    {
+        try
+        {
+            using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+            {
+                if (key != null)
+                {
+                    var val = key.GetValue("EnableTransparency");
+                    if (val is int i) return i == 1;
+                }
+            }
+        }
+        catch { /* ignored */ }
+        return true;
+    }
+
+    public void UpdateGlassMediaTint(Color dominantColor)
+    {
+        // Feature disabled per user request: Do not tint liquid glass based on media thumbnail.
+    }
+
+    public void ClearGlassMediaTint()
+    {
+    }
+
+    private void ApplyDynamicGlassTint()
+    {
+        if (GlassTintOverlay != null)
+        {
+            GlassTintOverlay.Background = System.Windows.Media.Brushes.Transparent;
+        }
+    }
+
+    private double _lastActualHeight = -1;
+
+    private void OnLiquidGlassFrameUpdate(object? sender, EventArgs e)
+    {
+        if (_liquidGlass == null || !IsLiquidGlassEnabled) return;
+
+        double curHeight = GlassBackdropHost?.ActualHeight ?? 0;
+        if (Math.Abs(curHeight - _lastActualHeight) > 0.1)
+        {
+            _lastActualHeight = curHeight;
+            UpdateDynamicGlassParams();
+        }
+
+        UpdateDynamicGlassTint(_liquidGlass.AverageBackgroundBrightness);
+    }
+
+    private void UpdateDynamicGlassParams()
+    {
+        if (GlassBackdropHost == null || !IsLiquidGlassEnabled) return;
+        var cfg = _settings.LiquidGlass ?? new Models.LiquidGlassConfig();
+
+        double height = GlassBackdropHost.ActualHeight;
+        if (height <= 0) return;
+
+        double collapsedH = _collapsedHeight > 0 ? _collapsedHeight : 32.0;
+
+        // Accessibility: ReduceMotion locks the progress factor to 0.0 to eliminate dynamic bending/shadow motion
+        double factor = VNotch.Services.AnimationConfig.ReduceMotion ? 0.0 : Math.Clamp((height - collapsedH) / 160.0, 0.0, 1.0);
+
+        // 1. Dynamic Bevel Thickness & Refraction
+        double activeZRadius = cfg.ZRadius * (1.0 + factor * 0.65);
+        double activeRefraction = cfg.Refraction * (1.0 + factor * 0.4);
+
+        // 2. Dynamic Shadowing (larger elements float higher and cast wider, darker shadows)
+        double activeShadowOpacity = cfg.ShadowOpacity + (1.0 - cfg.ShadowOpacity) * factor * 0.35;
+        double activeShadowSpread = cfg.ShadowSpread * (1.0 + factor * 1.4);
+
+        if (NotchShadowWrapper?.Effect is System.Windows.Media.Effects.DropShadowEffect dse)
+        {
+            dse.Opacity = Math.Clamp(activeShadowOpacity, 0, 1);
+            dse.BlurRadius = Math.Clamp(activeShadowSpread, 0, 150);
+        }
+
+        // 3. Dynamic Specular & Fresnel edge highlighting
+        double activeSpecular = cfg.Specular + (1.0 - cfg.Specular) * factor * 0.15;
+        double activeFresnel = cfg.Fresnel + (1.0 - cfg.Fresnel) * factor * 0.2;
+
+        GlassRimBorder.BorderBrush = MakeWhite(Math.Clamp(cfg.EdgeHighlight * (1.0 + factor * 0.5), 0, 1) * 0.78);
+        GlassFresnelBorder.Opacity = Math.Clamp(activeFresnel, 0, 1) * 0.6;
+
+        // Accessibility: ReduceMotion sets refraction distortion to a flat minimum
+        double activeDistortion = VNotch.Services.AnimationConfig.ReduceMotion ? 0.0 : cfg.Distortion;
+
+        _liquidGlass?.SetParams(new LiquidGlassController.GlassParams
+        {
+            Refraction = activeRefraction,
+            ChromaticAberration = cfg.ChromaticAberration,
+            Distortion = activeDistortion,
+            ZRadius = activeZRadius,
+            Saturation = cfg.Saturation,
+            Brightness = cfg.Brightness,
+            BevelMode = cfg.BevelMode,
+            CornerRadius = NotchBorder.CornerRadius.TopLeft
+        });
+    }
+
+    private double _lastDarkTintOpacity = -1;
+
+    private void UpdateDynamicGlassTint(double bgBrightness)
+    {
+        if (GlassDarkOverlay == null || !IsLiquidGlassEnabled) return;
+
+        // True Apple HIG Materials rely on the internal shader's Brightness/Saturation variables 
+        // to manage contrast, rather than slapping a solid flat black overlay over the glass.
+        // We bypass the dynamic background dimming entirely.
+        if (GlassDarkOverlay.Opacity > 0)
+        {
+            GlassDarkOverlay.BeginAnimation(OpacityProperty, null);
+            GlassDarkOverlay.Opacity = 0;
+        }
+        _lastDarkTintOpacity = 0;
     }
 }

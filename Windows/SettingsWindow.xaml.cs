@@ -993,7 +993,8 @@ public partial class SettingsWindow : Window
         Brightness = -0.30,
         ShadowOpacity = 0.50,
         ShadowSpread = 18,
-        BevelMode = 0
+        BevelMode = 0,
+        Variant = 0
     };
 
     private static Models.LiquidGlassConfig DarkGlassPreset() => new()
@@ -1011,7 +1012,122 @@ public partial class SettingsWindow : Window
         Brightness = -0.30,
         ShadowOpacity = 0.80,
         ShadowSpread = 30,
-        BevelMode = 1
+        BevelMode = 1,
+        Variant = 0
+    };
+
+    private static Models.LiquidGlassConfig RegularGlassPreset() => new()
+    {
+        BlurAmount = 0.25,
+        Refraction = 0.7,
+        ChromaticAberration = 0.08,
+        EdgeHighlight = 0.25,
+        Specular = 0.30,
+        Fresnel = 0.35,
+        Distortion = 0.04,
+        ZRadius = 0.38,
+        Opacity = 1.0,
+        Saturation = -0.15,
+        Brightness = -0.10,
+        ShadowOpacity = 0.65,
+        ShadowSpread = 20,
+        BevelMode = 0,
+        Variant = 0
+    };
+
+    private static Models.LiquidGlassConfig ClearGlassPreset() => new()
+    {
+        BlurAmount = 0.05,
+        Refraction = 0.15,
+        ChromaticAberration = 0.04,
+        EdgeHighlight = 0.30,
+        Specular = 0.35,
+        Fresnel = 0.45,
+        Distortion = 0.01,
+        ZRadius = 0.15,
+        Opacity = 1.0,
+        Saturation = 0.05,
+        Brightness = 0.05,
+        ShadowOpacity = 0.20,
+        ShadowSpread = 10,
+        BevelMode = 0,
+        Variant = 1
+    };
+
+    private static Models.LiquidGlassConfig UltraThinGlassPreset() => new()
+    {
+        BlurAmount = 0.10,
+        Refraction = 0.20,
+        ChromaticAberration = 0.04,
+        EdgeHighlight = 0.20,
+        Specular = 0.35,
+        Fresnel = 0.25,
+        Distortion = 0.015,
+        ZRadius = 0.10,
+        Opacity = 1.0,
+        Saturation = -0.05,
+        Brightness = 0.0,
+        ShadowOpacity = 0.30,
+        ShadowSpread = 10,
+        BevelMode = 0,
+        Variant = 0
+    };
+
+    private static Models.LiquidGlassConfig ThinGlassPreset() => new()
+    {
+        BlurAmount = 0.20,
+        Refraction = 0.30,
+        ChromaticAberration = 0.05,
+        EdgeHighlight = 0.22,
+        Specular = 0.32,
+        Fresnel = 0.30,
+        Distortion = 0.02,
+        ZRadius = 0.15,
+        Opacity = 1.0,
+        Saturation = -0.10,
+        Brightness = -0.05,
+        ShadowOpacity = 0.55,
+        ShadowSpread = 15,
+        BevelMode = 0,
+        Variant = 0
+    };
+
+    private static Models.LiquidGlassConfig ThickGlassPreset() => new()
+    {
+        BlurAmount = 0.35,
+        Refraction = 0.8,
+        ChromaticAberration = 0.10,
+        EdgeHighlight = 0.28,
+        Specular = 0.28,
+        Fresnel = 0.40,
+        Distortion = 0.05,
+        ZRadius = 0.48,
+        Opacity = 1.0,
+        Saturation = -0.20,
+        Brightness = -0.15,
+        ShadowOpacity = 0.75,
+        ShadowSpread = 25,
+        BevelMode = 0,
+        Variant = 0
+    };
+
+    private static Models.LiquidGlassConfig UltraThickGlassPreset() => new()
+    {
+        BlurAmount = 0.50,
+        Refraction = 0.9,
+        ChromaticAberration = 0.12,
+        EdgeHighlight = 0.32,
+        Specular = 0.25,
+        Fresnel = 0.45,
+        Distortion = 0.06,
+        ZRadius = 0.60,
+        Opacity = 1.0,
+        Saturation = -0.25,
+        Brightness = -0.20,
+        ShadowOpacity = 0.85,
+        ShadowSpread = 32,
+        BevelMode = 0,
+        Variant = 0
     };
 
     private void EnsureGlassPresetItems()
@@ -1020,25 +1136,34 @@ public partial class SettingsWindow : Window
         GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.custom"), Tag = "custom" });
         GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.frosted"), Tag = "frosted" });
         GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.dark"), Tag = "dark" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.ultrathin"), Tag = "ultrathin" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.thin"), Tag = "thin" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.regular"), Tag = "regular" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.thick"), Tag = "thick" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.ultrathick"), Tag = "ultrathick" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.clear"), Tag = "clear" });
     }
 
-    private Models.LiquidGlassConfig ReadGlassConfigFromSliders() => new()
+    private Models.LiquidGlassConfig ReadGlassConfigFromSliders()
     {
-        BlurAmount = GlassBlurSlider.Value / 100.0,
-        Refraction = GlassRefractionSlider.Value / 100.0,
-        ChromaticAberration = GlassChromSlider.Value / 100.0,
-        EdgeHighlight = GlassEdgeHighlightSlider.Value / 100.0,
-        Specular = GlassSpecularSlider.Value / 100.0,
-        Fresnel = GlassFresnelSlider.Value / 100.0,
-        Distortion = GlassDistortionSlider.Value / 100.0,
-        ZRadius = GlassZRadiusSlider.Value / 100.0,
-        Opacity = GlassOpacitySlider.Value / 100.0,
-        Saturation = GlassSaturationSlider.Value / 100.0,
-        Brightness = GlassBrightnessSlider.Value / 100.0,
-        ShadowOpacity = GlassShadowOpacitySlider.Value / 100.0,
-        ShadowSpread = (int)Math.Round(GlassShadowSpreadSlider.Value),
-        BevelMode = (int)Math.Round(GlassBevelModeSlider.Value)
-    };
+        var c = (_settings.LiquidGlass ?? new Models.LiquidGlassConfig()).Clone();
+        c.BlurAmount = GlassBlurSlider.Value / 100.0;
+        c.Refraction = GlassRefractionSlider.Value / 100.0;
+        c.ChromaticAberration = GlassChromSlider.Value / 100.0;
+        c.EdgeHighlight = GlassEdgeHighlightSlider.Value / 100.0;
+        c.Specular = GlassSpecularSlider.Value / 100.0;
+        c.Fresnel = GlassFresnelSlider.Value / 100.0;
+        c.Distortion = GlassDistortionSlider.Value / 100.0;
+        c.ZRadius = GlassZRadiusSlider.Value / 100.0;
+        c.Opacity = GlassOpacitySlider.Value / 100.0;
+        c.Saturation = GlassSaturationSlider.Value / 100.0;
+        c.Brightness = GlassBrightnessSlider.Value / 100.0;
+        c.ShadowOpacity = GlassShadowOpacitySlider.Value / 100.0;
+        c.ShadowSpread = (int)Math.Round(GlassShadowSpreadSlider.Value);
+        c.BevelMode = (int)Math.Round(GlassBevelModeSlider.Value);
+        c.TargetFps = (int)Math.Round(GlassFpsSlider.Value);
+        return c;
+    }
 
     private void ApplyGlassConfigToSliders(Models.LiquidGlassConfig c)
     {
@@ -1060,6 +1185,7 @@ public partial class SettingsWindow : Window
             GlassShadowOpacitySlider.Value = Math.Round(c.ShadowOpacity * 100);
             GlassShadowSpreadSlider.Value = c.ShadowSpread;
             GlassBevelModeSlider.Value = c.BevelMode;
+            GlassFpsSlider.Value = c.TargetFps;
         }
         finally
         {
@@ -1141,6 +1267,12 @@ public partial class SettingsWindow : Window
         c.ShadowOpacity = ui.ShadowOpacity;
         c.ShadowSpread = ui.ShadowSpread;
         c.BevelMode = ui.BevelMode;
+
+        string activePreset = (GlassPresetCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "custom";
+        if (activePreset == "clear") c.Variant = 1;
+        else if (activePreset == "regular" || activePreset == "frosted" || activePreset == "dark" || activePreset == "ultrathin" || activePreset == "thin" || activePreset == "thick" || activePreset == "ultrathick") c.Variant = 0;
+        else c.Variant = _customGlassSnapshot?.Variant ?? c.Variant;
+
         c.UseGpuRefraction = GpuRefractionCheck?.IsChecked ?? false;
 
         // Persist which preset is active and the user's custom slot. A built-in
@@ -1155,19 +1287,27 @@ public partial class SettingsWindow : Window
         if (_isLoadingSettings || _suppressGlassPresetChange) return;
         if (GlassPresetCombo.SelectedItem is not System.Windows.Controls.ComboBoxItem item) return;
 
+        Models.LiquidGlassConfig preset = null;
         switch (item.Tag as string)
         {
-            case "frosted":
-                ApplyGlassConfigToSliders(FrostedGlassPreset());
-                break;
-            case "dark":
-                ApplyGlassConfigToSliders(DarkGlassPreset());
-                break;
+            case "frosted": preset = FrostedGlassPreset(); break;
+            case "dark": preset = DarkGlassPreset(); break;
+            case "regular": preset = RegularGlassPreset(); break;
+            case "ultrathin": preset = UltraThinGlassPreset(); break;
+            case "thin": preset = ThinGlassPreset(); break;
+            case "thick": preset = ThickGlassPreset(); break;
+            case "ultrathick": preset = UltraThickGlassPreset(); break;
+            case "clear": preset = ClearGlassPreset(); break;
             case "custom":
             default:
-                if (_customGlassSnapshot != null)
-                    ApplyGlassConfigToSliders(_customGlassSnapshot);
+                if (_customGlassSnapshot != null) preset = _customGlassSnapshot;
                 break;
+        }
+
+        if (preset != null)
+        {
+            _settings.LiquidGlass = preset.Clone();
+            ApplyGlassConfigToSliders(preset);
         }
 
         PushLivePreview();
@@ -1243,6 +1383,8 @@ public partial class SettingsWindow : Window
         GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.custom"), Tag = "custom" });
         GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.frosted"), Tag = "frosted" });
         GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.dark"), Tag = "dark" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.regular"), Tag = "regular" });
+        GlassPresetCombo.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = Loc.Get("settings.glass.preset.clear"), Tag = "clear" });
         GlassPresetCombo.SelectedIndex = presetIdx < 0 ? 0 : presetIdx;
         _suppressGlassPresetChange = false;
 

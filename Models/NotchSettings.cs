@@ -158,6 +158,8 @@ public class LiquidGlassConfig
     public double ShadowOpacity { get; set; } = 0.85;
     public int ShadowSpread { get; set; } = 24;
     public int BevelMode { get; set; } = 0;
+    public int TargetFps { get; set; } = 60;
+    public int Variant { get; set; } = 0; // 0 = Regular (Adaptive), 1 = Clear (highly transparent, non-adaptive)
 
     // When true the notch is excluded from screen capture (WDA_EXCLUDEFROMCAPTURE),
     // letting the glass sample exactly what's behind it with no self-feedback — at

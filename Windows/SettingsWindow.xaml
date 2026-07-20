@@ -1236,6 +1236,11 @@
                                                         Minimum="0" Maximum="1" Value="0" TickFrequency="1" IsSnapToTickEnabled="True"
                                                         ValueChanged="GlassConfigSlider_Changed"/>
                                             </Border>
+                                            <Border Style="{StaticResource SettingRowBorder}" BorderThickness="0">
+                                                <controls:ElasticSlider x:Name="GlassFpsSlider" Label="Target FPS" Unit=" fps"
+                                                        Minimum="30" Maximum="120" Value="60" TickFrequency="1"
+                                                        ValueChanged="GlassConfigSlider_Changed"/>
+                                            </Border>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>

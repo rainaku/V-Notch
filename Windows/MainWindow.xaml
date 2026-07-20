@@ -413,23 +413,21 @@
                                 BorderThickness="1.4"
                                 CornerRadius="0,0,20,20">
                             <Border.BorderBrush>
-                                <SolidColorBrush Color="#80FFFFFF" po:Freeze="True"/>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1" po:Freeze="True">
+                                    <GradientStop Color="#BFFFFFFF" Offset="0"/>
+                                    <GradientStop Color="#40FFFFFF" Offset="0.5"/>
+                                    <GradientStop Color="#10FFFFFF" Offset="1"/>
+                                </LinearGradientBrush>
                             </Border.BorderBrush>
                         </Border>
 
-                        <Border x:Name="GlassSpecularOverlay"
+
+                        <Border x:Name="GlassDarkOverlay"
                                 IsHitTestVisible="False"
                                 Visibility="Collapsed"
                                 Opacity="0"
-                                CornerRadius="0,0,20,20">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1" po:Freeze="True">
-                                    <GradientStop Color="#66FFFFFF" Offset="0"/>
-                                    <GradientStop Color="#1AFFFFFF" Offset="0.12"/>
-                                    <GradientStop Color="#00FFFFFF" Offset="0.4"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
+                                CornerRadius="0,0,20,20"
+                                Background="#90000000"/>
 
                         <Border x:Name="GlassRimBorder"
                                 IsHitTestVisible="False"

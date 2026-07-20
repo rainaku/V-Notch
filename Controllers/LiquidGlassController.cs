@@ -76,8 +76,8 @@ public sealed class LiquidGlassController
     // be rebuilt every frame to track the moving edge. When the notch is static,
     // only the desktop behind it can change, so a low refresh rate is plenty and
     // keeps steady-state CPU minimal.
-    private readonly double _activeIntervalMs;
-    private readonly double _idleIntervalMs;
+    private double _activeIntervalMs;
+    private double _idleIntervalMs;
     private volatile bool _animating;
 
     private readonly object _sync = new();
@@ -137,8 +137,22 @@ public sealed class LiquidGlassController
     private int _mapNotchW = -1, _mapNotchH = -1, _mapNotchOffX = -1, _mapNotchOffY = -1;
 
     private MagnifierCaptureSource? _mag;
-    private volatile bool _magReady;
-    private int _magFailStreak;
+    private bool _magReady;
+    private int _magFailStreak = 0;
+    
+    private bool _hideFromCapture = true;
+    public bool HideFromScreenCapture
+    {
+        get => _hideFromCapture;
+        set
+        {
+            if (_hideFromCapture == value) return;
+            _hideFromCapture = value;
+            if (_isActive)
+                SetWindowDisplayAffinitySafe(value ? 0x00000011 /* WDA_EXCLUDEFROMCAPTURE */ : WDA_NONE);
+        }
+    }
+
     private double _bitmapDpi = 96;
     private volatile bool _magPath;
 
@@ -153,6 +167,8 @@ public sealed class LiquidGlassController
     // ShaderEffect on the host element does the refraction. _onGpuGeometry syncs the
     // shader params on the UI thread each present. ──
     private volatile bool _gpuMode;
+    public volatile int AverageBackgroundBrightnessInt = 128;
+    public double AverageBackgroundBrightness => AverageBackgroundBrightnessInt / 255.0;
     public readonly record struct GpuGeometry(
         double SrcW, double SrcH, double NotchW, double NotchH, double OffX, double OffY,
         double CornerR, double ZR, double Refraction, double Chroma, double Distort,
@@ -189,6 +205,14 @@ public sealed class LiquidGlassController
         int active = Math.Clamp(activeFps, 5, 120);
         _activeIntervalMs = 1000.0 / active;
         _idleIntervalMs = 1000.0 / Math.Clamp(idleFps, 1, active);
+    }
+
+    public void UpdateFps(int activeFps)
+    {
+        int active = Math.Clamp(activeFps, 5, 120);
+        _activeIntervalMs = 1000.0 / active;
+        // Keep idle fps at 10 (or whatever it was initialized to), but don't let it exceed active
+        _idleIntervalMs = 1000.0 / Math.Clamp(10, 1, active);
     }
 
     public bool IsActive => _isActive;
@@ -251,6 +275,11 @@ public sealed class LiquidGlassController
         // animates (which made the refracted desktop appear to drift).
         uint dpiNow = GetDpiForWindow(_getHwnd());
         _bitmapDpi = dpiNow > 0 ? dpiNow : 96;
+
+        _isActive = true;
+        _consecutiveSkips = 0;
+
+        SetWindowDisplayAffinitySafe(_hideFromCapture ? 0x00000011 : WDA_NONE);
 
         if (_worker is { IsAlive: true }) return;
 
@@ -705,10 +734,13 @@ public sealed class LiquidGlassController
             if (!EnsureGdiResources(srcW, srcH, screenDc)) return false;
 
             double inv = 1.0 / scale;
+            double dispScale = _bitmapDpi / 96.0;
             int physMargin = (int)Math.Round(margin * inv);
             int physNotchOffX = (int)Math.Round(notchOffX * inv);
             int physSrcW = (int)Math.Round(srcW * inv);
             int physSrcH = (int)Math.Round(srcH * inv);
+            double txDip = -physNotchOffX * dispScale + _presentSubX;
+            double tyDip = _presentSubY;
 
             if (useMag)
             {
@@ -744,9 +776,11 @@ public sealed class LiquidGlassController
             else
             {
                 int srcX = region.X - physNotchOffX - physMargin;
-                // Offset the sample below the notch so the BitBlt doesn't capture
+                // If the window is hidden from capture, we can sample exactly behind it.
+                // Otherwise, offset the sample below the notch so BitBlt doesn't capture
                 // the notch itself (DWM composites it -> feedback ghost).
-                int srcY = region.Y + displayH + 2;
+                int srcY = _hideFromCapture ? (region.Y - physMargin) : (region.Y + displayH + 2);
+
                 if (srcX < 0) srcX = 0;
                 if (srcY < 0) srcY = 0;
 
@@ -832,28 +866,8 @@ public sealed class LiquidGlassController
         if (!_isActive) return;
         int w = _outW, h = _outH;
         byte[] buffer = _outBuffer;
-
-        // Present the captured desktop at its TRUE native scale instead of
-        // stretching it to fill the host. Stretching makes the backdrop visibly
-        // zoom in/out during the notch's resize animation, because the bitmap is
-        // sized to the notch at capture time but the host has already animated to a
-        // different size by present time. With Stretch=None the bitmap renders at a
-        // fixed scale (DPI chosen so 1 output px == 1 screen px), and a size
-        // mismatch merely reveals slightly more / less desktop (clipped by the
-        // host) rather than scaling it. Anchored top-centre to match the notch,
-        // which grows downward from a fixed top edge and stays horizontally centred.
-        //
-        // Both capture paths pre-downscale by their internal scale, so the present
-        // DPI is scaled up to land the frozen frame back at native screen scale.
-        // Magnifier and BitBlt paths both render at a reduced internal scale, so
-        // the present DPI is scaled up to land the bitmap back at native screen
-        // scale (1 output px maps to 1/scale screen px).
         double presentDpi = _bitmapDpi * (_magPath ? MagProcessScale : ProcessScale);
         if (presentDpi < 1.0) presentDpi = 96.0;
-
-        // Compensate the capture's pixel snapping with a sub-pixel shift so a
-        // captured desktop pixel always lands at its true on-screen position,
-        // killing the horizontal/vertical shimmer while the notch animates.
         double dpiScale = _bitmapDpi > 0 ? _bitmapDpi / 96.0 : 1.0;
         double txDip = -_presentSubX / dpiScale;
         double tyDip = -_presentSubY / dpiScale;
@@ -879,11 +893,6 @@ public sealed class LiquidGlassController
                         int capacityH = GrowPresentCapacity(previousH, h, 96);
                         var nextBitmap = new WriteableBitmap(
                             capacityW, capacityH, presentDpi, presentDpi, PixelFormats.Bgra32, null);
-
-                        // Populate the new surface before publishing it to the Image.
-                        // During notch resize animations the old code swapped in a
-                        // brand-new (zero-filled) bitmap first and then uploaded the
-                        // frame, which could let WPF composite a black surface.
                         int nextX = (capacityW - w) / 2;
                         nextBitmap.WritePixels(new Int32Rect(nextX, 0, w, h), buffer, w * 4, 0);
                         _bitmap = nextBitmap;
@@ -891,10 +900,6 @@ public sealed class LiquidGlassController
                         _host.Stretch = Stretch.None;
                         _host.HorizontalAlignment = HorizontalAlignment.Center;
                         _host.VerticalAlignment = VerticalAlignment.Top;
-                        // The internal frame is rendered downscaled (MagProcessScale /
-                        // ProcessScale) and the present DPI upscales it back to native
-                        // screen scale. Use linear filtering so that upscale stays smooth
-                        // instead of showing blocky nearest-neighbour pixels.
                         RenderOptions.SetBitmapScalingMode(_host, BitmapScalingMode.Linear);
                         _hostTransform ??= new TranslateTransform();
                         _host.RenderTransform = _hostTransform;
@@ -1016,6 +1021,7 @@ public sealed class LiquidGlassController
         byte* src = (byte*)_dibBits;
         int stride = srcW * 4;
         ulong hash = 0;
+        double totalLuminance = 0;
 
         for (int gy = 0; gy < 8; gy++)
         {
@@ -1024,11 +1030,19 @@ public sealed class LiquidGlassController
             for (int gx = 0; gx < 8; gx++)
             {
                 int x = (srcW - 1) * gx / 7;
-                uint pixel = *(uint*)(row + x * 4);
+                byte* p = row + x * 4;
+                uint pixel = *(uint*)p;
+
+                // BGRA format: B is p[0], G is p[1], R is p[2]
+                double luminance = 0.299 * p[2] + 0.587 * p[1] + 0.114 * p[0];
+                totalLuminance += luminance;
+
                 hash ^= (ulong)pixel << ((gy * 8 + gx) & 63);
                 hash = (hash << 7) | (hash >> 57); // rotate
             }
         }
+
+        AverageBackgroundBrightnessInt = (int)Math.Round(totalLuminance / 64.0);
         return hash;
     }
 

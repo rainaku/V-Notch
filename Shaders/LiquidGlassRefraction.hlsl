@@ -134,7 +134,7 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     float gx = baseX + dispX;
     float gy = baseY + dispY;
 
-    float2 centerUv = float2(gx / srcW, gy / srcH);
+    float2 centerUv = saturate(float2(gx / srcW, gy / srcH));
     float3 col = tex2D(input, centerUv).rgb;
 
     // Most interior pixels have no chromatic displacement. Reuse the centre sample
@@ -142,8 +142,8 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     // pays for the separated red/blue samples.
     if (abs(caX) + abs(caY) > 0.0001)
     {
-        col.r = tex2D(input, float2((gx + caX) / srcW, (gy + caY) / srcH)).r;
-        col.b = tex2D(input, float2((gx - caX) / srcW, (gy - caY) / srcH)).b;
+        col.r = tex2D(input, saturate(float2((gx + caX) / srcW, (gy + caY) / srcH))).r;
+        col.b = tex2D(input, saturate(float2((gx - caX) / srcW, (gy - caY) / srcH))).b;
     }
 
     float lum = dot(col, float3(0.299, 0.587, 0.114));

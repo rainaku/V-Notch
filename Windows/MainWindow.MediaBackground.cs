@@ -58,6 +58,11 @@ public partial class MainWindow
         var dominantColor = palette.Main;
         var subColor = palette.Sub;
 
+        if (glass)
+        {
+            UpdateGlassMediaTint(dominantColor);
+        }
+
         string currentTrackId = $"{info.CurrentTrack}|{info.CurrentArtist}";
         bool isNewTrack = _lastTrackId != null && _lastTrackId != currentTrackId;
         _lastTrackId = currentTrackId;
@@ -71,6 +76,8 @@ public partial class MainWindow
 
         if (!suppressBackdrop)
             UpdateBlurredBackgroundAsync(info.Thumbnail, allowInterimThumbnail: forceRefresh || isNewTrack).SafeFireAndForget("MEDIA-BG-BLUR");
+        else
+            HideMediaBackgroundOverlay();
 
         double brightnessDimOpacity = suppressBackdrop ? 0 : DynamicIslandColorExtractor.GetBrightnessDimOverlay(info.Thumbnail);
         var dimOverlayAnim = new DoubleAnimation
@@ -343,6 +350,7 @@ public partial class MainWindow
 
     private void HideMediaBackground()
     {
+        ClearGlassMediaTint();
         HideMediaBackgroundOverlay();
 
         if (_isTimerView || _isAudioView) return;
