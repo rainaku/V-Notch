@@ -48,3 +48,4 @@ test-setup.ps1
 remove_comments.py
 remove_comments.ps1
 *.cmd
+/Tests/artifacts

@@ -20,8 +20,10 @@ public partial class MainWindow
         get => _gestureController?.IsGestureActive ?? false;
         set
         {
-            if (_gestureController != null)
-                _gestureController.IsGestureActive = value;
+            if (_gestureController == null || _gestureController.IsGestureActive == value) return;
+
+            _gestureController.IsGestureActive = value;
+            UpdateGlassMotionState();
         }
     }
 
@@ -263,6 +265,7 @@ public partial class MainWindow
             EasingFunction = _easeSoftSpring
         };
         Timeline.SetDesiredFrameRate(snapBack, VNotch.Services.AnimationConfig.TargetFps);
+        BeginGlassGestureSnapBack(snapBack);
         snapBack.Completed += (s, e) =>
         {
             _gestureTranslate.BeginAnimation(TranslateTransform.XProperty, null);

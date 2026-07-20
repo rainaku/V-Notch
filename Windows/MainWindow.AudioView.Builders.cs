@@ -185,6 +185,7 @@ public partial class MainWindow
     private void PollAudioVolumes()
     {
         if (!_isAudioView || _isAnimating) return;
+        if (AudioLoadingPanel?.Visibility == Visibility.Visible) return;
         if (System.Threading.Interlocked.CompareExchange(ref _audioPollInFlight, 1, 0) != 0) return;
 
         System.Threading.Tasks.Task.Run(() =>

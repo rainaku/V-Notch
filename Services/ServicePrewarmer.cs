@@ -39,6 +39,7 @@ internal static class ServicePrewarmer
 
         SafeResolve<BluetoothMonitorService>(provider);
         SafeResolve<PrivacyIndicatorService>(provider);
+        SafeResolve<AudioMixerService>(provider);
 
         SafeResolve<BatteryModule>(provider);
         SafeResolve<CalendarModule>(provider);
@@ -111,6 +112,21 @@ internal static class ServicePrewarmer
         catch (Exception ex)
         {
             RuntimeLog.Error("PREWARM", ex, "Bluetooth watcher warmup failed");
+        }
+
+        try
+        {
+            var mixer = provider.GetService<AudioMixerService>();
+            if (mixer != null)
+            {
+                // Prewarm NAudio enumerator and COM endpoints
+                _ = mixer.GetOutputDevices();
+                _ = mixer.GetSessions(includeIcons: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("PREWARM", ex, "Audio mixer warmup failed");
         }
 
         try
