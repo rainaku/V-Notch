@@ -17,6 +17,8 @@ namespace VNotch.Controllers;
 
 public sealed class LiquidGlassController
 {
+    public const int MaxTargetFps = 240;
+
     public readonly record struct CaptureRegion(int X, int Y, int Width, int Height,
         double TopCornerRadiusDip = 0, double BottomCornerRadiusDip = 0,
         double SubX = 0, double SubY = 0);
@@ -56,17 +58,14 @@ public sealed class LiquidGlassController
     private const double ProcessScale = 0.72;
     private const double MagProcessScale = 0.85;
     private const int GpuTextureSizeQuantum = 32;
-    private const int IdleAfterUnchangedFrames = 4;
-
     private readonly Image _host;
     private readonly Dispatcher _dispatcher;
     private readonly Func<IntPtr> _getHwnd;
     private readonly Func<CaptureRegion?> _regionProvider;
 
     private double _activeIntervalMs;
-    private double _idleIntervalMs;
-    private readonly int _idleFpsLimit;
     private volatile bool _animating;
+    private volatile bool _presentationPaused;
 
     private readonly object _sync = new();
     private GlassParams _params = GlassParams.Default;
@@ -143,9 +142,6 @@ public sealed class LiquidGlassController
     private double _bitmapDpi = 96;
     private volatile bool _magPath;
 
-    private ulong _lastFrameHash;
-    private ulong _lastOutputHash;
-    private int _consecutiveSkips;
     private IntPtr _fgProbeHwnd;
     private bool _fgProbeResult;
 
@@ -386,47 +382,49 @@ public sealed class LiquidGlassController
 
     private int _dbgFrameCount;
     private int _dbgPresentCount;
-    private int _dbgSkipCount;
     private double _dbgLastLogMs;
 
     public LiquidGlassController(Image host, Func<IntPtr> getHwnd, Func<CaptureRegion?> regionProvider,
-        int activeFps = 60, int idleFps = 30)
+        int activeFps = 60)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _getHwnd = getHwnd ?? throw new ArgumentNullException(nameof(getHwnd));
         _regionProvider = regionProvider ?? throw new ArgumentNullException(nameof(regionProvider));
         _dispatcher = host.Dispatcher;
 
-        int active = Math.Clamp(activeFps, 5, 120);
-        _idleFpsLimit = Math.Clamp(idleFps, 1, 120);
+        int active = Math.Clamp(activeFps, 5, MaxTargetFps);
         _activeIntervalMs = 1000.0 / active;
-        _idleIntervalMs = 1000.0 / Math.Min(_idleFpsLimit, active);
     }
 
     public void UpdateFps(int activeFps)
     {
-        int active = Math.Clamp(activeFps, 5, 120);
-        _activeIntervalMs = 1000.0 / active;
-        _idleIntervalMs = 1000.0 / Math.Min(_idleFpsLimit, active);
+        int active = Math.Clamp(activeFps, 5, MaxTargetFps);
+        Volatile.Write(ref _activeIntervalMs, 1000.0 / active);
     }
 
-    internal static double ChooseFrameIntervalMs(
-        double activeIntervalMs,
-        double idleIntervalMs,
-        bool geometryAnimating,
-        int consecutiveUnchangedFrames)
-    {
-        // A changed backdrop resets the unchanged counter, keeping subsequent
-        // frames at the configured target. Once several captures are identical,
-        // drop to the idle probe rate until motion is observed again.
-        return geometryAnimating || consecutiveUnchangedFrames < IdleAfterUnchangedFrames
-            ? activeIntervalMs
-            : idleIntervalMs;
-    }
+    internal static double ChooseLockedFrameIntervalMs(double configuredIntervalMs) =>
+        Math.Max(1000.0 / MaxTargetFps, configuredIntervalMs);
 
     public bool IsActive => _isActive;
 
     public void SetAnimating(bool animating) => _animating = animating;
+
+    /// <summary>
+    /// Keeps acquiring the desktop at the configured cadence while holding the
+    /// last completed visual frame. This lets short WPF hover transforms reuse one
+    /// stable GPU texture instead of invalidating the layered window every 8 ms.
+    /// </summary>
+    public void SetPresentationPaused(bool paused)
+    {
+        bool wasPaused = _presentationPaused;
+        _presentationPaused = paused;
+        if (wasPaused && !paused)
+        {
+            // The held frame used the pre-hover capture rectangle. Force the next
+            // presented frame to fetch the final on-screen position immediately.
+            Volatile.Write(ref _lastRegionFetchMs, double.NegativeInfinity);
+        }
+    }
 
     public void SetParams(GlassParams p)
     {
@@ -465,6 +463,7 @@ public sealed class LiquidGlassController
     {
         if (_isActive) return;
         _isActive = true;
+        _presentationPaused = false;
         _presentInFlight = false;
         RequestRenderTimerPeriod();
 
@@ -480,8 +479,6 @@ public sealed class LiquidGlassController
         _bitmapDpi = dpiNow > 0 ? dpiNow : 96;
 
         _isActive = true;
-        _consecutiveSkips = 0;
-
         _exactBitBltCapture = false;
         _captureVisibilityUntilTicks = 0;
         _overlayActiveCached = false;
@@ -494,7 +491,7 @@ public sealed class LiquidGlassController
         {
             IsBackground = true,
             Name = "LiquidGlassRender",
-            Priority = ThreadPriority.Normal
+            Priority = ThreadPriority.AboveNormal
         };
         _worker.Start();
     }
@@ -503,6 +500,7 @@ public sealed class LiquidGlassController
     {
         if (!_isActive) return;
         _isActive = false;
+        _presentationPaused = false;
         _exactBitBltCapture = false;
         ReleaseRenderTimerPeriod();
 
@@ -575,6 +573,7 @@ public sealed class LiquidGlassController
     private void WorkerLoop()
     {
         var clock = Stopwatch.StartNew();
+        double nextFrameAtMs = clock.Elapsed.TotalMilliseconds;
         try
         {
             while (_isActive)
@@ -582,15 +581,8 @@ public sealed class LiquidGlassController
                 double frameStart = clock.Elapsed.TotalMilliseconds;
 
                 bool animating = _animating;
-                double frameIntervalMs = ChooseFrameIntervalMs(
-                    _activeIntervalMs,
-                    _idleIntervalMs,
-                    animating,
-                    _consecutiveSkips);
-                if (animating)
-                {
-                    _consecutiveSkips = 0;
-                }
+                double frameIntervalMs = ChooseLockedFrameIntervalMs(
+                    Volatile.Read(ref _activeIntervalMs));
 
                 if (IsCaptureOverlayActive())
                 {
@@ -610,7 +602,7 @@ public sealed class LiquidGlassController
 
                 if (!_gpuMode && _presentInFlight)
                 {
-                    Thread.Sleep(2);
+                    SleepWithCapturePolling(frameIntervalMs);
                     continue;
                 }
 
@@ -621,7 +613,7 @@ public sealed class LiquidGlassController
                 {
                     try
                     {
-                        if (ProcessFrame(r, animating))
+                        if (ProcessFrame(r))
                             Present();
                     }
                     catch (Exception ex)
@@ -647,16 +639,26 @@ public sealed class LiquidGlassController
                     double targetFps = 1000.0 / _activeIntervalMs;
                     RuntimeLog.Log("LIQUIDGLASS",
                         $"fps={loopFps:F1}/{targetFps:F0} presented={presented} " +
-                        $"skipped={_dbgSkipCount} ({(_dbgFrameCount > 0 ? 100.0 * _dbgSkipCount / _dbgFrameCount : 0):F1}%) " +
                         $"renderer={(_gpuMode ? "GPU" : "CPU")}");
                     _dbgFrameCount = 0;
-                    _dbgSkipCount = 0;
                     _dbgLastLogMs = frameStart;
                 }
 
-                double elapsed = clock.Elapsed.TotalMilliseconds - frameStart;
-                double sleep = frameIntervalMs - elapsed;
-                SleepWithCapturePolling(sleep > 0.25 ? sleep : 0.25);
+                nextFrameAtMs += frameIntervalMs;
+                double nowMs = clock.Elapsed.TotalMilliseconds;
+                if (nextFrameAtMs < nowMs - 250.0)
+                {
+                    // A long external stall should not trigger a large catch-up
+                    // burst. Resume the locked cadence from the current clock.
+                    nextFrameAtMs = nowMs;
+                }
+                else if (nextFrameAtMs > nowMs)
+                {
+                    // Preserve the absolute deadline. A slightly late wake-up is
+                    // compensated by a shorter wait on the following frame, which
+                    // keeps the long-term cadence at the exact configured FPS.
+                    SleepWithCapturePolling(nextFrameAtMs - nowMs);
+                }
             }
         }
         finally
@@ -666,9 +668,6 @@ public sealed class LiquidGlassController
             _idxR = _auxR = _idxG = _auxG = _idxB = _auxB = Array.Empty<int>();
             _edgeMask = Array.Empty<byte>();
             _outW = _outH = _srcW = _srcH = _margin = 0;
-            _consecutiveSkips = 0;
-            _lastFrameHash = 0;
-            _lastOutputHash = 0;
             _presentInFlight = false;
             ReleaseRenderTimerPeriod();
             _worker = null;
@@ -677,7 +676,10 @@ public sealed class LiquidGlassController
 
     private CaptureRegion? _cachedRegion;
     private double _lastRegionFetchMs = double.NegativeInfinity;
-    private const double IdleRegionRefreshMs = 250.0;
+    // The collapsed notch does not move between layout changes. Avoid a blocking
+    // UI-thread round trip four times per second just to fetch the same rectangle;
+    // moving/hover animations still push their live region every compositor frame.
+    private const double IdleRegionRefreshMs = 1000.0;
 
     private readonly object _liveRegionSync = new();
     private CaptureRegion? _liveRegion;
@@ -800,7 +802,11 @@ public sealed class LiquidGlassController
             return true;
         }
 
-        if (now - _lastOverlayCheckTicks < 120) return _overlayActiveCached;
+        // Hotkeys and foreground capture tools are checked above on every frame.
+        // The expensive all-window scan is only a fallback for overlays that do
+        // not take focus, so polling it twice per second is responsive without
+        // stealing several milliseconds from a 144 Hz glass frame.
+        if (now - _lastOverlayCheckTicks < 500) return _overlayActiveCached;
         _lastOverlayCheckTicks = now;
         _overlayActiveCached = DetectCaptureOverlay();
         if (_overlayActiveCached)
@@ -928,7 +934,7 @@ public sealed class LiquidGlassController
         }
     }
 
-    private bool ProcessFrame(CaptureRegion region, bool animating)
+    private bool ProcessFrame(CaptureRegion region)
     {
         GlassParams p;
         int blurSigma;
@@ -1004,9 +1010,8 @@ public sealed class LiquidGlassController
 
         bool spatiallyExactSource = useMag || _exactBitBltCapture;
         int mapCaptureShiftY = spatiallyExactSource ? captureShiftY : 0;
-        bool mappingChanged = false;
         if (!gpuMode)
-            mappingChanged = EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH,
+            EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH,
                 notchOffX, notchOffY, captureShiftX, mapCaptureShiftY);
 
         IntPtr screenDc = GetDC(IntPtr.Zero);
@@ -1059,18 +1064,11 @@ public sealed class LiquidGlassController
                 margin + notchOffY - mapCaptureShiftY,
                 outW, outH);
 
-            if (!animating)
-            {
-                ulong hash = ComputeSparseHash(srcW, srcH);
-                if (hash == _lastFrameHash && !mappingChanged)
-                {
-                    _consecutiveSkips++;
-                    _dbgSkipCount++;
-                    return false;
-                }
-                _lastFrameHash = hash;
-                _consecutiveSkips = 0;
-            }
+            // During a short hover transition WPF can transform the last complete
+            // glass frame as cheaply as the default theme. Capture continues above,
+            // and the next frame is presented immediately after the motion ends.
+            if (_presentationPaused)
+                return false;
 
             if (gpuMode)
             {
@@ -1104,17 +1102,6 @@ public sealed class LiquidGlassController
                 ? BlurCapturedSource(srcW, srcH, blurPassRadii)
                 : null;
             Refract(p, blurredSource);
-
-            if (!animating)
-            {
-                ulong outHash = ComputeOutputHash();
-                if (outHash == _lastOutputHash)
-                {
-                    _dbgSkipCount++;
-                    return false;
-                }
-                _lastOutputHash = outHash;
-            }
 
             return true;
         }

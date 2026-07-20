@@ -66,11 +66,10 @@ public partial class MainWindow
                 GlassBackdropImage,
                 () => _hwnd,
                 GetGlassCaptureRegion,
-                // The configured value is the actual moving-backdrop target. A
-                // separate 30 Hz idle probe detects new backdrop motion quickly
-                // without continuously uploading identical frames.
-                activeFps: Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, 120),
-                idleFps: 30);
+                // This is a hard render cadence: unchanged desktop frames are still
+                // processed and presented at the selected Liquid Glass FPS.
+                activeFps: Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30,
+                    LiquidGlassController.MaxTargetFps));
 
             // Magnifier capture excludes the notch internally while the user-facing
             // overlay remains visible in screenshots and recordings.
@@ -129,7 +128,8 @@ public partial class MainWindow
         double dpiScale = GetGlassDpiScale();
         int gaussianSigma = (int)Math.Round(dipRadius * dpiScale);
         _liquidGlass?.SetBlur(gaussianSigma);
-        _liquidGlass?.UpdateFps(Math.Clamp(cfg.TargetFps, 30, 120));
+        _liquidGlass?.UpdateFps(Math.Clamp(cfg.TargetFps, 30,
+            LiquidGlassController.MaxTargetFps));
 
         // GPU mode blurs on the host element instead of the CPU box blur.
         ApplyGpuBlur(cfg.BlurAmount);
@@ -203,7 +203,7 @@ public partial class MainWindow
             }
 
             VNotch.Services.RuntimeLog.Log("LIQUIDGLASS",
-                $"GPU refraction enabled; target={Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, 120)} FPS");
+                $"GPU refraction enabled; target={Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, LiquidGlassController.MaxTargetFps)} FPS");
             _gpuRefractionConfigured = true;
         }
         catch (Exception ex)
@@ -652,12 +652,31 @@ public partial class MainWindow
         _glassHoverMotion = true;
         UpdateGlassMotionState();
 
-        completionAnim.Completed += (_, _) =>
+        // Replacing a WPF animation does not always raise Completed on the old
+        // clock. A short safety timer guarantees that a superseded hover can never
+        // leave glass presentation paused indefinitely.
+        TimeSpan motionDuration = completionAnim.Duration.HasTimeSpan
+            ? completionAnim.Duration.TimeSpan
+            : TimeSpan.FromMilliseconds(600);
+        var safetyTimer = new System.Windows.Threading.DispatcherTimer(
+            System.Windows.Threading.DispatcherPriority.Background,
+            Dispatcher)
         {
+            Interval = motionDuration + TimeSpan.FromMilliseconds(180)
+        };
+
+        void FinishHoverMotion()
+        {
+            safetyTimer.Stop();
             if (gen != _glassHoverGen) return;
             _glassHoverMotion = false;
             UpdateGlassMotionState();
-        };
+            UpdateDynamicGlassParams();
+        }
+
+        completionAnim.Completed += (_, _) => FinishHoverMotion();
+        safetyTimer.Tick += (_, _) => FinishHoverMotion();
+        safetyTimer.Start();
     }
 
     /// <summary>
@@ -685,10 +704,16 @@ public partial class MainWindow
 
     private void UpdateGlassMotionState()
     {
-        bool motion = _isAnimating || _glassHoverMotion ||
-                      _isGestureActive || _glassGestureSnapBackMotion;
-        _liquidGlass?.SetAnimating(motion);
-        SetGlassRegionPush(motion && _liquidGlass != null && IsLiquidGlassEnabled);
+        bool nonHoverMotion = _isAnimating || _isGestureActive ||
+                              _glassGestureSnapBackMotion;
+        bool holdHoverFrame = _glassHoverMotion && !nonHoverMotion;
+
+        // Hover uses the last complete glass texture, so it does not need a live
+        // PointToScreen calculation on every compositor tick. Larger transitions
+        // and gestures continue using the live-region path as before.
+        _liquidGlass?.SetAnimating(nonHoverMotion);
+        _liquidGlass?.SetPresentationPaused(holdHoverFrame);
+        SetGlassRegionPush(nonHoverMotion && _liquidGlass != null && IsLiquidGlassEnabled);
     }
 
     /// <summary>While the notch moves, push the capture region from the UI thread each
@@ -954,6 +979,11 @@ public partial class MainWindow
     private void OnLiquidGlassFrameUpdate(object? sender, EventArgs e)
     {
         if (_liquidGlass == null || !IsLiquidGlassEnabled) return;
+
+        // The live texture is intentionally held during the brief hover motion.
+        // Avoid mutating the accompanying gradient/effect tree in that same window;
+        // this is what allows WPF to reuse the composed glass like the default skin.
+        if (_glassHoverMotion) return;
 
         double curHeight = GlassBackdropHost?.ActualHeight ?? 0;
         if (Math.Abs(curHeight - _lastActualHeight) > 0.1)

@@ -56,11 +56,11 @@ public class SettingsMigratorTests
     }
 
     [Fact]
-    public void NewDefaults_Use120Fps()
+    public void NewDefaults_AllowHighRefreshDisplays()
     {
         var settings = new NotchSettings();
 
-        Assert.Equal(120, settings.AnimationFps);
+        Assert.Equal(240, settings.AnimationFps);
     }
 
     [Fact]
@@ -104,11 +104,11 @@ public class SettingsMigratorTests
         Assert.True(migrated);
         Assert.Equal(SettingsMigrator.CurrentVersion, settings.SettingsVersion);
         Assert.True(settings.EnableBlurEffects);
-        Assert.Equal(120, settings.AnimationFps);
+        Assert.Equal(240, settings.AnimationFps);
     }
 
     [Fact]
-    public void Migrate_Version10_CapsLegacyAnimationFpsAt120()
+    public void Migrate_Version10_PreservesSupportedHighRefreshRate()
     {
         const string rawJson = """
             {
@@ -121,6 +121,6 @@ public class SettingsMigratorTests
 
         Assert.True(migrated);
         Assert.Equal(SettingsMigrator.CurrentVersion, settings.SettingsVersion);
-        Assert.Equal(120, settings.AnimationFps);
+        Assert.Equal(144, settings.AnimationFps);
     }
 }

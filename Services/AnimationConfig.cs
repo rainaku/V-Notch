@@ -7,7 +7,10 @@ namespace VNotch.Services;
 internal static class AnimationConfig
 {
     public const int MinFps = 30;
-    public const int MaxFps = 120;
+    // Keep this as a user-selectable cap rather than a 120 FPS ceiling. WPF then
+    // limits the actual animation rate to the active display refresh below, so a
+    // 144/165/240 Hz monitor can animate on every compositor refresh.
+    public const int MaxFps = 240;
     private const int FallbackFps = 60;
 
     private static int _targetFps = FallbackFps;

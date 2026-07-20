@@ -1243,7 +1243,7 @@
                                             </Border>
                                             <Border Style="{StaticResource SettingRowBorder}" BorderThickness="0">
                                                 <controls:ElasticSlider x:Name="GlassFpsSlider" Label="Target FPS" Unit=" fps"
-                                                        Minimum="30" Maximum="120" Value="60" TickFrequency="1"
+                                                        Minimum="30" Maximum="240" Value="60" TickFrequency="1"
                                                         ValueChanged="GlassConfigSlider_Changed"/>
                                             </Border>
                                         </StackPanel>
@@ -1746,8 +1746,8 @@
                                                         Label="Animation FPS" Unit=" FPS"
                                                         Description="Cap UI animation frame rate. Lower values reduce render/GPU load."
                                                         Minimum="30"
-                                                        Maximum="120"
-                                                        Value="120"
+                                                        Maximum="240"
+                                                        Value="240"
                                                         TickFrequency="5"
                                                         IsSnapToTickEnabled="False"
                                                         ValueChanged="AnimationFpsSlider_ValueChanged"/>

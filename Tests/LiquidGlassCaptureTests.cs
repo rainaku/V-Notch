@@ -47,34 +47,19 @@ public sealed class LiquidGlassCaptureTests
         Assert.Equal(0, grown % 64);
     }
 
-    [Fact]
-    public void FrameCadence_UsesConfiguredTargetDuringGeometryMotion()
-    {
-        double interval = LiquidGlassController.ChooseFrameIntervalMs(
-            activeIntervalMs: 1000.0 / 120.0,
-            idleIntervalMs: 1000.0 / 30.0,
-            geometryAnimating: true,
-            consecutiveUnchangedFrames: 100);
-
-        Assert.Equal(1000.0 / 120.0, interval, 8);
-    }
-
     [Theory]
-    [InlineData(0, 120)]
-    [InlineData(3, 120)]
-    [InlineData(4, 30)]
-    [InlineData(30, 30)]
-    public void FrameCadence_StaysFastAfterBackdropChangesThenUsesIdleProbe(
-        int consecutiveUnchangedFrames,
-        int expectedFps)
+    [InlineData(30)]
+    [InlineData(60)]
+    [InlineData(90)]
+    [InlineData(120)]
+    [InlineData(144)]
+    [InlineData(240)]
+    public void FrameCadence_AlwaysUsesLockedTarget(int targetFps)
     {
-        double interval = LiquidGlassController.ChooseFrameIntervalMs(
-            activeIntervalMs: 1000.0 / 120.0,
-            idleIntervalMs: 1000.0 / 30.0,
-            geometryAnimating: false,
-            consecutiveUnchangedFrames: consecutiveUnchangedFrames);
+        double interval = LiquidGlassController.ChooseLockedFrameIntervalMs(
+            1000.0 / targetFps);
 
-        Assert.Equal(1000.0 / expectedFps, interval, 8);
+        Assert.Equal(1000.0 / targetFps, interval, 8);
     }
 
     [Theory]
