@@ -154,6 +154,7 @@ public partial class MainWindow
         _liquidGlass?.SetParams(new LiquidGlassController.GlassParams
         {
             Refraction = cfg.Refraction,
+            EdgeBend = cfg.EdgeBend,
             ChromaticAberration = cfg.ChromaticAberration,
             Distortion = cfg.Distortion,
             ZRadius = cfg.ZRadius,
@@ -231,6 +232,7 @@ public partial class MainWindow
         fx.BottomCornerR = g.BottomCornerR;
         fx.ZR = g.ZR;
         fx.Refraction = g.Refraction;
+        fx.EdgeBend = g.EdgeBend;
         fx.Chroma = g.Chroma;
         fx.Distort = g.Distort;
         fx.BevelMode = g.BevelMode;
@@ -927,6 +929,7 @@ public partial class MainWindow
         _liquidGlass?.SetParams(new LiquidGlassController.GlassParams
         {
             Refraction = activeRefraction,
+            EdgeBend = cfg.EdgeBend,
             ChromaticAberration = cfg.ChromaticAberration,
             Distortion = activeDistortion,
             ZRadius = activeZRadius,

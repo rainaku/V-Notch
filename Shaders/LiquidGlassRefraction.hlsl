@@ -23,6 +23,7 @@ float bevelMode    : register(c11); // >= 0.5 broadens the lens profile
 float satFactor    : register(c12); // 1 + saturation
 float brightAdd    : register(c13); // brightness in 0..1 colour space
 float topCornerR   : register(c14);  // upper corner radius in source pixels
+float edgeBend     : register(c15);  // independent outer-rim bend multiplier
 
 float smoother01(float x)
 {
@@ -33,10 +34,10 @@ float smoother01(float x)
 float lensProfile(float t)
 {
     float s = smoother01(t);
-    float a = s * (1.0 - s);
-    // Spread the optical bend over the full rim. Squaring this bell compressed
-    // the visible refraction into a thin crease halfway through the bevel.
-    return 4.0 * a;
+    // Peak the optical slope near the outer edge, then settle quickly into a
+    // stable centre. 256/27 normalises s*(1-s)^3 to one at s=1/4.
+    float inv = 1.0 - s;
+    return (256.0 / 27.0) * s * inv * inv * inv;
 }
 
 float roundedRectSdf(float px, float py, float bx, float by, float topR, float bottomR)
@@ -70,10 +71,7 @@ float refractionAmplitude(float rimWidth, float refraction, float mode)
 {
     float r = max(refraction, 0.0);
     float response = r / max(0.65 + 0.35 * r, 0.001);
-    // Keep the default mapping close to monotonic. The previous 0.72 ratio made
-    // short pills fold the source more than three times over one output pixel,
-    // which read as a vertically stretched reflection instead of curved glass.
-    return rimWidth * 0.24 * response * (mode >= 0.5 ? 1.08 : 1.0);
+    return rimWidth * 0.38 * response * (mode >= 0.5 ? 1.08 : 1.0);
 }
 
 float3 filteredSample(float2 sourcePixel, float filterMix)
@@ -132,7 +130,8 @@ float4 main(float2 uv : TEXCOORD) : COLOR
         if (bevelMode >= 0.5)
             profile = sqrt(profile); // wider, still C1-flat at both ends
 
-        float amplitude = refractionAmplitude(zR, uRefr, bevelMode);
+        float bend = saturate(edgeBend / 3.0) * 3.0;
+        float amplitude = refractionAmplitude(zR, uRefr, bevelMode) * pow(bend, 1.5);
         float aspect = saturate((notchH / max(notchW, 1.0)) * 2.5);
         float verticalBalance = lerp(0.68, 1.0, aspect);
         displacement = inwardNormal * float2(1.0, verticalBalance) * amplitude * profile;

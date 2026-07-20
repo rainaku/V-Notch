@@ -50,30 +50,48 @@ public sealed class LiquidGlassCaptureTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void LensProfile_IsSymmetricAndFlatAtBothEnds(bool broad)
+    public void LensProfile_PeaksNearOuterEdgeAndIsFlatAtBothEnds(bool broad)
     {
         const double epsilon = 1e-4;
 
         Assert.Equal(0.0, LiquidGlassController.LensProfile(0.0, broad), 12);
         Assert.Equal(0.0, LiquidGlassController.LensProfile(1.0, broad), 12);
-        Assert.Equal(
-            LiquidGlassController.LensProfile(0.25, broad),
-            LiquidGlassController.LensProfile(0.75, broad),
-            10);
-        Assert.InRange(LiquidGlassController.LensProfile(0.25, broad), 0.35, 0.7);
+        Assert.True(
+            LiquidGlassController.LensProfile(0.25, broad) >
+            LiquidGlassController.LensProfile(0.75, broad));
+        Assert.InRange(LiquidGlassController.LensProfile(0.25, broad), 0.70, 0.85);
         Assert.InRange(LiquidGlassController.LensProfile(epsilon, broad), 0.0, 1e-5);
         Assert.InRange(LiquidGlassController.LensProfile(1.0 - epsilon, broad), 0.0, 1e-5);
     }
 
     [Fact]
-    public void RefractionAmplitude_DefaultCurveAvoidsExtremeSourceFolding()
+    public void RefractionAmplitude_DefaultCurveProducesVisibleEdgeFold()
     {
         double rim = LiquidGlassController.ComputeRimWidth(0.23, 1.0, 80.0);
         double amplitude = LiquidGlassController.RefractionAmplitude(rim, 1.0);
 
         Assert.Equal(23.0, rim, 6);
-        Assert.Equal(rim * 0.24, amplitude, 6);
-        Assert.True(amplitude < rim * 0.3);
+        Assert.Equal(rim * 0.38, amplitude, 6);
+        Assert.True(amplitude < rim * 0.45);
+    }
+
+    [Fact]
+    public void EdgeBend_IndependentlyScalesOuterRimDisplacement()
+    {
+        const double rim = 24.0;
+        double normal = LiquidGlassController.RefractionAmplitude(rim, 0.7, edgeBend: 1.0);
+        double strong = LiquidGlassController.RefractionAmplitude(rim, 0.7, edgeBend: 1.65);
+
+        Assert.Equal(normal * Math.Pow(1.65, 1.5), strong, 8);
+    }
+
+    [Fact]
+    public void CurrentNarrowRimSettingsStillCreateVisibleBend()
+    {
+        double amplitude = LiquidGlassController.RefractionAmplitude(
+            rimWidth: 8.0, refraction: 0.6, edgeBend: 1.9);
+
+        Assert.True(amplitude > 5.0);
     }
 
     [Theory]
@@ -113,8 +131,10 @@ public sealed class LiquidGlassCaptureTests
     public void SamplingMargin_ContainsLensChromaAndFluidOffsets()
     {
         const double rim = 32.0;
-        double amplitude = LiquidGlassController.RefractionAmplitude(rim, 1.5, bevelMode: 1);
-        int margin = LiquidGlassController.ComputeSamplingMargin(rim, 1.5, 2.0, 2.0, bevelMode: 1);
+        double amplitude = LiquidGlassController.RefractionAmplitude(
+            rim, 1.5, bevelMode: 1, edgeBend: 1.9);
+        int margin = LiquidGlassController.ComputeSamplingMargin(
+            rim, 1.5, 2.0, 2.0, bevelMode: 1, edgeBend: 1.9);
 
         Assert.True(margin >= Math.Ceiling(amplitude + 8.0 + 4.5 + 3.0));
         Assert.InRange(margin, 12, 512);

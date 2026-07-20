@@ -57,6 +57,7 @@ public sealed class LiquidGlassRefractionEffect : ShaderEffect
         UpdateShaderValue(SatFactorProperty);
         UpdateShaderValue(BrightAddProperty);
         UpdateShaderValue(TopCornerRProperty);
+        UpdateShaderValue(EdgeBendProperty);
     }
 
     public Brush Input
@@ -87,6 +88,7 @@ public sealed class LiquidGlassRefractionEffect : ShaderEffect
     public static readonly DependencyProperty SatFactorProperty = Reg("SatFactor", 12, 1.0);
     public static readonly DependencyProperty BrightAddProperty = Reg("BrightAdd", 13);
     public static readonly DependencyProperty TopCornerRProperty = Reg("TopCornerR", 14);
+    public static readonly DependencyProperty EdgeBendProperty = Reg("EdgeBend", 15, 1.0);
 
     public double SrcW { get => (double)GetValue(SrcWProperty); set => SetValue(SrcWProperty, value); }
     public double SrcH { get => (double)GetValue(SrcHProperty); set => SetValue(SrcHProperty, value); }
@@ -103,4 +105,5 @@ public sealed class LiquidGlassRefractionEffect : ShaderEffect
     public double SatFactor { get => (double)GetValue(SatFactorProperty); set => SetValue(SatFactorProperty, value); }
     public double BrightAdd { get => (double)GetValue(BrightAddProperty); set => SetValue(BrightAddProperty, value); }
     public double TopCornerR { get => (double)GetValue(TopCornerRProperty); set => SetValue(TopCornerRProperty, value); }
+    public double EdgeBend { get => (double)GetValue(EdgeBendProperty); set => SetValue(EdgeBendProperty, value); }
 }

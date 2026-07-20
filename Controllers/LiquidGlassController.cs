@@ -23,6 +23,7 @@ public sealed class LiquidGlassController
     public struct GlassParams
     {
         public double Refraction;
+        public double EdgeBend;
         public double ChromaticAberration;
         public double Distortion;
         public double ZRadius;
@@ -35,6 +36,7 @@ public sealed class LiquidGlassController
         public static GlassParams Default => new()
         {
             Refraction = 0.69,
+            EdgeBend = 1.65,
             ChromaticAberration = 0.05,
             Distortion = 0.0,
             ZRadius = 0.40,
@@ -169,7 +171,7 @@ public sealed class LiquidGlassController
     public readonly record struct GpuGeometry(
         double SrcW, double SrcH, double NotchW, double NotchH, double OffX, double OffY,
         double TopCornerR, double BottomCornerR, double ZR, double Refraction, double Chroma,
-        double Distort, double BevelMode, double SatFactor, double BrightAdd);
+        double Distort, double BevelMode, double EdgeBend, double SatFactor, double BrightAdd);
     private Action<GpuGeometry>? _onGpuGeometry;
     private Action<Exception>? _onGpuFailure;
     private GpuGeometry _lastPresentedGpuGeometry;
@@ -221,6 +223,7 @@ public sealed class LiquidGlassController
         {
             bool geometryChanged =
                 Math.Abs(p.Refraction - _params.Refraction) > 1e-4 ||
+                Math.Abs(p.EdgeBend - _params.EdgeBend) > 1e-4 ||
                 Math.Abs(p.ChromaticAberration - _params.ChromaticAberration) > 1e-4 ||
                 Math.Abs(p.Distortion - _params.Distortion) > 1e-4 ||
                 Math.Abs(p.ZRadius - _params.ZRadius) > 1e-4 ||
@@ -715,7 +718,8 @@ public sealed class LiquidGlassController
         int margin = gpuMode
             ? 0
             : ComputeSamplingMargin(
-                rimWidth, p.Refraction, p.ChromaticAberration, p.Distortion, p.BevelMode);
+                rimWidth, p.Refraction, p.ChromaticAberration, p.Distortion,
+                p.BevelMode, p.EdgeBend);
         int srcW = bufW + margin * 2;
         int srcH = bufH + margin * 2;
 
@@ -734,8 +738,9 @@ public sealed class LiquidGlassController
 
         bool spatiallyExactSource = useMag || _exactBitBltCapture;
         int mapCaptureShiftY = spatiallyExactSource ? captureShiftY : 0;
+        bool mappingChanged = false;
         if (!gpuMode)
-            EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH,
+            mappingChanged = EnsureMaps(p, bufW, bufH, srcW, srcH, margin, outW, outH,
                 notchOffX, notchOffY, captureShiftX, mapCaptureShiftY);
 
         IntPtr screenDc = GetDC(IntPtr.Zero);
@@ -791,7 +796,7 @@ public sealed class LiquidGlassController
             if (!animating)
             {
                 ulong hash = ComputeSparseHash(srcW, srcH);
-                if (hash == _lastFrameHash)
+                if (hash == _lastFrameHash && !mappingChanged)
                 {
                     _consecutiveSkips++;
                     _dbgSkipCount++;
@@ -818,6 +823,7 @@ public sealed class LiquidGlassController
                     Math.Clamp(p.ChromaticAberration, 0.0, 2.0),
                     Math.Clamp(p.Distortion, 0.0, 2.0),
                     p.BevelMode >= 1 ? 1.0 : 0.0,
+                    Math.Clamp(p.EdgeBend, 0.0, 3.0),
                     1.0 + p.Saturation, p.Brightness);
 
                 PresentRawGpu(srcW, srcH, geom);
@@ -875,19 +881,30 @@ public sealed class LiquidGlassController
     internal static double LensProfile(double normalizedDistance, bool broad = false)
     {
         double s = Smoother01(normalizedDistance);
-        double a = s * (1.0 - s);
-        // A single smooth bell spreads the bend across the whole optical rim.
-        // Squaring this bell made most of the glass look flat, followed by a
-        // narrow, abrupt fold halfway through the bevel.
-        double profile = 4.0 * a;
+        // Apple-like edge lens: the optical slope peaks in the outer portion of
+        // the bevel and falls away quickly toward a nearly undisturbed centre.
+        // 256/27 normalises s*(1-s)^3 to a unit peak at s=1/4.
+        double oneMinusS = 1.0 - s;
+        double profile = (256.0 / 27.0) * s * oneMinusS * oneMinusS * oneMinusS;
         return broad ? Math.Sqrt(profile) : profile;
     }
 
-    internal static double RefractionAmplitude(double rimWidth, double refraction, int bevelMode = 0)
+    internal static double RefractionAmplitude(
+        double rimWidth, double refraction, int bevelMode = 0, double edgeBend = 1.0)
     {
         double r = Math.Max(refraction, 0.0);
         double response = r / Math.Max(0.65 + 0.35 * r, 0.001);
-        return rimWidth * 0.24 * response * (bevelMode >= 1 ? 1.08 : 1.0);
+        return rimWidth * EdgeBendGain(edgeBend) * response *
+            (bevelMode >= 1 ? 1.08 : 1.0);
+    }
+
+    internal static double EdgeBendGain(double edgeBend)
+    {
+        // 100% is already a clearly visible glass fold; higher slider values grow
+        // super-linearly so narrow rims (for example Z-Radius 8%) do not look
+        // identical to the old weak mapping. Zero remains a true pass-through.
+        double bend = Math.Clamp(edgeBend, 0.0, 3.0);
+        return 0.38 * Math.Pow(bend, 1.5);
     }
 
     internal static bool IsGpuGeometryValid(double srcW, double srcH, double notchW, double notchH) =>
@@ -898,9 +915,10 @@ public sealed class LiquidGlassController
         checked(regionY + Math.Max(0, displayHeight) + 2);
 
     internal static int ComputeSamplingMargin(double rimWidth, double refraction, double chroma,
-        double distortion, int bevelMode)
+        double distortion, int bevelMode, double edgeBend = 1.0)
     {
-        double amplitude = RefractionAmplitude(rimWidth, Math.Clamp(refraction, 0.0, 3.0), bevelMode);
+        double amplitude = RefractionAmplitude(
+            rimWidth, Math.Clamp(refraction, 0.0, 3.0), bevelMode, edgeBend);
         double chromaOffset = Math.Min(Math.Clamp(chroma, 0.0, 2.0) * (1.25 + rimWidth * 0.085), 8.0);
         double fluidOffset = Math.Clamp(distortion, 0.0, 2.0) * 2.25;
         return Math.Clamp((int)Math.Ceiling(amplitude + chromaOffset + fluidOffset + 3.0), 12, 512);
@@ -1523,7 +1541,7 @@ public sealed class LiquidGlassController
         }
     }
 
-    private void EnsureMaps(GlassParams p, int outW, int outH, int srcW, int srcH, int margin,
+    private bool EnsureMaps(GlassParams p, int outW, int outH, int srcW, int srcH, int margin,
         int notchW, int notchH, int notchOffX, int notchOffY,
         int captureShiftX, int captureShiftY)
     {
@@ -1537,7 +1555,7 @@ public sealed class LiquidGlassController
             && Math.Abs(_mapTopCornerRadius - p.TopCornerRadius) < 1e-3
             && Math.Abs(_mapBottomCornerRadius - p.BottomCornerRadius) < 1e-3
             && Math.Abs(_mapZRadius - p.ZRadius) < 1e-4)
-            return;
+            return false;
 
         _mapsDirty = false;
         _outW = outW; _outH = outH; _srcW = srcW; _srcH = srcH; _margin = margin;
@@ -1580,7 +1598,7 @@ public sealed class LiquidGlassController
         double uChroma = Math.Clamp(p.ChromaticAberration, 0.0, 2.0);
         double distort = Math.Clamp(p.Distortion, 0.0, 2.0);
         bool broad = p.BevelMode >= 1;
-        double amplitude = RefractionAmplitude(zR, uRefr, p.BevelMode);
+        double amplitude = RefractionAmplitude(zR, uRefr, p.BevelMode, p.EdgeBend);
         double aspect = Math.Clamp(notchH / Math.Max((double)notchW, 1.0) * 2.5, 0.0, 1.0);
         double verticalBalance = 0.68 + 0.32 * aspect;
 
@@ -1657,6 +1675,8 @@ public sealed class LiquidGlassController
                 range => BuildRows(range.Item1, range.Item2));
         else
             BuildRows(0, outH);
+
+        return true;
     }
 
     private static double RoundedRectSdf(double px, double py, double bx, double by,

@@ -148,6 +148,7 @@ public class LiquidGlassConfig
     // thickness internally.
     public double BlurAmount { get; set; } = 0.3;
     public double Refraction { get; set; } = 1.0;
+    public double EdgeBend { get; set; } = 1.65;
     public double ChromaticAberration { get; set; } = 0.56;
     public double EdgeHighlight { get; set; } = 0.1;
     public double Specular { get; set; } = 0.0;

@@ -985,6 +985,7 @@ public partial class SettingsWindow : Window
     {
         BlurAmount = 0.25,
         Refraction = 0.6,
+        EdgeBend = 1.50,
         ChromaticAberration = 0.06,
         EdgeHighlight = 0.35,
         Specular = 0.20,
@@ -1004,6 +1005,7 @@ public partial class SettingsWindow : Window
     {
         BlurAmount = 0.25,
         Refraction = 1.0,
+        EdgeBend = 1.70,
         ChromaticAberration = 0.10,
         EdgeHighlight = 0.12,
         Specular = 0.35,
@@ -1023,6 +1025,7 @@ public partial class SettingsWindow : Window
     {
         BlurAmount = 0.25,
         Refraction = 0.7,
+        EdgeBend = 1.60,
         ChromaticAberration = 0.08,
         EdgeHighlight = 0.25,
         Specular = 0.30,
@@ -1042,6 +1045,7 @@ public partial class SettingsWindow : Window
     {
         BlurAmount = 0.05,
         Refraction = 0.15,
+        EdgeBend = 1.25,
         ChromaticAberration = 0.04,
         EdgeHighlight = 0.30,
         Specular = 0.35,
@@ -1061,6 +1065,7 @@ public partial class SettingsWindow : Window
     {
         BlurAmount = 0.10,
         Refraction = 0.20,
+        EdgeBend = 1.10,
         ChromaticAberration = 0.04,
         EdgeHighlight = 0.20,
         Specular = 0.35,
@@ -1080,6 +1085,7 @@ public partial class SettingsWindow : Window
     {
         BlurAmount = 0.20,
         Refraction = 0.30,
+        EdgeBend = 1.30,
         ChromaticAberration = 0.05,
         EdgeHighlight = 0.22,
         Specular = 0.32,
@@ -1099,6 +1105,7 @@ public partial class SettingsWindow : Window
     {
         BlurAmount = 0.35,
         Refraction = 0.8,
+        EdgeBend = 1.75,
         ChromaticAberration = 0.10,
         EdgeHighlight = 0.28,
         Specular = 0.28,
@@ -1118,6 +1125,7 @@ public partial class SettingsWindow : Window
     {
         BlurAmount = 0.50,
         Refraction = 0.9,
+        EdgeBend = 1.90,
         ChromaticAberration = 0.12,
         EdgeHighlight = 0.32,
         Specular = 0.25,
@@ -1152,6 +1160,7 @@ public partial class SettingsWindow : Window
         var c = (_settings.LiquidGlass ?? new Models.LiquidGlassConfig()).Clone();
         c.BlurAmount = GlassBlurSlider.Value / 100.0;
         c.Refraction = GlassRefractionSlider.Value / 100.0;
+        c.EdgeBend = GlassEdgeBendSlider.Value / 100.0;
         c.ChromaticAberration = GlassChromSlider.Value / 100.0;
         c.EdgeHighlight = GlassEdgeHighlightSlider.Value / 100.0;
         c.Specular = GlassSpecularSlider.Value / 100.0;
@@ -1176,6 +1185,7 @@ public partial class SettingsWindow : Window
         {
             GlassBlurSlider.Value = Math.Round(c.BlurAmount * 100);
             GlassRefractionSlider.Value = Math.Round(c.Refraction * 100);
+            GlassEdgeBendSlider.Value = Math.Round(c.EdgeBend * 100);
             GlassChromSlider.Value = Math.Round(c.ChromaticAberration * 100);
             GlassEdgeHighlightSlider.Value = Math.Round(c.EdgeHighlight * 100);
             GlassSpecularSlider.Value = Math.Round(c.Specular * 100);
@@ -1258,6 +1268,7 @@ public partial class SettingsWindow : Window
         var ui = ReadGlassConfigFromSliders();
         c.BlurAmount = ui.BlurAmount;
         c.Refraction = ui.Refraction;
+        c.EdgeBend = ui.EdgeBend;
         c.ChromaticAberration = ui.ChromaticAberration;
         c.EdgeHighlight = ui.EdgeHighlight;
         c.Specular = ui.Specular;
@@ -1398,6 +1409,7 @@ public partial class SettingsWindow : Window
 
         GlassBlurSlider.Label = Loc.Get("settings.glass.blur");
         GlassRefractionSlider.Label = Loc.Get("settings.glass.refraction");
+        GlassEdgeBendSlider.Label = Loc.Get("settings.glass.edgeBend");
         GlassChromSlider.Label = Loc.Get("settings.glass.chrom");
         GlassEdgeHighlightSlider.Label = Loc.Get("settings.glass.edgeHighlight");
         GlassSpecularSlider.Label = Loc.Get("settings.glass.specular");
