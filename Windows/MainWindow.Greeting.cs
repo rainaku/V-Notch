@@ -320,6 +320,7 @@ public partial class MainWindow
         {
             _isAnimating = false;
             _isGreetingActive = false;
+            RestorePrivacyDotVisibility();
 
             CollapsedContent.Visibility = Visibility.Visible;
             var restoreFade = new DoubleAnimation

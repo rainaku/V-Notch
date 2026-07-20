@@ -64,6 +64,8 @@ public partial class MainWindow
     private AudioMixerSnapshot? _lastAudioSnapshot { get => _viewModel.AudioMixer.Snapshot; set => _viewModel.AudioMixer.Snapshot = value; }
     private AudioMixerSnapshot? _pendingAudioSnapshot;
     private Action? _pendingAudioAfterBuild;
+    private bool _isAudioLoading;
+    private int _audioLoadingTransitionVersion;
 
     internal static bool ShouldDeferAudioSnapshotDuringTransition(
         bool isAudioView, bool isAnimating, bool hasBuiltUi)
@@ -72,7 +74,110 @@ public partial class MainWindow
     private void SetAudioLoadingState(bool isLoading)
     {
         if (AudioLoadingPanel == null) return;
-        AudioLoadingPanel.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+
+        if (isLoading)
+        {
+            _isAudioLoading = true;
+            _audioLoadingTransitionVersion++;
+
+            AudioLoadingPanel.BeginAnimation(OpacityProperty, null);
+            AudioLoadingTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+            AudioRoot.BeginAnimation(OpacityProperty, null);
+            AudioRootTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+
+            AudioLoadingPanel.Visibility = Visibility.Visible;
+            AudioLoadingPanel.Opacity = 1;
+            AudioLoadingTranslate.Y = 0;
+            AudioRoot.Opacity = 0;
+            AudioRootTranslate.Y = 10;
+            return;
+        }
+
+        // The detailed icon snapshot often arrives while the quick snapshot is
+        // still revealing. Do not restart the same transition in that case.
+        if (!_isAudioLoading)
+        {
+            if (AudioLoadingPanel.Visibility != Visibility.Visible)
+            {
+                AudioRoot.BeginAnimation(OpacityProperty, null);
+                AudioRootTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                AudioRoot.Opacity = 1;
+                AudioRootTranslate.Y = 0;
+            }
+            return;
+        }
+
+        _isAudioLoading = false;
+        int transitionVersion = ++_audioLoadingTransitionVersion;
+
+        void FinishLoadingPanel()
+        {
+            if (_isAudioLoading || transitionVersion != _audioLoadingTransitionVersion)
+                return;
+
+            AudioLoadingPanel.BeginAnimation(OpacityProperty, null);
+            AudioLoadingTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+            AudioLoadingPanel.Opacity = 0;
+            AudioLoadingTranslate.Y = 0;
+            AudioLoadingPanel.Visibility = Visibility.Collapsed;
+        }
+
+        void FinishAudioReveal()
+        {
+            if (_isAudioLoading || transitionVersion != _audioLoadingTransitionVersion)
+                return;
+
+            AudioRoot.BeginAnimation(OpacityProperty, null);
+            AudioRootTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+            AudioRoot.Opacity = 1;
+            AudioRootTranslate.Y = 0;
+        }
+
+        if (AnimationConfig.ReduceMotion)
+        {
+            FinishLoadingPanel();
+            FinishAudioReveal();
+            return;
+        }
+
+        int fps = AnimationConfig.TargetFps;
+        var exitEase = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var enterEase = new ExponentialEase { Exponent = 5, EasingMode = EasingMode.EaseOut };
+        var loadingDuration = new Duration(TimeSpan.FromMilliseconds(180));
+        var contentDuration = new Duration(TimeSpan.FromMilliseconds(360));
+        var contentDelay = TimeSpan.FromMilliseconds(55);
+
+        var loadingFade = new DoubleAnimation(AudioLoadingPanel.Opacity, 0, loadingDuration)
+        {
+            EasingFunction = exitEase
+        };
+        var loadingSlide = new DoubleAnimation(AudioLoadingTranslate.Y, -6, loadingDuration)
+        {
+            EasingFunction = exitEase
+        };
+        loadingFade.Completed += (_, _) => FinishLoadingPanel();
+
+        var contentFade = new DoubleAnimation(0, 1, contentDuration)
+        {
+            BeginTime = contentDelay,
+            EasingFunction = enterEase
+        };
+        var contentSlide = new DoubleAnimation(10, 0, contentDuration)
+        {
+            BeginTime = contentDelay,
+            EasingFunction = enterEase
+        };
+        contentFade.Completed += (_, _) => FinishAudioReveal();
+
+        Timeline.SetDesiredFrameRate(loadingFade, fps);
+        Timeline.SetDesiredFrameRate(loadingSlide, fps);
+        Timeline.SetDesiredFrameRate(contentFade, fps);
+        Timeline.SetDesiredFrameRate(contentSlide, fps);
+
+        AudioLoadingPanel.BeginAnimation(OpacityProperty, loadingFade);
+        AudioLoadingTranslate.BeginAnimation(TranslateTransform.YProperty, loadingSlide);
+        AudioRoot.BeginAnimation(OpacityProperty, contentFade);
+        AudioRootTranslate.BeginAnimation(TranslateTransform.YProperty, contentSlide);
     }
 
     private static Brush Frozen(string hex)

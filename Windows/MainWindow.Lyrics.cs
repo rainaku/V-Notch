@@ -617,6 +617,8 @@ public partial class MainWindow
 
         Dispatcher.Invoke(() =>
         {
+            bool transitionFromSearch =
+                _isLyricsSearchVisible && LyricsSearchPanel.Visibility == Visibility.Visible;
             HideLyricsSearchState();
 
             int idx = FindCurrentLyricIndex();
@@ -624,13 +626,17 @@ public partial class MainWindow
             {
                 _currentLyricIndex = idx;
                 HideLyricsPlaceholder();
-                AnimateLyricLine(_currentLyrics[idx].Text);
+                AnimateLyricLine(_currentLyrics[idx].Text, transitionFromSearch);
             }
             else if (LyricsPlaceholderPanel.Visibility != Visibility.Visible || LyricsPlaceholderPanel.Opacity < 0.01)
             {
                 string placeholderTitle = isYouTube ? info.CurrentArtist : info.CurrentTrack;
                 string placeholderArtist = isYouTube ? "" : info.CurrentArtist;
-                ShowLyricsPlaceholder(placeholderTitle, placeholderArtist, _lyricsProvider);
+                ShowLyricsPlaceholder(
+                    placeholderTitle,
+                    placeholderArtist,
+                    _lyricsProvider,
+                    transitionFromSearch);
             }
         });
     }
@@ -702,13 +708,13 @@ public partial class MainWindow
             return;
         }
 
-        var duration = new Duration(TimeSpan.FromMilliseconds(220));
+        var duration = new Duration(TimeSpan.FromMilliseconds(240));
         var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
         var fadeOut = new DoubleAnimation(LyricsSearchPanel.Opacity, 0, duration)
         {
             EasingFunction = ease
         };
-        var slideOut = new DoubleAnimation(searchTranslate.Y, -5, duration)
+        var slideOut = new DoubleAnimation(searchTranslate.Y, -8, duration)
         {
             EasingFunction = ease
         };
@@ -812,7 +818,11 @@ public partial class MainWindow
         return FindLyricIndex(position);
     }
 
-    private void ShowLyricsPlaceholder(string title, string artist, string provider)
+    private void ShowLyricsPlaceholder(
+        string title,
+        string artist,
+        string provider,
+        bool transitionFromSearch = false)
     {
         if (LyricsPlaceholderPanel == null) return;
 
@@ -831,11 +841,26 @@ public partial class MainWindow
         LyricTextA.Opacity = 0;
         LyricTextB.Opacity = 0;
 
+        LyricsPlaceholderPanel.BeginAnimation(OpacityProperty, null);
+        LyricsPlaceholderTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+
+        if (AnimationConfig.ReduceMotion)
+        {
+            LyricsPlaceholderPanel.Opacity = 1;
+            LyricsPlaceholderTranslate.Y = 0;
+            return;
+        }
+
         var dur = new Duration(TimeSpan.FromMilliseconds(350));
         var ease = new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut };
+        TimeSpan? delay = transitionFromSearch ? TimeSpan.FromMilliseconds(75) : null;
 
-        var fadeIn = new DoubleAnimation(0, 1, dur) { EasingFunction = ease };
-        var slideIn = new DoubleAnimation(6, 0, dur) { EasingFunction = ease };
+        var fadeIn = new DoubleAnimation(0, 1, dur) { EasingFunction = ease, BeginTime = delay };
+        var slideIn = new DoubleAnimation(transitionFromSearch ? 10 : 6, 0, dur)
+        {
+            EasingFunction = ease,
+            BeginTime = delay
+        };
         Timeline.SetDesiredFrameRate(fadeIn, VNotch.Services.AnimationConfig.TargetFps);
         Timeline.SetDesiredFrameRate(slideIn, VNotch.Services.AnimationConfig.TargetFps);
 
@@ -846,6 +871,16 @@ public partial class MainWindow
     private void HideLyricsPlaceholder()
     {
         if (LyricsPlaceholderPanel == null || LyricsPlaceholderPanel.Opacity < 0.01) return;
+
+        if (AnimationConfig.ReduceMotion)
+        {
+            LyricsPlaceholderPanel.BeginAnimation(OpacityProperty, null);
+            LyricsPlaceholderTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+            LyricsPlaceholderPanel.Visibility = Visibility.Collapsed;
+            LyricsPlaceholderPanel.Opacity = 0;
+            LyricsPlaceholderTranslate.Y = 0;
+            return;
+        }
 
         var dur = new Duration(TimeSpan.FromMilliseconds(300));
         var ease = new ExponentialEase { Exponent = 4, EasingMode = EasingMode.EaseIn };
@@ -953,7 +988,7 @@ public partial class MainWindow
         return result;
     }
 
-    private void AnimateLyricLine(string newText)
+    private void AnimateLyricLine(string newText, bool transitionFromSearch = false)
     {
         if (LyricTextA == null || LyricTextB == null) return;
 
@@ -970,15 +1005,25 @@ public partial class MainWindow
         incoming.BeginAnimation(OpacityProperty, null);
         inTransform.BeginAnimation(TranslateTransform.YProperty, null);
 
-        outgoing.Opacity = 1;
+        bool hasOutgoingText = !string.IsNullOrWhiteSpace(outgoing.Text);
+        outgoing.Opacity = hasOutgoingText ? 1 : 0;
         outTransform.Y = 0;
         incoming.Opacity = 0;
-        inTransform.Y = 14;
+        inTransform.Y = transitionFromSearch ? 10 : 14;
+
+        if (AnimationConfig.ReduceMotion)
+        {
+            outgoing.Opacity = 0;
+            incoming.Opacity = 1;
+            outTransform.Y = 0;
+            inTransform.Y = 0;
+            return;
+        }
 
         int fps = VNotch.Services.AnimationConfig.TargetFps;
         var outDur = new Duration(TimeSpan.FromMilliseconds(300));
         var inDur = new Duration(TimeSpan.FromMilliseconds(450));
-        var inDelay = TimeSpan.FromMilliseconds(80);
+        var inDelay = TimeSpan.FromMilliseconds(transitionFromSearch ? 75 : 80);
         var easeOut = new ExponentialEase { Exponent = 5, EasingMode = EasingMode.EaseOut };
         var easeIn = new CubicEase { EasingMode = EasingMode.EaseIn };
 
@@ -987,11 +1032,18 @@ public partial class MainWindow
         Timeline.SetDesiredFrameRate(fadeOut, fps);
         Timeline.SetDesiredFrameRate(slideOut, fps);
 
-        outgoing.BeginAnimation(OpacityProperty, fadeOut);
-        outTransform.BeginAnimation(TranslateTransform.YProperty, slideOut);
+        if (hasOutgoingText)
+        {
+            outgoing.BeginAnimation(OpacityProperty, fadeOut);
+            outTransform.BeginAnimation(TranslateTransform.YProperty, slideOut);
+        }
 
         var fadeIn = new DoubleAnimation(0, 1, inDur) { EasingFunction = easeOut, BeginTime = inDelay };
-        var slideIn = new DoubleAnimation(14, 0, inDur) { EasingFunction = easeOut, BeginTime = inDelay };
+        var slideIn = new DoubleAnimation(transitionFromSearch ? 10 : 14, 0, inDur)
+        {
+            EasingFunction = easeOut,
+            BeginTime = inDelay
+        };
         Timeline.SetDesiredFrameRate(fadeIn, fps);
         Timeline.SetDesiredFrameRate(slideIn, fps);
 

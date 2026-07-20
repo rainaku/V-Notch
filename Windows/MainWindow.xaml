@@ -2337,7 +2337,11 @@
                                           VerticalAlignment="Center"
                                           HorizontalAlignment="Left"
                                           Margin="2,0,0,0"
+                                          Opacity="0"
                                           Visibility="Collapsed">
+                                        <Grid.RenderTransform>
+                                            <TranslateTransform x:Name="WeatherWidgetTranslate" Y="8"/>
+                                        </Grid.RenderTransform>
                                         <StackPanel Orientation="Vertical" HorizontalAlignment="Left">
 
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -3294,14 +3298,23 @@
                                     <GradientStop x:Name="AudioFadeBottomStop" Color="Black" Offset="1"/>
                                 </LinearGradientBrush>
                             </ScrollViewer.OpacityMask>
-                            <StackPanel x:Name="AudioRoot"/>
+                            <StackPanel x:Name="AudioRoot"
+                                        Opacity="1">
+                                <StackPanel.RenderTransform>
+                                    <TranslateTransform x:Name="AudioRootTranslate" Y="0"/>
+                                </StackPanel.RenderTransform>
+                            </StackPanel>
                         </ScrollViewer>
 
                         <StackPanel x:Name="AudioLoadingPanel"
                                     Visibility="Collapsed"
+                                    Opacity="1"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
                                     IsHitTestVisible="False">
+                            <StackPanel.RenderTransform>
+                                <TranslateTransform x:Name="AudioLoadingTranslate" Y="0"/>
+                            </StackPanel.RenderTransform>
                             <Border Width="36"
                                     Height="36"
                                     Margin="0,0,0,10"

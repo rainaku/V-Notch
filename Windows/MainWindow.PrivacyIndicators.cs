@@ -25,18 +25,46 @@ public partial class MainWindow
     private static readonly Color _screenRecColor = Color.FromRgb(0xFF, 0x3B, 0x30);
 
     internal static bool ShouldSuppressPrivacyDot(
+        bool isCompactPill,
         bool isAudioView,
         bool isVolumeIndicatorActive,
         bool isBluetoothNotificationVisible,
         bool isClipboardPeekActive)
-        => isAudioView || isVolumeIndicatorActive ||
+        => !isCompactPill || isAudioView || isVolumeIndicatorActive ||
            isBluetoothNotificationVisible || isClipboardPeekActive;
 
-    private bool IsPrivacyDotTemporarilySuppressed => ShouldSuppressPrivacyDot(
+    private bool IsCompactPillForPrivacyIndicator =>
+        _notchState.CurrentState == NotchState.Collapsed &&
+        !_isAnimating &&
+        !_isGreetingActive;
+
+    private bool IsPrivacyDotSuppressed => ShouldSuppressPrivacyDot(
+        IsCompactPillForPrivacyIndicator,
         _isAudioView,
         _isVolumeIndicatorActive,
         _isBluetoothNotificationVisible,
         _isClipboardPeekActive);
+
+    private void NotchState_PrivacyVisibilityChanged(object? sender, NotchStateChangedEventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(SyncPrivacyDotVisibilityForCurrentView);
+            return;
+        }
+
+        SyncPrivacyDotVisibilityForCurrentView();
+    }
+
+    private void SyncPrivacyDotVisibilityForCurrentView()
+    {
+        if (!_privacyIndicatorsVisible) return;
+
+        if (IsPrivacyDotSuppressed)
+            SuppressPrivacyDot();
+        else
+            RestorePrivacyDotVisibility();
+    }
 
     private void PrivacyModule_StateChanged(object? sender, PrivacyIndicatorState state)
     {
@@ -76,7 +104,11 @@ public partial class MainWindow
         }
         else if (shouldShow)
         {
-            if (!IsPrivacyDotTemporarilySuppressed && PrivacyIndicatorPanel.Visibility != Visibility.Visible)
+            if (IsPrivacyDotSuppressed)
+            {
+                SuppressPrivacyDot();
+            }
+            else if (PrivacyIndicatorPanel.Visibility != Visibility.Visible)
             {
                 ShowPrivacyDot(state);
             }
@@ -91,7 +123,7 @@ public partial class MainWindow
     {
         _privacyIndicatorsVisible = true;
 
-        if (IsPrivacyDotTemporarilySuppressed)
+        if (IsPrivacyDotSuppressed)
             return;
 
         PrivacyDot.Visibility = Visibility.Visible;
@@ -143,7 +175,7 @@ public partial class MainWindow
     private void RestorePrivacyDotVisibility()
     {
         if (!_privacyIndicatorsVisible) return;
-        if (IsPrivacyDotTemporarilySuppressed) return;
+        if (IsPrivacyDotSuppressed) return;
 
         PrivacyDot.Visibility = Visibility.Visible;
         PrivacyIndicatorPanel.Visibility = Visibility.Visible;

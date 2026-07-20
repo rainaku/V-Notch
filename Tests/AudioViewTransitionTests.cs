@@ -25,12 +25,21 @@ public class AudioViewTransitionTests
     public void PrivacyDotIsSuppressedByMixerAndTemporaryOverlays(
         bool audio, bool volume, bool bluetooth, bool clipboard)
     {
-        Assert.True(MainWindow.ShouldSuppressPrivacyDot(audio, volume, bluetooth, clipboard));
+        Assert.True(MainWindow.ShouldSuppressPrivacyDot(
+            true, audio, volume, bluetooth, clipboard));
     }
 
     [Fact]
     public void PrivacyDotIsVisibleWhenMixerAndTemporaryOverlaysAreInactive()
     {
-        Assert.False(MainWindow.ShouldSuppressPrivacyDot(false, false, false, false));
+        Assert.False(MainWindow.ShouldSuppressPrivacyDot(
+            true, false, false, false, false));
+    }
+
+    [Fact]
+    public void PrivacyDotIsSuppressedOutsideCompactPill()
+    {
+        Assert.True(MainWindow.ShouldSuppressPrivacyDot(
+            false, false, false, false, false));
     }
 }
