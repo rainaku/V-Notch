@@ -699,16 +699,19 @@ public partial class MainWindow
 
     private void UpdateGlassMotionState()
     {
-        bool nonHoverMotion = _isAnimating || _isGestureActive ||
-                              _glassGestureSnapBackMotion;
+        // Hover applies a ScaleTransform (NotchScale) that renders the notch — and
+        // the desktop footprint the glass must sample — larger and shifted left,
+        // WITHOUT changing the notch's layout size. It must therefore track the live
+        // projected region every compositor frame, exactly like the other motions.
+        // Excluding it left the backdrop anchored to the pre-hover rectangle (the
+        // reflection drifted sideways) until the ~1s idle refresh re-queried it and
+        // snapped — the sideways drift + delayed jump users saw while hovering.
+        bool motion = _isAnimating || _isGestureActive ||
+                      _glassGestureSnapBackMotion || _glassHoverMotion;
 
-        // Hover uses the last complete glass texture, so it does not need a live
-        // PointToScreen calculation on every compositor tick. Larger transitions
-        // and gestures continue using the live-region path as before.
-        _liquidGlass?.SetAnimating(nonHoverMotion);
+        _liquidGlass?.SetAnimating(motion);
         // We no longer pause presentation during hover, DXGI handles it smoothly.
-        // _liquidGlass?.SetPresentationPaused(holdHoverFrame);
-        SetGlassRegionPush(nonHoverMotion && _liquidGlass != null && IsLiquidGlassEnabled);
+        SetGlassRegionPush(motion && _liquidGlass != null && IsLiquidGlassEnabled);
     }
 
     /// <summary>While the notch moves, push the capture region from the UI thread each
@@ -902,17 +905,36 @@ public partial class MainWindow
 
         int physLeft;
         int physTop;
+        double subX = 0, subY = 0;
         try
         {
-            // Anchor the capture rectangle to the notch's ACTUAL on-screen position.
-            // PointToScreen accounts for every transform/offset (island float, slide
-            // animation, layout margins), so the sampled desktop lines up 1:1 with
-            // the glass. Reconstructing it from _fixedY + translateY drifted slightly
-            // low, which pulled content from below the pill (white showing as a
-            // reflection before it actually reached the notch).
-            var topLeft = NotchBorder.PointToScreen(new Point(0, 0));
-            physLeft = (int)Math.Round(topLeft.X);
-            physTop = (int)Math.Round(topLeft.Y);
+            // Anchor the capture rectangle to the notch's ACTUAL on-screen position
+            // AND derive its size from the same projection. PointToScreen walks every
+            // ancestor transform, so the hover "pop" ScaleTransform on NotchWrapper
+            // (and the track-change bounce / settings absorb scales) is baked into
+            // both corners. Deriving the width/height from the two projected corners
+            // — instead of the unscaled ActualWidth*dpi — keeps the sampled desktop
+            // footprint equal to the glass's real, scaled footprint. Mixing a scaled
+            // anchor with an unscaled size is what made the reflection drift sideways
+            // and swim while the notch scaled during hover.
+            var tl = NotchBorder.PointToScreen(new Point(0, 0));
+            var br = NotchBorder.PointToScreen(new Point(notchW, notchH));
+
+            physLeft = (int)Math.Round(tl.X);
+            physTop = (int)Math.Round(tl.Y);
+
+            int scaledW = (int)Math.Round(br.X - tl.X);
+            int scaledH = (int)Math.Round(br.Y - tl.Y);
+            if (scaledW > 1) physW = scaledW;
+            if (scaledH > 1) physH = scaledH;
+
+            // The capture must snap to an integer desktop pixel, but the notch is
+            // laid out at a sub-pixel position. Carry the fractional remainder so
+            // the present can compensate it with a sub-pixel transform; otherwise
+            // the captured content wobbles ±0.5px horizontally as the notch width
+            // animates through odd/even pixel values.
+            subX = tl.X - Math.Round(tl.X);
+            subY = tl.Y - Math.Round(tl.Y);
         }
         catch
         {
@@ -920,20 +942,6 @@ public partial class MainWindow
             physLeft = _fixedX + (int)Math.Round((_windowWidth - physW) / 2.0);
             physTop = _fixedY + (int)Math.Round((NotchContainerTranslate?.Y ?? 0) * dpiScale);
         }
-
-        double subX = 0, subY = 0;
-        try
-        {
-            // The capture must snap to an integer desktop pixel, but the notch is
-            // laid out at a sub-pixel position. Carry the fractional remainder so
-            // the present can compensate it with a sub-pixel transform; otherwise
-            // the captured content wobbles ±0.5px horizontally as the notch width
-            // animates through odd/even pixel values.
-            var tl = NotchBorder.PointToScreen(new Point(0, 0));
-            subX = tl.X - Math.Round(tl.X);
-            subY = tl.Y - Math.Round(tl.Y);
-        }
-        catch { /* not connected yet */ }
 
         if (physTop < 0) { physH += physTop; physTop = 0; }
         if (physLeft < 0) { physW += physLeft; physLeft = 0; }

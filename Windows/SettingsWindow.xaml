@@ -565,6 +565,40 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
+            <!-- Liquid Glass Layers -->
+            <Border x:Name="GlassBackdropHost"
+                    Grid.RowSpan="3"
+                    IsHitTestVisible="False"
+                    ClipToBounds="True"
+                    Visibility="Collapsed"
+                    CornerRadius="24">
+                <Image x:Name="GlassBackdropImage"
+                       Stretch="Fill"
+                       Margin="0"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+            </Border>
+
+            <Border x:Name="GlassTintOverlay"
+                    Grid.RowSpan="3"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed"
+                    CornerRadius="24">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1" po:Freeze="True" xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options">
+                        <GradientStop Color="#0CFFFFFF" Offset="0"/>
+                        <GradientStop Color="#06FFFFFF" Offset="0.5"/>
+                        <GradientStop Color="#160A0E14" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+
+            <Border x:Name="GlassDarkOverlay"
+                    Grid.RowSpan="3"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed"
+                    CornerRadius="24"
+                    Background="#2A000000"/>
+
             <Border x:Name="SettingsHeader"
                     Grid.Row="0"
                     Padding="22,20,18,18"

@@ -15,6 +15,9 @@ using VNotch.Models;
 using VNotch.Modules;
 using VNotch.Services;
 
+using VNotch.Controllers;
+using System.Windows.Interop;
+
 namespace VNotch;
 
 public partial class SettingsWindow : Window
@@ -27,6 +30,12 @@ public partial class SettingsWindow : Window
     private UpdateInfo? _availableUpdate;
     private bool _isLoadingSettings = true;
     private DispatcherTimer? _livePreviewDebounce;
+
+    // Liquid Glass UI components
+    private LiquidGlassController? _liquidGlass;
+    private LiquidGlassRefractionEffect? _glassRefractionEffect;
+    private bool _gpuRefractionConfigured;
+    private double _lastAppliedDpiScale = 1.0;
 
     public event EventHandler<NotchSettings>? SettingsChanged;
     public event EventHandler? AnimatedClosing;
@@ -202,6 +211,7 @@ public partial class SettingsWindow : Window
         ProcessPriorityCombo.SelectedItem = ProcessPriorityCombo.Items.OfType<System.Windows.Controls.ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _settings.ProcessPriority) ?? ProcessPriorityCombo.Items[0];
         GpuPreferenceCombo.SelectedItem = GpuPreferenceCombo.Items.OfType<System.Windows.Controls.ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _settings.GpuPreference.ToString()) ?? GpuPreferenceCombo.Items[0];
 
+        ApplyLiquidGlassSkin();
         _isLoadingSettings = false;
         ApplyLocalization();
     }
@@ -2638,6 +2648,7 @@ public partial class SettingsWindow : Window
             _originalSettings = _settings.Clone();
         }
 
+        ApplyLiquidGlassSkin();
         SettingsChanged?.Invoke(this, _settings);
     }
 
@@ -3508,6 +3519,203 @@ public partial class SettingsWindow : Window
         {
             _settings.VisualizerAudioDeviceId = item.Id;
         }
+    }
+
+    #endregion
+
+    #region Liquid Glass UI Support
+
+    private void ApplyLiquidGlassSkin()
+    {
+        if (GlassBackdropHost == null) return;
+
+        bool isLiquidGlass = _settings.EnableDynamicIslandMode &&
+            string.Equals(_settings.NotchStyle, "liquidglass", StringComparison.OrdinalIgnoreCase);
+
+        if (isLiquidGlass)
+        {
+            MainShell.Background = Brushes.Transparent;
+            GlassBackdropHost.Visibility = Visibility.Visible;
+            GlassTintOverlay.Visibility = Visibility.Visible;
+            GlassDarkOverlay.Visibility = Visibility.Visible;
+
+            _liquidGlass ??= new LiquidGlassController(
+                GlassBackdropImage,
+                () => new WindowInteropHelper(this).Handle,
+                GetGlassCaptureRegion,
+                activeFps: Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, LiquidGlassController.MaxTargetFps)
+            );
+
+            _liquidGlass.HideFromScreenCapture = false;
+            _liquidGlass.SetAnimating(false);
+
+            ConfigureGpuRefraction();
+            ApplyLiquidGlassConfig();
+            
+            _liquidGlass.Start();
+        }
+        else
+        {
+            MainShell.Background = (Brush)FindResource("WindowGlow");
+            GlassBackdropHost.Visibility = Visibility.Collapsed;
+            GlassTintOverlay.Visibility = Visibility.Collapsed;
+            GlassDarkOverlay.Visibility = Visibility.Collapsed;
+
+            _liquidGlass?.Stop();
+            DetachGpuRefraction();
+        }
+    }
+
+    private void ApplyLiquidGlassConfig()
+    {
+        if (GlassBackdropHost == null) return;
+        var cfg = _settings.LiquidGlass ?? new Models.LiquidGlassConfig();
+
+        double dipRadius = Math.Clamp(cfg.BlurAmount, 0, 1) * 28.0;
+        double dpiScale = GetGlassDpiScale();
+        int gaussianSigma = (int)Math.Round(dipRadius * dpiScale);
+
+        if (_liquidGlass != null)
+        {
+            _liquidGlass.SetBlur(gaussianSigma);
+            _liquidGlass.UpdateFps(Math.Clamp(cfg.TargetFps, 30, LiquidGlassController.MaxTargetFps));
+            GlassBackdropImage.Width = _liquidGlass.SurfaceWidth / dpiScale;
+            GlassBackdropImage.Height = _liquidGlass.SurfaceHeight / dpiScale;
+        }
+
+        GlassBackdropHost.Opacity = Math.Clamp(cfg.Opacity, 0, 1);
+
+        _liquidGlass?.SetParams(new LiquidGlassController.GlassParams
+        {
+            Refraction = cfg.Refraction,
+            EdgeBend = cfg.EdgeBend,
+            ChromaticAberration = cfg.ChromaticAberration,
+            Distortion = cfg.Distortion,
+            ZRadius = cfg.ZRadius,
+            Saturation = cfg.Saturation,
+            Brightness = cfg.Brightness,
+            BevelMode = cfg.BevelMode,
+            TopCornerRadius = MainShell.CornerRadius.TopLeft,
+            BottomCornerRadius = MainShell.CornerRadius.BottomLeft
+        });
+    }
+
+    private LiquidGlassController.CaptureRegion? GetGlassCaptureRegion()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || MainShell == null) return null;
+
+        double shellW = MainShell.ActualWidth;
+        double shellH = MainShell.ActualHeight;
+        if (shellW <= 0 || shellH <= 0) return null;
+
+        double dpiScale = GetGlassDpiScale();
+        if (Math.Abs(dpiScale - _lastAppliedDpiScale) > 0.01)
+        {
+            _lastAppliedDpiScale = dpiScale;
+            if (_liquidGlass != null && GlassBackdropHost.Visibility == Visibility.Visible)
+            {
+                GlassBackdropImage.Width = _liquidGlass.SurfaceWidth / dpiScale;
+                GlassBackdropImage.Height = _liquidGlass.SurfaceHeight / dpiScale;
+            }
+        }
+
+        int physW = (int)Math.Round(shellW * dpiScale);
+        int physH = (int)Math.Round(shellH * dpiScale);
+
+        try
+        {
+            var topLeft = MainShell.PointToScreen(new Point(0, 0));
+            return new LiquidGlassController.CaptureRegion(
+                (int)Math.Round(topLeft.X),
+                (int)Math.Round(topLeft.Y),
+                physW, physH,
+                _liquidGlass?.SurfaceWidth ?? 0,
+                _liquidGlass?.SurfaceHeight ?? 0
+            );
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void ConfigureGpuRefraction()
+    {
+        if (_liquidGlass == null) return;
+        
+        bool useGpu = (_settings.LiquidGlass?.UseGpuRefraction ?? true) && LiquidGlassRefractionEffect.IsAvailable;
+        if (!useGpu)
+        {
+            if (_gpuRefractionConfigured || GlassBackdropImage.Effect != null)
+            {
+                DetachGpuRefraction();
+                _liquidGlass.SetGpuMode(false, null);
+            }
+            return;
+        }
+
+        if (_gpuRefractionConfigured && ReferenceEquals(GlassBackdropImage.Effect, _glassRefractionEffect))
+            return;
+
+        try
+        {
+            _glassRefractionEffect ??= new LiquidGlassRefractionEffect();
+            GlassBackdropImage.Effect = _glassRefractionEffect;
+            if (!_liquidGlass.SetGpuMode(true, ApplyGpuGeometry, OnGpuRefractionFailure))
+            {
+                DetachGpuRefraction();
+                _liquidGlass.SetGpuMode(false, null);
+                return;
+            }
+            _gpuRefractionConfigured = true;
+        }
+        catch
+        {
+            DetachGpuRefraction();
+            _liquidGlass.SetGpuMode(false, null);
+        }
+    }
+
+    private void DetachGpuRefraction()
+    {
+        _gpuRefractionConfigured = false;
+        if (GlassBackdropImage != null && ReferenceEquals(GlassBackdropImage.Effect, _glassRefractionEffect))
+        {
+            GlassBackdropImage.Effect = null;
+        }
+    }
+
+    private void ApplyGpuGeometry(LiquidGlassController.GpuGeometry g)
+    {
+        if (_glassRefractionEffect == null) return;
+        _glassRefractionEffect.SrcW = g.SrcW;
+        _glassRefractionEffect.SrcH = g.SrcH;
+        _glassRefractionEffect.NotchW = g.NotchW;
+        _glassRefractionEffect.NotchH = g.NotchH;
+        _glassRefractionEffect.OffX = g.OffX;
+        _glassRefractionEffect.OffY = g.OffY;
+    }
+
+    private void OnGpuRefractionFailure(Exception ex)
+    {
+        DetachGpuRefraction();
+        _liquidGlass?.SetGpuMode(false, null);
+    }
+
+    private double GetGlassDpiScale()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return 1.0;
+        uint dpi = Win32Interop.GetDpiForWindow(hwnd);
+        return dpi / 96.0;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        _liquidGlass?.Stop();
+        DetachGpuRefraction();
     }
 
     #endregion
