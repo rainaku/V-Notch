@@ -103,8 +103,8 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     // The input contains an overscanned desktop region, while the effect output is
     // only the visible notch. Map output UV through notch pixels into that source
     // region so the side-cap lens can safely sample beyond both rounded edges.
-    float npx = uv.x * notchW;
-    float npy = uv.y * notchH;
+    float npx = uv.x * srcW;
+    float npy = uv.y * srcH;
     float lx = npx - (notchW - 1.0) * 0.5;
     float ly = npy - (notchH - 1.0) * 0.5;
     float2 basePixel = float2(npx + offX, npy + offY);

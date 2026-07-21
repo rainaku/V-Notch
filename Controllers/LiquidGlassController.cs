@@ -120,7 +120,7 @@ public sealed class LiquidGlassController
     private int _mapNotchW = -1, _mapNotchH = -1, _mapNotchOffX = -1, _mapNotchOffY = -1;
     private int _mapCaptureShiftX = int.MinValue, _mapCaptureShiftY = int.MinValue;
 
-    private MagnifierCaptureSource? _mag;
+    private DxgiCaptureSource? _mag;
     private bool _magReady;
     private int _magFailStreak = 0;
     
@@ -253,8 +253,8 @@ public sealed class LiquidGlassController
         }
 
         _host.Stretch = Stretch.Fill;
-        _host.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _host.VerticalAlignment = VerticalAlignment.Stretch;
+        _host.HorizontalAlignment = HorizontalAlignment.Left;
+        _host.VerticalAlignment = VerticalAlignment.Top;
         _host.Width = double.NaN;
         _host.Height = double.NaN;
         _host.RenderTransform = null;
@@ -351,6 +351,11 @@ public sealed class LiquidGlassController
         }
     }
 
+    public ImageSource? ImageSource => _d3dPresenter?.ImageSource;
+
+    public int SurfaceWidth => MaxWidth + GpuSamplingMarginLimit * 2;
+    public int SurfaceHeight => MaxHeight + GpuSamplingMarginLimit * 2;
+
     private void OnD3DPresenterFailed(Exception ex)
     {
         if (Interlocked.Exchange(ref _gpuFailureSignaled, 1) != 0)
@@ -363,6 +368,19 @@ public sealed class LiquidGlassController
         {
             try { _onGpuFailure?.Invoke(ex); }
             catch { /* fallback must not take down the UI thread */ }
+            if (_mag == null)
+        {
+            try 
+            {
+                _mag = new DxgiCaptureSource();
+                _magReady = true;
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Log("LIQUIDGLASS", $"DXGI init failed: {ex.Message}");
+                _magReady = false;
+            }
+        } 
             if (_onGpuFailure == null)
                 DisposeGpuPresenter();
         }
@@ -467,24 +485,12 @@ public sealed class LiquidGlassController
         _presentInFlight = false;
         RequestRenderTimerPeriod();
 
-        if (_mag == null)
-        {
-            _mag = new MagnifierCaptureSource();
-            _magReady = _mag.Initialize(_getHwnd());
-            if (!_magReady)
-                RuntimeLog.Log("LIQUIDGLASS", "Magnifier unavailable; using BitBlt fallback (offset sampling).");
-        }
-
         uint dpiNow = GetDpiForWindow(_getHwnd());
         _bitmapDpi = dpiNow > 0 ? dpiNow : 96;
-
-        _isActive = true;
-        _exactBitBltCapture = false;
         _captureVisibilityUntilTicks = 0;
         _overlayActiveCached = false;
         _lastOverlayCheckTicks = 0;
         SetWindowDisplayAffinitySafe(WDA_NONE);
-
         if (_worker is { IsAlive: true }) return;
 
         _worker = new Thread(WorkerLoop)
@@ -600,9 +606,18 @@ public sealed class LiquidGlassController
                     SetWindowDisplayAffinitySafe(WDA_NONE);
                 }
 
+
                 if (!_gpuMode && _presentInFlight)
                 {
                     SleepWithCapturePolling(frameIntervalMs);
+                    continue;
+                }
+
+                if (_presentationPaused)
+                {
+                    SleepWithCapturePolling(frameIntervalMs);
+                    // Reset the cadence clock so we don't burst capture when unpaused
+                    nextFrameAtMs = clock.Elapsed.TotalMilliseconds;
                     continue;
                 }
 
@@ -765,12 +780,10 @@ public sealed class LiquidGlassController
             if (remainingTicks <= 0) return;
 
             double remainingMs = remainingTicks * 1000.0 / Stopwatch.Frequency;
-            if (remainingMs > 3.0)
-                Thread.Sleep((int)Math.Min(Math.Max(1.0, Math.Floor(remainingMs - 2.0)), 8.0));
-            else if (remainingMs > 0.75)
-                Thread.Sleep(0);
+            if (remainingMs > 2.5)
+                Thread.Sleep((int)Math.Min(Math.Max(1.0, Math.Floor(remainingMs - 1.5)), 8.0));
             else
-                Thread.SpinWait(96);
+                Thread.SpinWait(64);
 
             if (_exactBitBltCapture && CaptureHotkeyRequested(Environment.TickCount64))
             {

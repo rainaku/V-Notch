@@ -28,7 +28,7 @@ internal static class SetupOperations
     private const string AppExeName = "V-Notch.exe";
     private const string Publisher = "rainaku";
     private const string AppUrl = "https://github.com/rainaku/V-Notch";
-    private const string Version = "1.7";
+    private const string Version = "1.8.1";
     private const string UninstallRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\V-Notch";
 
     public static string GetDefaultInstallDirectory()

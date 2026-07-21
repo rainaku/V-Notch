@@ -72,15 +72,13 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
         // Same as AnimateNotchHover: keep the glass at full rate for the resize.
-        BeginGlassHoverMotion(widthAnim);
+        BeginGlassHoverMotion(widthAnim);
         if (isHovered)
         {
             ApplyCompactTitleContainerWidth(notchWidth);
         }
 
-        CompactThumbnailBorder.RenderTransformOrigin = islandMode
-            ? new Point(0.5, 0)
-            : new Point(0, 0);
+        CompactThumbnailBorder.RenderTransformOrigin = new Point(0, 0);
 
         var thumbScaleAnimX = MakeAnim(thumbScale, duration, easing, animFps);
         var thumbScaleAnimY = MakeAnim(thumbScale, duration, easing, animFps);

@@ -127,9 +127,14 @@ public partial class MainWindow
         double dipRadius = Math.Clamp(cfg.BlurAmount, 0, 1) * 28.0;
         double dpiScale = GetGlassDpiScale();
         int gaussianSigma = (int)Math.Round(dipRadius * dpiScale);
-        _liquidGlass?.SetBlur(gaussianSigma);
-        _liquidGlass?.UpdateFps(Math.Clamp(cfg.TargetFps, 30,
-            LiquidGlassController.MaxTargetFps));
+        if (_liquidGlass != null)
+        {
+            _liquidGlass.SetBlur(gaussianSigma);
+            _liquidGlass.UpdateFps(Math.Clamp(cfg.TargetFps, 30,
+                LiquidGlassController.MaxTargetFps));
+            GlassBackdropImage.Width = _liquidGlass.SurfaceWidth / dpiScale;
+            GlassBackdropImage.Height = _liquidGlass.SurfaceHeight / dpiScale;
+        }
 
         // GPU mode blurs on the host element instead of the CPU box blur.
         ApplyGpuBlur(cfg.BlurAmount);
@@ -244,8 +249,8 @@ public partial class MainWindow
         var fx = _glassRefractionEffect;
         if (fx == null) return;
 
-        fx.SrcW = g.SrcW;
-        fx.SrcH = g.SrcH;
+        fx.SrcW = _liquidGlass.SurfaceWidth;
+        fx.SrcH = _liquidGlass.SurfaceHeight;
         fx.NotchW = g.NotchW;
         fx.NotchH = g.NotchH;
         fx.OffX = g.OffX;
@@ -304,13 +309,6 @@ public partial class MainWindow
         GlassSpecularBorder.Visibility = visibility;
     }
 
-    /// <summary>
-    /// Maps the material controls to a layered optical edge. EdgeHighlight drives
-    /// the broken light/dark separator, Specular is a small local glint, Fresnel is
-    /// the broader grazing-angle reflection, and chroma contributes only a restrained
-    /// cool/warm colour split. Keeping these independent avoids the flat neon-outline
-    /// look produced by one uniformly translucent white Border.
-    /// </summary>
     private void ApplyOpticalRimLevels(double edgeHighlight, double specular, double fresnel, double chroma)
     {
         EnsureDynamicFresnelBrush();
@@ -619,16 +617,13 @@ public partial class MainWindow
         if (GlassDarkOverlay != null) GlassDarkOverlay.CornerRadius = cr;
     }
 
-    private double _glassDpiScale;
-
     private double GetGlassDpiScale()
     {
-        if (_glassDpiScale > 0) return _glassDpiScale;
-        _glassDpiScale = _overlayWindow.DpiScale;
-        return _glassDpiScale;
+        double scale = System.Windows.Media.VisualTreeHelper.GetDpi(this).DpiScaleX;
+        return scale > 0 ? scale : 1.0;
     }
 
-    private void InvalidateGlassDpiScale() => _glassDpiScale = 0;
+    private void InvalidateGlassDpiScale() { }
 
     // Hover applies a transient scale to the collapsed notch without flipping the
     // _isAnimating flag. The glass must still run at full rate (and re-query the
@@ -706,13 +701,13 @@ public partial class MainWindow
     {
         bool nonHoverMotion = _isAnimating || _isGestureActive ||
                               _glassGestureSnapBackMotion;
-        bool holdHoverFrame = _glassHoverMotion && !nonHoverMotion;
 
         // Hover uses the last complete glass texture, so it does not need a live
         // PointToScreen calculation on every compositor tick. Larger transitions
         // and gestures continue using the live-region path as before.
         _liquidGlass?.SetAnimating(nonHoverMotion);
-        _liquidGlass?.SetPresentationPaused(holdHoverFrame);
+        // We no longer pause presentation during hover, DXGI handles it smoothly.
+        // _liquidGlass?.SetPresentationPaused(holdHoverFrame);
         SetGlassRegionPush(nonHoverMotion && _liquidGlass != null && IsLiquidGlassEnabled);
     }
 
@@ -881,6 +876,8 @@ public partial class MainWindow
         LyricsBlurBackground.Visibility = Visibility.Collapsed;
     }
 
+    private double _lastAppliedDpiScale = -1;
+
     private LiquidGlassController.CaptureRegion? GetGlassCaptureRegion()
     {
         if (_hwnd == IntPtr.Zero || !IsEffectivelyNotchVisible) return null;
@@ -890,6 +887,15 @@ public partial class MainWindow
         if (notchW <= 0 || notchH <= 0) return null;
 
         double dpiScale = GetGlassDpiScale();
+        if (Math.Abs(dpiScale - _lastAppliedDpiScale) > 0.01)
+        {
+            _lastAppliedDpiScale = dpiScale;
+            if (_liquidGlass != null && IsLiquidGlassEnabled)
+            {
+                GlassBackdropImage.Width = _liquidGlass.SurfaceWidth / dpiScale;
+                GlassBackdropImage.Height = _liquidGlass.SurfaceHeight / dpiScale;
+            }
+        }
 
         int physW = (int)Math.Round(notchW * dpiScale);
         int physH = (int)Math.Round(notchH * dpiScale);
@@ -980,10 +986,9 @@ public partial class MainWindow
     {
         if (_liquidGlass == null || !IsLiquidGlassEnabled) return;
 
-        // The live texture is intentionally held during the brief hover motion.
-        // Avoid mutating the accompanying gradient/effect tree in that same window;
-        // this is what allows WPF to reuse the composed glass like the default skin.
-        if (_glassHoverMotion) return;
+        // We now have DXGI capture, so we can run the capture loop without stuttering.
+        // No need to hold the texture during hover motion.
+        // if (_glassHoverMotion) return;
 
         double curHeight = GlassBackdropHost?.ActualHeight ?? 0;
         if (Math.Abs(curHeight - _lastActualHeight) > 0.1)

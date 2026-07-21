@@ -271,15 +271,8 @@ internal sealed class D3DImageFramePresenter : IDisposable
                     _device.UpdateSurface(
                         _uploadSurface,
                         frameRect,
-                        _frameSurface,
-                        new Int2(0, 0));
-                    _device.StretchRect(
-                        _frameSurface,
-                        frameRect,
                         _renderSurface,
-                        new Vortice.Direct3D9.Rect(
-                            0, 0, _surfaceWidth, _surfaceHeight),
-                        TextureFilter.Linear);
+                        new Int2(0, 0));
 
                     if (!ReferenceEquals(_attachedSurface, _renderSurface))
                     {

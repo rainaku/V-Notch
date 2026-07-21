@@ -49,7 +49,9 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.17.1" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
     <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
     <PackageReference Include="Vortice.Direct3D9" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
     <PackageReference Include="YoutubeExplode" Version="6.6.0" />
     <PackageReference Include="WpfAnimatedGif" Version="2.0.2" />
   </ItemGroup>
@@ -98,8 +100,7 @@
        available and the source is newer than the compiled output. The .ps file is
        also committed so builds without the Windows SDK still work. fxc lives under
        a versioned SDK bin folder, so glob for any version rather than guessing. -->
-  <Target Name="CompileLiquidGlassShader" BeforeTargets="BeforeBuild"
-          Inputs="Shaders\LiquidGlassRefraction.hlsl" Outputs="Shaders\LiquidGlassRefraction.ps">
+  <Target Name="CompileLiquidGlassShader" BeforeTargets="BeforeBuild" Inputs="Shaders\LiquidGlassRefraction.hlsl" Outputs="Shaders\LiquidGlassRefraction.ps">
     <ItemGroup>
       <_FxcCandidate Include="$(WindowsSdkDir)bin\**\x64\fxc.exe" />
       <_FxcCandidate Include="C:\Program Files (x86)\Windows Kits\10\bin\**\x64\fxc.exe" />
@@ -107,21 +108,15 @@
     <PropertyGroup>
       <FxcPath Condition="'@(_FxcCandidate)' != ''">%(_FxcCandidate.FullPath)</FxcPath>
     </PropertyGroup>
-    <Exec Condition="'$(FxcPath)' != '' And Exists('$(FxcPath)')"
-          Command="&quot;$(FxcPath)&quot; /nologo /T ps_3_0 /E main /Fo &quot;Shaders\LiquidGlassRefraction.ps&quot; &quot;Shaders\LiquidGlassRefraction.hlsl&quot;"
-          ContinueOnError="true" />
+    <Exec Condition="'$(FxcPath)' != '' And Exists('$(FxcPath)')" Command="&quot;$(FxcPath)&quot; /nologo /T ps_3_0 /E main /Fo &quot;Shaders\LiquidGlassRefraction.ps&quot; &quot;Shaders\LiquidGlassRefraction.hlsl&quot;" ContinueOnError="true" />
   </Target>
 
-  <Target Name="SetPackageManifestVersion" BeforeTargets="Build"
-          Inputs="$(MSBuildProjectFullPath);Package.appxmanifest"
-          Outputs="$(IntermediateOutputPath)Package.appxmanifest;$(OutDir)Package.appxmanifest">
+  <Target Name="SetPackageManifestVersion" BeforeTargets="Build" Inputs="$(MSBuildProjectFullPath);Package.appxmanifest" Outputs="$(IntermediateOutputPath)Package.appxmanifest;$(OutDir)Package.appxmanifest">
     <PropertyGroup>
       <PackageManifestVersion>$(Version).0</PackageManifestVersion>
     </PropertyGroup>
     <Copy SourceFiles="Package.appxmanifest" DestinationFiles="$(IntermediateOutputPath)Package.appxmanifest" />
-    <XmlPoke XmlInputPath="$(IntermediateOutputPath)Package.appxmanifest"
-             Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version"
-             Value="$(PackageManifestVersion)" />
+    <XmlPoke XmlInputPath="$(IntermediateOutputPath)Package.appxmanifest" Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version" Value="$(PackageManifestVersion)" />
     <Copy SourceFiles="$(IntermediateOutputPath)Package.appxmanifest" DestinationFolder="$(OutDir)" />
   </Target>
 
