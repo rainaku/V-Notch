@@ -61,6 +61,9 @@ public sealed class CalendarPresenter : IDisposable
                 TextAlignment = TextAlignment.Center,
                 FontWeight = FontWeights.Bold
             };
+            TextOptions.SetTextFormattingMode(_calendarDayNames[i], TextFormattingMode.Ideal);
+            TextOptions.SetTextRenderingMode(_calendarDayNames[i], TextRenderingMode.Grayscale);
+            TextOptions.SetTextHintingMode(_calendarDayNames[i], TextHintingMode.Animated);
             _refs.WeekDaysPanel.Children.Add(_calendarDayNames[i]);
 
             _calendarDayNumbers[i] = new TextBlock
@@ -70,6 +73,9 @@ public sealed class CalendarPresenter : IDisposable
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            TextOptions.SetTextFormattingMode(_calendarDayNumbers[i], TextFormattingMode.Ideal);
+            TextOptions.SetTextRenderingMode(_calendarDayNumbers[i], TextRenderingMode.Grayscale);
+            TextOptions.SetTextHintingMode(_calendarDayNumbers[i], TextHintingMode.Animated);
 
             _calendarDayBorders[i] = new Border
             {
@@ -366,7 +372,12 @@ public sealed class CalendarPresenter : IDisposable
         AnimateOpacity(_refs.BatterySection, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateOpacity(_refs.SettingsButton, isFocused ? 0.62 : 1.0, duration, easing);
         AnimateOpacity(_refs.GreetingSection, isFocused ? 0.62 : 1.0, duration, easing);
-        AnimateBlurRadius(_refs.CalendarGreetingContextBlur, _refs.SettingsProvider().EnableBlurEffects && isFocused ? 4.0 : 0.0, duration, easing);
+
+        if (_refs.CalendarGreetingContextBlur != null)
+        {
+            _refs.CalendarGreetingContextBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            _refs.CalendarGreetingContextBlur.Radius = _refs.SettingsProvider().EnableBlurEffects && isFocused ? 3.0 : 0.0;
+        }
     }
 
     private static void AnimateOpacity(UIElement element, double to, Duration duration, IEasingFunction easing)
@@ -380,19 +391,6 @@ public sealed class CalendarPresenter : IDisposable
         };
         Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
         element.BeginAnimation(UIElement.OpacityProperty, anim, HandoffBehavior.SnapshotAndReplace);
-    }
-
-    private static void AnimateBlurRadius(BlurEffect effect, double to, Duration duration, IEasingFunction easing)
-    {
-        var anim = new DoubleAnimation
-        {
-            From = (double)effect.GetValue(BlurEffect.RadiusProperty),
-            To = to,
-            Duration = duration,
-            EasingFunction = easing
-        };
-        Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
-        effect.BeginAnimation(BlurEffect.RadiusProperty, anim, HandoffBehavior.SnapshotAndReplace);
     }
 
     public void ResetHoverFocusVisualState()
@@ -453,9 +451,9 @@ public sealed class CalendarPresenter : IDisposable
 
         double currentX = (double)_refs.CalendarStripTranslate.GetValue(TranslateTransform.XProperty);
         int movedCells = step.MovedCells;
-        double durationMs = Math.Clamp(240 + (movedCells * 90), 240, 520);
+        double durationMs = Math.Clamp(180 + (movedCells * 60), 180, 360);
         var duration = new Duration(TimeSpan.FromMilliseconds(durationMs));
-        var easing = (IEasingFunction)_easeSoftSpring;
+        var easing = (IEasingFunction)_easeExpOut6;
 
         var scrollAnim = new DoubleAnimation
         {
@@ -486,8 +484,8 @@ public sealed class CalendarPresenter : IDisposable
         _calendarScrollAccumulator = 0;
 
         double currentX = (double)_refs.CalendarStripTranslate.GetValue(TranslateTransform.XProperty);
-        var duration = new Duration(TimeSpan.FromMilliseconds(420));
-        var easing = (IEasingFunction)_easeSoftSpring;
+        var duration = new Duration(TimeSpan.FromMilliseconds(300));
+        var easing = (IEasingFunction)_easeExpOut6;
 
         var scrollAnim = new DoubleAnimation
         {

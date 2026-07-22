@@ -44,7 +44,7 @@ public partial class MainWindow
         {
             _audioPollTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
             {
-                Interval = TimeSpan.FromMilliseconds(350)
+                Interval = TimeSpan.FromMilliseconds(600)
             };
             _audioPollTimer.Tick += (_, _) => PollAudioVolumes();
         }
@@ -307,9 +307,9 @@ public partial class MainWindow
     {
         NotchBorder.IsHitTestVisible = false;
 
-        var durOut = new Duration(TimeSpan.FromMilliseconds(170));
-        var durIn = new Duration(TimeSpan.FromMilliseconds(440));
-        var inDelay = TimeSpan.FromMilliseconds(40);
+        var durOut = _dur200;
+        var durIn = _dur600;
+        var inDelay = TimeSpan.Zero;
         int fps = AnimationConfig.TargetFps;
 
         bool outIsAudio = ReferenceEquals(outgoing, AudioContent);

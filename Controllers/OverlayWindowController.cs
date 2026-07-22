@@ -140,10 +140,47 @@ public sealed class OverlayWindowController : IDisposable
         return dpi > 0 ? dpi / 96.0 : 1.0;
     }
 
+    public Func<Point, bool>? IsPointInteractive { get; set; }
+
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         switch (msg)
         {
+            case WM_NCHITTEST:
+                if (IsPointInteractive != null && _isVisible())
+                {
+                    try
+                    {
+                        short screenX = (short)(lParam.ToInt64() & 0xFFFF);
+                        short screenY = (short)((lParam.ToInt64() >> 16) & 0xFFFF);
+                        double dpiScale = GetDpiScale();
+                        if (dpiScale <= 0) dpiScale = 1.0;
+
+                        Point windowPt;
+                        try
+                        {
+                            windowPt = _window.PointFromScreen(new Point(screenX, screenY));
+                        }
+                        catch
+                        {
+                            double windowLeftDip = _state.FixedX / dpiScale;
+                            double windowTopDip = _state.FixedY / dpiScale;
+                            windowPt = new Point((screenX / dpiScale) - windowLeftDip, (screenY / dpiScale) - windowTopDip);
+                        }
+
+                        if (!IsPointInteractive(windowPt))
+                        {
+                            handled = true;
+                            return new IntPtr(HTTRANSPARENT);
+                        }
+                    }
+                    catch
+                    {
+                        handled = true;
+                        return new IntPtr(HTTRANSPARENT);
+                    }
+                }
+                break;
             case WM_WINDOWPOSCHANGING when lParam != IntPtr.Zero && _state.FixedY >= 0:
                 var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
                 pos.y = _state.FixedY;

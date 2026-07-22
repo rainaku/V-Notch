@@ -2281,14 +2281,6 @@
                                                Visibility="Collapsed"/>
 
                                     <Grid x:Name="CalendarStripContainer" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <Grid.OpacityMask>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                <GradientStop Color="Transparent" Offset="0"/>
-                                                <GradientStop Color="Black" Offset="0.12"/>
-                                                <GradientStop Color="Black" Offset="0.92"/>
-                                                <GradientStop Color="Transparent" Offset="1"/>
-                                            </LinearGradientBrush>
-                                        </Grid.OpacityMask>
 
                                         <Canvas x:Name="CalendarStripClip"
                                                 Width="95"
@@ -3273,9 +3265,8 @@
                           UseLayoutRounding="True"
                           SnapsToDevicePixels="True"
                           TextOptions.TextFormattingMode="Ideal"
-                          TextOptions.TextRenderingMode="ClearType"
-                          TextOptions.TextHintingMode="Fixed"
-                          RenderOptions.ClearTypeHint="Enabled">
+                          TextOptions.TextRenderingMode="Grayscale"
+                          TextOptions.TextHintingMode="Animated">
                         <ScrollViewer x:Name="AudioScrollViewer"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
@@ -3436,6 +3427,10 @@
                     </Grid>
 
                     <Grid x:Name="CountdownCompleteOverlay"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Top"
+                          Width="{Binding Width, ElementName=NotchBorder}"
+                          Height="{Binding Height, ElementName=NotchBorder}"
                           Opacity="0"
                           Visibility="Collapsed"
                           Background="Transparent"
@@ -3447,8 +3442,8 @@
                                 CornerRadius="{Binding CornerRadius, ElementName=NotchBorder}"
                                 ClipToBounds="True"
                                 Opacity="0"/>
-                        <Grid Margin="18,28,18,10">
-                            <Grid VerticalAlignment="Center" Height="64">
+                        <Grid Margin="16,0,16,0" VerticalAlignment="Center">
+                            <Grid VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -3458,12 +3453,13 @@
                                 <TextBlock x:Name="CountdownCompleteText"
                                            Grid.Column="0"
                                            Text="00:00"
-                                           FontSize="40"
+                                           FontSize="36"
                                            FontWeight="ExtraBold"
                                            Foreground="#FFFF9B3D"
                                            HorizontalAlignment="Left"
                                            VerticalAlignment="Center"
-                                           Margin="6,0,18,1"
+                                           Margin="4,0,12,0"
+                                           Padding="0"
                                            Opacity="0"
                                            FontFamily="{StaticResource MainSystemFont}"
                                            Typography.NumeralAlignment="Tabular"

@@ -481,7 +481,6 @@ public partial class MainWindow
     {
         if (AudioRoot == null) return _audioViewMaxHeight;
         double contentWidth = _audioViewWidth - 38 - 7;
-        AudioRoot.InvalidateMeasure();
         AudioRoot.Measure(new Size(contentWidth, double.PositiveInfinity));
         double desired = AudioRoot.DesiredSize.Height;
         return Math.Clamp(desired + _audioViewChrome, _audioViewMinHeight, _audioViewMaxHeight);
@@ -832,12 +831,15 @@ public partial class MainWindow
             MinWidth = 110
         };
 
+        var trackScale = new ScaleTransform(1, 1);
         var track = new Border
         {
             Height = 4,
             CornerRadius = new CornerRadius(4),
             Background = AudioTrack,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            RenderTransform = trackScale,
+            RenderTransformOrigin = new Point(0.5, 0.5)
         };
         area.Children.Add(track);
 
@@ -942,11 +944,11 @@ public partial class MainWindow
                 ? new ExponentialEase { Exponent = 6, EasingMode = EasingMode.EaseOut }
                 : new CubicEase { EasingMode = EasingMode.EaseOut };
 
-            double barHeight = on ? 8 : 4;
-            var hAnim = new DoubleAnimation { To = barHeight, Duration = dur, EasingFunction = ease };
-            Timeline.SetDesiredFrameRate(hAnim, hoverFps);
-            track.BeginAnimation(FrameworkElement.HeightProperty, hAnim);
-            fill.BeginAnimation(FrameworkElement.HeightProperty, hAnim);
+            double barScaleY = on ? 1.75 : 1.0;
+            var barScaleAnim = new DoubleAnimation { To = barScaleY, Duration = dur, EasingFunction = ease };
+            Timeline.SetDesiredFrameRate(barScaleAnim, hoverFps);
+            trackScale.BeginAnimation(ScaleTransform.ScaleYProperty, barScaleAnim);
+            fillScale.BeginAnimation(ScaleTransform.ScaleYProperty, barScaleAnim);
 
             double thumbS = on ? 1.18 : 1.0;
             var sAnim = new DoubleAnimation { To = thumbS, Duration = dur, EasingFunction = ease };

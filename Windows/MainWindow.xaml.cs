@@ -306,6 +306,7 @@ public partial class MainWindow : Window
                 PositionAtTop();
             },
             _clipboardListener.NotifyClipboardUpdated);
+        _overlayWindow.IsPointInteractive = IsPointInteractive;
 
         _progressTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
@@ -1929,6 +1930,35 @@ public partial class MainWindow : Window
     private void CleanupBeforeShutdown()
     {
         PerformCleanup();
+    }
+
+    private bool IsPointInteractive(Point windowPt)
+    {
+        if (System.Windows.Input.Mouse.Captured != null) return true;
+        if (windowPt.X < 0 || windowPt.Y < 0 || windowPt.X > ActualWidth || windowPt.Y > ActualHeight)
+            return false;
+
+        HitTestResult result = VisualTreeHelper.HitTest(this, windowPt);
+        if (result?.VisualHit == null) return false;
+
+        DependencyObject? current = result.VisualHit;
+        while (current != null && current != this)
+        {
+            if (ReferenceEquals(current, NotchWrapper) ||
+                ReferenceEquals(current, NavIconsPanel) ||
+                ReferenceEquals(current, AudioOverlay) ||
+                ReferenceEquals(current, CompactHoverInfo) ||
+                (ChargingNotification != null && ReferenceEquals(current, ChargingNotification)) ||
+                (BluetoothNotification != null && ReferenceEquals(current, BluetoothNotification)) ||
+                (BluetoothDisconnectNotification != null && ReferenceEquals(current, BluetoothDisconnectNotification)) ||
+                (UpdateNotificationButton != null && ReferenceEquals(current, UpdateNotificationButton)))
+            {
+                return true;
+            }
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 
     #endregion

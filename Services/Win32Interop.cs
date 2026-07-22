@@ -279,6 +279,9 @@ internal static class Win32Interop
     public const int WM_DISPLAYCHANGE = 0x007E;
     public const int WM_DPICHANGED = 0x02E0;
     public const int WM_CLIPBOARDUPDATE = 0x031D;
+    public const int WM_NCHITTEST = 0x0084;
+    public const int HTTRANSPARENT = -1;
+    public const int HTCLIENT = 1;
     public const byte VK_MEDIA_PLAY_PAUSE = 0xB3;
     public const byte VK_MEDIA_NEXT_TRACK = 0xB0;
     public const byte VK_MEDIA_PREV_TRACK = 0xB1;

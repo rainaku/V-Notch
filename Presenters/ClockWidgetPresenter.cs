@@ -504,8 +504,8 @@ public sealed class ClockWidgetPresenter : IDisposable
         notchBorder.Width = fromWidth;
         notchBorder.Height = fromHeight;
 
-        var widthAnim = MakeAnim(fromWidth, toWidth, duration, _easeAppleOut, delay);
-        var heightAnim = MakeAnim(fromHeight, toHeight, duration, _easeAppleOut, delay);
+        var widthAnim = MakeAnim(fromWidth, toWidth, _dur600, _easeExpOut6, delay.Ticks > 0 ? delay : null);
+        var heightAnim = MakeAnim(fromHeight, toHeight, _dur600, _easeExpOut6, delay.Ticks > 0 ? delay : null);
         Timeline.SetDesiredFrameRate(widthAnim, fps);
         Timeline.SetDesiredFrameRate(heightAnim, fps);
 
