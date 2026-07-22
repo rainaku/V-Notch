@@ -7,6 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
 
+    <CETCompat>false</CETCompat>
+
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>V-Notch</AssemblyName>
     <RootNamespace>VNotch</RootNamespace>
@@ -40,6 +42,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AngleSharp" Version="1.5.0" />
     <PackageReference Include="BlurredBackground.WPF" Version="1.1.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="FluentWpfChromes" Version="1.0.1" NoWarn="NU1701" />

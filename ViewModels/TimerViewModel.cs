@@ -61,6 +61,85 @@ public partial class TimerViewModel : ObservableObject
         return true;
     }
 
+    public bool SetCustomDuration(TimeSpan time)
+    {
+        var clamped = TimeSpan.FromTicks(Math.Clamp(time.Ticks, TimeSpan.FromSeconds(5).Ticks, Maximum.Ticks));
+        IsRunning = false;
+        Duration = clamped;
+        Remaining = clamped;
+        return true;
+    }
+
+    public bool TryParseCustomTime(string? input, out TimeSpan result)
+    {
+        result = TimeSpan.Zero;
+        if (string.IsNullOrWhiteSpace(input)) return false;
+        string s = input.Trim();
+
+        string[] parts = s.Split(':');
+        if (parts.Length == 2 && int.TryParse(parts[0], out int mins) && int.TryParse(parts[1], out int secs))
+        {
+            if (mins >= 0 && secs >= 0 && secs < 60)
+            {
+                result = new TimeSpan(0, mins, secs);
+                return result > TimeSpan.Zero;
+            }
+        }
+        else if (parts.Length == 3 && int.TryParse(parts[0], out int hrs) && int.TryParse(parts[1], out int m) && int.TryParse(parts[2], out int sec))
+        {
+            if (hrs >= 0 && m >= 0 && m < 60 && sec >= 0 && sec < 60)
+            {
+                result = new TimeSpan(hrs, m, sec);
+                return result > TimeSpan.Zero;
+            }
+        }
+
+        if (TimeSpan.TryParse(s, out TimeSpan ts) && ts > TimeSpan.Zero)
+        {
+            result = ts;
+            return true;
+        }
+
+        if (double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double num))
+        {
+            if (num > 0)
+            {
+                result = TimeSpan.FromMinutes(num);
+                return true;
+            }
+            return false;
+        }
+
+        try
+        {
+            double totalSeconds = 0;
+            var matches = System.Text.RegularExpressions.Regex.Matches(s.ToLowerInvariant(), @"(\d+(?:\.\d+)?)\s*([hmsd])");
+            if (matches.Count > 0)
+            {
+                foreach (System.Text.RegularExpressions.Match match in matches)
+                {
+                    double val = double.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    string unit = match.Groups[2].Value;
+                    switch (unit)
+                    {
+                        case "s": totalSeconds += val; break;
+                        case "m": totalSeconds += val * 60; break;
+                        case "h": totalSeconds += val * 3600; break;
+                        case "d": totalSeconds += val * 86400; break;
+                    }
+                }
+                if (totalSeconds > 0)
+                {
+                    result = TimeSpan.FromSeconds(totalSeconds);
+                    return true;
+                }
+            }
+        }
+        catch { }
+
+        return false;
+    }
+
     private static string Format(TimeSpan value)
     {
         if (value.TotalDays >= 1) return $"{(int)value.TotalDays}d {value.Hours:D2}h";

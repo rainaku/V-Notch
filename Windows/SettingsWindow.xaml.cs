@@ -36,6 +36,7 @@ public partial class SettingsWindow : Window
     private LiquidGlassRefractionEffect? _glassRefractionEffect;
     private bool _gpuRefractionConfigured;
     private double _lastAppliedDpiScale = 1.0;
+    private IntPtr _hwnd = IntPtr.Zero;
 
     public event EventHandler<NotchSettings>? SettingsChanged;
     public event EventHandler? AnimatedClosing;
@@ -3539,9 +3540,14 @@ public partial class SettingsWindow : Window
             GlassTintOverlay.Visibility = Visibility.Visible;
             GlassDarkOverlay.Visibility = Visibility.Visible;
 
+            if (_hwnd == IntPtr.Zero)
+            {
+                _hwnd = new WindowInteropHelper(this).EnsureHandle();
+            }
+
             _liquidGlass ??= new LiquidGlassController(
                 GlassBackdropImage,
-                () => new WindowInteropHelper(this).Handle,
+                () => _hwnd,
                 GetGlassCaptureRegion,
                 activeFps: Math.Clamp(_settings.LiquidGlass?.TargetFps ?? 60, 30, LiquidGlassController.MaxTargetFps)
             );

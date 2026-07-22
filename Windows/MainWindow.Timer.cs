@@ -1569,6 +1569,15 @@ public partial class MainWindow
         UpdateCountdownProgressFill();
     }
 
+    private void CountdownDisplayPanel_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.NewSize.Width > 0 && e.NewSize.Height > 0)
+        {
+            CountdownDisplayPanelClip.Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
+        }
+        UpdateCountdownProgressFill();
+    }
+
     private void UpdateCountdownProgressFill()
     {
         double progress = _viewModel.Timer.Progress;
@@ -1579,9 +1588,174 @@ public partial class MainWindow
             availableWidth = CountdownDisplayPanel.MinWidth;
         }
 
+        double availableHeight = CountdownDisplayPanel.ActualHeight > 0 ? CountdownDisplayPanel.ActualHeight : 46;
+        CountdownDisplayPanelClip.Rect = new Rect(0, 0, Math.Max(0, availableWidth), availableHeight);
+
         CountdownProgressFill.Width = Math.Max(0, availableWidth * progress);
         CountdownProgressEdge.Opacity = progress > 0.001 ? 1.0 : 0.0;
+
+        if (progress >= 0.98)
+        {
+            CountdownProgressFill.CornerRadius = new CornerRadius(9);
+        }
+        else
+        {
+            CountdownProgressFill.CornerRadius = new CornerRadius(9, 0, 0, 9);
+        }
     }
+
+    #region Custom Time Input Editing
+
+    private bool _isEditingTimer;
+
+    private void CountdownDisplayPanel_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_isCountdownRunning)
+        {
+            _viewModel.Timer.Pause();
+            _countdownTimer?.Stop();
+            CountdownStartIcon.Data = System.Windows.Media.Geometry.Parse("M133,440a35.37,35.37,0,0,1-17.5-4.67c-12-6.8-17.46-20-17.46-41.73V118.4c0-21.74,5.48-34.93,17.46-41.73a35.13,35.13,0,0,1,35.77.45L399.68,225.11a38.19,38.19,0,0,1,0,61.78L151.23,435a35.77,35.77,0,0,1-18.27,5Z");
+            CountdownStartBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
+        }
+
+        StartTimerEditing();
+    }
+
+    private void StartTimerEditing()
+    {
+        if (_isEditingTimer) return;
+        _isEditingTimer = true;
+
+        CountdownInput.Text = _viewModel.Timer.DisplayText;
+
+        var dur120 = new Duration(TimeSpan.FromMilliseconds(120));
+        var dur180 = new Duration(TimeSpan.FromMilliseconds(180));
+        var dur220 = new Duration(TimeSpan.FromMilliseconds(220));
+
+        // Fade & scale out CountdownDisplay
+        var displayScale = CountdownDisplay.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
+        CountdownDisplay.RenderTransform = displayScale;
+        CountdownDisplay.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var fadeOutDisplay = MakeAnim(CountdownDisplay.Opacity > 0 ? CountdownDisplay.Opacity : 1.0, 0.0, dur120, _easeQuadOut, null);
+        var scaleOutX = MakeAnim(displayScale.ScaleX, 0.92, dur120, _easeQuadOut, null);
+        var scaleOutY = MakeAnim(displayScale.ScaleY, 0.92, dur120, _easeQuadOut, null);
+
+        fadeOutDisplay.Completed += (_, _) =>
+        {
+            CountdownDisplay.Visibility = Visibility.Collapsed;
+        };
+
+        CountdownDisplay.BeginAnimation(OpacityProperty, fadeOutDisplay);
+        displayScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOutX);
+        displayScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOutY);
+
+        // Fade & spring scale in CountdownInput
+        var inputScale = CountdownInput.RenderTransform as ScaleTransform ?? new ScaleTransform(0.92, 0.92);
+        CountdownInput.RenderTransform = inputScale;
+        CountdownInput.RenderTransformOrigin = new Point(0.5, 0.5);
+        CountdownInput.Visibility = Visibility.Visible;
+        CountdownInput.Opacity = 0;
+
+        var fadeInInput = MakeAnim(0.0, 1.0, dur180, _easeQuadOut, null);
+        var scaleInInputX = MakeAnim(0.92, 1.0, dur220, _easeSoftSpring, null);
+        var scaleInInputY = MakeAnim(0.92, 1.0, dur220, _easeSoftSpring, null);
+
+        CountdownInput.BeginAnimation(OpacityProperty, fadeInInput);
+        inputScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleInInputX);
+        inputScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleInInputY);
+
+        CountdownInput.Focus();
+        CountdownInput.SelectAll();
+    }
+
+    private void ExitTimerEditing(Action? onComplete = null)
+    {
+        if (!_isEditingTimer) return;
+        _isEditingTimer = false;
+
+        var dur120 = new Duration(TimeSpan.FromMilliseconds(120));
+        var dur180 = new Duration(TimeSpan.FromMilliseconds(180));
+        var dur220 = new Duration(TimeSpan.FromMilliseconds(220));
+
+        // Fade & scale out CountdownInput
+        var inputScale = CountdownInput.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
+        CountdownInput.RenderTransform = inputScale;
+        CountdownInput.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var fadeOutInput = MakeAnim(CountdownInput.Opacity > 0 ? CountdownInput.Opacity : 1.0, 0.0, dur120, _easeQuadOut, null);
+        var scaleOutInputX = MakeAnim(inputScale.ScaleX, 0.92, dur120, _easeQuadOut, null);
+        var scaleOutInputY = MakeAnim(inputScale.ScaleY, 0.92, dur120, _easeQuadOut, null);
+
+        fadeOutInput.Completed += (_, _) =>
+        {
+            CountdownInput.Visibility = Visibility.Collapsed;
+            onComplete?.Invoke();
+        };
+
+        CountdownInput.BeginAnimation(OpacityProperty, fadeOutInput);
+        inputScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleOutInputX);
+        inputScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleOutInputY);
+
+        // Fade & spring scale back in CountdownDisplay
+        var displayScale = CountdownDisplay.RenderTransform as ScaleTransform ?? new ScaleTransform(0.92, 0.92);
+        CountdownDisplay.RenderTransform = displayScale;
+        CountdownDisplay.RenderTransformOrigin = new Point(0.5, 0.5);
+        CountdownDisplay.Visibility = Visibility.Visible;
+        CountdownDisplay.Opacity = 0;
+
+        var fadeInDisplay = MakeAnim(0.0, 1.0, dur180, _easeQuadOut, null);
+        var scaleInDisplayX = MakeAnim(0.92, 1.0, dur220, _easeSoftSpring, null);
+        var scaleInDisplayY = MakeAnim(0.92, 1.0, dur220, _easeSoftSpring, null);
+
+        CountdownDisplay.BeginAnimation(OpacityProperty, fadeInDisplay);
+        displayScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleInDisplayX);
+        displayScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleInDisplayY);
+    }
+
+    private void CommitTimerEditing()
+    {
+        if (!_isEditingTimer) return;
+        string input = CountdownInput.Text;
+
+        ExitTimerEditing(() =>
+        {
+            if (_viewModel.Timer.TryParseCustomTime(input, out TimeSpan customTime))
+            {
+                _viewModel.Timer.SetCustomDuration(customTime);
+                UpdateTimerDisplay();
+                AnimateCountdownDisplayPulse(1.04);
+            }
+        });
+    }
+
+    private void CancelTimerEditing()
+    {
+        if (!_isEditingTimer) return;
+        ExitTimerEditing();
+    }
+
+    private void CountdownInput_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            CommitTimerEditing();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CancelTimerEditing();
+        }
+    }
+
+    private void CountdownInput_LostFocus(object sender, RoutedEventArgs e)
+    {
+        CommitTimerEditing();
+    }
+
+    #endregion
 
     #endregion
 }

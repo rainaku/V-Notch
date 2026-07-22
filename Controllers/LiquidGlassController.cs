@@ -560,10 +560,10 @@ public sealed class LiquidGlassController
     private bool SetWindowDisplayAffinitySafe(uint affinity)
     {
         if (Volatile.Read(ref _currentDisplayAffinity) == (int)affinity) return true;
-        var hwnd = _getHwnd();
-        if (hwnd == IntPtr.Zero) return false;
         try
         {
+            var hwnd = _getHwnd();
+            if (hwnd == IntPtr.Zero) return false;
             if (!SetWindowDisplayAffinity(hwnd, affinity)) return false;
             Volatile.Write(ref _currentDisplayAffinity, (int)affinity);
             try { DwmFlush(); } catch { /* affinity still applied */ }

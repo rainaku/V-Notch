@@ -3121,54 +3121,91 @@
                                     </Border>
 
                                     <Border x:Name="CountdownDisplayPanel"
-                                            Grid.Column="2"
-                                            Height="46"
-                                            MinWidth="150"
-                                            Margin="12,0,0,0"
-                                            CornerRadius="10"
-                                            BorderBrush="#20FFFFFF"
-                                            BorderThickness="1"
-                                            ClipToBounds="True">
-                                        <Border.Background>
-                                            <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                                <GradientStop Color="#381B0800" Offset="0"/>
-                                                <GradientStop Color="#D9050505" Offset="0.24"/>
-                                                <GradientStop Color="#E0050505" Offset="1"/>
-                                            </LinearGradientBrush>
-                                        </Border.Background>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="12"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="12"/>
-                                            </Grid.ColumnDefinitions>
+                                             Grid.Column="2"
+                                             Height="46"
+                                             MinWidth="150"
+                                             Margin="12,0,0,0"
+                                             CornerRadius="10"
+                                             BorderBrush="#20FFFFFF"
+                                             BorderThickness="1"
+                                             ClipToBounds="True"
+                                             Cursor="Hand"
+                                             ToolTip="Click to edit custom time"
+                                             MouseLeftButtonDown="CountdownDisplayPanel_Click"
+                                             SizeChanged="CountdownDisplayPanel_SizeChanged">
+                                         <Border.Clip>
+                                             <RectangleGeometry x:Name="CountdownDisplayPanelClip" RadiusX="9" RadiusY="9"/>
+                                         </Border.Clip>
+                                         <Border.Background>
+                                             <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                 <GradientStop Color="#381B0800" Offset="0"/>
+                                                 <GradientStop Color="#D9050505" Offset="0.24"/>
+                                                 <GradientStop Color="#E0050505" Offset="1"/>
+                                             </LinearGradientBrush>
+                                         </Border.Background>
+                                         <Grid>
+                                             <Grid.ColumnDefinitions>
+                                                 <ColumnDefinition Width="12"/>
+                                                 <ColumnDefinition Width="*"/>
+                                                 <ColumnDefinition Width="12"/>
+                                             </Grid.ColumnDefinitions>
 
-                                            <Border x:Name="CountdownProgressFill"
-                                                    Grid.Column="0"
-                                                    Grid.ColumnSpan="3"
-                                                    Width="0"
-                                                    HorizontalAlignment="Left"
-                                                    Background="#22FF6B00"
-                                                    IsHitTestVisible="False">
-                                                <Border x:Name="CountdownProgressEdge"
-                                                        Width="2"
-                                                        HorizontalAlignment="Right"
-                                                        Background="#FF6B00"
-                                                        Opacity="0"/>
-                                            </Border>
+                                             <Border x:Name="CountdownProgressFill"
+                                                     Grid.Column="0"
+                                                     Grid.ColumnSpan="3"
+                                                     Width="0"
+                                                     HorizontalAlignment="Left"
+                                                     Background="#22FF6B00"
+                                                     CornerRadius="9,0,0,9"
+                                                     IsHitTestVisible="False">
+                                                 <Border x:Name="CountdownProgressEdge"
+                                                         Width="2"
+                                                         HorizontalAlignment="Right"
+                                                         Background="#FF6B00"
+                                                         Opacity="0"/>
+                                             </Border>
 
-                                            <TextBlock x:Name="CountdownDisplay"
-                                                       Grid.Column="1"
-                                                       Panel.ZIndex="1"
-                                                       Text="{Binding Timer.DisplayText}"
-                                                       FontSize="31"
-                                                       FontWeight="Medium"
-                                                       Foreground="White"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       FontFamily="{StaticResource MainSystemFont}"
-                                                       Typography.NumeralAlignment="Tabular"
-                                                       Typography.NumeralStyle="Lining"/>
+                                             <TextBlock x:Name="CountdownDisplay"
+                                                        Grid.Column="1"
+                                                        Panel.ZIndex="1"
+                                                        Text="{Binding Timer.DisplayText}"
+                                                        FontSize="31"
+                                                        FontWeight="Medium"
+                                                        Foreground="White"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        FontFamily="{StaticResource MainSystemFont}"
+                                                        Typography.NumeralAlignment="Tabular"
+                                                        RenderTransformOrigin="0.5,0.5">
+                                                 <TextBlock.RenderTransform>
+                                                     <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                                 </TextBlock.RenderTransform>
+                                             </TextBlock>
+
+                                             <TextBox x:Name="CountdownInput"
+                                                      Grid.Column="1"
+                                                      Panel.ZIndex="2"
+                                                      Visibility="Collapsed"
+                                                      Text=""
+                                                      FontSize="28"
+                                                      FontWeight="Medium"
+                                                      Foreground="White"
+                                                      Background="Transparent"
+                                                      BorderThickness="0"
+                                                      HorizontalAlignment="Stretch"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalContentAlignment="Center"
+                                                      VerticalContentAlignment="Center"
+                                                      FontFamily="{StaticResource MainSystemFont}"
+                                                      CaretBrush="White"
+                                                      SelectionBrush="#FF8C00"
+                                                      KeyDown="CountdownInput_KeyDown"
+                                                      LostFocus="CountdownInput_LostFocus"
+                                                      RenderTransformOrigin="0.5,0.5">
+                                                 <TextBox.RenderTransform>
+                                                     <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                                 </TextBox.RenderTransform>
+                                             </TextBox>
                                         </Grid>
                                     </Border>
 
