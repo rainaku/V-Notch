@@ -1169,7 +1169,14 @@
                                                 </StackPanel>
                                                 <TextBlock x:Name="SkinHint" Text="Choose the look of the notch body."
                                                            Style="{StaticResource SettingHintText}"
-                                                           Margin="0,6,0,8"/>
+                                                           Margin="0,6,0,4"/>
+                                                <TextBlock x:Name="SkinWarningNote"
+                                                           Text="Note: Very broken / may not run on your device. Currently, Liquid Glass is only supported on Dynamic Island mode."
+                                                           Foreground="#E0A330"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,0,0,8"/>
                                                 <ComboBox x:Name="SkinCombo" SelectionChanged="SkinCombo_SelectionChanged"/>
                                             </StackPanel>
                                         </Border>

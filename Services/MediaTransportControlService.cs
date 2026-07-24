@@ -18,14 +18,20 @@ public sealed class MediaTransportControlService
         try
         {
             var session = _getActiveSession();
+            bool success = false;
             if (session != null)
             {
-                await session.TryTogglePlayPauseAsync();
+                success = await session.TryTogglePlayPauseAsync();
+            }
+            if (!success)
+            {
+                SendMediaKey(Win32Interop.VK_MEDIA_PLAY_PAUSE);
             }
         }
         catch (Exception ex)
         {
             RuntimeLog.Error("MEDIA-CTRL", ex, "PlayPause failed");
+            SendMediaKey(Win32Interop.VK_MEDIA_PLAY_PAUSE);
         }
     }
 
@@ -34,14 +40,20 @@ public sealed class MediaTransportControlService
         try
         {
             var session = _getActiveSession();
+            bool success = false;
             if (session != null)
             {
-                await session.TrySkipNextAsync();
+                success = await session.TrySkipNextAsync();
+            }
+            if (!success)
+            {
+                SendMediaKey(Win32Interop.VK_MEDIA_NEXT_TRACK);
             }
         }
         catch (Exception ex)
         {
             RuntimeLog.Error("MEDIA-CTRL", ex, "NextTrack failed");
+            SendMediaKey(Win32Interop.VK_MEDIA_NEXT_TRACK);
         }
     }
 
@@ -50,15 +62,27 @@ public sealed class MediaTransportControlService
         try
         {
             var session = _getActiveSession();
+            bool success = false;
             if (session != null)
             {
-                await session.TrySkipPreviousAsync();
+                success = await session.TrySkipPreviousAsync();
+            }
+            if (!success)
+            {
+                SendMediaKey(Win32Interop.VK_MEDIA_PREV_TRACK);
             }
         }
         catch (Exception ex)
         {
             RuntimeLog.Error("MEDIA-CTRL", ex, "PreviousTrack failed");
+            SendMediaKey(Win32Interop.VK_MEDIA_PREV_TRACK);
         }
+    }
+
+    private static void SendMediaKey(byte key)
+    {
+        Win32Interop.keybd_event(key, 0, Win32Interop.KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero);
+        Win32Interop.keybd_event(key, 0, Win32Interop.KEYEVENTF_EXTENDEDKEY | Win32Interop.KEYEVENTF_KEYUP, UIntPtr.Zero);
     }
 
     public async Task SeekAsync(TimeSpan position)

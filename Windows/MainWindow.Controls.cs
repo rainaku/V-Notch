@@ -45,8 +45,7 @@ public partial class MainWindow
             PlayButtonPressAnimation(NextButton);
             PlayNextSkipAnimation();
 
-            if (_currentMediaInfo?.IsVideoSource != true)
-                OptimisticPrepareForNextTrack();
+            OptimisticPrepareForNextTrack();
             await _viewModel.NextTrackCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
@@ -63,8 +62,7 @@ public partial class MainWindow
             PlayButtonPressAnimation(PrevButton);
             PlayPrevSkipAnimation();
 
-            if (_currentMediaInfo?.IsVideoSource != true)
-                OptimisticPrepareForPreviousTrack();
+            OptimisticPrepareForPreviousTrack();
             await _viewModel.PreviousTrackCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
@@ -116,8 +114,7 @@ public partial class MainWindow
             PlayButtonPressAnimation(InlineNextButton);
             PlayNextSkipAnimation(InlineNextArrow0, InlineNextArrow1, InlineNextArrow2);
 
-            if (_currentMediaInfo?.IsVideoSource != true)
-                OptimisticPrepareForNextTrack();
+            OptimisticPrepareForNextTrack();
             await _viewModel.NextTrackCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
@@ -134,8 +131,7 @@ public partial class MainWindow
             PlayButtonPressAnimation(InlinePrevButton);
             PlayPrevSkipAnimation(InlinePrevArrow0, InlinePrevArrow1, InlinePrevArrow2);
 
-            if (_currentMediaInfo?.IsVideoSource != true)
-                OptimisticPrepareForPreviousTrack();
+            OptimisticPrepareForPreviousTrack();
             await _viewModel.PreviousTrackCommand.ExecuteAsync(null);
         }
         catch (Exception ex)

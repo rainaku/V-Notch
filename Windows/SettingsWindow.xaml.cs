@@ -1454,6 +1454,7 @@ public partial class SettingsWindow : Window
         SkinLabel.Text = Loc.Get("settings.skin");
         if (SkinAlphaBadge != null) SkinAlphaBadge.Text = Loc.Get("settings.badge.alpha");
         SkinHint.Text = Loc.Get("settings.skin.hint");
+        if (SkinWarningNote != null) SkinWarningNote.Text = Loc.Get("settings.skin.warning");
 
         int idx = SkinCombo.SelectedIndex;
         bool prev = _isLoadingSettings;

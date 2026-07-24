@@ -107,8 +107,7 @@ public partial class MediaViewModel : ObservableObject
     {
         if (!BeginAction()) return;
         NextTrackTriggered?.Invoke(this, EventArgs.Empty);
-        if (CurrentInfo?.IsVideoSource == true) await _seekRelative(15);
-        else await _service.NextTrackAsync();
+        await _service.NextTrackAsync();
     }
 
     [RelayCommand]
@@ -116,13 +115,12 @@ public partial class MediaViewModel : ObservableObject
     {
         if (!BeginAction()) return;
         PreviousTrackTriggered?.Invoke(this, EventArgs.Empty);
-        if (CurrentInfo?.IsVideoSource == true) await _seekRelative(-15);
-        else await _service.PreviousTrackAsync();
+        await _service.PreviousTrackAsync();
     }
 
     private bool BeginAction()
     {
-        if ((DateTime.Now - _lastAction).TotalMilliseconds < 500) return false;
+        if ((DateTime.Now - _lastAction).TotalMilliseconds < 200) return false;
         _lastAction = DateTime.Now;
         return true;
     }
