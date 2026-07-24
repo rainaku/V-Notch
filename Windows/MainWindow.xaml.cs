@@ -951,6 +951,12 @@ public partial class MainWindow : Window
 
         if (!_isExpanded && !_isAnimating)
         {
+            double currentRadius = NotchBorder.CornerRadius.BottomLeft;
+            if (currentRadius > 0)
+                CurrentCornerRadius = currentRadius;
+            else
+                CurrentCornerRadius = _cornerRadiusCollapsed;
+
             NotchBorder.BeginAnimation(WidthProperty, null);
             NotchBorder.BeginAnimation(HeightProperty, null);
             this.BeginAnimation(CurrentCornerRadiusProperty, null);
@@ -970,6 +976,8 @@ public partial class MainWindow : Window
                 NotchBorderShadow.CornerRadius = cr;
                 MediaBackground.CornerRadius = cr;
                 MediaBackground2.CornerRadius = cr;
+                SyncGlassCornerRadius(cr);
+                CurrentCornerRadius = _cornerRadiusCollapsed;
             }
             else if (willModeTransition)
             {
@@ -978,7 +986,9 @@ public partial class MainWindow : Window
             else if (_isModeTransitioning)
             {
             }
-            else
+            else if (animatePulse && (Math.Abs(NotchBorder.ActualWidth - _collapsedWidth) > 0.5 ||
+                                      Math.Abs(NotchBorder.ActualHeight - _collapsedHeight) > 0.5 ||
+                                      Math.Abs(_cornerRadiusCollapsed - currentRadius) > 0.5))
             {
                 var dur = _dur200;
                 var easing = _easeExpOut6;
@@ -1010,7 +1020,6 @@ public partial class MainWindow : Window
                 NotchBorder.BeginAnimation(WidthProperty, widthAnim);
                 NotchBorder.BeginAnimation(HeightProperty, heightAnim);
 
-                double currentRadius = NotchBorder.CornerRadius.BottomLeft;
                 double targetRadius = _cornerRadiusCollapsed;
                 if (Math.Abs(targetRadius - currentRadius) > 0.5)
                 {
@@ -1031,7 +1040,23 @@ public partial class MainWindow : Window
                     NotchBorderShadow.CornerRadius = cr;
                     MediaBackground.CornerRadius = cr;
                     MediaBackground2.CornerRadius = cr;
+                    SyncGlassCornerRadius(cr);
+                    CurrentCornerRadius = _cornerRadiusCollapsed;
                 }
+            }
+            else
+            {
+                NotchBorder.Width = _collapsedWidth;
+                NotchBorder.Height = _collapsedHeight;
+                var cr = MakeNotchCornerRadius(_cornerRadiusCollapsed);
+                NotchBorder.CornerRadius = cr;
+                InnerClipBorder.CornerRadius = cr;
+                NotchBackground.CornerRadius = cr;
+                NotchBorderShadow.CornerRadius = cr;
+                MediaBackground.CornerRadius = cr;
+                MediaBackground2.CornerRadius = cr;
+                SyncGlassCornerRadius(cr);
+                CurrentCornerRadius = _cornerRadiusCollapsed;
             }
 
             UpdateNotchClip();

@@ -72,7 +72,8 @@ public partial class MainWindow
         NotchBorder.BeginAnimation(WidthProperty, widthAnim);
         NotchBorder.BeginAnimation(HeightProperty, heightAnim);
         // Same as AnimateNotchHover: keep the glass at full rate for the resize.
-        BeginGlassHoverMotion(widthAnim);
+
+        BeginGlassHoverMotion(widthAnim);
         if (isHovered)
         {
             ApplyCompactTitleContainerWidth(notchWidth);
@@ -707,12 +708,15 @@ public partial class MainWindow
     private void AnimateCornerRadius(double targetRadius, TimeSpan duration)
     {
         double startRadius = NotchBorder.CornerRadius.BottomLeft;
-
-        this.BeginAnimation(CurrentCornerRadiusProperty, null);
-
-        if (Math.Abs(targetRadius - startRadius) < 0.5) return;
+        if (Math.Abs(targetRadius - startRadius) < 0.5)
+        {
+            CurrentCornerRadius = targetRadius;
+            this.BeginAnimation(CurrentCornerRadiusProperty, null);
+            return;
+        }
 
         CurrentCornerRadius = startRadius;
+        this.BeginAnimation(CurrentCornerRadiusProperty, null);
 
         var anim = MakeAnim(startRadius, targetRadius, new Duration(duration), _easeExpOut6, null);
         Timeline.SetDesiredFrameRate(anim, VNotch.Services.AnimationConfig.TargetFps);
