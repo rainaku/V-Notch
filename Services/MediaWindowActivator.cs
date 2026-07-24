@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Windows.Automation;
 using VNotch.Models;
 using static VNotch.Services.Win32Interop;
 
@@ -15,6 +16,12 @@ internal static class MediaWindowActivator
     {
         var candidates = GetProcessCandidates(info).ToList();
         var processNames = new HashSet<string>(candidates, StringComparer.OrdinalIgnoreCase);
+
+        if (TryActivateExactBrowserTab(info, processNames))
+        {
+            return true;
+        }
+
         bool preferBrowserTabMatch = info.IsVideoSource || info.Platform == MediaPlatform.SoundCloud;
 
         if (preferBrowserTabMatch && TryActivateBestMatchingWindow(info, processNames, out _))
@@ -50,6 +57,162 @@ internal static class MediaWindowActivator
         }
 
         return TryActivateBestMatchingWindow(info, processNames, out _);
+    }
+
+    public static bool TryActivateExactBrowserTab(MediaInfo info, ISet<string> processNames)
+    {
+        IntPtr bestHwnd = IntPtr.Zero;
+        AutomationElement? bestTabItem = null;
+        int bestScore = 0;
+
+        try
+        {
+            EnumWindows((hwnd, _) =>
+            {
+                if (!IsWindowVisible(hwnd)) return true;
+
+                GetWindowThreadProcessId(hwnd, out uint processId);
+                if (processId == 0) return true;
+
+                string processName;
+                try { processName = Process.GetProcessById((int)processId).ProcessName; }
+                catch { return true; }
+
+                if (!IsBrowserProcess(processName)) return true;
+                if (processNames.Count > 0 && processNames.Any(p => IsBrowserProcess(p)) && !processNames.Contains(processName)) return true;
+
+                try
+                {
+                    var rootElement = AutomationElement.FromHandle(hwnd);
+                    if (rootElement == null) return true;
+
+                    var tabCondition = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem);
+                    var tabs = rootElement.FindAll(TreeScope.Descendants, tabCondition);
+                    if (tabs == null || tabs.Count == 0) return true;
+
+                    foreach (AutomationElement tab in tabs)
+                    {
+                        string tabTitle = tab.Current.Name ?? string.Empty;
+                        string tabHelp = tab.Current.HelpText ?? string.Empty;
+
+                        int score = ScoreTabItem(tabTitle, tabHelp, info);
+                        if (score > bestScore)
+                        {
+                            bestScore = score;
+                            bestHwnd = hwnd;
+                            bestTabItem = tab;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Error("MEDIA-ACTIVATOR", $"Error inspecting browser tabs for HWND {hwnd}: {ex.Message}");
+                }
+
+                return true;
+            }, IntPtr.Zero);
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("MEDIA-ACTIVATOR", $"TryActivateExactBrowserTab failed: {ex.Message}");
+        }
+
+        if (bestHwnd != IntPtr.Zero && bestTabItem != null && bestScore >= 30)
+        {
+            bool activated = TryActivateWindow(bestHwnd);
+            bool tabSelected = TrySelectTab(bestTabItem);
+            return activated || tabSelected;
+        }
+
+        return false;
+    }
+
+    private static bool TrySelectTab(AutomationElement tabItem)
+    {
+        try
+        {
+            if (tabItem.TryGetCurrentPattern(SelectionItemPattern.Pattern, out object? pattern) &&
+                pattern is SelectionItemPattern selPattern)
+            {
+                selPattern.Select();
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("MEDIA-ACTIVATOR", $"SelectionItemPattern failed: {ex.Message}");
+        }
+
+        try
+        {
+            if (tabItem.TryGetCurrentPattern(InvokePattern.Pattern, out object? invPattern) &&
+                invPattern is InvokePattern invokePattern)
+            {
+                invokePattern.Invoke();
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("MEDIA-ACTIVATOR", $"InvokePattern failed: {ex.Message}");
+        }
+
+        return false;
+    }
+
+    private static int ScoreTabItem(string tabTitle, string tabHelp, MediaInfo info)
+    {
+        if (string.IsNullOrWhiteSpace(tabTitle) && string.IsNullOrWhiteSpace(tabHelp))
+            return 0;
+
+        int score = 0;
+        string titleLower = tabTitle.ToLowerInvariant();
+        string helpLower = tabHelp.ToLowerInvariant();
+
+        string track = NormalizeTitle(info.CurrentTrack);
+        string artist = NormalizeTitle(info.CurrentArtist);
+        string youtubeTitle = NormalizeTitle(info.YouTubeTitle);
+        string videoId = info.YouTubeVideoId?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        if (!string.IsNullOrEmpty(videoId))
+        {
+            if (helpLower.Contains(videoId) || titleLower.Contains(videoId))
+                score += 200;
+        }
+
+        if (!string.IsNullOrWhiteSpace(youtubeTitle) && youtubeTitle.Length > 2 && titleLower.Contains(youtubeTitle))
+        {
+            score += 150;
+        }
+
+        if (!string.IsNullOrWhiteSpace(track) && track.Length > 2 && titleLower.Contains(track))
+        {
+            score += 140;
+        }
+
+        if (!string.IsNullOrWhiteSpace(artist) && artist.Length > 2 &&
+            artist is not "youtube" and not "browser" and not "spotify" and not "soundcloud" &&
+            titleLower.Contains(artist))
+        {
+            score += 70;
+        }
+
+        if (info.Platform == MediaPlatform.YouTube && (titleLower.Contains("youtube") || helpLower.Contains("youtube")))
+            score += 50;
+        else if (info.Platform == MediaPlatform.SoundCloud && (titleLower.Contains("soundcloud") || helpLower.Contains("soundcloud")))
+            score += 50;
+        else if (info.Platform == MediaPlatform.Spotify && (titleLower.Contains("spotify") || helpLower.Contains("spotify")))
+            score += 50;
+        else if (info.Platform == MediaPlatform.Facebook && (titleLower.Contains("facebook") || helpLower.Contains("facebook")))
+            score += 50;
+        else if (info.Platform == MediaPlatform.TikTok && (titleLower.Contains("tiktok") || helpLower.Contains("tiktok")))
+            score += 50;
+        else if (info.Platform == MediaPlatform.Instagram && (titleLower.Contains("instagram") || helpLower.Contains("instagram")))
+            score += 50;
+        else if (info.Platform == MediaPlatform.Twitter && (titleLower.Contains("twitter") || titleLower.Contains("x.com") || titleLower.Contains(" / x")))
+            score += 50;
+
+        return score;
     }
     public static IEnumerable<string> GetProcessCandidates(MediaInfo info)
     {
