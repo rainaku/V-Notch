@@ -507,6 +507,20 @@ public partial class MainWindow
             ExpandedContent.Opacity = 1;
             ExpandedContent.BeginAnimation(OpacityProperty, null);
 
+            // Finalize the expand animation: replace the animation-held
+            // TransformGroup with a stable rest transform so a later layout
+            // invalidation cannot snap the content to the animation's start
+            // value (Y=10) instead of the intended rest offset.
+            ApplyExpandedContentRestTransform();
+
+            // Lock the NotchBorder to its expanded size so clearing the
+            // held width/height animations cannot revert it to the
+            // pre-animation collapsed dimensions.
+            NotchBorder.BeginAnimation(WidthProperty, null);
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Width = _expandedWidth;
+            NotchBorder.Height = _expandedHeight;
+
             ExpandedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
             ExpandedContentBlur.Radius = 0;
             CollapsedContentBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
@@ -914,7 +928,10 @@ public partial class MainWindow
             _isExpanded = false;
             _notchState.TryTransitionTo(NotchState.Collapsed);
             NotchBorder.IsHitTestVisible = true;
-            UpdateProgressTimerState();
+            NotchBorder.BeginAnimation(WidthProperty, null);
+            NotchBorder.BeginAnimation(HeightProperty, null);
+            NotchBorder.Width = _collapsedWidth;
+            NotchBorder.Height = _collapsedHeight;
 
             if (wasTimer || wasAudio)
             {
