@@ -1,3 +1,4 @@
+// Baseline: commit 907cc3bf1053b848225cd057bbcd03b1c99d53f3; only namespace/import changed.
 using System;
 using System.Buffers;
 using System.Threading.Tasks;
@@ -5,7 +6,8 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace VNotch.Services;
+using VNotch.Services;
+namespace VNotch.BenchmarkBaseline;
 
 public static class FastBlurService
 {
@@ -23,7 +25,7 @@ public static class FastBlurService
                 if (height < 1) height = 1;
                 blurRadius = Math.Clamp(blurRadius, 1, 20);
 
-                var formattedBitmap = ArtworkAnalysisSource.GetBgra32(source);
+                var formattedBitmap = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
 
                 var smallBitmap = new TransformedBitmap(formattedBitmap, new ScaleTransform((double)width / formattedBitmap.PixelWidth, (double)height / formattedBitmap.PixelHeight));
 
