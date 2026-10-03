@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace VNotch.Services;
 
-public static class SafeLauncher
+public static class BaselineSafeLauncher
 {
     private const string LogCategory = "SAFE-LAUNCHER";
 
@@ -44,29 +44,17 @@ public static class SafeLauncher
             return false;
         }
 
-        return LaunchValidatedUri(uri);
+        return TryOpenUrl(uri);
     }
 
     public static bool TryOpenUrl(Uri? uri)
     {
-        if (!IsSafeUri(uri))
+        if (uri == null || !IsSafeUrl(uri.OriginalString, out _))
         {
             RuntimeLog.Warn(LogCategory, $"Blocked attempt to launch unsafe URI: {uri}");
             return false;
         }
 
-        return LaunchValidatedUri(uri!);
-    }
-
-    internal static bool IsSafeUri(Uri? uri) =>
-        uri is { IsAbsoluteUri: true } &&
-        (uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
-         uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
-         uri.Scheme.Equals(Uri.UriSchemeMailto, StringComparison.OrdinalIgnoreCase) ||
-         uri.OriginalString.Equals("ms-settings:batterysaver", StringComparison.OrdinalIgnoreCase));
-
-    private static bool LaunchValidatedUri(Uri uri)
-    {
         if (!uri.Scheme.Equals("ms-settings", StringComparison.OrdinalIgnoreCase) &&
             !NetworkPrivacy.Current.IsAllowed(NetworkFeature.ExternalLinks)) return false;
 
