@@ -268,7 +268,9 @@ public sealed class GreetingAcceptanceTests
             settings.Save(options);
             var services = new ServiceCollection();
             ServiceConfigurator.ConfigureServices(services);
-            services.AddSingleton<ISettingsService>(settings);
+            // The fixture's provider owns the worker and drains queued saves before deleting its directory.
+            services.AddSingleton<ISettingsService>(_ => settings);
+            services.AddSingleton(_ => new VNotch.Services.Clipboard.ClipboardHistoryStore(System.IO.Path.Combine(_directory, "clipboard")));
             configureServices?.Invoke(services);
             _provider = services.BuildServiceProvider();
             Window = _provider.GetRequiredService<MainWindow>();

@@ -100,6 +100,7 @@ public partial class SpotlightWindow : Window
     internal ISpotlightMorphHost? MorphHostOverride { get; set; }
     internal bool SuppressForegroundActivationForTests { get; set; }
     internal bool IsSpotlightOpen => IsVisible && !_isParked;
+    internal event EventHandler? OpenStateChanged;
 
     internal SpotlightWindow(SpotlightViewModel viewModel, SpotlightLauncher launcher, NotchSettings? settings = null,
         SpotlightAiService? aiService = null, SpotlightChatStore? chatStore = null)
@@ -226,6 +227,10 @@ public partial class SpotlightWindow : Window
         SearchBox.Text = restoreQuery ? _lastDismissedQuery : string.Empty;
         if (restoreQuery) SearchBox.SelectAll();
         else if (!_aiMode) _ = _viewModel.SearchAsync(string.Empty);
+
+        // Search mode may have left the results list/status visible. Re-sync
+        // the whole surface so AI mode never reopens showing stale search UI.
+        if (_aiMode) RefreshAiPanel();
 
         _preparingGlassEntrance = true;
         ApplyLiquidGlassSkin();
@@ -572,6 +577,7 @@ public partial class SpotlightWindow : Window
         _unparkedWindowHitTesting = IsHitTestVisible;
         _unparkedWindowFocusable = Focusable;
         _isParked = true;
+        OpenStateChanged?.Invoke(this, EventArgs.Empty);
 
         Keyboard.ClearFocus();
         Focusable = false;
@@ -602,6 +608,7 @@ public partial class SpotlightWindow : Window
         IsHitTestVisible = _unparkedWindowHitTesting;
 
         _isParked = false;
+        OpenStateChanged?.Invoke(this, EventArgs.Empty);
         ApplyLiquidGlassSkin();
     }
 
@@ -1844,6 +1851,7 @@ public partial class SpotlightWindow : Window
         Shell.RenderTransformOrigin = new Point(0.5, 0.0);
         Shell.CacheMode = null;
         ShellContent.CacheMode = null;
+        Shell.Margin = MorphShellMargin;
         Shell.HorizontalAlignment = HorizontalAlignment.Center;
         Shell.VerticalAlignment = VerticalAlignment.Top;
         if (morphsFromNotch)
@@ -1988,6 +1996,7 @@ public partial class SpotlightWindow : Window
         Shell.RenderTransformOrigin = new Point(0.5, 0.0);
         Shell.CacheMode = null;
         ShellContent.CacheMode = null;
+        Shell.Margin = MorphShellMargin;
         Shell.HorizontalAlignment = HorizontalAlignment.Center;
         Shell.VerticalAlignment = VerticalAlignment.Top;
         ResetNotchMorphSnapshot();
@@ -2061,8 +2070,14 @@ public partial class SpotlightWindow : Window
         FocusSearchBox(generation);
     }
 
+    // The resting search surface remains 720 DIPs wide inside the wider HWND.
+    // Explicit morph widths need the full canvas, including the 920-DIP tray.
+    private static readonly Thickness RestingShellMargin = new(124, 16, 124, 0);
+    private static readonly Thickness MorphShellMargin = new(24, 16, 24, 0);
+
     private Size MeasureEntranceShell()
     {
+        Shell.Margin = RestingShellMargin;
         // Include the resting border in the target and keep it during the morph.
         // Adding it only at handoff grows the auto-height shell by two DIPs.
         Shell.BorderThickness = new Thickness(IsLiquidGlassEnabled ? 0 : 1);
@@ -2116,6 +2131,7 @@ public partial class SpotlightWindow : Window
         Shell.RenderTransformOrigin = new Point(0.5, 0.0);
         Shell.CacheMode = null;
         ShellContent.CacheMode = new BitmapCache { EnableClearType = false, SnapsToDevicePixels = true };
+        Shell.Margin = MorphShellMargin;
         Shell.HorizontalAlignment = HorizontalAlignment.Center;
         Shell.VerticalAlignment = VerticalAlignment.Top;
         AnimateMorphShadow(
@@ -2267,6 +2283,7 @@ public partial class SpotlightWindow : Window
         ShellContent.CacheMode = null;
         ShellContent.Effect = null;
         Shell.Effect = null;
+        Shell.Margin = RestingShellMargin;
         Shell.HorizontalAlignment = HorizontalAlignment.Stretch;
         // Top-aligned auto-height: the shell hugs its content inside the
         Shell.VerticalAlignment = VerticalAlignment.Top;
@@ -2326,6 +2343,7 @@ public partial class SpotlightWindow : Window
         Shell.CacheMode = null;
         ShellContent.CacheMode = null;
         ShellContent.Effect = null;
+        Shell.Margin = RestingShellMargin;
         Shell.HorizontalAlignment = HorizontalAlignment.Stretch;
         Shell.VerticalAlignment = VerticalAlignment.Top;
         Shell.Visibility = Visibility.Hidden;

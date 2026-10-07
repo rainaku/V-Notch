@@ -29,6 +29,14 @@ public class NotchSettings
     public int MonitorIndex { get; set; } = 0;
     public string MonitorDeviceId { get; set; } = "";
 
+    public bool HideCamera { get; set; } = false;
+    public bool ClipboardCaptureText { get; set; } = true;
+    public bool ClipboardCaptureImages { get; set; } = true;
+    public bool ClipboardCaptureFiles { get; set; } = true;
+    private int _clipboardCaptureDelay = 250;
+    public int ClipboardCaptureDelay { get => _clipboardCaptureDelay; set => _clipboardCaptureDelay = Math.Clamp(value, 100, 2000); }
+    public string ClipboardHotkey { get; set; } = "";
+
     public string CameraDeviceId { get; set; } = "";
     public string VisualizerAudioDeviceId { get; set; } = "";
     public string BatteryDeviceId { get; set; } = SystemBatteryDeviceId;
@@ -124,13 +132,8 @@ public class NotchSettings
     public bool EnableYouTubeSubtitles { get; set; } = true;
     public bool IgnoreYouTubeAutoSubtitles { get; set; } = false;
 
-    public bool IsShelfUploadLimitUnlocked { get; set; } = true;
 
-    public bool CopyShelfFilesToClipboard { get; set; } = false;
 
-    public bool EnableScreenshotTray { get; set; } = true;
-    public int ScreenshotTrayDurationSeconds { get; set; } = 8;
-    public string ScreenshotFolders { get; set; } = string.Empty;
 
     public bool EnableWeather { get; set; } = false;
     public string ManualCity { get; set; } = string.Empty;
@@ -145,9 +148,8 @@ public class NotchSettings
     public string Language { get; set; } = "en";
 
     public string ExpandedWidget { get; set; } = "clock";
-    public string NavTabOrder { get; set; } = "Media,Secondary,Timer,AudioMixer";
-    public string VisibleNavTabs { get; set; } = "Media,Secondary,Timer,AudioMixer";
-    public string ShelfWidget { get; set; } = "camera";
+    public string NavTabOrder { get; set; } = "Media,Secondary,Timer,AudioMixer,Camera";
+    public string VisibleNavTabs { get; set; } = "Media,Secondary,Timer,AudioMixer,Camera";
     public string ClockPageStyle { get; set; } = "analog";
 
     public string ProcessPriority { get; set; } = "Normal";
